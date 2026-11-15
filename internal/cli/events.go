@@ -15,7 +15,6 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
-	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -24,9 +23,9 @@ import (
 
 // eventsOptions are the events command's flags.
 type eventsOptions struct {
-	since  string
-	follow bool
-	form   formFlags
+	since, pool string
+	follow      bool
+	form        formFlags
 }
 
 func newEventsCommand(a *app) *cobra.Command {
@@ -43,6 +42,13 @@ files, so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d. -f, --follow then prints a line each time the router files
 one, a changed event again, whole, until interrupted.
+
+It lists one pool's events: a session's start or move, and a pin, by the
+pool each was filed in, one from before pools the first pool's; what befell
+an account, by the pool it's in now; and the router's own in every pool. ` + readingAPool + `
+Without a config to read, it lists every event.
+
+` + readingAKeptPool + `
 
 On a terminal, events prints its lines as text. Anywhere else, as in a pipe or
 an agent's shell, it prints each event as the router files it, with "schema": 1
@@ -62,6 +68,7 @@ stdout is.`,
 	}
 	cmd.Flags().StringVar(&opts.since, "since", "", "start at `WHEN`: "+sinceForms+" (default today's start)")
 	cmd.Flags().BoolVarP(&opts.follow, "follow", "f", false, "go on printing events as they're filed, until interrupted")
+	addPoolFlag(cmd, &opts.pool, "list the events of")
 	opts.form.add(cmd)
 	return cmd
 }
@@ -76,6 +83,10 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	if err := historyMoved(dir); err != nil {
 		return err
 	}
+	pool, pooled, err := a.eventsPool(ctx, dir, opts.pool)
+	if err != nil {
+		return err
+	}
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {
@@ -84,15 +95,37 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	var follower *eventsFollower
 	var today events.Tailed
 	if opts.follow {
-		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
-		today = follower.listing()
+		follower, today = a.eventsFollowing(dir, dayfile.DateOf(now))
 	}
-	printer := a.eventsPrinter(out, opts.form)
-	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
+	record := recordIn(dir)
+	printer := a.eventsPrinter(out, opts.form, status.PoolLabels(pooled.Pools, record), poolsNamed(pooled.Pools, record), pool.heading())
+	held := a.eventsHeld(pool, dir, printer.readFrom(from), startOfDay(now, -1), today)
 	if err := printer.list(held, from, now); err != nil || follower == nil {
 		return err
 	}
-	return follower.run(ctx, logs.PollEvery(a.FollowEvery), printer.follow)
+	return pool.followed(ctx, follower, logs.PollEvery(a.FollowEvery), printer.follow)
+}
+
+// eventsPool is how events reads the pool named, as filedPool has it, of the
+// files in the state directory dir, and the config as its pools stand, as
+// filedPool gives it, which labels and names the pools the events name.
+// Where the config can't be read, as events reads without one: before the
+// move to pools, every pool's, where none is named, of a config naming none;
+// once it's done, the pools are those the router routes for, else those the
+// accounts record keeps, as filedPool has them of a config naming none.
+func (a *app) eventsPool(ctx context.Context, dir, named string) (filedPool, *config.Config, error) {
+	cfg, err := a.loadConfig()
+	switch moved := a.poolsMoved(); {
+	case err != nil && !moved && named == "":
+		logger.Debug("can't load the config, so every pool's events are listed", "error", err)
+		return filedPool{}, &config.Config{}, nil
+	case err != nil && !moved:
+		return filedPool{}, nil, err
+	case err != nil:
+		logger.Debug("can't load the config, so the pools are the router's, else the accounts record's", "error", err)
+		cfg = &config.Config{}
+	}
+	return a.filedPool(ctx, cfg, dir, named)
 }
 
 // eventsPrinter prints the router's events in a form.
@@ -107,18 +140,23 @@ type eventsPrinter interface {
 }
 
 // eventsPrinter returns the printer of the form f chooses, printing to out,
-// its text naming accounts as accountNames names them.
-func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
+// its text naming accounts as accountNames names them, and pools as named
+// does, as Telling's NamingPools has it, under heading, as filedPool's
+// heading names the pool, its JSON labelling a pool as label does.
+func (a *app) eventsPrinter(out io.Writer, f formFlags, label, named func(pool string) string, heading string) eventsPrinter {
 	if a.printsJSON(f, out) {
-		return eventsJSON{out: out}
+		return eventsJSON{out: out, label: label}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.accountNames()}
+	telling := views.NewTelling(status.NameOfKey).NamingPools(named)
+	return &eventsText{out: out, now: a.Now, telling: telling, names: a.accountNames(), heading: heading}
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a
-// JSON object a line, fields a later release added included.
+// JSON object a line, fields a later release added included, and the label
+// of the pool it names, as label labels it.
 type eventsJSON struct {
-	out io.Writer
+	out   io.Writer
+	label func(pool string) string
 }
 
 // readFrom is from: an event printed as the router filed it tells nothing
@@ -141,7 +179,11 @@ func (p eventsJSON) follow(h events.Held) error {
 	if err != nil {
 		return fmt.Errorf("print an event: %w", err)
 	}
-	return writeStored(p.out, data)
+	var poolLabel string
+	if h.Pool != "" {
+		poolLabel = p.label(h.Pool)
+	}
+	return writeStoredInPool(p.out, data, poolLabel)
 }
 
 // eventsText prints the events as text, under the day each happened on, a
@@ -152,6 +194,9 @@ type eventsText struct {
 	telling *views.Telling
 	// names name the accounts the events name, as each row is told.
 	names status.Names
+	// heading names the pool the events are of, printed before the listing,
+	// as filedPool's heading has it.
+	heading string
 	// day is the day of the last heading printed: zero before one is. widths
 	// are the columns every row printed is aligned to: its time's as wide as
 	// prose.DatedWidth, and each as wide as the widest cell of the rows listed
@@ -168,6 +213,9 @@ func (*eventsText) readFrom(from time.Time) time.Time {
 }
 
 func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error {
+	if _, err := io.WriteString(p.out, p.heading); err != nil {
+		return err
+	}
 	var rows []views.EventRow
 	p.widths = []int{len(indent) + prose.DatedWidth()}
 	for h := range held {
@@ -207,111 +255,4 @@ func (p *eventsText) follow(h events.Held) error {
 // account and what happened, as views.Telling tells them.
 func eventRow(r views.EventRow, now time.Time) []string {
 	return []string{prose.Dated(now, r.At), status.ShortID(prose.Clean(r.Session)), r.Kind, r.Account.String(), r.What.String()}
-}
-
-// eventsFollower follows the router's events' files, a day's at a time, as
-// they grow, reading on from where it last ended.
-type eventsFollower struct {
-	files *dayfile.Files
-	now   func() time.Time
-	date  string
-	tail  *dayfile.Tail[events.Held]
-	// handed counts the lines of the day handed on, to the listing or
-	// printed, and read those read since its files were last read afresh.
-	handed, read int
-}
-
-// newEventsFollower returns a follower of files, the router's events', from
-// the start of the local day with the given date, today's, none of its lines
-// read yet: the listing reads them through it, as listing gives them, so it
-// follows on from exactly where the listing ended, and no line is printed
-// twice, nor missed.
-func newEventsFollower(files *dayfile.Files, today string, now func() time.Time) *eventsFollower {
-	f := &eventsFollower{files: files, now: now}
-	f.open(today)
-	return f
-}
-
-// listing is the day followed, as the listing reads it, through the
-// follower.
-func (f *eventsFollower) listing() events.Tailed {
-	return events.Tailed{Date: f.date, Read: func(take func(events.Held)) int {
-		f.readOn(take)
-		_, unread := f.tail.Lines()
-		return unread
-	}}
-}
-
-// open follows the files of the local day with the given date, none of its
-// lines handed on yet.
-func (f *eventsFollower) open(date string) {
-	f.date, f.tail, f.handed, f.read = date, dayfile.NewTail(f.files, date, events.HeldIn), 0, 0
-}
-
-// run hands print each line filed after those the follower began from,
-// every interval given, until ctx ends or print fails.
-func (f *eventsFollower) run(ctx context.Context, every time.Duration, print func(events.Held) error) error {
-	ticker := time.NewTicker(every)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			var err error
-			f.poll(func(h events.Held) {
-				if err == nil {
-					err = print(h)
-				}
-			})
-			if err != nil {
-				return err
-			}
-		}
-	}
-}
-
-// poll hands take each line filed since the last poll: the rest of the day
-// followed, then, a day at a time, each later day the router has filed
-// under, up to today, read to its end, the last of them followed from then
-// on.
-func (f *eventsFollower) poll(take func(events.Held)) {
-	for {
-		next := f.nextDay()
-		f.readOn(take)
-		if next == "" {
-			return
-		}
-		f.open(next)
-	}
-}
-
-// readOn hands take each line the day's files gained since the last read,
-// as a dayfile.Tail reads them. Lines are only ever appended to a day, so of
-// its files read afresh, from their start, as when the day is compressed,
-// as many as were handed on before are passed over.
-func (f *eventsFollower) readOn(take func(events.Held)) {
-	f.tail.Read(func() { f.read = 0 }, func(h events.Held) {
-		if f.read++; f.read <= f.handed {
-			return
-		}
-		f.handed++
-		take(h)
-	})
-}
-
-// nextDay is the date of the first day after the one followed, up to today
-// by the follower's clock, that the router has filed under: "" where there's
-// none yet.
-func (f *eventsFollower) nextDay() string {
-	_, end, ok := dayfile.Day(f.date)
-	if !ok {
-		return ""
-	}
-	for _, date := range dayfile.Span(end, f.now()) {
-		if _, err := f.files.Stat(date); err == nil {
-			return date
-		}
-	}
-	return ""
 }

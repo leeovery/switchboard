@@ -31,6 +31,7 @@ func main() {
 		Args:          os.Args,
 		HomeDir:       os.UserHomeDir,
 		Getwd:         os.Getwd,
+		FindProject:   launch.FindProject,
 		Executable:    os.Executable,
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion(os.Getenv, os.UserHomeDir, os.Executable),

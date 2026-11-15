@@ -44,14 +44,27 @@ var restartWords = map[string]string{
 	status.RestartForZone:    "the time zone changed",
 }
 
-// setFrom says where a pin was set or cleared from, by who did it, as an
-// event's By gives it, in the Log's words.
+// setFrom says where a pin was set or cleared from by hand, by who did it, as
+// an event's By gives it, in the Log's words.
 var setFrom = map[string]string{"cli": "the command line", "dashboard": "the dashboard"}
 
+// byRouter is the By of a pin the router cleared itself, which it does only
+// as the pools change, dropping one whose accounts have all left its pool,
+// or whose pool is gone, or one a later pin holds over as two come to be one
+// pool's; and clearedByRouter says so, in the Log's words.
+const (
+	byRouter        = "router"
+	clearedByRouter = "the router, as the pools changed"
+)
+
 // setBy says who set or cleared a pin, as an event's By gives it, after
-// what was set: ", set from the command line"; nothing for anyone else, or
+// what was set: ", set from the command line", as setFrom has it, or ",
+// cleared by the router, as the pools changed"; nothing for anyone else, or
 // no one.
 func setBy(by string) string {
+	if by == byRouter {
+		return ", cleared by " + clearedByRouter
+	}
 	if from, ok := setFrom[by]; ok {
 		return ", set from " + from
 	}
@@ -87,13 +100,18 @@ func restartHeld(e status.Event) string {
 	return prose.Clean(e.Held)
 }
 
-// forced says a global pin set or cleared with force cleared every
-// session's own pin too: nothing of one without.
-func forced(e status.Event) string {
-	if !e.Force {
+// forced says a pool's pin set or cleared with force cleared the own pins
+// of its sessions too, naming the pool where there are several, as the
+// event's fact f has it, else every session's: nothing of one without.
+func forced(e status.Event, f eventFact) string {
+	switch {
+	case !e.Force:
 		return ""
+	case f.pool == "":
+		return ", every session's own pin cleared too"
+	default:
+		return ", the own pins of " + prose.Pool(f.pool) + "'s sessions cleared too"
 	}
-	return ", every session's own pin cleared too"
 }
 
 // Telling tells the router's events as their lines, oldest first, as they're
@@ -110,6 +128,15 @@ type Telling struct {
 // does, as "5-hour" or "Week", with no event told yet.
 func NewTelling(window func(key string) string) *Telling {
 	return &Telling{facts: eventFacts{name: window}}
+}
+
+// NamingPools has t name the pool whose sessions' own pins a pin set or
+// cleared with force cleared, by the label label gives it by its id, as
+// where the events may be of several pools; nil, as where they're of one
+// pool's alone, names none, the pin clearing every session's. It returns t.
+func (t *Telling) NamingPools(label func(id string) string) *Telling {
+	t.facts.pool = label
+	return t
 }
 
 // Line is the event e's line, its times in now's time zone, as the Log's
@@ -249,7 +276,7 @@ func loggedRoom(e status.Event, f eventFact, _ time.Time) (status.Words, status.
 // sessions go there", or with its move, "new and running sessions go
 // there", with force, every session's own pin cleared too; or a session's
 // own pin's account, "this session goes there"; and who set it, as setBy says.
-func loggedPin(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
+func loggedPin(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
 	if e.Session != "" {
 		return account(e.Account), clause("this session goes there" + setBy(e.By))
 	}
@@ -257,7 +284,7 @@ func loggedPin(e status.Event, _ eventFact, _ time.Time) (status.Words, status.W
 	if e.Move {
 		what = "new and running sessions go there"
 	}
-	return pinAccounts(e), clause(what + forced(e) + setBy(e.By))
+	return pinAccounts(e), clause(what + forced(e, f) + setBy(e.By))
 }
 
 // loggedAuto tells of routing given back to the router: "new sessions back
@@ -265,7 +292,7 @@ func loggedPin(e status.Event, _ eventFact, _ time.Time) (status.Words, status.W
 // session back from side to the router's choice"; the global pin's with
 // force, every session's own pin cleared too; and who did it, as setBy says.
 // It names no account in the account column.
-func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
+func loggedAuto(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
 	who, from := "new sessions back", e.Accounts
 	if e.Session != "" {
 		who, from = "this session back", []string{e.Account}
@@ -275,7 +302,7 @@ func loggedAuto(e status.Event, _ eventFact, _ time.Time) (status.Words, status.
 		what = append(what, status.Plain(" from "))
 		what = append(what, joined(names, prose.And)...)
 	}
-	return nil, append(what, status.Plain(" to the router's choice"+forced(e)+setBy(e.By)))
+	return nil, append(what, status.Plain(" to the router's choice"+forced(e, f)+setBy(e.By)))
 }
 
 // loggedRestart tells of a restart falling due, or held, as restartSaid says:

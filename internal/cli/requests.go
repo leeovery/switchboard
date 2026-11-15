@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"iter"
@@ -21,8 +22,8 @@ import (
 
 // requestsOptions are the requests command's flags.
 type requestsOptions struct {
-	session, account, since string
-	form                    formFlags
+	session, account, since, pool string
+	form                          formFlags
 }
 
 // idFlags are the flags that take an id, and what each is the id of, for the
@@ -45,18 +46,27 @@ ago, as 3h or 2d. --session keeps a session's own requests, named by its id or
 as much of it as is unique among the sessions read, and --account an
 account's, by its id: a label is refused.
 
+It lists one pool's requests, each by the pool it was routed in at the time,
+one from before pools the first pool's. ` + readingAPool + ` A session's
+requests are those in the pool it's in now, the one its newest request was
+routed in, and an account's those in the pool it's in now, or with --pool,
+in that pool alone, never every pool's together.
+
+` + readingAKeptPool + `
+
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, with "schema": 1
 put first, a JSON object a line, for an agent or a script to read. --json
 prints the JSON, and --pretty the text, wherever stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.requests(cmd.OutOrStdout(), opts)
+			return a.requests(cmd.Context(), cmd.OutOrStdout(), opts)
 		},
 	}
 	cmd.Flags().StringVar(&opts.session, "session", "", "keep session `ID`'s requests")
 	cmd.Flags().StringVar(&opts.account, "account", "", "keep account `ID`'s requests")
 	cmd.Flags().StringVar(&opts.since, "since", "", "start at `WHEN`: "+sinceForms+" (default today's start)")
+	addPoolFlag(cmd, &opts.pool, "list the requests of")
 	opts.form.add(cmd)
 	return cmd
 }
@@ -97,13 +107,6 @@ func (a *app) ledgerState() (*config.Config, string, error) {
 	return cfg, dir, nil
 }
 
-// ledgerReader returns a reader of the request ledger in the state directory
-// dir, by the clock now, which summarises days with the caps of the accounts
-// cfg configures.
-func ledgerReader(dir string, cfg *config.Config, now func() time.Time) *ledger.Reader {
-	return ledger.NewReader(dir, now, caps(cfg), logger)
-}
-
 // pricing is the price table, cfg's prices in place of its own, warning of
 // each model cfg prices that the table doesn't know but whose every price it
 // doesn't give, which is left unpriced.
@@ -116,44 +119,117 @@ func pricing(cfg *config.Config) ledger.Table {
 	return table
 }
 
+// requestsRead is what requests reads as its options ask: the pool whose
+// lines it reads, the config as its pools stand, and whether the pool is
+// still to be told by the lines read, as linesIn tells it.
+type requestsRead struct {
+	pool   filedPool
+	cfg    *config.Config
+	untold bool
+}
+
+// requestsPool returns what requests reads as opts ask, of the files in the
+// state directory dir: the pool named, else the one the verbs act on, as
+// filedPool has it of cfg. A verb given a session or an account, and no
+// pool, reads the pool it's in now, cfg as pooledConfig has it, failing
+// where the pools can't be told: a session's, told by its lines; an
+// account's, as accountIn places it, else told by its lines.
+func (a *app) requestsPool(ctx context.Context, cfg *config.Config, dir string, opts requestsOptions) (requestsRead, error) {
+	if opts.pool != "" || opts.session == "" && opts.account == "" {
+		pool, pooled, err := a.filedPool(ctx, cfg, dir, opts.pool)
+		return requestsRead{pool: pool, cfg: pooled}, err
+	}
+	pooled, err := a.pooledConfig(ctx, cfg)
+	if err != nil {
+		return requestsRead{}, err
+	}
+	if opts.session != "" {
+		return requestsRead{cfg: pooled, untold: true}, nil
+	}
+	pool, placed, err := a.accountIn(pooled, dir, opts.account)
+	return requestsRead{pool: pool, cfg: pooled, untold: !placed}, err
+}
+
 // requests prints the ledger's lines as opts ask.
-func (a *app) requests(out io.Writer, opts requestsOptions) error {
+func (a *app) requests(ctx context.Context, out io.Writer, opts requestsOptions) error {
 	cfg, dir, err := a.ledgerState()
 	if err != nil {
 		return err
 	}
-	reader := ledgerReader(dir, cfg, a.Now)
+	read, err := a.requestsPool(ctx, cfg, dir, opts)
+	if err != nil {
+		return err
+	}
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {
 		return err
 	}
-	names := sync.OnceValue(func() status.Names { return namesIn(dir, cfg) })
+	names := sync.OnceValue(func() status.Names { return namesIn(dir, read.cfg) })
 	if opts.account != "" {
 		if err := notALabel(names(), opts.account); err != nil {
 			return err
 		}
 	}
-	lines := reader.Lines(from)
-	if opts.session != "" {
-		named, held := views.NamedLines(lines, opts.session)
-		if named.Several != nil {
-			return several(opts.session, named.Several)
-		}
-		lines = slices.Values(held)
+	lines, pool, err := a.requested(read, dir, opts, from)
+	if err != nil {
+		return err
 	}
-	lines = views.OnAccount(lines, opts.account)
 	if a.printsJSON(opts.form, out) {
-		return writeLines(out, lines)
+		return writeLines(out, lines, poolLabelsIn(dir, read.cfg))
+	}
+	if _, err := io.WriteString(out, pool.heading()); err != nil {
+		return err
 	}
 	return writeRequests(out, views.RequestLines(lines, names()), from, now)
 }
 
+// requested are the lines of the files in the state directory dir that
+// requests prints, read as read has them, arrived from from on, kept as
+// opts ask, and the pool they're of: of a pool still to be told, every
+// pool's lines, those of the pool the lines telling it tell, as linesIn has
+// them. It fails where a session is named by the start of several
+// sessions' ids, and where the pool told can't be read.
+func (a *app) requested(read requestsRead, dir string, opts requestsOptions, from time.Time) (iter.Seq[ledger.Held], filedPool, error) {
+	pool := read.pool
+	lines := a.requestLines(pool, dir, read.cfg, from)
+	if opts.session != "" {
+		named, held := views.NamedLines(lines, opts.session)
+		if named.Several != nil {
+			return nil, pool, several(opts.session, named.Several)
+		}
+		lines = slices.Values(held)
+	}
+	if read.untold {
+		held, told, err := a.linesIn(read.cfg, dir, slices.Collect(telling(lines, opts)))
+		if err != nil {
+			return nil, pool, err
+		}
+		lines, pool = slices.Values(held), told
+	}
+	return views.OnAccount(lines, opts.account), pool, nil
+}
+
+// telling are those of lines that tell the pool a verb given a session or
+// an account, and no pool, reads: all of them, a session's, where one is
+// given, as a session's pool now is its own, whatever account is given
+// beside it; else the account's.
+func telling(lines iter.Seq[ledger.Held], opts requestsOptions) iter.Seq[ledger.Held] {
+	if opts.session != "" {
+		return lines
+	}
+	return views.OnAccount(lines, opts.account)
+}
+
 // writeLines writes each of lines as the ledger holds it, its schema first, a
-// line each.
-func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
+// line each, the label of the pool it names after it, as label labels it.
+func writeLines(out io.Writer, lines iter.Seq[ledger.Held], label func(pool string) string) error {
 	for h := range lines {
-		if err := writeStored(out, h.JSON); err != nil {
+		var poolLabel string
+		if h.Pool != "" {
+			poolLabel = label(h.Pool)
+		}
+		if err := writeStoredInPool(out, h.JSON, poolLabel); err != nil {
 			return err
 		}
 	}

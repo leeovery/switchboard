@@ -164,6 +164,11 @@ func (m Model) typedIn(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // each card's pasted has it; or the Priming page's.
 func (m Model) pasted(text string) Model {
 	switch {
+	case m.newPool != nil:
+		if !m.newPool.checking {
+			card := m.newPool.pasted(text)
+			m.newPool = &card
+		}
 	case m.add != nil && !m.add.checking:
 		card := m.add.pasted(text)
 		m.add = &card

@@ -55,32 +55,33 @@ func todaysSessions() daySessions {
 const startedBack = 31
 
 // ReadSessionDays reads the sessions of each day from from's to the day
-// before now's, oldest first, as DaySessionsOn reads each: of today's none
-// yet, for the ledger's tail to give, as Tailed takes them, or as Joined
-// joins the days read to those the tail fed. It walks back
-// from the day before from's, as begunBefore has it, for when the sessions
-// running into the first day began, so a session's start is its first
-// request wherever it fell. Each day is read whole at now.
-func ReadSessionDays(l Ledger, from, now time.Time) SessionDays {
+// before now's in the pool read p, oldest first, as DaySessionsOn reads
+// each: of today's none yet, for the ledger's tail to give, as Tailed takes
+// them, or as Joined joins the days read to those the tail fed. It walks
+// back from the day before from's, as begunBefore has it, for when the
+// sessions running into the first day began, so a session's start is its
+// first request in the pool wherever it fell. Each day is read whole at
+// now.
+func ReadSessionDays(l Ledger, from, now time.Time, p PoolRead) SessionDays {
 	d := SessionDays{today: Today(now), held: todaysSessions(), first: dayfile.DateOf(from)}
 	for _, date := range dayfile.Span(from, dayfile.DayStart(now.Local(), -1)) {
-		d.days = append(d.days, sessionDay{date: date, sessions: DaySessionsOn(l, date), at: now})
+		d.days = append(d.days, sessionDay{date: date, sessions: DaySessionsOn(l, date, p), at: now})
 	}
 	var first []DaySession
 	if len(d.days) > 0 {
 		first = d.days[0].sessions
 	}
-	d.begun = begunBefore(l, dayfile.DayStart(score.Earlier(from, now).Local(), -1), first, len(d.days) > 0)
+	d.begun = begunBefore(l, p, dayfile.DayStart(score.Earlier(from, now).Local(), -1), first, len(d.days) > 0)
 	return d
 }
 
-// begunBefore are the first requests of the sessions that ran into the day
-// after the one day starts, by their ids, as DaySessionsOn reads each day
-// from day's back, while any of them ran on the day after it, startedBack
-// days at most: those of the sessions given where some are, as of a day
-// read, else of every session of day's, as of today, whose sessions the tail
-// gives.
-func begunBefore(l Ledger, day time.Time, after []DaySession, read bool) map[string]time.Time {
+// begunBefore are the first requests in the pool read p of the sessions
+// that ran into the day after the one day starts, by their ids, as
+// DaySessionsOn reads each day from day's back, while any of them ran on the
+// day after it, startedBack days at most: those of the sessions given where
+// some are, as of a day read, else of every session of day's, as of today,
+// whose sessions the tail gives.
+func begunBefore(l Ledger, p PoolRead, day time.Time, after []DaySession, read bool) map[string]time.Time {
 	var running map[string]bool
 	if read {
 		running = make(map[string]bool, len(after))
@@ -91,7 +92,7 @@ func begunBefore(l Ledger, day time.Time, after []DaySession, read bool) map[str
 	begun := make(map[string]time.Time)
 	for range startedBack {
 		ran := make(map[string]bool)
-		for _, s := range DaySessionsOn(l, dayfile.DateOf(day)) {
+		for _, s := range DaySessionsOn(l, dayfile.DateOf(day), p) {
 			if running == nil || running[s.ID] {
 				ran[s.ID] = true
 				if !s.FirstRequest.IsZero() {
@@ -129,7 +130,8 @@ func (d SessionDays) Owed(now time.Time) []string {
 	return slices.Compact(owed)
 }
 
-// Tailed is d at now, given what the ledger's tail read: gained, today's
+// Tailed is d at now, given what the ledger's tail read, of which it takes
+// the lines of the pool read p alone, as p's Held has them: gained, today's
 // lines gained since its mark, every one of today's where afresh says, as
 // Ledger's Today gives them; read, the dates of the days before today it
 // read again whole, as Owed names the days d needs; and late, their lines,
@@ -140,7 +142,7 @@ func (d SessionDays) Owed(now time.Time) []string {
 // lines, whole, read at now, in place of what d held of it, owed no more,
 // whatever it held. Lines gained that arrived on another day than today are
 // the late read's of their day, and are passed over.
-func (d SessionDays) Tailed(gained []ledger.Held, afresh bool, read []string, late map[string][]ledger.Held, now time.Time) SessionDays {
+func (d SessionDays) Tailed(gained []ledger.Held, afresh bool, read []string, late map[string][]ledger.Held, now time.Time, p PoolRead) SessionDays {
 	today := Today(now)
 	switch {
 	case d.turned(now):
@@ -156,10 +158,10 @@ func (d SessionDays) Tailed(gained []ledger.Held, afresh bool, read []string, la
 	slices.Sort(dates)
 	for _, date := range slices.Compact(dates) {
 		if date < today.Date {
-			d.days = withDay(d.days, sessionDay{date: date, sessions: DaySessions(RecordsOf(late[date])), at: now})
+			d.days = withDay(d.days, sessionDay{date: date, sessions: DaySessions(RecordsOf(p.Held(late[date]))), at: now})
 		}
 	}
-	records := slices.DeleteFunc(RecordsOf(gained).records, func(r lineRecord) bool { return dayfile.DateOf(r.arrived()) != today.Date })
+	records := slices.DeleteFunc(RecordsOf(p.Held(gained)).records, func(r lineRecord) bool { return dayfile.DateOf(r.arrived()) != today.Date })
 	if len(records) > 0 {
 		d.held, d.folds = d.held.with(records), d.folds+1
 	}

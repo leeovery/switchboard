@@ -85,13 +85,13 @@ func (m Model) readAsked() (Model, tea.Cmd) {
 }
 
 // readSession reads, as a command, the page the asked'th open asked for: the
-// lines of the session with the given id, and every account's requests on
-// its days, as views.ReadPage reads them through the ledger at now, pinned
-// as the stream tells, priced at the config's prices and kept as [ledger]
-// keep keeps them, as HoldPage reads it; none, where the watch reads no
-// ledger.
+// lines of the session with the given id in the pool shown, and every
+// account's requests on its days, as views.ReadPage reads them through the
+// ledger's sessions in the pool at now, pinned as the stream tells, priced
+// at the config's prices and kept as [ledger] keep keeps them, as HoldPage
+// reads it; none, where the watch reads no ledger.
 func (m Model) readSession(asked int, id string) tea.Cmd {
-	l, prices, keep, now := m.cfg.Ledger, m.cfg.Prices, m.cfg.LedgerKeep, m.now()
+	l, prices, keep, now := m.ledgerSessions(), m.cfg.Prices, m.cfg.LedgerKeep, m.now()
 	stream := m.traffic.stream(now)
 	return func() tea.Msg {
 		if l == nil {

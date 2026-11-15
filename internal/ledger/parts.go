@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
 // partsPrefix and partsSuffix begin and end the name of a day's parts file,
@@ -78,30 +80,45 @@ func compactMember(data json.RawMessage) ([]byte, error) {
 	return memberOf(compact.Bytes()), nil
 }
 
-// partsFileOf returns the parts file of parts, the parts of sessions by their
-// ids: each session's part's member, then its times', in the order of the
-// sessions' ids, as membersOf lays them out, so the same parts make the same
-// file, byte for byte; and where each session's part lies in it, by its id,
-// on the date its part gives.
-func partsFileOf(parts map[string]builtPart) ([]byte, map[string]PartRef) {
-	ids := slices.Sorted(maps.Keys(parts))
+// stateKey is one of the states a digest's entry holds: of the session with
+// the id id, apart 0 for its own, i for the ith of its states apart, as
+// DigestEntry's Apart orders them.
+type stateKey struct {
+	id    string
+	apart int
+}
+
+// compare orders k and o by their sessions' ids, then each session's own
+// state before its states apart, in their order.
+func (k stateKey) compare(o stateKey) int {
+	return cmp.Or(strings.Compare(k.id, o.id), cmp.Compare(k.apart, o.apart))
+}
+
+// partsFileOf returns the parts file of parts, the parts of the states of
+// sessions, as stateKey keys them: each state's part's member, then its
+// times', in the order compare gives, as membersOf lays them out, so the
+// same parts make the same file, byte for byte, and one of sessions of one
+// pool each is laid out as it was before pools; and where each state's part
+// lies in it, as its key keys it, on the date its part gives.
+func partsFileOf(parts map[stateKey]builtPart) ([]byte, map[stateKey]PartRef) {
+	keys := slices.SortedFunc(maps.Keys(parts), stateKey.compare)
 	var members [][]byte
-	for _, id := range ids {
-		members = append(members, parts[id].part)
-		if parts[id].times != nil {
-			members = append(members, parts[id].times)
+	for _, k := range keys {
+		members = append(members, parts[k].part)
+		if parts[k].times != nil {
+			members = append(members, parts[k].times)
 		}
 	}
 	file, at := membersOf(members)
-	refs := make(map[string]PartRef, len(parts))
-	for _, id := range ids {
-		ref := PartRef{On: parts[id].on, Member: at[0]}
+	refs := make(map[stateKey]PartRef, len(parts))
+	for _, k := range keys {
+		ref := PartRef{On: parts[k].on, Member: at[0]}
 		at = at[1:]
-		if parts[id].times != nil {
+		if parts[k].times != nil {
 			times := at[0]
 			ref.Times, at = &times, at[1:]
 		}
-		refs[id] = ref
+		refs[k] = ref
 	}
 	return file, refs
 }

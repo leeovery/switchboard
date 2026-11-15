@@ -1,6 +1,7 @@
 package dayfile
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -314,6 +315,82 @@ func TestADayTheFilesHoldGainsTheStagedLinesItDoesntHold(t *testing.T) {
 			}
 			if tt.in.compressed && membersIn(t, []byte(after[in].data)) != len(tt.members)+1 {
 				t.Errorf("%s holds %d members, want one more than its %d", in, membersIn(t, []byte(after[in].data)), len(tt.members))
+			}
+		})
+	}
+}
+
+func TestAStagedLineOfAKeyTheDayHoldsIsntAddedTheLineHeldStanding(t *testing.T) {
+	const date = "2026-09-25"
+	moved, another, unpooled := `{"n":1,"pool":"b2n8"}`, `{"n":1,"pool":"q7mt"}`, `{"n":1}`
+	tests := []struct {
+		name string
+		// key is whether the files are keyed without their lines' pools, held
+		// the day's lines and staged those staged; want the lines the day
+		// reads after, and added how many were added.
+		key          bool
+		held, staged []string
+		want         []string
+		added        int
+	}{
+		{name: "in another pool", key: true, held: []string{moved}, staged: []string{another}, want: []string{moved}},
+		{name: "in a pool, the day's in none", key: true, held: []string{unpooled}, staged: []string{another}, want: []string{unpooled}},
+		{name: "in none, the day's in a pool", key: true, held: []string{moved}, staged: []string{unpooled}, want: []string{moved}},
+		{
+			name: "staged twice, the day holding it once", key: true, held: []string{moved}, staged: []string{another, another},
+			want: []string{moved, another}, added: 1,
+		},
+		{
+			name: "of another line", key: true, held: []string{moved}, staged: []string{`{"n":2,"pool":"q7mt"}`},
+			want: []string{moved, `{"n":2,"pool":"q7mt"}`}, added: 1,
+		},
+		{
+			name: "in another pool, the files keyed by the line whole", held: []string{moved}, staged: []string{another},
+			want: []string{moved, another}, added: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := requestLedger(t.TempDir())
+			if tt.key {
+				f.Key = Without("pool")
+			}
+			lay(t, f, date, nil, linesOf(tt.held...))
+
+			got := taking(t, f, stage(t, date, gzipOf(t, linesOf(tt.staged...))), start, twoWeeks)
+			if want := (Imported{Taken: Merged, Lines: tt.added}); got != want {
+				t.Errorf("take(%s) = %+v, want %+v", date, got, want)
+			}
+			if read, _, _ := wholeDay(f, date); !slices.Equal(read, tt.want) {
+				t.Errorf("the day reads %q, want %q", read, tt.want)
+			}
+		})
+	}
+}
+
+func TestWithoutIsALineWithoutTheMemberOfItsNameTheRestAsItWas(t *testing.T) {
+	tests := []struct {
+		name, line string
+		// want is the key, "" where it's the line itself.
+		want string
+	}{
+		{name: "after another", line: `{"at":1,"pool":"b2n8","n":2}`, want: `{"at":1,"n":2}`},
+		{name: "last", line: `{"at":1,"pool":"b2n8"}`, want: `{"at":1}`},
+		{name: "first", line: `{"pool":"b2n8","n":2}`, want: `{"n":2}`},
+		{name: "first, spaced", line: `{ "pool" : "b2n8" , "n":2}`, want: `{ "n":2}`},
+		{name: "alone", line: `{"pool":"b2n8"}`, want: `{}`},
+		{name: "named twice, the first", line: `{"pool":"b2n8","pool":"q7mt"}`, want: `{"pool":"q7mt"}`},
+		{name: "of none", line: `{"at":1,"n":2}`},
+		{name: "in an object within", line: `{"at":1,"x":{"pool":"b2n8"}}`},
+		{name: "cut short", line: `{"pool":"b2n8","n":`},
+		{name: "not an object", line: `["pool","b2n8"]`},
+		{name: "of two objects", line: `{"pool":"b2n8"}{"n":1}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			want := cmp.Or(tt.want, tt.line)
+			if got := string(Without("pool")([]byte(tt.line))); got != want {
+				t.Errorf("Without(pool)(%s) = %s, want %s", tt.line, got, want)
 			}
 		})
 	}

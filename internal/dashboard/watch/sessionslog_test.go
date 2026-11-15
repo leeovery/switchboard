@@ -167,9 +167,9 @@ func TestTheListsLogIsBuiltOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	}
 }
 
-// A session running pinned to the account it's on reads "pinned here" on
-// the List as the router lists the pin, though no line of the ledger tells
-// of it; unpinned, it no longer does, as soon.
+// A session running pinned to the account it's on reads "pinned" on the
+// List as the router lists the pin, though no line of the ledger tells of
+// it; unpinned, it no longer does, as soon.
 func TestAPinOfASessionRunningIsDrawnAsTheRouterListsIt(t *testing.T) {
 	h := listHarness(t, Size{Width: 160, Height: 50})
 	running(h, alphaSecond, "/code/alpha")
@@ -182,8 +182,8 @@ func TestAPinOfASessionRunningIsDrawnAsTheRouterListsIt(t *testing.T) {
 		if got := h.model.sessionDays.fed; got != fed {
 			t.Fatalf("the tail fed the days %d times, want none, the pin told by the router alone", got-fed)
 		}
-		if pinned := strings.Contains(h.view(), "pinned here"); pinned != step.pinned {
-			t.Errorf("the router listing it %q, the List says pinned here %t, want %t:\n%s", step.reason, pinned, step.pinned, h.view())
+		if pinned := strings.Contains(h.view(), "pinned"); pinned != step.pinned {
+			t.Errorf("the router listing it %q, the List says pinned %t, want %t:\n%s", step.reason, pinned, step.pinned, h.view())
 		}
 	}
 }

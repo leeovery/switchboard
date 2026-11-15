@@ -130,7 +130,7 @@ func pageless(t *testing.T, f ledger.Folded) ledger.Folded {
 func (c *digestChain) checkRested(now time.Time, rest ledger.Rest, dates ...string) {
 	c.t.Helper()
 	follower := ledger.NewFollower(c.state, func() time.Time { return now }, ledger.CapsOf(nil, nil), DigestVersion, quiet)
-	from := follower.SessionsOf([]string{"s"}, func(string) ledger.Rest { return rest }, nil)["s"]
+	from := follower.SessionsOf(nil, []string{"s"}, func(string) ledger.Rest { return rest }, nil)["s"]
 	var chain []string
 	for _, p := range from.Parts {
 		chain = append(chain, p.Date)

@@ -36,6 +36,10 @@ var (
 	accountHeaderLine = regexp.MustCompile(`^\[\[\s*(?:account|"account"|'account')\s*\]\]\s*(?:#.*)?$`)
 	primaryKeyLine    = regexp.MustCompile(`^(?:primary|"primary"|'primary')\s*=`)
 	primeHeaderLine   = regexp.MustCompile(`^\[\s*(?:prime|"prime"|'prime')\s*\]\s*(?:#.*)?$`)
+	poolHeaderLine    = regexp.MustCompile(`^\[\[\s*(?:pool|"pool"|'pool')\s*\]\]\s*(?:#.*)?$`)
+	// keyLead matches the key a line sets, bare or quoted, and the space
+	// between it and its =.
+	keyLead = regexp.MustCompile(`^([A-Za-z0-9_-]+|"[^"]*"|'[^']*')(\s*)=`)
 	// multilineOpening matches a key whose value opens a string that can go
 	// on over lines, capturing the quotes that open it and what follows them.
 	multilineOpening = regexp.MustCompile(`^[^=]*=\s*("""|''')(.*)$`)
@@ -189,6 +193,18 @@ func (d document) accounts() []span {
 	return tables
 }
 
+// pools returns the span of each [[pool]] table, in the order they come, as
+// accounts has each [[account]] table's.
+func (d document) pools() []span {
+	var tables []span
+	for i, k := range d.kinds {
+		if k == header && poolHeaderLine.MatchString(strings.TrimSpace(d.lines[i])) {
+			tables = append(tables, d.table(i))
+		}
+	}
+	return tables
+}
+
 // table returns the span of the table whose header is line h.
 func (d document) table(h int) span {
 	next := d.nextTable(h)
@@ -253,6 +269,15 @@ func (d document) newAccountAt() int {
 		return d.commentsAbove(i)
 	}
 	return len(d.kinds)
+}
+
+// newPoolAt returns where a new [[pool]] table goes: after the last pool's,
+// else where a new account's would.
+func (d document) newPoolAt() int {
+	if tables := d.pools(); len(tables) > 0 {
+		return tables[len(tables)-1].end
+	}
+	return d.newAccountAt()
 }
 
 // insert returns the document with lines put in at line at, a blank line
@@ -339,13 +364,35 @@ func (d document) withKey(s span, key, value string) document {
 	case value == "":
 		return d
 	}
-	return d.putKey(s, key+" = "+value)
+	return d.putKey(s, key, value)
 }
 
-// putKey returns the document with line, a key and its value, put below the
-// last key of the table within s, indented as the table's first key is.
-func (d document) putKey(s span, line string) document {
-	return d.put(d.keysEnd(s), d.keyIndent(s)+line)
+// putKey returns the document with a line setting key to value put below the
+// last key of the table within s, indented as the table's first key is, and
+// lined up with its keys where they're lined up, as tableLines lines up the
+// keys of a table it writes.
+func (d document) putKey(s span, key, value string) document {
+	return d.put(d.keysEnd(s), d.keyIndent(s)+fmt.Sprintf("%-*s = %s", d.keyWidth(s), key, value))
+}
+
+// keyWidth returns the width the keys of the table within s are padded to,
+// before the space ahead of each one's =, where every one is padded alike,
+// as tableLines pads them: else, or where it has none, 0.
+func (d document) keyWidth(s span) int {
+	width := -1
+	for i := s.start; i < s.end; i++ {
+		lead := keyLead.FindStringSubmatch(strings.TrimSpace(d.lines[i]))
+		if d.kinds[i] != content && d.kinds[i] != primaryKey || lead == nil {
+			continue
+		}
+		switch padded := len(lead[1]) + len(lead[2]) - 1; {
+		case width < 0:
+			width = padded
+		case padded != width:
+			return 0
+		}
+	}
+	return max(width, 0)
 }
 
 // keyIndent returns the whitespace the first key of the table within s is
@@ -391,19 +438,51 @@ func withValue(line, value string) string {
 }
 
 // valueEnd returns the length of the value text starts with: a string's, as
-// stringEnd has it; -1 for an array or an inline table; else a bare value's,
-// such as a number's, up to the whitespace or the comment after it.
+// stringEnd has it; an array's, as arrayEnd has it; -1 for an inline table;
+// else a bare value's, such as a number's, up to the whitespace or the
+// comment after it.
 func valueEnd(text string) int {
 	switch {
 	case strings.HasPrefix(text, `"`), strings.HasPrefix(text, `'`):
 		return stringEnd(text)
-	case strings.HasPrefix(text, "["), strings.HasPrefix(text, "{"):
+	case strings.HasPrefix(text, "["):
+		return arrayEnd(text)
+	case strings.HasPrefix(text, "{"):
 		return -1
 	}
 	if end := strings.IndexAny(text, " \t\r#"); end >= 0 {
 		return end
 	}
 	return len(text)
+}
+
+// arrayEnd returns the length of the array text starts with, its brackets
+// included, when it ends on the one line, as a pool's dirs are written: the
+// strings within it passed over, as stringEnd has them, so a bracket or a
+// hash in one is the string's. It's -1 for an array that goes on past the
+// line: one with a comment in it, or a string in it that goes on past the
+// line.
+func arrayEnd(text string) int {
+	depth := 0
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '"', '\'':
+			end := stringEnd(text[i:])
+			if end < 0 {
+				return -1
+			}
+			i += end - 1
+		case '[':
+			depth++
+		case ']':
+			if depth--; depth == 0 {
+				return i + 1
+			}
+		case '#':
+			return -1
+		}
+	}
+	return -1
 }
 
 // stringEnd returns the length of the string text starts with, its quotes
@@ -472,28 +551,64 @@ func (d document) cut(s span) document {
 	return left
 }
 
-// lines returns the lines of the account's [[account]] table, its keys lined
-// up as Example lines them up.
+// lines returns the lines of the account's [[account]] table, as tableLines
+// writes them.
 func (a NewAccount) lines() []string {
-	keys := [][2]string{{"id", quote(a.ID)}}
-	if a.Label != "" {
-		keys = append(keys, [2]string{"label", quote(a.Label)})
-	}
-	if a.Plan != "" {
-		keys = append(keys, [2]string{"plan", quote(a.Plan)})
-	}
-	if a.Primary {
-		keys = append(keys, [2]string{"primary", "true"})
-	}
+	return tableLines("[[account]]", [][2]string{
+		{"id", quote(a.ID)},
+		{"label", written(a.Label)},
+		{"pool", written(a.Pool)},
+		{"plan", written(a.Plan)},
+		{"primary", writtenTrue(a.Primary)},
+	})
+}
+
+// lines returns the lines of the pool's [[pool]] table, as tableLines writes
+// them.
+func (p NewPool) lines() []string {
+	return tableLines("[[pool]]", [][2]string{
+		{"id", quote(p.ID)},
+		{"label", written(p.Label)},
+		{"dirs", writtenDirs(p.Dirs)},
+	})
+}
+
+// tableLines returns the lines of a table, header, then each of keys, each a
+// key and its value as TOML writes it, but those with no value, lined up as
+// Example lines them up.
+func tableLines(header string, keys [][2]string) []string {
+	keys = slices.DeleteFunc(slices.Clone(keys), func(kv [2]string) bool { return kv[1] == "" })
 	width := 0
 	for _, kv := range keys {
 		width = max(width, len(kv[0]))
 	}
-	lines := []string{"[[account]]"}
+	lines := []string{header}
 	for _, kv := range keys {
 		lines = append(lines, fmt.Sprintf("%-*s = %s", width, kv[0], kv[1]))
 	}
 	return lines
+}
+
+// writtenTrue returns true as TOML writes it, or "" for false, which
+// tableLines leaves out.
+func writtenTrue(b bool) string {
+	if !b {
+		return ""
+	}
+	return "true"
+}
+
+// writtenDirs returns dirs as TOML writes them, an array of basic strings on
+// one line, or "" for none, which withKey takes to mean the key goes.
+func writtenDirs(dirs []string) string {
+	if len(dirs) == 0 {
+		return ""
+	}
+	quoted := make([]string, len(dirs))
+	for i, dir := range dirs {
+		quoted[i] = quote(dir)
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
 // written returns s as TOML writes it, a basic string, or "" for "", which

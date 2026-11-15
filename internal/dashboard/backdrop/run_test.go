@@ -2,7 +2,9 @@ package backdrop_test
 
 import (
 	"bytes"
+	"runtime"
 	"testing"
+	"weak"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -86,5 +88,78 @@ func TestAFilterHeedingTheScreenPassesOverAModelRunDidntWrap(t *testing.T) {
 	})
 	if got := heed(stepped{}, step{}); got != (step{}) {
 		t.Errorf("the filter gave %v, want the message as it was", got)
+	}
+}
+
+// payload is what a screen holds, as the dashboard's model holds its ledger.
+type payload struct {
+	read []byte
+}
+
+// replacing is a screen whose first step replaces the payload it started
+// with, then has it collected and notes, in let, whether the payload it
+// started with, first, was let go: as a turn has the dashboard's model let
+// go of the ledger it opened with.
+type replacing struct {
+	held  *payload
+	first weak.Pointer[payload]
+	let   *bool
+}
+
+// collected is what the screen found of the payload it started with, once
+// it was replaced and collected.
+type collected struct {
+	let bool
+}
+
+func (s replacing) Init() tea.Cmd {
+	return func() tea.Msg { return step{} }
+}
+
+func (s replacing) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case step:
+		s.held = &payload{read: make([]byte, 1<<10)}
+		first := s.first
+		return s, func() tea.Msg {
+			runtime.GC()
+			return collected{let: first.Value() == nil}
+		}
+	case collected:
+		*s.let = msg.let
+		return s, tea.Quit
+	}
+	return s, nil
+}
+
+func (s replacing) View() tea.View {
+	return tea.NewView("")
+}
+
+func (s replacing) Backdrop() backdrop.Backdrop {
+	return backdrop.Backdrop{}
+}
+
+// startingWithPayload is a replacing screen and the payload it starts with,
+// which nothing but the screen holds.
+func startingWithPayload(let *bool) replacing {
+	held := &payload{read: make([]byte, 1<<10)}
+	return replacing{held: held, first: weak.Make(held), let: let}
+}
+
+// Nothing of a screen a step has left behind stays reachable while Bubble
+// Tea runs: the payload a screen started with, once a step replaces it, is
+// collected, though Bubble Tea keeps the model it was started with till it
+// stops.
+func TestAScreenAStepLeftBehindIsLetGoWhileItRuns(t *testing.T) {
+	t.Setenv("TEA_TRACE", "")
+	t.Setenv("TEA_DEBUG", "")
+	var let bool
+	var out bytes.Buffer
+	if _, err := backdrop.Run(startingWithPayload(&let), &out, tea.WithInput(nil), tea.WithoutSignals()); err != nil {
+		t.Fatal(err)
+	}
+	if !let {
+		t.Error("the payload the screen started with was still held once a step replaced it, want it let go")
 	}
 }

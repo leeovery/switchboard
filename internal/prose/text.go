@@ -20,17 +20,28 @@ const Separator = "  ·  "
 // MoveFailed say it.
 const HistoryMoving = "the history waits on its move onto the accounts' new ids"
 
+// HistoryMovingPools says the history waits on its move to pools, which the
+// router makes once, as it first starts on a version with pools, as
+// HistoryMoving says of the move onto the accounts' ids.
+const HistoryMovingPools = "the history waits on its move to pools"
+
 // What holds the move onto the accounts' ids up, said after HistoryMoving,
 // but for the API, as MoveWaitsAPI says, and a failure, as MoveFailed says:
 // the router making it; the router to restart onto the new ids its config
 // holds; no router answering; the router not saying how it stands; and the
-// router running being of a version from before ids were made.
+// router running being of a version from before ids were made. What holds
+// the move to pools up is said alike, after HistoryMovingPools, but for the
+// router to take up the first pool its config holds, as MoveWaitsPools
+// says, and the router running being of a version from before pools, as
+// MoveWaitsPoolsUpgrade says.
 const (
-	MoveRunning      = "the router is making it"
-	MoveWaitsRestart = "the router makes the rest once it restarts onto the new ids its config holds"
-	MoveWaitsRouter  = "no router answers to make it: start it with switchboard service install (or switchboard serve)"
-	MoveWaitsUntold  = "the router didn't say how it stands in time, as when it's busy or restarting"
-	MoveWaitsUpgrade = "the router running is of a version from before the ids, and makes it once it restarts on this one"
+	MoveRunning           = "the router is making it"
+	MoveWaitsRestart      = "the router makes the rest once it restarts onto the new ids its config holds"
+	MoveWaitsRouter       = "no router answers to make it: start it with switchboard service install (or switchboard serve)"
+	MoveWaitsUntold       = "the router didn't say how it stands in time, as when it's busy or restarting"
+	MoveWaitsUpgrade      = "the router running is of a version from before the ids, and makes it once it restarts on this one"
+	MoveWaitsPools        = "the router makes the rest once it takes up the first pool, which its config now holds"
+	MoveWaitsPoolsUpgrade = "the router running is of a version from before pools, and makes it once it restarts on this one"
 )
 
 // MoveWaitsAPI says the move onto the accounts' ids waits for the API to name
@@ -96,6 +107,12 @@ func ForeignTokenFix(id string) string {
 	return ForeignToken + ": give it its own with " + AccountsToken(id) + ", " + AddAsOwn
 }
 
+// Pool names a pool by its label, as the verbs' text names one once there's
+// a second: "pool Acme".
+func Pool(label string) string {
+	return "pool " + Clean(label)
+}
+
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.
 func Version(version string) string {
@@ -103,6 +120,18 @@ func Version(version string) string {
 		return version
 	}
 	return "v" + version
+}
+
+// AccountNamed names an account by its label and, beside it, its id, as in
+// "Acme 1 (k3f9)": one labelled by its id, ignoring case, or not labelled,
+// by its id alone. Both are cleaned, as Clean cleans them.
+func AccountNamed(label, id string) string {
+	id = Clean(id)
+	label = Clean(label)
+	if label == "" || strings.EqualFold(label, id) {
+		return id
+	}
+	return label + " (" + id + ")"
 }
 
 // Clean makes text safe to show on one line of a terminal: control

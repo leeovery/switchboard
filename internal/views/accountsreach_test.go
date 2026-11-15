@@ -304,8 +304,8 @@ func TestAccountsTodaysHoursSumToItsWorth(t *testing.T) {
 // once in today's hours, as a session's does.
 func TestARequestOfNoSessionGivenAgainCountsOnce(t *testing.T) {
 	line := projectAsks("", "/code/switchboard", "", "work", october(7, 10, 0))
-	days := views.ReadSessionDays(ledgerOfLines(), now.AddDate(0, 0, -1), now).
-		Tailed(line, true, nil, nil, now).Tailed(line, false, nil, nil, now)
+	days := views.ReadSessionDays(ledgerOfLines(), now.AddDate(0, 0, -1), now, views.PoolRead{}).
+		Tailed(line, true, nil, nil, now, views.PoolRead{}).Tailed(line, false, nil, nil, now, views.PoolRead{})
 	in := input(nil)
 	in.Accounts = workAndSide
 	page := views.NewPast(in, nil).Accounts(views.PeriodToday).Hourly(days)

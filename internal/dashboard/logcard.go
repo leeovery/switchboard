@@ -383,7 +383,7 @@ func requestTree(d views.RequestDetails, m status.Moment) [3][]cardSection {
 		windows.items = append(windows.items, cardItem{name: w.Name, value: line{windowUse(w.Use)}})
 	}
 	windows.items = append(windows.items, cardItem{name: "status", value: lined.said(prose.Clean(string(d.LimitStatus)))})
-	return [3][]cardSection{{request, routed, windows}, {askedSection(d, lined)}, {answeredSection(d, lined), tokensSection(d, lined, moved)}}
+	return [3][]cardSection{{request, routed, windows}, {askedSection(d, lined)}, {answeredSection(d, lined, m), tokensSection(d, lined, moved)}}
 }
 
 // cleanedAll are the texts given, each cleaned.
@@ -453,14 +453,15 @@ func yesOrNo(asked *bool) string {
 // answeredSection is ANSWERED: its status, the model that served it, its
 // times, why it stopped, as the table words it, and its answer's blocks. Of
 // a request in flight, its first byte once it's come, and what it's doing.
-func answeredSection(d views.RequestDetails, lined lineGives) cardSection {
+// Any account it names is named as m names it.
+func answeredSection(d views.RequestDetails, lined lineGives, m status.Moment) cardSection {
 	r := d.Row
 	return cardSection{heading: sectionHeading("ANSWERED"), items: []cardItem{
 		{name: "status", value: statusSaid(r)},
 		{name: "model", value: lined.said(modelNamed(d.Served))},
 		{name: "first byte", value: firstSaid(r)},
 		{name: "ended", value: endedSaid(r)},
-		{name: "stopped", value: stoppedSaid(r, lined)},
+		{name: "stopped", value: stoppedSaid(r, lined, m)},
 		{name: "blocks", value: lined.said(blocksSaid(d.Blocks))},
 	}}
 }
@@ -505,8 +506,9 @@ func endedSaid(r views.RequestRow) line {
 }
 
 // stoppedSaid is why the request's answer stopped, as the table words it,
-// the words in text.secondary: in flight, what it's doing.
-func stoppedSaid(r views.RequestRow, lined lineGives) line {
+// the words in text.secondary, any account named as m names it, cut as
+// asLabelled cuts it: in flight, what it's doing.
+func stoppedSaid(r views.RequestRow, lined lineGives, m status.Moment) line {
 	w := r.Stopped()
 	if len(w) == 0 {
 		return lined.said("")
@@ -514,15 +516,20 @@ func stoppedSaid(r views.RequestRow, lined lineGives) line {
 	l := make(line, len(w))
 	for i, p := range w {
 		l[i] = span{p.Text, cardPartInks[p.Kind]}
+		if p.Kind == views.RowAccount {
+			l[i].text = asLabelled(named(m, p.Text))
+		}
 	}
 	return l
 }
 
 // cardPartInks are the inks of a row's words as a card's value says them:
-// what's said and what's named in text.secondary, what's between in
-// text.faint, and what a request in flight is doing bold accent.key.
+// what's said, what's named and an account in text.secondary, what's
+// between in text.faint, and what a request in flight is doing bold
+// accent.key.
 var cardPartInks = map[views.RowPartKind]ink{
 	views.RowSaid: secondaryInk, views.RowBetween: faintInk, views.RowNamed: secondaryInk, views.RowDoing: keyInk, views.RowCost: warningInk,
+	views.RowAccount: secondaryInk,
 }
 
 // blocksSaid are an answer's blocks, counted by their kinds, as "2

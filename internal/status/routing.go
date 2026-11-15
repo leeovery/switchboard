@@ -37,7 +37,7 @@ const (
 	RoutingUnread
 	// RoutingCapped is an account at its cap, which holds it back.
 	RoutingCapped
-	// RoutingCappedPinned is an account at its cap that the global pin
+	// RoutingCappedPinned is an account at its cap that the pool's pin
 	// names, so new sessions still go to it.
 	RoutingCappedPinned
 	// RoutingModelCapped is an account at its cap in a model's own window
@@ -87,7 +87,7 @@ type Routing struct {
 	// cap holds back from every request, when it's back, as its AccountNow's
 	// Back has it; of one held back from some models' requests alone, when
 	// they have room again. It's zero where they don't say, as where it isn't
-	// known, or the global pin spends its cap.
+	// known, or the pool's pin spends its cap.
 	Back time.Time
 }
 

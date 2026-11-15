@@ -57,12 +57,20 @@ var (
 )
 
 // newFolder is the fixture's install, its state directory laid out as a
-// folder staged to import, its export.json as m says: every day's files
-// compressed, as export writes them.
+// folder staged to import, as asFolder lays it out.
 func newFolder(t *testing.T, m export.Manifest) fixture {
 	t.Helper()
 	f := newFixture(t)
-	kinds := []*dayfile.Files{readingsFiles(f.state), ledgerFiles(f.state), events.Files(ledger.Dir(f.state), logs.For("test"))}
+	asFolder(t, f.state, m)
+	return f
+}
+
+// asFolder lays the state directory state out as a folder staged to import,
+// its export.json as m says, of this switchboard's version where it gives
+// none: every day's files compressed, as export writes them.
+func asFolder(t *testing.T, state string, m export.Manifest) {
+	t.Helper()
+	kinds := []*dayfile.Files{readingsFiles(state), ledgerFiles(state), events.Files(ledger.Dir(state), logs.For("test"))}
 	for _, files := range kinds {
 		for _, date := range []string{yesterday, today} {
 			plain := filepath.Join(files.Dir, files.Prefix+"-"+date+".jsonl")
@@ -79,13 +87,12 @@ func newFolder(t *testing.T, m export.Manifest) fixture {
 			}
 		}
 	}
-	m.Version, m.ExportedAt = export.Version, now
+	m.Version, m.ExportedAt = cmp.Or(m.Version, export.Version), now
 	data, err := json.Marshal(m)
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(f.state, "export.json"), string(data)+"\n")
-	return f
+	writeFile(t, filepath.Join(state, "export.json"), string(data)+"\n")
 }
 
 // ledgerFiles are the request ledger's files in the state directory.

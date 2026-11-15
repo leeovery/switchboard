@@ -8,7 +8,7 @@ import (
 
 // laneHead is the label heading a row of Runway's lanes: its name, then its
 // marks at the label column's end, up to the lane's first glyph.
-var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*( +[◆▲])*`)
+var laneHead = regexp.MustCompile(`^[^ █▒━│]+( [^ █▒━│]+)*( +[◆▲])*`)
 
 // Runway's labels read whole beside its lanes at every one of the owner's
 // sizes, as the sweep can't see a cut beside lanes that fill the row: the

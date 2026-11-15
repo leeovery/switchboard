@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
+	"strings"
 )
 
 // mergedWritten merges two days of one account as a summary writes them,
@@ -22,23 +23,17 @@ func mergedWritten(a, b json.RawMessage) (json.RawMessage, error) {
 }
 
 // mergedDays merges two days of one account into one, as a summary renamed
-// names them, a's account its: each model's requests and usage summed, as
-// mergedModels has them; each session counted once, as mergedSessions says;
-// the moves summed; each window's highest use the higher of the two, and its
-// rises summed; the resets and limits of both, in the order they came, each
-// once, as limitsKnowing and resetsKnowing have them; the minutes summed;
-// and the windows read before of both. A window's rises, resets and minutes
-// that one of them never read, as its readings were under the other's id,
-// are the other's.
+// names them, a's account its: their work in every pool together, and in
+// each pool, as mergedWork merges it; each window's highest use the higher
+// of the two, and its rises summed; the resets and limits of both, in the
+// order they came, each once, as limitsKnowing and resetsKnowing have them;
+// the minutes summed; and the windows read before of both. A window's rises,
+// resets and minutes that one of them never read, as its readings were under
+// the other's id, are the other's.
 func mergedDays(a, b AccountDay) AccountDay {
-	sessions, ids := mergedSessions(a.Sessions, a.SessionIDs, b.Sessions, b.SessionIDs)
 	return AccountDay{
 		Account:        a.Account,
-		Models:         mergedModels(a.Models, b.Models),
-		Sessions:       sessions,
-		SessionIDs:     ids,
-		MovedOn:        a.MovedOn + b.MovedOn,
-		MovedOff:       a.MovedOff + b.MovedOff,
+		Work:           mergedWork(a.Work, b.Work),
 		Highest:        mergedMaps(a.Highest, b.Highest, func(x, y float64) float64 { return max(x, y) }),
 		Rise:           mergedMaps(a.Rise, b.Rise, func(x, y float64) float64 { return x + y }),
 		Resets:         resetsKnowing(a.Resets, b.Resets),
@@ -46,7 +41,23 @@ func mergedDays(a, b AccountDay) AccountDay {
 		MinutesAtCap:   summedMinutes(a.MinutesAtCap, b.MinutesAtCap),
 		MinutesAtLimit: summedMinutes(a.MinutesAtLimit, b.MinutesAtLimit),
 		ReadBefore:     unionOf(a.ReadBefore, b.ReadBefore),
-	}
+	}.pooled(mergedBy(slices.Concat(a.poolDays(), b.poolDays()), PoolDay.key, mergedPool, strings.Compare))
+}
+
+// mergedWork merges two accounts' days' work into one: each model's requests
+// and usage summed, as mergedModels has them; each session counted once, as
+// mergedSessions says; and the moves summed.
+func mergedWork(a, b Work) Work {
+	sessions, ids := mergedSessions(a.Sessions, a.SessionIDs, b.Sessions, b.SessionIDs)
+	return Work{Models: mergedModels(a.Models, b.Models), Sessions: sessions, SessionIDs: ids, MovedOn: a.MovedOn + b.MovedOn,
+		MovedOff: a.MovedOff + b.MovedOff}
+}
+
+// mergedPool merges two accounts' days' work in one pool, as mergedWork
+// merges it.
+func mergedPool(a, b PoolDay) PoolDay {
+	a.Work = mergedWork(a.Work, b.Work)
+	return a
 }
 
 // mergedModels merges two accounts' days' models, those of one model and
@@ -55,21 +66,25 @@ func mergedDays(a, b AccountDay) AccountDay {
 // them, their sessions counted once, as mergedSessions says, and their usage
 // summed field for field, as a summary sums it.
 func mergedModels(a, b []ModelDay) []ModelDay {
-	merged := make(map[modelKey]ModelDay, len(a)+len(b))
-	for _, m := range slices.Concat(a, b) {
-		key := modelKey{model: m.Model, geo: m.InferenceGeo}
-		held, ok := merged[key]
-		if !ok {
-			merged[key] = m
-			continue
+	return mergedBy(slices.Concat(a, b), ModelDay.key, mergedModel, byModel)
+}
+
+// mergedBy merges days, those of one key, as key gives each, merged into one
+// as merge merges two, in the order of their keys, as compare orders them:
+// nil where there are none.
+func mergedBy[D any, K comparable](days []D, key func(D) K, merge func(a, b D) D, compare func(a, b K) int) []D {
+	merged := make(map[K]D, len(days))
+	for _, d := range days {
+		if held, ok := merged[key(d)]; ok {
+			d = merge(held, d)
 		}
-		merged[key] = mergedModel(held, m)
+		merged[key(d)] = d
 	}
-	var models []ModelDay
-	for _, key := range slices.SortedFunc(maps.Keys(merged), byModel) {
-		models = append(models, merged[key])
+	var all []D
+	for _, k := range slices.SortedFunc(maps.Keys(merged), compare) {
+		all = append(all, merged[k])
 	}
-	return models
+	return all
 }
 
 // mergedModel merges two days of one model, as mergedModels says.

@@ -61,7 +61,7 @@ func TestRunUnreadRoutesThroughTheRunningRouter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := t.TempDir()
-			h := newHarness(t, "HOME=/home/tester", "PATH="+path, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on")
+			h := newHarness(t, "HOME=/home/tester", "PATH="+path, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on").projected()
 			h.launcher.Dir = project
 			args := []string{"--print", "a prompt"}
 
@@ -98,7 +98,7 @@ func TestRunUnreadRoutesThroughTheRunningRouter(t *testing.T) {
 }
 
 func TestRunUnreadRoutesThroughAnUnhealthyRouter(t *testing.T) {
-	h := newHarness(t, "HOME=/home/tester")
+	h := newHarness(t, "HOME=/home/tester").projected()
 	h.launcher.Dir = project
 
 	if err := h.launcher.RunUnread(t.Context(), unreadRoute(unhealthyRouter().naming("side", accounts...), ""), nil, errUnread); err != nil {

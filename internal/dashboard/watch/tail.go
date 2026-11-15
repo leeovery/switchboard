@@ -149,7 +149,7 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	m, t := m.askingTail(now, false)
 	return m, func() tea.Msg {
 		read, next := readLines(t.r.ledger, t.mark, t.late)
-		logged := t.log.logged(read)
+		logged := t.log.logged(t.r, read)
 		msg, gains := t.took(read, next, t.log.wants(logged))
 		if msg.held != nil && t.log != nil {
 			msg.log = t.log.grown(t.r, logged, views.LogTaking{Held: *msg.held, Gains: gains, Stream: t.log.stream, Now: now})
@@ -229,7 +229,7 @@ func (t tailReading) took(read tailLines, next ledger.Mark, logged []string) (ta
 	msg := tailedMsg{mark: next, day: t.today, at: t.now, lines: read, days: t.days.fed(read, t.now)}
 	var gains views.SessionGains
 	if t.held != nil {
-		fed, g := t.held.fed(t.r.ledger, read, logged, t.now)
+		fed, g := t.held.fed(t.r, read, logged, t.now)
 		msg.held, msg.retells, gains = &fed, g.Retell(), g
 	}
 	if t.page != nil {
@@ -295,8 +295,8 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
 // its mark; the sessions' days as it fed them, as tailFed has it, whatever
-// shows, bounded to the dial's period on the day it was read, as bounded
-// has it; the store as the read fed it, with the sessions taken into it
+// shows, bounded to the dial's period, as daysFrom has it, on the day it
+// was read, as bounded has it; the store as the read fed it, with the sessions taken into it
 // as the read was under way, as heldWith keeps them, and none the read let
 // go; each reader grown by it, where it was read for one, as logGrown and
 // pageTaken have them, the page taking its session from the store; today's
@@ -305,7 +305,7 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 // lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
-	m.sessionDays = m.sessionDays.tailFed(msg.days).bounded(m.period.From(msg.at, m.cfg.WeekStarts), dayfile.DateOf(msg.at))
+	m.sessionDays = m.sessionDays.tailFed(msg.days).bounded(m.daysFrom(msg.at), dayfile.DateOf(msg.at))
 	m = m.traced(msg.lines.gained)
 	if msg.held != nil {
 		m = m.holding(msg.held.With(m.merged), msg.retells || m.mergedAny)

@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -66,6 +67,9 @@ type Config struct {
 	// config's, else Monday.
 	WeekStarts time.Weekday
 	Accounts   Accounts
+	// Pools are the pools the accounts are in: none in a config from before
+	// pools, whose accounts are in none.
+	Pools Pools
 	// Prime says when priming starts the accounts' 5-hour windows.
 	Prime         Prime
 	Notifications Notifications
@@ -83,7 +87,9 @@ type Account struct {
 	ID    string
 	Label string
 	// Primary is set on the primary account, the one the browser and the
-	// Claude apps are signed into: the one the config marks, else the first.
+	// Claude apps are signed into: the one the config marks, else the first,
+	// of its pool's accounts, or of every account in a config from before
+	// pools.
 	Primary bool
 	// Reserve is the share of every window the router leaves unused on the
 	// account: the config's, else 0.
@@ -91,6 +97,9 @@ type Account struct {
 	// Plan is the plan the account's subscription is on, one of Plans: ""
 	// where the config doesn't say, as switchboard can't read it.
 	Plan string
+	// Pool is the id of the pool the account is in, as the pool's own id
+	// spells it: "" in a config from before pools.
+	Pool string
 }
 
 // Accounts are the configured accounts, in the config file's order, which is
@@ -142,8 +151,11 @@ func (as Accounts) LabelTaken(id, label string) bool {
 	return slices.ContainsFunc(as, func(a Account) bool { return a.ID != id && strings.EqualFold(prose.Clean(a.Label), shown) })
 }
 
-// Primary returns the primary account: the one marked primary, else the
-// first. There must be an account.
+// Primary returns the primary account of accounts of one pool, or of a
+// config without pools: the one marked primary, else the first. There must
+// be an account. Of accounts from several pools, it's the first of their
+// primaries, which means nothing: take a pool's with PrimaryOf, and the
+// browser's and the Claude apps' with Config's SignedIn.
 func (as Accounts) Primary() Account {
 	return as[as.primary()]
 }
@@ -241,21 +253,39 @@ func (e Export) On() bool {
 // directory homeDir returns: "" where it names none. It fails where the home
 // directory can't be found.
 func (e Export) Folder(homeDir func() (string, error)) (string, error) {
-	rest, inHome := strings.CutPrefix(e.Dir, homePrefix)
-	switch {
-	case e.Dir == "":
+	if e.Dir == "" {
 		return "", nil
-	case !inHome:
-		return filepath.Clean(e.Dir), nil
+	}
+	var home string
+	if strings.HasPrefix(e.Dir, homePrefix) {
+		var err error
+		if home, err = findHome(homeDir); err != nil {
+			return "", fmt.Errorf("find the home directory export.dir is in: %w", err)
+		}
+	}
+	return expandIn(home, e.Dir), nil
+}
+
+// findHome returns the home directory homeDir returns, failing where it
+// fails, is nil, or returns a path that isn't absolute.
+func findHome(homeDir func() (string, error)) (string, error) {
+	if homeDir == nil {
+		return "", errors.New("none was given")
 	}
 	home, err := homeDir()
 	if err == nil && !filepath.IsAbs(home) {
 		err = fmt.Errorf("%q isn't an absolute path", home)
 	}
-	if err != nil {
-		return "", fmt.Errorf("find the home directory export.dir is in: %w", err)
+	return home, err
+}
+
+// expandIn returns path, absolute or starting ~/, cleaned, a ~/ at its start
+// home.
+func expandIn(home, path string) string {
+	if rest, inHome := strings.CutPrefix(path, homePrefix); inHome {
+		return filepath.Join(home, rest)
 	}
-	return filepath.Join(home, rest), nil
+	return filepath.Clean(path)
 }
 
 // Usage says how usage and the dashboard lay out the accounts' windows.
@@ -317,6 +347,7 @@ type file struct {
 	WhenRouterDown *string       `toml:"when_router_down"`
 	WeekStarts     string        `toml:"week_starts"`
 	Accounts       []fileAccount `toml:"account"`
+	Pools          []filePool    `toml:"pool"`
 	Prime          filePrime     `toml:"prime"`
 	Notifications  Notifications `toml:"notifications"`
 	History        fileKeep      `toml:"history"`
@@ -333,6 +364,7 @@ type fileAccount struct {
 	Primary bool    `toml:"primary"`
 	Reserve float64 `toml:"reserve"`
 	Plan    string  `toml:"plan"`
+	Pool    string  `toml:"pool"`
 }
 
 // shownAs is the label the account is shown by: its own, else its id.
@@ -364,9 +396,11 @@ type fileUsage struct {
 	By *string `toml:"by"`
 }
 
-// Load reads the config file at path, validates it and fills in its defaults.
-// When the file doesn't exist, the error matches fs.ErrNotExist.
-func Load(path string) (*Config, error) {
+// Load reads the config file at path, validates it and fills in its defaults,
+// a pool's directory starting ~/ found in the home directory homeDir returns,
+// which it's asked for only then. When the file doesn't exist, the error
+// matches fs.ErrNotExist.
+func Load(path string, homeDir func() (string, error)) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
@@ -375,7 +409,7 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return f.check(path, meta)
+	return f.check(path, meta, homeDir)
 }
 
 // decodeFile reads data as the text of the config file at path, with its
@@ -388,6 +422,24 @@ func decodeFile(path string, data []byte) (file, toml.MetaData, error) {
 		return file{}, toml.MetaData{}, unparsed(path, err)
 	}
 	return f, meta, nil
+}
+
+// decodeOnly decodes the config file at path into only, a struct of the
+// tables to read whatever else in the file is wrong, leaving it as it is
+// where there's no file. It fails where the file can't be read as TOML, or
+// those tables as only has them.
+func decodeOnly(path string, only any) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read config: %w", err)
+	}
+	if _, err := toml.Decode(string(data), only); err != nil {
+		return unparsed(path, err)
+	}
+	return nil
 }
 
 // unparsed is the error of the config file at path, which the decoder
@@ -407,9 +459,10 @@ func decode(text string) (file, toml.MetaData, error) {
 }
 
 // check returns the Config the config file at path describes, as decoding it
-// found it, or every problem with it together.
-func (f file) check(path string, meta toml.MetaData) (*Config, error) {
-	cfg, err := f.config(meta.Undecoded())
+// found it, its pools' directories found in the home directory homeDir
+// returns, or every problem with it together.
+func (f file) check(path string, meta toml.MetaData, homeDir func() (string, error)) (*Config, error) {
+	cfg, err := f.config(meta.Undecoded(), homeDir)
 	if err != nil {
 		return nil, invalid(path, err)
 	}
@@ -422,9 +475,9 @@ func invalid(path string, err error) error {
 }
 
 // config returns the Config the file describes, with its defaults filled in,
-// or every problem with it together, the keys decoding left unused among
-// them.
-func (f file) config(undecoded []toml.Key) (*Config, error) {
+// its pools' directories found in the home directory homeDir returns, or
+// every problem with it together, the keys decoding left unused among them.
+func (f file) config(undecoded []toml.Key, homeDir func() (string, error)) (*Config, error) {
 	weekStarts, weekErr := parseWeekStart(f.WeekStarts)
 	day, dayErr := ParseDay(f.Prime.Day)
 	historyKeep, historyErr := parseKeep("history.keep", f.History.Keep, DefaultHistoryKeep)
@@ -432,6 +485,7 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 	export, exportErr := parseExport(f.Export.Dir)
 	by, byErr := parseUsageBy(f.Usage.By)
 	down, downErr := parseRouterDown(f.WhenRouterDown)
+	pools, poolsErr := readPools(f.Pools, homeDir)
 	err := errors.Join(
 		checkKeys(undecoded),
 		checkListen(f.Listen),
@@ -439,6 +493,10 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		downErr,
 		weekErr,
 		checkAccounts(f.Accounts),
+		poolsErr,
+		idsApart(f.Accounts, f.Pools),
+		checkMembership(f.Accounts, f.Pools),
+		checkPrimaries(f.Accounts),
 		dayErr,
 		checkWarning(f.Notifications.Warning),
 		historyErr,
@@ -455,7 +513,8 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 		Upstream:       f.Upstream,
 		WhenRouterDown: down,
 		WeekStarts:     weekStarts,
-		Accounts:       resolve(f.Accounts),
+		Accounts:       resolve(f.Accounts, pools),
+		Pools:          pools,
 		Prime:          Prime{Day: day},
 		Notifications:  f.Notifications,
 		History:        History{Keep: historyKeep},
@@ -467,13 +526,39 @@ func (f file) config(undecoded []toml.Key) (*Config, error) {
 }
 
 // resolve returns the accounts as they're written, with their defaults filled
-// in: the id for a label, and the first account for the primary; and each
-// plan by the name Plans give it, in place of an alias.
-func resolve(written []fileAccount) Accounts {
+// in: the id for a label, and the first account of each pool for its
+// primary, of every account in a config from before pools; each plan by the
+// name Plans give it, in place of an alias; and each pool by its id as pools,
+// those configured, spell it.
+func resolve(written []fileAccount, pools Pools) Accounts {
 	accounts := make(Accounts, len(written))
 	for i, w := range written {
-		accounts[i] = Account{ID: w.ID, Label: w.shownAs(), Primary: w.Primary, Reserve: w.Reserve, Plan: planNamed(w.Plan)}
+		accounts[i] = Account{ID: w.ID, Label: w.shownAs(), Primary: w.Primary, Reserve: w.Reserve, Plan: planNamed(w.Plan), Pool: w.Pool}
+		if p, ok := pools.ByID(w.Pool); ok {
+			accounts[i].Pool = p.ID
+		}
 	}
-	accounts[accounts.primary()].Primary = true
+	for _, in := range byPool(accounts, func(a Account) string { return a.Pool }) {
+		accounts[in[PrimaryIndex(in, func(i int) bool { return accounts[i].Primary })]].Primary = true
+	}
 	return accounts
+}
+
+// byPool returns the places of accounts, grouped by the pool poolOf gives
+// each, ids compared ignoring case: the groups in the order of their first
+// accounts, and each group's places in order.
+func byPool[A any](accounts []A, poolOf func(A) string) [][]int {
+	var groups [][]int
+	at := make(map[string]int)
+	for i, a := range accounts {
+		pool := strings.ToLower(poolOf(a))
+		g, ok := at[pool]
+		if !ok {
+			g = len(groups)
+			at[pool] = g
+			groups = append(groups, nil)
+		}
+		groups[g] = append(groups[g], i)
+	}
+	return groups
 }

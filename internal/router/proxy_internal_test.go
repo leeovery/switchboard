@@ -92,7 +92,7 @@ func TestBearer(t *testing.T) {
 }
 
 func TestAPinHonouredHasTheNextIgnoredWarnedOfAfresh(t *testing.T) {
-	var p ignoredPins
+	var p warned
 	for _, want := range []bool{true, false} {
 		if got := p.first("personal", "one"); got != want {
 			t.Fatalf("first() = %v, want %v", got, want)
@@ -104,8 +104,8 @@ func TestAPinHonouredHasTheNextIgnoredWarnedOfAfresh(t *testing.T) {
 	}
 }
 
-func TestIgnoredPinsHoldSoManyAtMost(t *testing.T) {
-	var p ignoredPins
+func TestWarningsHoldSoManyAtMost(t *testing.T) {
+	var p warned
 	for i := range toldAtMost {
 		p.first("gone", strconv.Itoa(i))
 	}

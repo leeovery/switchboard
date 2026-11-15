@@ -455,6 +455,48 @@ func TestADocumentSkipsTheEventsBetweenItAndTheLastTakenIn(t *testing.T) {
 	}
 }
 
+// A document telling the ids of the events the router kept, every pool's,
+// skips events where the oldest it kept comes more than one after the newest
+// kept for the last taken in, whatever events it gives: a pool's document
+// leaving other pools' out skips none for that, and one whose router let go
+// of what came after the last skips them, though it gives none of the pool's.
+// One telling none, of every event kept, goes by its own, as the test above
+// holds.
+func TestAPoolsDocumentSkipsTheEventsItsRouterLetGoOfAlone(t *testing.T) {
+	run := october(7, 8, 0)
+	told := func(kept status.EventsKept, ids ...int) status.Moment {
+		var live []status.Event
+		for _, id := range ids {
+			live = append(live, status.Event{ID: id, At: october(7, 9, id), Kind: status.EventRoom, Account: "work"})
+		}
+		m := liveAt(live, october(7, 10, 0))
+		m.EventsKept = kept
+		return m
+	}
+	looked := views.ReadEvents(nil, october(7, 0, 0), october(7, 10, 0)).Look(told(status.EventsKept{Oldest: 1, Newest: 10}, 3, 7), run)
+	tests := []struct {
+		name  string
+		doc   status.Moment
+		run   time.Time
+		skips bool
+	}{
+		{name: "other pools' events between its own", doc: told(status.EventsKept{Oldest: 1, Newest: 15}, 12), run: run},
+		{name: "kept from the next on", doc: told(status.EventsKept{Oldest: 11, Newest: 60}, 40), run: run},
+		{name: "one let go of", doc: told(status.EventsKept{Oldest: 12, Newest: 61}, 61), run: run, skips: true},
+		{name: "let go of, the pool's none kept", doc: told(status.EventsKept{Oldest: 61, Newest: 110}), run: run, skips: true},
+		{name: "another run's", doc: told(status.EventsKept{Oldest: 61, Newest: 110}), run: october(7, 12, 0)},
+		{name: "telling none, following on", doc: told(status.EventsKept{}, 11), run: run},
+		{name: "telling none, one skipped", doc: told(status.EventsKept{}, 12), run: run, skips: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := looked.Skips(tt.doc, tt.run); got != tt.skips {
+				t.Errorf("the document skips events %t, want %t", got, tt.skips)
+			}
+		})
+	}
+}
+
 // The document's events are kept as it gives newer ones, and as a router
 // restarted gives its own, each once, by run and id, as it last stands; and
 // one that happened before the read begins is passed over.

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-11-13
+
+🔧 Changed
+- Sessions list routing now reads briefly — "from work · at its cap", "pinned", or "new session" instead of the full routing sentence.
+- Sessions list model and worth columns stay whole and no longer get cut as the list scrolls or narrows.
+
+🐛 Fixed
+- Account names in the Log's routing and event text, request cards and the Overview's running sessions now show as the dashboard names them, cut to fit, instead of raw account ids.
+- Account marks (◆, ▲) now line up and end a cell before the next column in the Usage, History, Routing and Overview tables, wherever names start.
+- The pool's name in the Graphs glance now shows as the pool rather than as a row name.
+
 ## [0.7.1] - 2026-11-13
 
 Runway and Graphs now chart the week only, and Runway gains a LATELY history of what befell your accounts.

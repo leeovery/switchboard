@@ -98,7 +98,7 @@ func newExports(cfg Config, tend func(ctx context.Context) error, restarting, mo
 		every:      exportEvery,
 		now:        cfg.Now,
 		homeDir:    cfg.HomeDir,
-		exportInto: export.Exporter{StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, Accounts: cfg.Accounts, NoParents: true}.Export,
+		exportInto: export.Exporter{StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, Accounts: cfg.Accounts, Pools: cfg.Pools, NoParents: true}.Export,
 		tend:       tend,
 		restarting: restarting,
 		moving:     moving,

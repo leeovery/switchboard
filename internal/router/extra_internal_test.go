@@ -83,7 +83,7 @@ func TestTheStateTellsOfExtraUsageTaken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var changes, routine changeCount
-			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
+			s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
 			earlier := s.mark()
 			s.record("work", []quota.Window{session}, s.mark())
 			s.recordExtra("side", extraOn, s.mark())
@@ -99,7 +99,7 @@ func TestTheStateTellsOfExtraUsageTaken(t *testing.T) {
 
 func TestAProbeReadingExtraUsageAsBeforeIsRoutine(t *testing.T) {
 	var changes, routine changeCount
-	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
+	s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
 	// As the API answers with extra usage off.
 	off := probed(nil, session)
 	off.Extra = quota.ExtraUsage{Status: quota.StatusRejected}

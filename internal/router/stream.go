@@ -86,6 +86,9 @@ type StreamEvent struct {
 	Dir     string `json:"dir,omitempty"`
 	Project string `json:"project,omitempty"`
 	Model   string `json:"model,omitempty"`
+	// Pool is the id of the pool the request was routed within: "" in a
+	// config from before pools.
+	Pool string `json:"pool,omitempty"`
 	// Account is the account the request goes out on, or went out on last,
 	// or, once the client has an answer, the one it came from; and of a
 	// move, the account the session moved to.
@@ -160,7 +163,7 @@ type stream struct {
 // flight is a request in flight, as the stream keeps it: the inflight event
 // that tells of it as it stands, its Chars those its answer has streamed so
 // far, told those last told of, and of its session and model in full, which
-// the event may cut.
+// the event may cut, with the pool it was found in.
 type flight struct {
 	StreamEvent
 	told int
@@ -188,7 +191,7 @@ func (s *stream) publish(e StreamEvent) {
 
 // publishOf tells every reader of e, as happening now, and keeps the request
 // in flight as e leaves it: of names, in full, the session and model of a
-// request going upstream.
+// request going upstream, with the pool it was found in.
 func (s *stream) publishOf(e StreamEvent, of key) {
 	s.mu.Lock()
 	e.At = s.now().UTC()
@@ -290,8 +293,8 @@ func (s *stream) join() ([]StreamEvent, *streamReader) {
 	return inFlight, r
 }
 
-// doing returns what the requests in flight are doing, by the session and
-// model they're of, as an assignment's InFlight gives it: status.Answering
+// doing returns what the requests in flight are doing, by the session, pool
+// and model they're of, as an assignment's InFlight gives it: status.Answering
 // where an answer streams to any of them, else status.Asking. The client's
 // quota checks, which are no session's work, are left out.
 func (s *stream) doing() map[key]string {
@@ -422,27 +425,56 @@ func (s *stream) tellProgress(stop <-chan struct{}) bool {
 	return told
 }
 
-// serveStream answers GET /stream: the requests in flight as the reader
-// joins, then every event of the stream as it comes, a line of JSON each,
-// until the reader goes or is dropped, the stream ends, or the control API
-// closes.
-func (r *Router) serveStream(w http.ResponseWriter, req *http.Request) {
+// serveStream answers GET /stream, of the requests routed within the pool rd
+// reads: those in flight as the reader joins, then every event of the stream
+// as it comes, a line of JSON each, until the reader goes or is dropped, the
+// stream ends, or the control API closes; or until the pool it named, or the
+// one the verbs act on where it named none, is another, as following says,
+// for it to join again and be told of that pool's.
+func (r *Router) serveStream(w http.ResponseWriter, req *http.Request, rd poolRead) {
 	inFlight, reader := r.stream.join()
 	defer r.stream.leave(reader)
 	w.Header().Set("Content-Type", "application/x-ndjson")
-	if !writeEvents(w, inFlight) {
+	if !writeEvents(w, routedIn(rd, inFlight)) {
 		return
 	}
+	named := poolNamed(req)
 	for {
 		select {
 		case <-req.Context().Done():
 			return
+		case <-rd.pools.replaced:
+			var still bool
+			if rd, still = r.following(rd, named); !still {
+				logger.Debug("ended a reader's request stream, as the pool it asked for is another")
+				return
+			}
 		case e, open := <-reader.events:
-			if !open || !writeEvents(w, gather(e, reader.events)) {
+			if !open || !writeEvents(w, routedIn(rd, gather(e, reader.events))) {
 				return
 			}
 		}
 	}
+}
+
+// following returns the pool a reader of the stream reads, rd, as the pools
+// stand now, once they've changed, reporting whether it reads it still: while
+// the pool named, "" for none, is the one it was answered for, as the pools
+// now answer for it. A config that comes to have pools changes that for
+// every reader; another unfenced pool, for one that named none; and its
+// pool's removal, for one that named it.
+func (r *Router) following(rd poolRead, named string) (poolRead, bool) {
+	t := r.state.pools.current()
+	if pool, err := t.asked(named); err != nil || pool != rd.pool {
+		return poolRead{}, false
+	}
+	return r.state.poolReadOf(t, rd.pool), true
+}
+
+// routedIn returns those of events that tell of requests routed within the
+// pool rd reads.
+func routedIn(rd poolRead, events []StreamEvent) []StreamEvent {
+	return slices.DeleteFunc(events, func(e StreamEvent) bool { return !rd.routes(e.Pool) })
 }
 
 // gather returns e and every event after it that has already come.

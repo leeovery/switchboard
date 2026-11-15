@@ -214,16 +214,16 @@ func TestAReadOfSessionsIsBehindItsBasesWhereNoSessionItGaveNeedsTheDay(t *testi
 	}
 }
 
-func (c *countingLedger) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c *countingLedger) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	r := sessionsRead("Sessions", ids)
-	sessions := c.Ledger.Sessions(ids, rest, r.taking(take))
+	sessions := c.Ledger.Sessions(in, ids, rest, r.taking(take))
 	c.read(r.gave(sessions))
 	return sessions
 }
 
-func (c *countingLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c *countingLedger) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	r := sessionsRead("SessionsOf", ids)
-	sessions := c.Ledger.SessionsOf(ids, rest, r.taking(take))
+	sessions := c.Ledger.SessionsOf(in, ids, rest, r.taking(take))
 	c.read(r.gave(sessions))
 	return sessions
 }
@@ -706,7 +706,7 @@ func (g *storeGuard) sameProjectsAsOneRead(now time.Time) {
 		g.t.Errorf("at %s Projects has no days to build its page of, want its read's joined to the tail's", now.Format(time.DateTime))
 		return
 	}
-	fresh := views.ReadSessionDays(l, m.sessionDays.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
+	fresh := views.ReadSessionDays(l, m.sessionDays.from, now, views.PoolRead{}).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now, views.PoolRead{})
 	in := m.periodInput(now, m.held.List(m.listLive(now, m.traffic.stream(now))))
 	if got, want := drawnOf(m.joinedDays().Projects(in)), drawnOf(fresh.Projects(in)); !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")

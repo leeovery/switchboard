@@ -6,11 +6,13 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -34,41 +36,84 @@ func movingDeps(t *testing.T) (cli.Deps, string) {
 	return deps, dir
 }
 
-// markMoved marks the move onto the accounts' ids done in the state
-// directory dir, as the router does once it has moved the history: a test
-// whose history isn't one waiting on the move has it marked so.
+// The marks, in the state directory, of the history's moves done.
+const (
+	idsMark   = "accounts.moved"
+	poolsMark = "pools.moved"
+)
+
+// markMoved marks the moves of the history done in the state directory dir,
+// onto the accounts' ids and to pools, as the router does once it has made
+// them: a test whose history isn't one waiting on a move has it marked so.
+// The accounts record notes the first pool, as the move to pools notes it
+// before anything else, where it notes none: b2n8, Default, unfenced, so a
+// config naming no pools has every account in it, as the verbs read it.
 func markMoved(t *testing.T, dir string) {
 	t.Helper()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "accounts.moved"), []byte("2026-09-28T13:12:00Z\n"), 0o600); err != nil {
+	markDone(t, dir, idsMark, poolsMark)
+	err := identity.NewFile(dir).Update(func(r *identity.Record) error {
+		if _, noted := r.FirstPool(); !noted {
+			r.NoteFirst("b2n8", identity.PoolWritten{Label: "Default"}, time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC))
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-// noRouter is what a command says holds the move up where no router answers.
-var noRouter = status.Moving{Stage: status.MoveNoRouter}.Said()
+// markDone marks the moves of the history done in the state directory dir
+// that the marks given mark.
+func markDone(t *testing.T, dir string, marks ...string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, mark := range marks {
+		if err := os.WriteFile(filepath.Join(dir, mark), []byte("2026-09-28T13:12:00Z\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
-func TestTheVerbsThatReadTheHistoryWaitOnItsMove(t *testing.T) {
+// noRouter is what a command says holds the move onto the accounts' ids up
+// where no router answers, and noRouterPools the move to pools.
+var (
+	noRouter      = status.Moving{Stage: status.MoveNoRouter}.Said()
+	noRouterPools = status.Moving{Stage: status.MoveNoRouter, Move: status.MovingPools}.Said()
+)
+
+func TestTheVerbsThatReadTheHistoryWaitOnItsMoves(t *testing.T) {
 	folder := t.TempDir()
-	for _, args := range [][]string{
-		{"events"},
-		{"history"},
-		{"history", "--windows"},
-		{"requests"},
-		{"sessions"},
-		{"sessions", "0b5c6f2e"},
-		{"export", folder},
-		{"import", folder},
-	} {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			deps, _ := movingDeps(t)
-			got := run(t, deps, args...)
-			if want := "Error: " + noRouter + "; try again once it's done\n"; got.code != 1 || got.stderr != want || got.stdout != "" {
-				t.Errorf("switchboard %s, the history waiting on its move, = %+v, want it refused: %q", strings.Join(args, " "), got, want)
-			}
-		})
+	moves := []struct {
+		name string
+		// done marks the moves done before it.
+		done []string
+		said string
+	}{
+		{name: "onto the accounts' ids", said: noRouter},
+		{name: "to pools", done: []string{idsMark}, said: noRouterPools},
+	}
+	for _, move := range moves {
+		for _, args := range [][]string{
+			{"events"},
+			{"history"},
+			{"history", "--windows"},
+			{"requests"},
+			{"sessions"},
+			{"sessions", "0b5c6f2e"},
+			{"export", folder},
+			{"import", folder},
+		} {
+			t.Run(move.name+", "+strings.Join(args, " "), func(t *testing.T) {
+				deps, dir := movingDeps(t)
+				markDone(t, dir, move.done...)
+				got := run(t, deps, args...)
+				if want := "Error: " + move.said + "; try again once it's done\n"; got.code != 1 || got.stderr != want || got.stdout != "" {
+					t.Errorf("switchboard %s, the history waiting on its move, = %+v, want it refused: %q", strings.Join(args, " "), got, want)
+				}
+			})
+		}
 	}
 }
 
@@ -134,7 +179,16 @@ func TestTheDashboardOpensOnceTheHistoryIsMoved(t *testing.T) {
 		t.Fatal("the dashboard opened while the history waited on its move")
 	case <-time.After(20 * time.Millisecond):
 	}
-	markMoved(t, dir)
+	markDone(t, dir, idsMark)
+	waitUntil(t, "the dashboard says it waits on the move to pools", func() bool {
+		return strings.HasSuffix(stdout.String(), "\n"+noRouterPools+"; the dashboard opens once it's done\n")
+	})
+	select {
+	case <-opened:
+		t.Fatal("the dashboard opened while the history waited on its move to pools")
+	case <-time.After(20 * time.Millisecond):
+	}
+	markDone(t, dir, poolsMark)
 	<-opened
 	if got := <-code; got != 0 {
 		t.Errorf("switchboard dashboard exited %d, want 0 once it opened", got)
@@ -216,5 +270,128 @@ func TestServeMovesTheAccountsAndTheirHistoryOntoTheirIDsAcrossTheRestartItCalls
 	}
 	if data, err := os.ReadFile(srv.config); err != nil || strings.Contains(string(data), `"work"`) || !strings.Contains(string(data), `"`+work.ID+`"`) {
 		t.Errorf("the config put back reads %s (%v), want it healed onto the new ids", data, err)
+	}
+}
+
+// The router moves the history to pools in one run, taking up the first
+// pool the move writes to its config at once, without the restart a router
+// from before needed; and a router starting on the config put back from
+// before pools heals it.
+func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.accounts = threeAccounts
+	srv.writeConfig(t)
+	if err := os.Remove(filepath.Join(srv.state, poolsMark)); err != nil {
+		t.Fatal(err)
+	}
+	requests := filepath.Join(ledger.Dir(srv.state), "requests-"+dayfile.DateOf(testNow)+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(requests), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	line := `{"at":"2026-09-28T12:00:00Z","request":"r1","kind":"messages","account":"work","status":200,"attempts":1,"total_ms":5}` + "\n"
+	if err := os.WriteFile(requests, []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stop := srv.start(t)
+	waitUntil(t, "the move to pools is marked done", func() bool {
+		_, err := os.Stat(filepath.Join(srv.state, poolsMark))
+		return err == nil
+	})
+	srv.waitForStatus(t, func(doc status.Document) bool { return doc.Moving == status.Moving{} })
+	record, err := identity.NewFile(srv.state).Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, ok := record.FirstPool()
+	if !ok {
+		t.Fatal("the accounts record notes no first pool")
+	}
+	if data, err := os.ReadFile(requests); err != nil || !strings.Contains(string(data), `"kind":"messages","pool":"`+first.ID+`","account":"work"`) {
+		t.Errorf("the ledger's line reads %s (%v), want it given the first pool, %s", data, err, first.ID)
+	}
+	if got := run(t, srv.deps, "requests"); got.code != 0 {
+		t.Errorf("switchboard requests, moved, = %+v, want the ledger read", got)
+	}
+
+	// The config put back as it was, as from a repository it's kept in, a
+	// router starting heals it.
+	if got := stop(); got.code != 0 {
+		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
+	}
+	srv.writeConfig(t)
+	srv.start(t)
+	srv.waitForStatus(t, func(status.Document) bool { return true })
+	cfg, err := config.Load(srv.config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pool, ok := cfg.Pools.ByID(first.ID); !ok || pool.Label != "Default" || len(cfg.Pools) != 1 {
+		t.Errorf("the config put back holds the pools %+v, want it healed with the first, %s, labelled Default", cfg.Pools, first.ID)
+	}
+}
+
+// A router starting on a config put back from before both moves whose pools
+// can't be written back, as an account the record has in no pool has no
+// unfenced pool to go to, starts on the accounts' new ids all the same, the
+// ids its token files are named by, which the heal writes alone.
+func TestServeStartedOnAConfigWhosePoolsCantBeHealedStartsOnTheNewIDsWithTheirTokens(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.deps.WatchEvery = time.Hour
+	added := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if err := identity.NewFile(srv.state).Update(func(r *identity.Record) error {
+		for _, id := range []string{"work", "personal", "side"} {
+			r.Accounts = append(r.Accounts, identity.Entry{ID: id, Added: added, Was: "old-" + id, Pool: "b2n8"})
+		}
+		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: added, First: true, Here: true, Written: identity.PoolWritten{Label: "Default", Dirs: []string{"/work/default"}}}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	srv.accounts = "\n[[account]]\nid = \"old-work\"\n\n[[account]]\nid = \"old-personal\"\n\n[[account]]\nid = \"old-side\"\n\n[[account]]\nid = \"n4p8\"\n"
+	srv.writeConfig(t)
+
+	srv.start(t)
+	doc := srv.waitForStatus(t, func(status.Document) bool { return true })
+	for _, id := range []string{"work", "side"} {
+		if a, ok := doc.Account(id); !ok || !a.TokenSet {
+			t.Errorf("the router has %s: %v, its token set: %v; want it by its new id, with its token", id, ok, a.TokenSet)
+		}
+	}
+	cfg, err := config.Load(srv.config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := cfg.Accounts.IDs(), []string{"work", "personal", "side", "n4p8"}; !slices.Equal(got, want) || len(cfg.Pools) != 0 {
+		t.Errorf("the config names %q in the pools %+v, want %q, the new ids written alone", got, cfg.Pools, want)
+	}
+}
+
+// A router starting on a config it can't heal starts all the same, and
+// tells of the heal serve tried as it started, once.
+func TestServeStartedOnAConfigItCantHealTellsOfItOnce(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	// No look runs to try the heal again: what's told is serve's.
+	srv.deps.WatchEvery = time.Hour
+	// Moved to pools, the accounts record noting no first pool to heal with.
+	srv.accounts = threeAccounts
+	srv.writeConfig(t)
+	was, err := os.ReadFile(srv.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stop := srv.start(t)
+	srv.waitForStatus(t, func(status.Document) bool { return true })
+	if got := stop(); got.code != 0 {
+		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
+	}
+
+	if data, err := os.ReadFile(srv.config); err != nil || string(data) != string(was) {
+		t.Errorf("the config reads %s (%v), want it as it was, as none could be healed", data, err)
+	}
+	log := srv.routerLog(t)
+	if n := strings.Count(log, "couldn't heal the config"); n != 1 || !hasLine(log, "level=WARN", "couldn't heal the config", "notes no first pool") {
+		t.Errorf("router.log reads\n%s\nwant it said once that the config couldn't be healed, as the accounts record notes no first pool", log)
 	}
 }

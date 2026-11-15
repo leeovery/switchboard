@@ -29,7 +29,7 @@ type Moment struct {
 	// Fallback, Health, Restart, Moving, Pin, Events and Sessions are the
 	// document's records, as read: why it was probed rather than the
 	// router's, the router's health, a restart it has due, how its move of
-	// the history onto the accounts' ids stands, its global pin, what has
+	// the history onto the accounts' ids stands, its pin, what has
 	// happened lately, and how many sessions it routed in the last hour.
 	Fallback Fallback
 	Health   Health
@@ -38,6 +38,12 @@ type Moment struct {
 	Pin      Pin
 	Events   []Event
 	Sessions int
+	// EventsKept are the ids of the events the router kept as it built the
+	// document, every pool's, as read.
+	EventsKept EventsKept
+	// PoolID and PoolLabel are the id and the label of the pool the
+	// document is of, as read: none of one of a config without pools.
+	PoolID, PoolLabel string
 	// ComingUp is what's coming to the accounts after Now, of what the
 	// document had coming as it was built, soonest first.
 	ComingUp []Upcoming
@@ -77,15 +83,15 @@ type AccountNow struct {
 	// Reserve is the share of every window it leaves unused, as configured,
 	// and Cap where its reserve starts, 1 − Reserve. ReserveHolds is set
 	// where its reserve holds it back once its use reaches it, as read: it
-	// has one, and the global pin doesn't spend it. Floor is the share of a
+	// has one, and the pool's pin doesn't spend it. Floor is the share of a
 	// window used where it runs out: its cap where its reserve holds, else
 	// its limit.
 	Reserve, Cap, Floor float64
 	ReserveHolds        bool
-	// Pinned is set where the global pin names it, Next where new sessions go
+	// Pinned is set where the pool's pin names it, Next where new sessions go
 	// to it, which ▲ marks, Elsewhere where they go to another, as elsewhere
 	// says, InPool where it's one of the pool's accounts, as Pool has them,
-	// and OutOfPool where the pool leaves it out, as the global pin names
+	// and OutOfPool where the pool leaves it out, as the pool's pin names
 	// others, each as read.
 	Pinned, Next, Elsewhere, InPool, OutOfPool bool
 	// TokenSet is set where its token is usable, TokenForeign where it isn't
@@ -120,7 +126,7 @@ type AccountNow struct {
 	LimitSince time.Time
 	LimitMoved int
 	// ReachedReserve are the keys of its windows at its reserve at Now,
-	// whether or not the global pin spends it, as reachedReserve has them.
+	// whether or not the pool's pin spends it, as reachedReserve has them.
 	// CapHolds is set where its cap holds it back from every request at Now,
 	// as capHolds says; CapSince is when it reached its cap, as the router's
 	// event of it, which capEvent finds, tells, as capSince has it; and
@@ -300,8 +306,8 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	judged := d.judgeAll(now, policy)
 	m := Moment{
 		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
-		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Moving: d.Moving, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
-		ComingUp: comingAfter(d.ComingUp, now), Next: d.next(), Learning: d.Demand != nil && d.Demand.Learning,
+		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Moving: d.Moving, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions, EventsKept: d.EventsKept,
+		PoolID: d.PoolID, PoolLabel: d.PoolLabel, ComingUp: comingAfter(d.ComingUp, now), Next: d.next(), Learning: d.Demand != nil && d.Demand.Learning,
 		doc: d, policy: policy, judged: judged,
 		pool: sync.OnceValue(func() Pool { return d.pool(judged) }),
 	}
@@ -417,10 +423,10 @@ func (h *HeldMoment) Moment() Moment {
 }
 
 // PoolNow is the accounts new sessions can go to at a moment, taken as one:
-// those the global pin names, else every account.
+// those the pool's pin names, else every account.
 type PoolNow struct {
 	// Accounts are the ids of its accounts, in the config's order, and Pinned
-	// is set where they're the accounts the global pin names.
+	// is set where they're the accounts the pool's pin names.
 	Accounts []string
 	Pinned   bool
 	// Windows are a window each that any of them has, shortest first, as the
@@ -925,7 +931,7 @@ func (d Document) capEvent(a Account, now time.Time, policy score.Policy) (Event
 
 // capHolds reports whether doc's account a's cap holds it back from every
 // request at now: a window every model shares, as policy says, has reached
-// its reserve, as reachedReserve judges, and the global pin doesn't spend it.
+// its reserve, as reachedReserve judges, and the pool's pin doesn't spend it.
 func (d Document) capHolds(a Account, now time.Time, policy score.Policy) bool {
 	return d.reserveHolds(a) && slices.ContainsFunc(a.reachedReserve(now), policy.IsShared)
 }

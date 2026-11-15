@@ -10,11 +10,11 @@ import (
 )
 
 // Pool is the accounts new sessions can go to now, taken as one: those the
-// global pin names, else every account.
+// pool's pin names, else every account.
 type Pool struct {
 	// Accounts are the ids of its accounts, in the config's order.
 	Accounts []string `json:"accounts"`
-	// Pinned is set when they're the accounts the global pin names.
+	// Pinned is set when they're the accounts the pool's pin names.
 	Pinned bool `json:"pinned,omitempty"`
 	// Windows are a window each that any of them has, shortest first, as
 	// kept has them.
@@ -402,7 +402,7 @@ func (d Document) pooled() bool {
 }
 
 // inPool reports whether new sessions can go to the account with the given
-// id: the global pin names it, or there's none.
+// id: the pool's pin names it, or there's none.
 func (d Document) inPool(id string) bool {
 	return d.Pin.IsZero() || d.Pin.Has(id)
 }

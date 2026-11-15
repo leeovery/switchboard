@@ -73,12 +73,28 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 		{name: "in no repository, the directory itself", dirs: []string{"notes/2026"}, start: "notes/2026", want: "notes/2026"},
 		{name: "within a bare repository, the directory itself", dirs: []string{"api.git/refs/heads"}, start: "api.git/refs/heads", want: "api.git/refs/heads"},
 		{
-			name: "a worktree of a bare repository, the worktree's own", dirs: []string{"api.git/worktrees/fix-login", "fix-login/web"},
+			name: "a worktree of a bare repository, the bare repository", dirs: []string{"api.git/worktrees/fix-login", "fix-login/web"},
+			files: map[string]string{
+				"fix-login/.git": "gitdir: <root>/api.git/worktrees/fix-login\n", "api.git/worktrees/fix-login/commondir": commonDir, "api.git/config": bareConfig,
+			},
+			start: "fix-login/web", want: "api.git",
+		},
+		{
+			name: "a worktree beside a bare repository in .bare, the bare repository", dirs: []string{"api/.bare/worktrees/main", "api/main/web"},
+			files: map[string]string{
+				"api/main/.git": "gitdir: <root>/api/.bare/worktrees/main\n", "api/.bare/worktrees/main/commondir": commonDir, "api/.bare/config": bareConfig,
+			},
+			start: "api/main/web", want: "api/.bare",
+		},
+		{
+			name:  "a worktree whose common directory, not .git, no config says is bare, the worktree's own",
+			dirs:  []string{"api.git/worktrees/fix-login", "fix-login/web"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/api.git/worktrees/fix-login\n", "api.git/worktrees/fix-login/commondir": commonDir},
 			start: "fix-login/web", want: "fix-login",
 		},
 		{
-			name: "a worktree beside a bare repository in .bare, the worktree's own", dirs: []string{"api/.bare/worktrees/main", "api/main/web"},
+			name:  "a worktree beside a common directory in .bare that no config says is bare, the worktree's own",
+			dirs:  []string{"api/.bare/worktrees/main", "api/main/web"},
 			files: map[string]string{"api/main/.git": "gitdir: <root>/api/.bare/worktrees/main\n", "api/.bare/worktrees/main/commondir": commonDir},
 			start: "api/main/web", want: "api/main",
 		},
@@ -224,6 +240,13 @@ func TestFindProjectGivesAMainRepositoryByThePathTheWalkTook(t *testing.T) {
 			name: "a subdirectory of a worktree beside its repository, the repository under the link", dirs: []string{worktreeGitDir, "fix-login/cmd/server"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n", worktreeGitDir + "/commondir": "<root>/api/.git\n"},
 			start: "fix-login/cmd/server", want: "<link>/api",
+		},
+		{
+			name: "a worktree beside its bare repository, the bare repository under the link", dirs: []string{"api.git/worktrees/fix-login", "fix-login"},
+			files: map[string]string{
+				"fix-login/.git": "gitdir: <root>/api.git/worktrees/fix-login\n", "api.git/worktrees/fix-login/commondir": "<root>/api.git\n", "api.git/config": bareConfig,
+			},
+			start: "fix-login", want: "<link>/api.git",
 		},
 	}
 	for _, tt := range tests {

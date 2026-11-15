@@ -72,7 +72,7 @@ func routedOn(id, dir string) status.Session {
 func todaysListAndLog(lines []ledger.Line, running ...status.Session) (views.SessionList, views.SessionLog) {
 	l := sessionsLedger(lines, now)
 	list := views.ListSessions(views.SessionSources{Running: running, Ledger: l, Prices: ledger.Pricing, Now: now})
-	days := views.ReadSessionDays(l, now.AddDate(0, 0, -40), now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
+	days := views.ReadSessionDays(l, now.AddDate(0, 0, -40), now, views.PoolRead{}).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now, views.PoolRead{})
 	return list, days.SessionLog(projectsIn(views.PeriodToday, now, list.Sessions...))
 }
 
@@ -126,7 +126,7 @@ func TestASessionAcrossMidnightStartsTheDayBefore(t *testing.T) {
 		t.Fatalf("today's log is %+v, want the session started yesterday at 23:30", log.Sessions)
 	}
 	l := sessionsLedger(lines, now)
-	days := views.ReadSessionDays(l, now, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
+	days := views.ReadSessionDays(l, now, now, views.PoolRead{}).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now, views.PoolRead{})
 	page := days.Projects(projectsIn(views.PeriodToday, now, list.Sessions...))
 	project, _ := page.Project("/code/switchboard")
 	if len(project.Sessions) != 1 || !project.Sessions[0].Started.Equal(october(6, 23, 30)) {

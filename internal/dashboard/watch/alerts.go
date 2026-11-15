@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/notify"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -27,8 +28,10 @@ type lastReads struct {
 // last, as follows says, as a reading from elsewhere, as the router's limit
 // that probing can't see, says nothing of how this one has changed. The
 // warnings take each last look to look's moment once, for every account it
-// last read to share, and none where settings warn of none.
-func (r lastReads) alerts(look status.Moment, read origin, settings config.Notifications) []notify.Notice {
+// last read to share, and none where settings warn of none. Each names its
+// account led by pool, the label of the pool shown, as prose.PoolLed has
+// it, as with one pool or none, pool is "", and none is named.
+func (r lastReads) alerts(look status.Moment, read origin, settings config.Notifications, pool string) []notify.Notice {
 	if !read.follows(r.from) {
 		return nil
 	}
@@ -40,13 +43,13 @@ func (r lastReads) alerts(look status.Moment, read origin, settings config.Notif
 			continue
 		}
 		if settings.Room && roomAgain(*last, a) {
-			alerts = append(alerts, notify.RoomAgain(a.ID, a.Title()))
+			alerts = append(alerts, notify.RoomAgain(a.ID, prose.PoolLed(pool, a.Title())))
 		}
 		if !warns {
 			continue
 		}
 		for _, w := range passed(then(last), a, settings.Warning) {
-			alerts = append(alerts, notify.Warning(a.ID, a.Title(), w.Name, w.Used))
+			alerts = append(alerts, notify.Warning(a.ID, prose.PoolLed(pool, a.Title()), w.Name, w.Used))
 		}
 	}
 	return alerts

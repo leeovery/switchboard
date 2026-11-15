@@ -57,7 +57,7 @@ func BenchmarkReadingAYearOfSessionDays(b *testing.B) {
 	now := october(7, 13, 12)
 	l := yearOfSides(b, now)
 	for b.Loop() {
-		views.ReadSessionDays(l, now.AddDate(-1, 0, 0), now)
+		views.ReadSessionDays(l, now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	}
 }
 
@@ -65,7 +65,7 @@ func BenchmarkReadingAYearOfSessionDays(b *testing.B) {
 // project's page, of a year of days held.
 func BenchmarkProjectsOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
-	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now)
+	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	in := projectsIn(views.PeriodTwelveMonths, now)
 	for b.Loop() {
 		page := days.Projects(in)
@@ -77,7 +77,7 @@ func BenchmarkProjectsOverTwelveMonths(b *testing.B) {
 // watch builds it as the List shows.
 func BenchmarkSessionLogOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
-	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now)
+	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	in := projectsIn(views.PeriodTwelveMonths, now)
 	for b.Loop() {
 		days.SessionLog(in)
@@ -101,7 +101,7 @@ func busyLists(now time.Time) [2]views.SessionList {
 // building them again.
 func BenchmarkProjectsLiveOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
-	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now)
+	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	lists := busyLists(now)
 	page := days.Projects(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
 	project, _ := page.Project(page.Rows[0].Path)
@@ -117,7 +117,7 @@ func BenchmarkProjectsLiveOverTwelveMonths(b *testing.B) {
 // doing, as the watch tells it in place of building it again.
 func BenchmarkSessionLogLiveOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
-	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now)
+	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	lists := busyLists(now)
 	log := days.SessionLog(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
 	i := 0

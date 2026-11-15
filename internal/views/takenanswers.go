@@ -15,10 +15,12 @@ import (
 type takenAnswers map[string]*dayAnswers
 
 // dayAnswers are a day's answers taken, in the order taken: each as answerOf
-// has it, of no session, and the session of each, interned.
+// has it, of no session; and the session of each, and the pool its line
+// recorded, interned.
 type dayAnswers struct {
 	answers  []answered
 	sessions []unique.Handle[string]
+	pools    []unique.Handle[string]
 }
 
 // take takes in the line l, of the day with the given date, as a read of
@@ -35,6 +37,27 @@ func (t takenAnswers) take(date string, l ledger.Line) {
 	}
 	d.answers = append(d.answers, answerOf(&l, false))
 	d.sessions = append(d.sessions, unique.Make(l.Session))
+	d.pools = append(d.pools, unique.Make(l.Pool))
+}
+
+// in are the answers taken as a fold in the pool in reads, as
+// ledger.DigestDay's In has it, hands them to a page's points: each of the
+// session ledger.RoutedIn's Owner has it of, as a pool's read hands a
+// session's lines. They're t itself where in is nil, of every pool's; else
+// the answers t holds, shared.
+func (t takenAnswers) in(in ledger.RoutedIn) takenAnswers {
+	if in == nil {
+		return t
+	}
+	owned := make(takenAnswers, len(t))
+	for date, d := range t {
+		sessions := make([]unique.Handle[string], len(d.sessions))
+		for i, session := range d.sessions {
+			sessions[i] = unique.Make(in.Owner(d.pools[i].Value(), session.Value()))
+		}
+		owned[date] = &dayAnswers{answers: d.answers, sessions: sessions, pools: d.pools}
+	}
+	return owned
 }
 
 // of are the answers taken of the days after the one with the date after,

@@ -22,7 +22,7 @@ type Screen interface {
 // ended.
 func Run[S Screen](screen S, out io.Writer, opts ...tea.ProgramOption) (S, error) {
 	last := screen
-	_, err := tea.NewProgram(tracked[S]{screen: screen, last: &last}, append(opts, tea.WithOutput(out))...).Run()
+	_, err := tea.NewProgram(tracked[S]{last: &last}, append(opts, tea.WithOutput(out))...).Run()
 	last.Backdrop().PutBack(out)
 	return last, err
 }
@@ -48,31 +48,33 @@ func Heeding[S Screen](heed func(S, tea.Msg) tea.Msg) func(tea.Model, tea.Msg) t
 		if !ok {
 			return msg
 		}
-		return heed(t.screen, msg)
+		return heed(*t.last, msg)
 	}
 }
 
 // tracked is the screen as Bubble Tea runs it, each step it takes noted in
 // last: Bubble Tea gives back no model from a panic it recovers from, and
-// the background the screen set is put back all the same.
+// the background the screen set is put back all the same. It holds the
+// screen in last alone, which each step overwrites, as Bubble Tea keeps the
+// model it was started with till it stops: so nothing of a screen a step
+// has left behind stays reachable through it.
 type tracked[S Screen] struct {
-	screen S
-	last   *S
+	last *S
 }
 
 // Init starts the screen as it starts itself.
 func (t tracked[S]) Init() tea.Cmd {
-	return t.screen.Init()
+	return (*t.last).Init()
 }
 
 // Update takes in a message as the screen does, noting where it leaves it.
 func (t tracked[S]) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	next, cmd := t.screen.Update(msg)
+	next, cmd := (*t.last).Update(msg)
 	*t.last = next.(S)
-	return tracked[S]{screen: *t.last, last: t.last}, cmd
+	return t, cmd
 }
 
 // View draws the screen as it draws itself.
 func (t tracked[S]) View() tea.View {
-	return t.screen.View()
+	return (*t.last).View()
 }

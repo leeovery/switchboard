@@ -22,11 +22,16 @@ const (
 	// may be restarting.
 	comingBack = 2 * time.Second
 	askAgain   = 200 * time.Millisecond
+	// takeUp is how long a router whose pools aren't the config's is waited
+	// for to take the config's up, asked again every askAgain: it looks at
+	// the config every 3 seconds.
+	takeUp = 5 * time.Second
 )
 
 // Patience is how long the router is waited for, timed from the first ask of
 // its health check. The zero Patience is switchboard's own: AskTimeout to
-// answer, a router that isn't running asked again every 200ms for 2s.
+// answer, a router that isn't running asked again every 200ms for 2s, and
+// one whose pools aren't the config's for 5s.
 type Patience struct {
 	// Answer is how long the router is given to answer, AskTimeout where it's
 	// zero.
@@ -34,21 +39,27 @@ type Patience struct {
 	// Back is how long a router that isn't running is asked again: where
 	// Back is zero, it's asked once.
 	Back time.Duration
-	// Again is how long after an ask that finds the router not running it's
-	// asked again, 200ms where Again is zero.
+	// Again is how long after an ask that finds the router not running, or
+	// with pools other than the config's, it's asked again, 200ms where Again
+	// is zero.
 	Again time.Duration
+	// TakeUp is how long, from its answer, a router whose pools aren't the
+	// config's is asked again until they are, 5s where TakeUp is zero.
+	TakeUp time.Duration
 }
 
-var patient = Patience{Answer: AskTimeout, Back: comingBack, Again: askAgain}
+var patient = Patience{Answer: AskTimeout, Back: comingBack, Again: askAgain, TakeUp: takeUp}
 
 // orDefault is p as it's asked with: switchboard's own where it's zero, else
-// AskTimeout to answer and 200ms between asks where it doesn't say.
+// AskTimeout to answer, 200ms between asks and 5s for the pools to be taken
+// up where it doesn't say.
 func (p Patience) orDefault() Patience {
 	if p == (Patience{}) {
 		return patient
 	}
 	p.Answer = cmp.Or(p.Answer, AskTimeout)
 	p.Again = cmp.Or(p.Again, askAgain)
+	p.TakeUp = cmp.Or(p.TakeUp, takeUp)
 	return p
 }
 
