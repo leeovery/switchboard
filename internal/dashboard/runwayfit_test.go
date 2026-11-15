@@ -256,7 +256,8 @@ func TestRunwayDrawsThePagesChromeAloneWhereNotOneLaneFits(t *testing.T) {
 // COMING UP after a blank row, every line of it, and the legend over the key
 // line, the rows spare between them, as the 5-hour frame lays them out; a
 // day stepped back to with neither COMING UP nor the room; ten at (c),
-// COMING UP cut to a line and how many more; one account,
+// COMING UP cut to a line and how many more, and a row shorter at (d), the
+// legend given way; one account,
 // its last blank row the one before COMING UP; and on a phone alike, its
 // legend of two.
 func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
@@ -278,8 +279,12 @@ func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 			shape: runwayShape{legend: 1, columns: 1}, want: rows{9, 3, 18, noRow, 35, noRow, 0},
 		},
 		{
-			name: "the ten frame's ten", shown: RunwayShown{Lanes: lanesOf(10), Coming: thingsComing(9)}, width: 160, height: 37,
+			name: "the ten frame's ten, at (c)", shown: RunwayShown{Lanes: lanesOf(10), Coming: thingsComing(9)}, width: 160, height: 37,
 			shape: runwayShape{legend: 1, columns: 1}, want: rows{9, 2, 29, 31, 35, 32, 2},
+		},
+		{
+			name: "ten a row shorter, at (d)", shown: RunwayShown{Lanes: lanesOf(10), Coming: thingsComing(9)}, width: 160, height: 36,
+			shape: runwayShape{legend: 1, columns: 1}, want: rows{9, 2, 29, 31, noRow, 32, 2},
 		},
 		{
 			name: "one account", shown: RunwayShown{Lanes: lanesOf(1), Coming: thingsComing(2)}, width: 160, height: 37,

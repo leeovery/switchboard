@@ -360,14 +360,14 @@ func (f Frame) headingY() int {
 
 // top is the row the view starts at: the one after the heading row, and on a
 // phone, its period's, where that takes a row of its own, and the blank rows
-// the tab leaves under it, as underHeading has them; or on a tab whose
+// the tab leaves under it, as blankUnderHeading has them; or on a tab whose
 // sections head themselves, as headsItself has it, the heading row's.
 func (f Frame) top() int {
 	shown := f.Shown()
 	if shown.headsItself() {
 		return f.headingY()
 	}
-	return f.headingY() + f.heading().rows(f.Width, f.phone()) + shown.underHeading()
+	return f.headingY() + f.heading().rows(f.Width, f.phone()) + shown.blankUnderHeading()
 }
 
 // body is the rows between the status line and the key line, across the
