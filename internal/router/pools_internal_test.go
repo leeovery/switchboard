@@ -256,6 +256,33 @@ func poolsLogged(log *logstest.Log, msg string) []string {
 	return pools
 }
 
+func TestNoLineNamesAPoolInAConfigFromBeforePools(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newPoolsRouter(t, at(start), false)
+	readPersonalFirst(r)
+
+	for _, headers := range []map[string]string{nil, {"X-Switchboard-Account": "side"}} {
+		if w := routeIn(t, r, workToken, "one", "", headers); w.Code != http.StatusOK {
+			t.Fatalf("answered %d, want 200", w.Code)
+		}
+	}
+	ps := pins{}
+	for _, since := range []time.Time{start, start.Add(time.Minute)} {
+		ps.take("", status.Pin{Accounts: []string{"side"}, Since: since})
+	}
+
+	for _, msg := range []string{"msg=routed", "msg=moved", `msg="pin dropped: a later one holds in its pool"`} {
+		if !log.Has(msg) {
+			t.Errorf("log reads\n%s\nwant a line with %s", log, msg)
+		}
+	}
+	for _, line := range log.Lines() {
+		if loggedPool.MatchString(line) {
+			t.Errorf("logged %s\nwant no pool named, the config having none", line)
+		}
+	}
+}
+
 func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 	// Personal, in Acme, is the account every choice would take, were the
 	// pools not there. Each request is in Default, of session one.
