@@ -14,8 +14,8 @@ import (
 )
 
 // ProjectPage is the project chosen on Projects, as its page under the list
-// shows it over the period: its row, its share of every project's worth and
-// its tokens among it; its worth in buckets, WORTH BY; each
+// shows it over the period: its row, which holds its share of every
+// project's worth and its tokens too; its worth in buckets, WORTH BY; each
 // model version's share of its worth, BY MODEL; each account's, ON
 // ACCOUNTS; and its sessions, SESSIONS.
 type ProjectPage struct {

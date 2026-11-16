@@ -194,6 +194,9 @@ func TestProjectsGivesWayInItsOrder(t *testing.T) {
 					if g != before && third == beforeThird && beforeSpare != 0 {
 						t.Errorf("%s a step from a row taller's %+v, which left %d rows spare at the page's most", at, before, beforeSpare)
 					}
+					if r, ok := roomierStep(l, g, third, least); ok && fitsWhole(l, r) {
+						t.Errorf("%s yet the step a notch roomier, %+v, fits", at, r)
+					}
 					if g.list < third && squeezes {
 						t.Errorf("%s the list gave rows back while WORTH BY could squeeze", at)
 					}
@@ -233,6 +236,36 @@ func TestProjectsGivesWayInItsOrder(t *testing.T) {
 	}
 }
 
+// roomierStep is the step a notch roomier than g in the order Projects gives
+// way in, of the list's third and the least it gives rows back to: WORTH BY's
+// columns a row taller, the list at its third; the list a row longer, with
+// every section; a section more, the list at its least; or, every section
+// gone, the list a row longer, short of its third. false where g is
+// whole, or the list at its fewest.
+func roomierStep(l projectsLaid, g projectsGiving, third, least int) (projectsGiving, bool) {
+	switch {
+	case g.kept == projectSections && g.list == third:
+		return projectsGiving{list: third, kept: projectSections, chart: g.chart + 1}, g.chart < worthRows
+	case g.kept == projectSections:
+		return projectsGiving{list: g.list + 1, kept: projectSections, chart: g.chart}, true
+	case g.kept > 0:
+		return projectsGiving{list: least, kept: g.kept + 1, chart: worthRowsLeast}, true
+	case g.list < third:
+		return projectsGiving{list: g.list + 1}, g.list > min(len(l.f.Projects.rows()), listLeast)
+	}
+	return projectsGiving{list: least, kept: 1, chart: worthRowsLeast}, true
+}
+
+// fitsWhole reports whether Projects given way as g fits the view's rows at
+// the page's most, SESSIONS at its least: as fits has it, with a section
+// kept; else with nothing between the numbers and SESSIONS.
+func fitsWhole(l projectsLaid, g projectsGiving) bool {
+	if g.kept > 0 {
+		return l.fits(g)
+	}
+	return l.aboveOf(g.list, l.most.numbers)+sessionsLeast <= l.f.viewRows()
+}
+
 // spareAtMost are the rows l leaves spare given way as g at the page's
 // most: the view's, past what's above the sections, the sections kept and
 // a blank row before them, and SESSIONS at its least.
@@ -246,8 +279,8 @@ func spareAtMost(l projectsLaid, g projectsGiving) int {
 
 // The form the sections lie in, the list's lines, WORTH BY's columns' rows
 // and the sections kept are the page's, never the chosen project's: as the
-// choice moves among projects of more and fewer versions, accounts and
-// numbers, and of a version's name wide enough to lie otherwise on its own,
+// choice moves among projects of more and fewer versions, accounts, numbers
+// and sessions, and of a version's name wide enough to lie otherwise on its own,
 // they hold still at every size.
 func TestProjectsHoldsStillAsTheChoiceMoves(t *testing.T) {
 	type laidOut struct {
@@ -259,7 +292,7 @@ func TestProjectsHoldsStillAsTheChoiceMoves(t *testing.T) {
 	rows[0].Share, rows[0].Tokens.Total = &half, 1_365_000_000
 	pages := make([]views.ProjectPage, 4)
 	for i := range pages {
-		pages[i] = chosenPage(chosenSessions())
+		pages[i] = chosenPage(chosenSessions()[:6-2*i])
 		pages[i].ProjectRow = rows[i]
 		pages[i].ByModel, pages[i].OnAccounts = pages[i].ByModel[:i%3], pages[i].OnAccounts[:3-i%3]
 	}
@@ -331,14 +364,20 @@ func checkProjectsDrawnAsLaid(t *testing.T, at string, rows []string, l projects
 	}
 }
 
-// On the owner's iPad, 35 projects at 114 by 48, Projects shows every
-// section, WORTH BY whole and the list its third.
+// On the owner's iPad, 35 projects at 114 by 48, a project on five accounts
+// shows every section, WORTH BY squeezing to keep ON ACCOUNTS, the list at
+// its third; where, the list's third taken whatever it cost below, ON
+// ACCOUNTS left.
 func TestProjectsOnAnIPadShowsEverySection(t *testing.T) {
 	page := chosenPage(chosenSessions())
+	third := 0.2
+	for _, a := range []string{"client", "lab"} {
+		page.OnAccounts = append(page.OnAccounts, views.AccountShare{Account: a, Worth: worthOf(7000), Share: &third})
+	}
 	f := projectsFrame(t, 114, 48, projectRows(35), 0, &page)
 	l := f.projectsLaying(framedDoc(nil, nil), routedAt)
-	if l.project.kept != projectSections || l.project.chart != worthRows || l.list.linesShown() != f.viewRows()/3 {
-		t.Errorf("at 114x48 %d sections show, WORTH BY's columns %d rows and the list %d lines; want %d, %d and a third of %d",
+	if l.project.kept != projectSections || l.project.chart >= worthRows || l.list.linesShown() != f.viewRows()/3 {
+		t.Errorf("at 114x48 %d sections show, WORTH BY's columns %d rows and the list %d lines; want %d, fewer than %d and a third of %d",
 			l.project.kept, l.project.chart, l.list.linesShown(), projectSections, worthRows, f.viewRows())
 	}
 }
@@ -659,7 +698,7 @@ func TestProjectsHelpSaysTheOrderItGivesWayIn(t *testing.T) {
 	all := strings.Join(said, " ")
 	want := "Where rows run short, WORTH BY's columns squeeze from 6 rows to 3, then the list shrinks from its third to 5 rows. " +
 		"Only then do the sections leave: ON ACCOUNTS, then BY MODEL, then WORTH BY. Once all three have left, the list takes up to " +
-		"its third again and shrinks to 2 rows, so SESSIONS keeps three rows at least."
+		"its third again, then shrinks toward 2 rows as they run shorter, so SESSIONS keeps three rows at least."
 	if !strings.Contains(all, want) {
 		t.Errorf("Projects' help reads\n%s\nwant %q", all, want)
 	}

@@ -78,7 +78,8 @@ stack.
 3. ON ACCOUNTS leaves.
 4. Then BY MODEL.
 5. Then WORTH BY.
-6. Then the list takes up to a third of the rows again, and shrinks to 2 rows.
+6. Then the list takes up to a third of the rows again, then shrinks toward 2 rows as they run
+   shorter.
 
 **If the width runs short,** the list gives way:
 

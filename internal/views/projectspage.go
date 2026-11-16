@@ -83,9 +83,9 @@ type ProjectTotals struct {
 // those of temporary folders; its name, by its path's last part, and its
 // parents' too where two share it, as status.ProjectNames names them, uncut,
 // "" of either of those; its totals; its share of every project's worth,
-// nil where either is none; its tokens; its worth by model family, in the version table's order of families, as BY
-// MONTH splits a month's; when its last request arrived, in UTC, zero
-// where none did; and what its sessions running are doing, the busiest's,
+// nil where either is none; its tokens; its worth by model family, in the
+// version table's order of families, as BY MONTH splits a month's; when its
+// last request arrived, in UTC, zero where none did; and what its sessions running are doing, the busiest's,
 // as busiest has it, Idle where none runs, so its last request reads as now
 // while one of them is busy, as Activity's Busy has it.
 type ProjectRow struct {

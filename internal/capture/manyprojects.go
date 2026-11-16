@@ -13,13 +13,13 @@ import (
 const moreProjects = 29
 
 // moreProjectsLines are the lines of the sessions moreProjects adds, the
-// nth in ~/Code/repo-n from 08:n, its turns sampled from seed n over its
-// first 10+n minutes.
+// nth in ~/Code/repo-NN from 08:n, its id starting with n's four hex
+// digits, its turns sampled from seed n over its first 10+n minutes.
 func moreProjectsLines(now time.Time) []ledger.Line {
 	var lines []ledger.Line
 	for n := 1; n <= moreProjects; n++ {
 		p := sessionPlan{
-			id: fmt.Sprintf("%08x-5e1f-4c2d-9a3b-%012x", 0xc0de0000+n, n), dir: fmt.Sprintf("~/Code/repo-%02d", n),
+			id: fmt.Sprintf("%04xc0de-5e1f-4c2d-9a3b-%012x", n, n), dir: fmt.Sprintf("~/Code/repo-%02d", n),
 			start: clockAt(now, 0, 8, n, 0), turns: turnsFrom([][2]int{{0, 10 + n}}, n), stays: []stay{{"work", 0}},
 		}
 		lines = append(lines, p.lines()...)

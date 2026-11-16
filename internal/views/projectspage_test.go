@@ -310,11 +310,15 @@ func TestTheProjectsPageHasTheMostOfItsProjectsPages(t *testing.T) {
 	if want := (views.ProjectsMost{Versions: 2, Accounts: 3, VersionCells: len(switchboard.ByModel[1].Version.Name)}); page.Most != want {
 		t.Errorf("the page's most are %+v, want %+v, the widest name switchboard's Sonnet's", page.Most, want)
 	}
+	shares := 0.0
 	for _, r := range page.Rows {
-		project, _ := page.Project(r.Path)
-		if r.Share == nil || project.Share != r.Share || r.Tokens != project.Tokens || r.Tokens.Total == 0 {
-			t.Errorf("%s's row has share %v and tokens %+v, its page %v and %+v", r.Path, r.Share, r.Tokens, project.Share, project.Tokens)
+		if r.Share == nil || r.Tokens.Total == 0 {
+			t.Fatalf("%s's row has share %v and tokens %+v, want both", r.Path, r.Share, r.Tokens)
 		}
+		shares += *r.Share
+	}
+	if math.Abs(shares-1) > 1e-9 {
+		t.Errorf("the rows' shares make %v, want the whole", shares)
 	}
 }
 

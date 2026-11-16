@@ -5451,18 +5451,18 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   do the sections leave, ON ACCOUNTS first, then BY MODEL, then WORTH BY; and once all three
   have left, the list takes up to its third again, giving way to 2. Where BY MODEL and ON
   ACCOUNTS lie beside WORTH BY and stand taller, it keeps the rows squeezing wouldn't free. Each
-  step is worked out against the most rows any project of the page takes, its numbers' lines,
-  BY MODEL's versions and ON ACCOUNTS' accounts, and the form against the widest version name
-  among them (`views.ProjectsMost`), so the form, the list, WORTH BY's rows and the sections
-  shown hold still as the choice moves; the chosen project draws its sections at its own
-  heights, and SESSIONS takes the rest. `projectsLaid` works the layout out
-  once, and the drawing, the mouse and the scrolling read it. The squeeze is Projects' alone:
-  Accounts' Detail draws WORTH as it did. WORTH BY today is by the hour where a column a cell
-  wide fits each hour in the cells it takes, the left half where it lies wide, else by two hours;
-  over 30 days and 12 weeks, by day where one fits each day, else by week; over 12 months, by
-  week where one fits each week, else by month. Its
-  axis names buckets from the last back, the one now falls in bold, and weeks by the month of
-  their first day in the period, where it's another than the week before's. WORTH BY spans the
+  step is worked out against the most any project of the page takes, so the form, the list,
+  WORTH BY's rows and the sections shown hold still as the choice moves. views gives the most
+  versions, accounts and cells of a version's name (`views.ProjectsMost`); the dashboard
+  measures the most lines any project's numbers wrap to. The chosen project draws its sections at
+  its own heights, and SESSIONS takes the rest. `projectsLaid` works the layout out once, and
+  the drawing, the mouse and the scrolling read it. The squeeze is Projects' alone: Accounts'
+  Detail draws WORTH as it did. WORTH BY today is by the hour where a column a cell wide fits
+  each hour in the cells it takes, the left half where it lies wide, else by two hours; over 30
+  days and 12 weeks, by day where one fits each day, else by week; over 12 months, by week where
+  one fits each week, else by month. Its axis names buckets from the last back, the one now
+  falls in bold, and weeks by the month of their first day in the period, where it's another
+  than the week before's. WORTH BY spans the
   cells it takes, here and on Accounts' Detail (the owner's call, 15 November 2026: a chart is
   never cut short). Its spare cells are spread evenly: across the gaps where its columns stand
   apart, every column one width, and across the columns where they touch (`chartSlots`). Where
