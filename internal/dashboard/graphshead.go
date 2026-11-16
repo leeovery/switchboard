@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -191,13 +192,13 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 }
 
 // staleSaid is why the lane's use is stale, as a card says it after its
-// room, in full, as USAGE says it of a window: its subscription lapsed, its
+// room, in full, as USAGE says it of a window: its subscription ended, its
 // token refused, or when it was last read; reporting false where it isn't
-// stale, or where it's the router's refusal of its token, which its stretch
-// says, as "token refused (401) 14:20".
+// stale, or where its token's refused and the router refused it, which its
+// stretch says, as "token refused (401) 14:20".
 func (ln laidLane) staleSaid(now time.Time) (line, bool) {
 	u := ln.Use
-	if !u.Stale || ln.account.TokenRefused {
+	if !u.Stale || u.StaleCause == status.StaleRefused && ln.account.TokenRefused {
 		return nil, false
 	}
 	return staleWords(u.StaleCause, u.ReadAt, now).full, true

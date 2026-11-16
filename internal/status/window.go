@@ -56,9 +56,9 @@ type StaleCause int
 // The causes, in the order staleCause tries them: the first that holds is
 // the one said.
 const (
-	// StaleLapsed is an account whose subscription has lapsed: its last read
+	// StaleLapsed is an account whose subscription has ended: its last read
 	// was refused its organization's login, as claude.LoginBarredRead finds
-	// it, which is how a lapsed subscription is answered.
+	// it, which is how an ended subscription is answered.
 	StaleLapsed StaleCause = iota + 1
 	// StaleRefused is an account whose token is refused: the router saw the
 	// upstream refuse it, or its last read was answered 401, as

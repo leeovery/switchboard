@@ -107,7 +107,7 @@ func lacked(window string) usageWords {
 }
 
 // staleWords are the words of a window whose reading is stale, as cause says
-// why, last read at: in state.destructive, its subscription lapsed or its
+// why, last read at: in state.destructive, its subscription ended or its
 // token refused; else when it was last read, as prose.NotReadSince says it,
 // in text.subtle.
 func staleWords(cause status.StaleCause, at, now time.Time) usageWords {

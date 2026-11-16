@@ -104,7 +104,7 @@ A week runs out by its forecast, and the 5-hour window by its recent rate. See
 | Has no usable token | `no token`, with empty bars. |
 | Has a token the router found to be for another subscription | `wrong token`, with empty bars. |
 | Has never been read | `not read yet`, with empty bars. |
-| Has a lapsed subscription: the API refuses its login | Its last reading, faded, and `subscription lapsed` in red. Renew the subscription, or remove the account. |
+| Has an ended subscription: the API refuses its login | Its last reading, faded, and `subscription lapsed` in red. Renew the subscription, or remove the account. |
 | Has a refused token | Its last reading, faded, and `token refused` in red. Give it a new token with `switchboard accounts token <id>`. |
 | Couldn't be read for another reason | Its last reading, faded, such as `not read since 14:20`. |
 
@@ -114,7 +114,8 @@ The `Σ pool` row sums the room of the pool's accounts: every account in the poo
 pinned ones while the pool's pin holds. It shows if there's more than one account.
 
 - **Its percentage** is the mean use of those accounts, each as its own row shows it. An account
-  without a usable token, never read, or with a refused token, is left out.
+  without a usable token, never read, or whose token the router refused, is left out. A token
+  refused only by a probe leaves the account in.
 - **Its words** say the room left before the caps, in accounts, such as `1.5 of 3 left`. While a pin
   holds, they add ` · pinned`.
 - **A window held by fewer than two of the accounts,** but not all of them, has no Σ pool figure.

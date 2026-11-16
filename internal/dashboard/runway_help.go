@@ -39,9 +39,9 @@ func (f Frame) lanesHelp() helpPart {
 				"the column's middle, and now's column, picked out under now, by how it stands now" + dimmed + ". Every window " +
 				"every model shares counts, a model's own window not."),
 			said("Beside each lane, the account's name and marks, as switchboard usage prints them, and under them its use " +
-				"of the week, its percentage taking the ramp's second colour from 70% and its last from 90%; lapsed, in " +
-				"red, where its subscription has lapsed, and refused where its token is refused; read 14:20 where its last " +
-				"read failed otherwise; and not read before its first, its lane blank, saying why where that read failed. " +
+				"of the week, its percentage taking the ramp's second colour from 70% and its last from 90%; lapsed " +
+				"where its subscription has ended, and refused where its token is refused, both in red; read 14:20 where " +
+				"its last read failed otherwise; and not read before its first, its lane blank, saying why where that read failed. " +
 				"A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
 			said("`a` collapses the labels, to give the lanes more room: the lanes start at the left edge, with no names or " +

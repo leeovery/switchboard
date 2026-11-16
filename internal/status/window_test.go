@@ -17,7 +17,7 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	failing := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
 	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: at(1, 21, 40).UTC(), Status: 401} }
 	readRefused := func(a *status.Account) { a.Error = "HTTP 401 · Invalid bearer token" }
-	lapsed := func(a *status.Account) { a.Error = lapsedError }
+	ended := func(a *status.Account) { a.Error = endedError }
 	read := stateNow.Add(-4 * time.Second).UTC()
 	tests := []struct {
 		name    string
@@ -185,8 +185,8 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
-			name:    "the session reset since it was read, its subscription lapsed: lapsed, not started, before the failed read",
-			account: with(with(readNow(0.97, 0.3, 0), resetSince), lapsed),
+			name:    "the session reset since it was read, its subscription ended: lapsed, not started, before the failed read",
+			account: with(with(readNow(0.97, 0.3, 0), resetSince), ended),
 			key:     "5h",
 			want:    status.WindowNow{Kind: status.WindowNotStarted},
 		},
@@ -209,12 +209,12 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	}
 }
 
-// lapsedError is the error of a lapsed subscription's probe, as the probe
+// endedError is the error of an ended subscription's probe, as the probe
 // gives it, the API's message cut to the 60 characters it keeps.
-const lapsedError = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+const endedError = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 
 // A stale reading says why it's stale, the first that holds of: its
-// subscription lapsed, as its last read was answered 403 refusing its
+// subscription ended, as its last read was answered 403 refusing its
 // organization's login, in any case; its token refused, by the router or by
 // its last read's 401; and its last read failed otherwise, a 403 saying
 // anything else among them. A refusal that has lifted, the account read
@@ -228,12 +228,12 @@ func TestAStaleReadingSaysWhyItsStale(t *testing.T) {
 		wantKind  status.WindowKind
 		wantStale status.StaleCause
 	}{
-		{name: "its organization's login refused: lapsed", error: lapsedError, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{name: "its organization's login refused: subscription lapsed", error: endedError, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
 		{
-			name: "its organization's login refused, in another case: lapsed", error: "HTTP 403 · oauth AUTHENTICATION is Currently NOT allowed",
+			name: "its organization's login refused, in another case: subscription lapsed", error: "HTTP 403 · oauth AUTHENTICATION is Currently NOT allowed",
 			wantKind: status.WindowStale, wantStale: status.StaleLapsed,
 		},
-		{name: "its organization's login refused, its token too: lapsed", error: lapsedError, refused: refused, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{name: "its organization's login refused, its token too: subscription lapsed", error: endedError, refused: refused, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
 		{name: "a 403 saying anything else: failed", error: "HTTP 403 · Not allowed", wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{name: "a 403 without a message: failed", error: "HTTP 403", wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{

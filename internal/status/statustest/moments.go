@@ -423,9 +423,9 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
-			// A lapsed subscription's probe is refused its organization's
+			// An ended subscription's probe is refused its organization's
 			// login, 403, its message cut to the 60 characters kept.
-			Name: "its subscription lapsed, its 5-hour reset since it was read",
+			Name: "its subscription ended, its 5-hour reset since it was read",
 			Doc: Router(policy, nil,
 				Routed{Account: with(readAt("work", windowIn("5h", 0.7, 2*time.Minute), windowIn("7d", 0.4, 3*day)), func(a *status.Account) {
 					a.FetchedAt, a.Error = Built.Add(-20*time.Minute), "HTTP 403 · OAuth authentication is currently not allowed for this organ"

@@ -38,7 +38,7 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "■ refused", head: "■ refused (401) · its token needs renewing"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
-		"its subscription lapsed, its 5-hour reset since it was read": {
+		"its subscription ended, its 5-hour reset since it was read": {
 			"work": {state: "● open", head: "○ idle · window starts with its next request"},
 			"side": {state: "● open", head: "● open"},
 		},

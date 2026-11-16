@@ -90,7 +90,7 @@ func Tokenless(foreign bool) string {
 
 // Why an account's reading is stale, where the API refuses it, in full and
 // short: SubscriptionLapsed, "subscription lapsed", where its organization's
-// login is refused, as a lapsed subscription is answered, and short,
+// login is refused, as an ended subscription is answered, and short,
 // "lapsed"; TokenRefused, "token refused", and short, "refused".
 const (
 	SubscriptionLapsed      = "subscription lapsed"

@@ -3855,7 +3855,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | The token the account holds is another subscription's (see Account identity) | `wrong token` | `wrong token` | `state.destructive` |
   | The account has no usable token (settled in the plan) | `no token` | `no token` | `state.destructive` |
   | Nothing has been read of the account (settled in the plan) | `not read yet` | `not read` | `text.subtle` |
-  | Its subscription has lapsed: its last read was answered 403, the message saying OAuth authentication is currently not allowed for its organization, in any case, which is how a lapsed subscription is answered; the last reading, faded (below) | `subscription lapsed` | `lapsed` | `state.destructive` |
+  | Its subscription has ended: its last read was answered 403, the message saying OAuth authentication is currently not allowed for its organization, in any case, which is how an ended subscription is answered; the last reading, faded (below) | `subscription lapsed` | `lapsed` | `state.destructive` |
   | Its token is refused: the router saw it refused, or its last read was answered 401; the last reading, faded (below) | `token refused` | `refused` | `state.destructive` |
   | Its last read failed otherwise, a 403 with another message among them: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
   | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54`, `back 12 Nov` a week on | `state.destructive` |
@@ -3872,13 +3872,13 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   `back 12 Nov`. An allowance's reset keeps its day alone, `19%/day · Thu`: its 14 cells can't
   hold a date beside the rate, and a rate a day can't be read as running out today. `back` is when
   room returns: when a limit lifts, or the capped window resets. Red is for Claude's own limit; a
-  cap is movable, so it's amber. A stale reading says why where the API refused it, a lapsed
+  cap is movable, so it's amber. A stale reading says why where the API refused it, an ended
   subscription or a refused token, so the words say what's wrong, and when it was last read only
   where the read failed otherwise; `status` works the cause out once, from the router's refusal and
   the last read's error, and the words leave the rest of the message out (the owner's call, 16
   November 2026). A read refused, as any failed read, comes after a 5-hour window not started:
   only the router's refusal of the token comes before it.
-- **A reading that's stale,** of an account whose subscription has lapsed, whose token is refused
+- **A reading that's stale,** of an account whose subscription has ended, whose token is refused
   or whose last read failed, shows as it was last read, faded, whatever its words say: its bar,
   fill, track and marks keep 35% of their colour, which is 65% toward the canvas, nothing bold;
   its percentage in `text.subtle`, and its words coloured as the table has them.
@@ -5991,7 +5991,7 @@ request ledger).
   it, from column 2, `week ` in `text.subtle`, and the account's use of its week, `66%`, bold in
   its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else green. Where
   there's no use, the words are always `usage`'s short forms, as the column is never widened for
-  the full: `lapsed` where its subscription has lapsed, `refused` where its token is refused,
+  the full: `lapsed` where its subscription has ended, `refused` where its token is refused,
   `read 14:20` where its last read failed otherwise, `not read` before its first, and
   `no token`, or `wrong token` where the token it holds is another subscription's.
 - **The axis:** on row 5, the row under the heading row, with no blank row between them (see The
@@ -6452,7 +6452,11 @@ so one look compares every account (the owner's call, 24 October 2026):
 - **Its words:** the room left, its figure bold in its use's level's colour, as `usage` colours a
   use, `66%`, and ` left` in `text.muted`; then `  ·  ` in `text.muted`, and the words under the
   account's lane on Runway in that window's view, inked as Runway inks them: `capped 14:31  ·
-  back 17:10`, `out ~Sat 06:00`, `resets Sun 21:00`, `room all day`. Where the
+  back 17:10`, `out ~Sat 06:00`, `resets Sun 21:00`, `room all day`. Where its reading is stale,
+  why comes first, after the room, as `usage` words it in full: `subscription lapsed` or
+  `token refused` in `state.destructive`, or `not read since 14:20` in `text.subtle`; but not where
+  the router refused the token, which the words from Runway say, `token refused (401) 14:20`
+  (the owner's call, 16 November 2026). Where the
   window runs out or reaches its cap at its pace past the view's end, before it resets, the words
   say that too, as Runway would were its lane drawn on, after what it says, never `room all week`
   over a chart that runs out. Where they don't fit the card, whole parts go from the end, as Runway
@@ -6497,7 +6501,8 @@ so one look compares every account (the owner's call, 24 October 2026):
   takes as it probes.
 - **An account with nothing to draw,** not read yet or whose first read failed, has its words as
   Runway's lane has them and its chart empty but for now's `│`; one without a usable token has no
-  room all along; a stale one is faded, as a stale reading is everywhere (see What moves); one out of
+  room all along; a stale one is faded, as a stale reading is everywhere (see What moves), its words
+  saying why; one out of
   the pool is faint, as the Overview draws it.
 - **An account the router's document doesn't hold yet,** as one just added to the config, has its
   label alone and its chart empty but for now's `│`, after the document's last, in the config's

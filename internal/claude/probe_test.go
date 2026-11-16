@@ -818,12 +818,12 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 	})
 }
 
-// lapsedMessage is how the API answers a lapsed subscription's probe, 403.
+// lapsedMessage is how the API answers an ended subscription's probe, 403.
 const lapsedMessage = "OAuth authentication is currently not allowed for this organization."
 
 // The text of a probe's error, as the probe gives it, read back, says
 // whether the API refused the token, answering 401, or the organization's
-// OAuth login, answering 403 with the message a lapsed subscription is
+// OAuth login, answering 403 with the message an ended subscription is
 // answered with, in any case: never another 403, nor a 401 without a message.
 func TestAProbesErrorSaysWhetherItsTokenOrItsLoginWasRefused(t *testing.T) {
 	tests := []struct {

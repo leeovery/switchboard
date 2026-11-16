@@ -296,8 +296,8 @@ func noUsageReason(resp *http.Response, token string) string {
 }
 
 // loginBarred opens the message the API answers a probe with, answering
-// 403, where it refuses the organization's OAuth login, as it answers a
-// lapsed subscription: "OAuth authentication is currently not allowed for
+// 403, where it refuses the organization's OAuth login, as it answers an
+// ended subscription: "OAuth authentication is currently not allowed for
 // this organization", in lower case, as far as maxErrorMessage keeps it
 // whole.
 const loginBarred = "oauth authentication is currently not allowed"
@@ -312,7 +312,7 @@ func TokenRefusedRead(text string) bool {
 
 // LoginBarredRead reports whether text, the text of a probe's error, as
 // ProbeModel's gives it, says the API refused the organization's OAuth login,
-// as it answers a lapsed subscription: it answered 403, its message opening
+// as it answers an ended subscription: it answered 403, its message opening
 // as loginBarred does, in any case.
 func LoginBarredRead(text string) bool {
 	status, message, ok := answerIn(text)

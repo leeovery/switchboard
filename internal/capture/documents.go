@@ -603,9 +603,9 @@ func (a accountWorlds) badHour() accountWorld {
 	})
 }
 
-// lapsed is the world of a lapsed subscription and a refused token:
-// personal's subscription lapsed, its last read at 13:35 and every probe
-// since refused its organization's login, as a lapsed subscription's is;
+// lapsed is the world of an ended subscription and a refused token:
+// personal's subscription ended, its last read at 13:35 and every probe
+// since refused its organization's login, as an ended subscription's is;
 // work's token refused, with a 401, since 14:20, as in the bad hour, nothing
 // read of it since; and side open, every session on it. The router tells of
 // it as happenings' lapsed has it.
@@ -634,7 +634,7 @@ func (a accountWorlds) lapsed() accountWorld {
 	})
 }
 
-// lapsedError is the error of a lapsed subscription's probe, as the probe
+// lapsedError is the error of an ended subscription's probe, as the probe
 // gives it: answered 403, the API's message cut to the 60 characters kept.
 const lapsedError = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 

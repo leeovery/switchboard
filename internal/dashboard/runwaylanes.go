@@ -219,7 +219,7 @@ func (ln laidLane) useLine(window string, now time.Time, cells int) line {
 }
 
 // useWords are what's said of the lane's use, as useLine has it: where it's
-// stale, why, as staleWords says it, its subscription lapsed, its token
+// stale, why, as staleWords says it, its subscription ended, its token
 // refused, or when it was last read; not read yet; or no token, or wrong
 // token where the one it holds is another subscription's, as USAGE says each
 // of a window; else after
