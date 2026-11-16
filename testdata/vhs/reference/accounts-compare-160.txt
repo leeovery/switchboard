@@ -18,20 +18,20 @@ BY MODEL  share of use
   ● Haiku 4.5               2%                                4%                               1%                               2%
 
 WEEKS  each week at its peak
-                          ┄┄┄┄▃▃▃┄┄   ┄▆▆▆┄   ┄┄┄┄┄┄   ┄┄┄┄                      ▄▄▄ ▂▂▂                                                                ▁▁▁
-                          ▅▅▅                               ▂▂▂ ▄▄▄     ▇▇▇  ▄▄▄         ▂▂▂                              ▇▇▇     ▂▂▂  ▂▂▂ ▃▃▃ ▆▆▆ ▅▅▅
-                                                                    ▇▇▇                                       ▅▅▅ ▃▃▃         ▅▅▅
-                                                        ▆▆▆                                  ▁▁▁ ▆▆▆     ▄▄▄
+                          ┄┄┄┄▃▃┄  ┄┄▆▆┄┄  ┄┄┄┄┄  ┄┄┄┄                         ▄▄ ▂▂                                                                ▁▁
+                          ▅▅                                ▂▂  ▄▄     ▇▇  ▄▄         ▂▂                               ▇▇         ▂▂ ▂▂  ▃▃  ▆▆  ▅▅
+                                                                   ▇▇                                       ▅▅  ▃▃            ▅▅
+                                                    ▆▆                                       ▁▁  ▆▆     ▄▄
 
-                          Aug              Sep          …   Aug              Sep         …   Aug              Sep         …   Aug              Sep          …
+                          Aug            Sep        …       Aug            Sep        …      Aug            Sep        …      Aug            Sep        …
                           limit hit 3 of 7 · 9% left        limit hit 0 of 7 · 27% left      limit hit 0 of 7 · 59% left      short on 3 of 7 · 32% left
 
 WORTH  at API prices, by day
-                                                                                                                                   ▂▂▂
-                          ▁▁▁            ▁▁▁                                                      ▅▅▅                         ▃▃▃            ▃▃▃
-                               ▆▆▆                                         ▆▆▆               ▄▄▄
-                                    ▇▇▇                                                                     ▆▆▆
-                          Mon  Tue  Wed  Thu  Fri  Sat  Sun Mon  Tue  Wed  Thu Fri  Sat  Sun Mon  Tue  Wed  Thu Fri  Sat  Sun Mon  Tue  Wed  Thu  Fri  Sat  Sun
+                                                                                                                                  ▂▂▂
+                          ▁▁▁          ▁▁▁                                                       ▅▅▅                          ▃▃▃          ▃▃▃
+                              ▆▆▆                                        ▆▆▆                 ▄▄▄
+                                  ▇▇▇                                                                     ▆▆▆
+                          Mon Tue Wed  Thu Fri Sat Sun      Mon Tue Wed  Thu Fri Sat Sun     Mon Tue Wed  Thu Fri Sat Sun     Mon Tue Wed  Thu Fri Sat Sun
                           peak Mon $57.70                   peak Wed $81.32                  peak Wed $108                    peak Wed $212 · its own scale
 ▼ 16 more below · j/k
 tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit

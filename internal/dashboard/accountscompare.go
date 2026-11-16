@@ -31,6 +31,11 @@ const (
 	labelIndent = 2
 	versionAt   = labelIndent + 2
 	labelsGap   = 2
+	// chartGutter are the cells of a column's head its charts leave at the
+	// right, so with the cell between columns the cells between one
+	// account's chart and the next's are wider than any gap within one, and
+	// the charts don't read as one.
+	chartGutter = 4
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'. It's a floor: the rows'
 	// shortest forms at their bounds, as compareFigures has them, set the
@@ -96,10 +101,17 @@ func (l compareLayout) shown() int {
 	return len(l.slots) - 1
 }
 
-// narrowest are the cells of the narrowest column's head, which its charts
-// take, so every column charts its worth in the same bucket.
+// narrowest are the cells of the narrowest column's head, which every
+// column's charts take, less chartGutter, so they chart alike.
 func (l compareLayout) narrowest() int {
 	return slices.MinFunc(l.slots, func(a, b flex.Span) int { return a.Size - b.Size }).Size - 1
+}
+
+// chartCells are the cells each column's charts take, every column's
+// alike, so they compare cell for cell: the narrowest head's, less
+// chartGutter.
+func (l compareLayout) chartCells() int {
+	return l.narrowest() - chartGutter
 }
 
 // comparedAlways are the accounts' columns, from the first, that never give

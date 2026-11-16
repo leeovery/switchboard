@@ -18,20 +18,20 @@ BY MODEL  share of use
   ● Haiku 4.5               2%                                4%                               1%                               2%
 
 WEEKS  each week at its peak
-                          ┄┄┄┄▃▃▃┄┄   ┄▆▆▆┄   ┄┄┄┄┄┄   ┄┄┄┄                      ▄▄▄ ▂▂▂                                                                ▁▁▁
-                          ▅▅▅                               ▂▂▂ ▄▄▄     ▇▇▇  ▄▄▄         ▂▂▂                              ▇▇▇     ▂▂▂  ▂▂▂ ▃▃▃ ▆▆▆ ▅▅▅
-                                                                    ▇▇▇                                       ▅▅▅ ▃▃▃         ▅▅▅
-                                                        ▆▆▆                                  ▁▁▁ ▆▆▆     ▄▄▄
+                          ┄┄┄┄▃▃┄  ┄┄▆▆┄┄  ┄┄┄┄┄  ┄┄┄┄                         ▄▄ ▂▂                                                                ▁▁
+                          ▅▅                                ▂▂  ▄▄     ▇▇  ▄▄         ▂▂                               ▇▇         ▂▂ ▂▂  ▃▃  ▆▆  ▅▅
+                                                                   ▇▇                                       ▅▅  ▃▃            ▅▅
+                                                    ▆▆                                       ▁▁  ▆▆     ▄▄
 
-                          Aug              Sep          …   Aug              Sep         …   Aug              Sep         …   Aug              Sep          …
+                          Aug            Sep        …       Aug            Sep        …      Aug            Sep        …      Aug            Sep        …
                           limit hit 3 of 7 · 9% left        limit hit 0 of 7 · 27% left      limit hit 0 of 7 · 59% left      short on 3 of 7 · 32% left
 
-WORTH  at API prices, by day
-                          ▆        ▃              ▃                                                                                        ▁         ▂      ▂
-                                ▁ ▄    ▃   ▆   ▂ ▁     ▁  ▁              ▆▇       ▂                                       ▅   ▇     ▅▄▁ ▃    ▁▁▅▁  ▂▃      ▃  ▃
-                           ▇▂    ▆  ▄   ▃▆▆ ▂   ▂  ▂    ▆   ▃▅▆   ▆  ▅▆    ▃▅   ▃  ▃▃      ▆      ▂▄   ▂  ▁▅      ▃ ▁▁   ▄      ▇                      ▃
-                             ▃                ▁          ▇     ▁   ▇▇  ▂▁      ▁      ▂      ▄▄▆▁   ▆▆  ▂▁   ▆▇ ▁▆    ▄▂    ▆    ▂       ▂▁       ▁     ▂▂
-                            4 Sep 9 Sep 15 Sep 21 Sep 1 Oct  3 Sep 9 Sep 14 Sep 21 Sep 1 Oct  3 Sep 9 Sep 14 Sep 21 Sep 1 Oct   4 Sep 9 Sep 15 Sep 21 Sep 1 Oct
-                          peak 2 Sep $99.47                 peak 30 Sep $81.32               peak 30 Sep $108                 peak 30 Sep $212 · its own scale
+WORTH  at API prices, by week
+                                      ▃▃▃▃  ▅▅▅▅                        ▆▆▆▆                                         ▁▁▁▁                       ▇▇▇▇  ▅▅▅▅
+                          ▄▄▄▄                    ▃▃▃▃            ▇▇▇▇        ▇▇▇▇  ▆▆▆▆           ▁▁▁▁        ▁▁▁▁           ▁▁▁▁
+                                                            ▆▆▆▆                                         ▇▇▇▇
+                                                                                             ▅▅▅▅
+                          Sep                               Sep                              Sep                              Sep
+                          peak week of 7 Sep $305           peak week of 14 Sep $287         peak week of 28 Sep $239         peak week of 14 Sep $693
 ▼ 16 more below · j/k
 tab views   [ ] view    < > period: 30 days    ←→ account  enter its page    p pin    ? help  q quit
