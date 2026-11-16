@@ -5,6 +5,10 @@ resets. So you can ask Claude where a session stands, or to plan a long job arou
 `switchboard setup` installs a skill that teaches Claude the commands, so no session needs
 switchboard explained.
 
+<p align="center"><img src="../art/claude.webp" alt="switchboard usage: each account's week, 5-hour window and model week, with how much is used, how fast it can be spent and still last, and when it resets or runs out" width="840"></p>
+
+*What Claude reads: each window's use, the pace it can spend at, and when it resets or runs out.*
+
 ## Try it
 
 In any session started through switchboard, ask Claude things such as these:

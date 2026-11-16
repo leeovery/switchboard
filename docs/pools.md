@@ -44,16 +44,10 @@ looking at.
 - A session keeps the pool it started in. If you fence a folder while a session runs there, exit
   and resume the session to bring it in. If you resume a session in another pool's folder, it runs
   in that pool from then on, and a copy still running elsewhere keeps its old pool.
-- A new account starts taking sessions once the router restarts. The router restarts itself to
-  take up the change once no request is in flight. To restart it now, run
-  `switchboard service restart`.
 - Fences can't overlap: two pools can't share a folder, or hold one inside the other. A fence
   covers whole folder names, so `~/Code/acme` doesn't cover `~/Code/acme-api`.
 - Only one pool can be unfenced. If every pool is fenced, `claude` won't start outside every
   fence. A new pool has no accounts, and `claude` won't start in its folders until you add one.
-- `switchboard run --direct` is refused inside a fence, and inside a session of a fenced pool. It
-  would start Claude Code on whichever account Claude Code itself is signed into, which may not be
-  one of the pool.
 
 ## Reference
 
@@ -68,8 +62,10 @@ looking at.
 | `switchboard accounts edit <id> --pool <id>` | Moves an account into another pool. |
 
 Every flag is in [Commands](commands.md), and the `[[pool]]` keys are in
-[Configuration](configuration.md). If `claude` won't start in a folder, or a request is refused
-inside a pool, see [Troubleshooting](troubleshooting.md).
+[Configuration](configuration.md). [`switchboard pool`](commands/pool.md) says when a new account
+starts taking sessions, and [`switchboard run`](commands/run.md) says why `run --direct` is refused
+inside a fence. If `claude` won't start in a folder, or a request is refused inside a pool, see
+[Troubleshooting](troubleshooting.md).
 
 ## Related
 

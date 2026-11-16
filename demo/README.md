@@ -38,6 +38,9 @@ demo/record.sh routing help   # the tapes named
 | `pools` | fixture `overview-acme-160` | 160 × 37 | `art/pools.webp`, a still: the Overview of Acme, a client's pool, its title row naming it |
 | `projects` | fixture `projects-173x53` | 173 × 53 | `art/projects.webp`, a still: Projects over this week, the chosen project in full under the list |
 | `sessions-list` | fixture `sessions-list-160` | 160 × 37 | `art/sessions-list.webp`, a still: Sessions' List, this week's sessions as a log |
+| `claude` | fixture `usage-160` | 160 × 14 | `art/claude.webp`, a still: usage's printout, every account's windows with their use, pace and resets, as Claude reads them |
+| `staggered-resets` | fixture `log-events-160` | 160 × 37 | `art/staggered-resets.webp`, a still: the Log's Events, each account primed in turn, its 5-hour window resetting at a time of its own |
+| `notifications` | `repatch` | 160 × 37 | `art/notifications.webp`, a still: the Overview once personal has reached its 5-hour limit, LATELY telling of it and the 2 sessions moved to side |
 | `theme-picker` | `routing` | 160 × 37 | `art/theme-picker.webp`, a still: the theme picker over the Overview, previewing tokyo-night-day |
 | `theme-tokyo-night` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night.webp`, a still: the Overview in `tokyo-night` |
 | `theme-tokyo-night-day` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night-day.webp`, a still: the Overview in `tokyo-night-day` |
@@ -58,7 +61,8 @@ readings, today's requests, the router's events, the sessions routed with their 
 the requests in flight, so a demo draws what the frames do. There are three: `routing`, the auto
 world from 14:42:07, three accounts routed among; `dashboard`, work alone; and `repatch`, the
 limit's world from 16:05:26, personal about to reach its limit. The tour, the themes tape and the
-stills not drawn from a fixture play `routing`. The world is built before the clock starts, so a
+stills not drawn from a fixture play `routing`, but the notifications still, which plays
+`repatch`. The world is built before the clock starts, so a
 cue at 2.5 seconds plays 2.5 seconds after the tape's first frame. A cue names its session and
 model, and how its answer comes: `brief`, `steady`, `long` or `lengthy`, from a short reply soon
 to a long one streaming a while.
