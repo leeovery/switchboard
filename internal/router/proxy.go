@@ -864,9 +864,9 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 		"session", status.ShortID(ex.req.Session),
 		"model", ex.req.Model,
 		"account", ex.account.ID,
-		"reason", ex.reason,
-		"status", ex.status,
 	}
+	attrs = append(attrs, poolSaid(ex.pool)...)
+	attrs = append(attrs, "reason", ex.reason, "status", ex.status)
 	if ex.attempts > 1 {
 		attrs = append(attrs, "attempts", ex.attempts)
 	}

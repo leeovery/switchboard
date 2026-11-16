@@ -108,8 +108,8 @@ A week runs out by its forecast, and the 5-hour window by its recent rate. See
 
 ### The Σ pool row
 
-The `Σ pool` row sums the room of the open accounts: every account in the pool, or only the pinned
-ones while a pin holds. It shows if there's more than one account.
+The `Σ pool` row sums the room of the pool's accounts: every account in the pool, or only the
+pinned ones while a pin holds. It shows if there's more than one account.
 
 - **Its percentage** is the mean use of those accounts, each as its own row shows it. An account
   without a usable token, never read, or with a refused token, is left out.
@@ -117,7 +117,7 @@ ones while a pin holds. It shows if there's more than one account.
   holds, they add ` · pinned`.
 - **A window held by fewer than two of the accounts,** but not all of them, has no Σ pool figure.
   Side by side, that part of the row is blank. Stacked, the section has no Σ pool row.
-- **An account outside the open accounts** has its label and `◆` drawn faintly.
+- **An account that a pin leaves out** has its label and `◆` drawn faintly.
 
 ### Which windows show
 

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -165,7 +166,7 @@ func TestEachRequestIsRoutedWithinItsPool(t *testing.T) {
 		// pool is what the request's header names, "" for none.
 		pool string
 		// want is the account the request goes out on, and wantPool the pool
-		// its line names.
+		// its line in the ledger and in the log names, "" for none.
 		want, wantPool string
 	}{
 		{name: "in the first pool", pooled: true, pool: defaultPool, want: "work", wantPool: defaultPool},
@@ -177,7 +178,7 @@ func TestEachRequestIsRoutedWithinItsPool(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logstest.Capture(t)
+			log := logstest.Capture(t)
 			r := newPoolsRouter(t, at(start), tt.pooled)
 			readPersonalFirst(r)
 			upstream := servingAll(served, served, served)
@@ -194,8 +195,65 @@ func TestEachRequestIsRoutedWithinItsPool(t *testing.T) {
 			if got := poolsOf(lines()); !slices.Equal(got, []string{tt.wantPool}) {
 				t.Errorf("the ledger's lines name the pools %q, want one line naming %q", got, tt.wantPool)
 			}
+			if got := poolsLogged(log, "msg=routed"); !slices.Equal(got, []string{tt.wantPool}) {
+				t.Errorf("the log's routed lines name the pools %q, want one line naming %q\n%s", got, tt.wantPool, log)
+			}
 		})
 	}
+}
+
+func TestAMoveIsLoggedWithThePoolItWasIn(t *testing.T) {
+	tests := []struct {
+		name string
+		// pooled has the config put the accounts in pools: else it has none.
+		pooled bool
+		// from is the account session one starts on, and wantPool the pool
+		// the move's line names, "" for none.
+		from, wantPool string
+	}{
+		{name: "in pools", pooled: true, from: "work", wantPool: defaultPool},
+		{name: "a config from before pools", from: "personal"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			r := newPoolsRouter(t, at(start), tt.pooled)
+			readPersonalFirst(r)
+
+			for _, headers := range []map[string]string{nil, {"X-Switchboard-Account": "side"}} {
+				if w := routeIn(t, r, workToken, "one", "", headers); w.Code != http.StatusOK {
+					t.Fatalf("answered %d, want 200", w.Code)
+				}
+			}
+
+			if want := []string{"msg=moved", "from=" + tt.from, "to=side"}; !log.Has(want...) {
+				t.Fatalf("log reads\n%s\nwant a line with %q", log, want)
+			}
+			if got := poolsLogged(log, "msg=moved"); !slices.Equal(got, []string{tt.wantPool}) {
+				t.Errorf("the log's moved lines name the pools %q, want one line naming %q\n%s", got, tt.wantPool, log)
+			}
+		})
+	}
+}
+
+// loggedPool is a line's pool attribute.
+var loggedPool = regexp.MustCompile(` pool=(\S+)`)
+
+// poolsLogged returns the pool each line of log holding msg names, in order,
+// "" for a line naming none.
+func poolsLogged(log *logstest.Log, msg string) []string {
+	var pools []string
+	for _, line := range log.Lines() {
+		if !strings.Contains(line, msg) {
+			continue
+		}
+		pool := ""
+		if m := loggedPool.FindStringSubmatch(line); m != nil {
+			pool = m[1]
+		}
+		pools = append(pools, pool)
+	}
+	return pools
 }
 
 func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {

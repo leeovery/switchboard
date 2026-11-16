@@ -22,7 +22,7 @@ The page has five sections, always in this order:
 ## USAGE: the windows of every account
 
 USAGE is the block that [`usage`](../commands/usage.md) prints. It has a row for each account, and
-a `Σ pool` row for the open accounts together. Each window is a bar, with the share used and a few
+a `Σ pool` row for the pool's accounts together. Each window is a bar, with the share used and a few
 words on where it's heading, such as `out ~Sat` or `at cap · back 17:10`.
 
 The key line under the block names the marks:
@@ -36,7 +36,7 @@ The key line under the block names the marks:
 
 - **The marks** `◆` and `▲` stand at the end of the name column, so they line up down the list.
   ROUTING and SESSIONS line their marks up under them. Every list of accounts in a column does the same.
-- **A pinned-out account,** one outside the open accounts while a pin holds, is drawn faint.
+- **A pinned-out account,** one that a pin leaves out of the pool, is drawn faint.
   ROUTING may still show it as `● open`.
 - **The `Σ pool` row** counts only the accounts that have the window, for example `1.2 of 3 left`.
   If fewer than two accounts have the window, and not all of them, the row shows nothing for it.

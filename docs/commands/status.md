@@ -87,7 +87,7 @@ The JSON is what Claude and scripts read. It holds:
 
 - every window of every account, with its even pace and its allowance an hour and a day;
 - extra usage, if the API reports it;
-- the open accounts: their room added up, and their mean use;
+- the pool: the room of the pool's accounts added up, and their mean use;
 - each account's plan, and the rates the week forecasts go by;
 - what's coming up, soonest first: limits lifting, windows running out or resetting, and primes;
 - how the hourly export stands, if `[export]` sets a folder.

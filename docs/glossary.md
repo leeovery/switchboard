@@ -24,15 +24,13 @@ part of the record, kept for 400 days unless you set another length.
 **Limit.** The most of a window that Claude lets an account use. An account at a limit can't take
 more requests in that window until it resets.
 
-**Open accounts.** The accounts new sessions can go to right now: every account in the pool, or
-only the pinned ones while a pin holds. The dashboard and `usage` still call these the pool, for
-example in `Σ pool`. This term replaces that second meaning of the word.
-
 **Pin.** Your choice of account for new sessions, or for one running session, in place of the
 router's choice. A pin gives way when its account hits a limit.
 
 **Pool.** A set of accounts that sessions are routed across. Every account is in exactly one
-pool, and nothing crosses from one pool to another. See [Pools](pools.md).
+pool, and nothing crosses from one pool to another. The `Σ pool` row and the POOL chart sum the
+room of the pool's accounts: every account in the pool, or only the pinned ones while a pin holds.
+See [Pools](pools.md).
 
 **Primary.** The account whose token Claude Code holds in a pool. Each pool has one. The router
 picks the account for each conversation. What Claude Code sends outside the conversation goes out

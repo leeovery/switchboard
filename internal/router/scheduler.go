@@ -268,8 +268,9 @@ func (s *scheduler) remember(on situation, d decision) (first bool, from string)
 		logger.Info("session moved meanwhile; its newer assignment stands", "session", status.ShortID(req.Session), "model", req.Model,
 			"account", found.Account, "chosen", d.account)
 	case found.Account != "" && found.Account != d.account:
-		logger.Info("moved", "session", status.ShortID(req.Session), "model", req.Model,
-			"from", found.Account, "to", d.account, "reason", d.reason)
+		attrs := append([]any{"session", status.ShortID(req.Session), "model", req.Model,
+			"from", found.Account, "to", d.account}, poolSaid(on.accounts.pool)...)
+		logger.Info("moved", append(attrs, "reason", d.reason)...)
 		s.emit(Moved{
 			Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason, Held: d.held, Limit: d.limit,
 			Pool: on.accounts.pool, Dir: found.dirAfter(req), Project: found.projectAfter(req),
