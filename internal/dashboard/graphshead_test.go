@@ -50,8 +50,10 @@ func spanInks(parts []line) []ink {
 }
 
 // A card's words are its room, 66% left, the figure in its use's level's
-// colour, as usage colours a use, faded as a stale reading's; then the words
-// Runway says under its lane in its week's view, after prose.Separator,
+// colour, as usage colours a use, faded as a stale reading's; then why it's
+// stale, as USAGE words it, but where its stretch says the router refused
+// its token; then the words Runway says under its lane in its week's view,
+// after prose.Separator,
 // each phrase after the one before alike, inked as Runway inks them. Where
 // its use isn't read, the lane's words alone, or what Runway's label says of
 // it. Out of the pool, every word is faint, the figure bold.
@@ -70,7 +72,9 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	refused.Use.Stale, refused.account.TokenRefused = true, true
 	refused.account.Refusal = status.Refusal{Until: routedClock(1, 15, 0), Status: 401}
 	stale := cardLane(0.34)
-	stale.Use.Stale = true
+	stale.Use.Stale, stale.Use.StaleCause, stale.Use.ReadAt = true, status.StaleFailed, routedClock(1, 14, 20)
+	lapsed, readRefused := stale, stale
+	lapsed.Use.StaleCause, readRefused.Use.StaleCause = status.StaleLapsed, status.StaleRefused
 	out2 := cardLane(0.34)
 	out2.account.OutOfPool = true
 	unreadable := unusedLane(views.Use{Key: "7d", Unread: true})
@@ -119,7 +123,18 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 			name: "its token refused", lane: refused,
 			want: "66% left  ·  token refused (401) 14:12  ·  back 15:00", inks: []ink{dimInk, mutedInk, mutedInk, exhaustedInk, mutedInk},
 		},
-		{name: "stale", lane: stale, want: "66% left  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, dimInk}},
+		{
+			name: "stale, its last read failed", lane: stale,
+			want: "66% left  ·  not read since 14:20  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, dimInk, mutedInk, dimInk},
+		},
+		{
+			name: "stale, its subscription lapsed", lane: lapsed,
+			want: "66% left  ·  subscription lapsed  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, errorInk, mutedInk, dimInk},
+		},
+		{
+			name: "stale, its last read refusing its token", lane: readRefused,
+			want: "66% left  ·  token refused  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, errorInk, mutedInk, dimInk},
+		},
 		{
 			name: "out of the pool", lane: out2,
 			want: "66% left  ·  room all week", inks: []ink{{token: theme.TextFaint, bold: true}, faintInk, faintInk, faintInk},

@@ -179,16 +179,16 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, At: read},
 		},
 		{
-			name:    "the session reset since it was read, its last read refusing its token: stale, before not started, and empty",
+			name:    "the session reset since it was read, its last read refusing its token: lapsed, not started, before the failed read",
 			account: with(with(readNow(0.97, 0.3, 0), resetSince), readRefused),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, At: read},
+			want:    status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
-			name:    "the session reset since it was read, its subscription lapsed: stale, before not started, and empty",
+			name:    "the session reset since it was read, its subscription lapsed: lapsed, not started, before the failed read",
 			account: with(with(readNow(0.97, 0.3, 0), resetSince), lapsed),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleLapsed, At: read},
+			want:    status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
 			name:    "its token refused, the router's limit naming the window: the limit, before the refusal",

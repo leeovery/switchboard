@@ -3875,9 +3875,9 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   cap is movable, so it's amber. A stale reading says why where the API refused it, a lapsed
   subscription or a refused token, so the words say what's wrong, and when it was last read only
   where the read failed otherwise; `status` works the cause out once, from the router's refusal and
-  the last read's error, and the words leave the rest of the message out. A refusal of the
-  subscription's login or of the token is tried before a 5-hour window not started, as the router's
-  refusal of the token was (the owner's call, 16 November 2026).
+  the last read's error, and the words leave the rest of the message out (the owner's call, 16
+  November 2026). A read refused, as any failed read, comes after a 5-hour window not started:
+  only the router's refusal of the token comes before it.
 - **A reading that's stale,** of an account whose subscription has lapsed, whose token is refused
   or whose last read failed, shows as it was last read, faded, whatever its words say: its bar,
   fill, track and marks keep 35% of their colour, which is 65% toward the canvas, nothing bold;

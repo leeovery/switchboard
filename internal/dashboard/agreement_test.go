@@ -272,17 +272,15 @@ func cardStands(r RoutingRow) string {
 }
 
 // running is whether each view says account a's window w is running, or
-// hasn't started: USAGE's words, but where they say its subscription lapsed
-// or its token's refused, which says neither, as those are said before a
-// window not started; Graphs' card's chart, spanned or not; and of the
-// window a request starts, ROUTING where it says the account's idle.
+// hasn't started: USAGE's words, Graphs' card's chart, spanned or not, and
+// of the window a request starts, ROUTING where it says the account's idle.
 func (d drawn) running(a status.AccountNow, w status.WindowNow) []viewSays {
 	chart := "running"
 	if !chartOf(a, w.Key, Trail{}, d.now).spanned {
 		chart = "not started"
 	}
 	says := []viewSays{{"Graphs' card", chart}}
-	if g, ok := d.gauge(a, w); ok && !refusedSaid(g.words.full.plain()) {
+	if g, ok := d.gauge(a, w); ok {
 		usage := "running"
 		if strings.HasPrefix(g.words.full.plain(), "not started") {
 			usage = "not started"
@@ -293,13 +291,6 @@ func (d drawn) running(a status.AccountNow, w status.WindowNow) []viewSays {
 		says = append(says, viewSays{"ROUTING", "not started"})
 	}
 	return says
-}
-
-// refusedSaid reports whether USAGE's words, in full, say a window's reading
-// is stale as the API refused it: its subscription lapsed, or its token.
-func refusedSaid(full string) bool {
-	said := staleSaid(full)
-	return said == status.StaleLapsed || said == status.StaleRefused
 }
 
 // gauge is USAGE's gauge of account a's window w, reporting false where

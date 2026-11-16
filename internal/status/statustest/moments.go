@@ -435,7 +435,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Now: Built.Add(5 * time.Minute),
 			Want: Facts{Next: "work", Accounts: map[string]AccountFacts{
 				"work": {Routing: status.RoutingIdle, Idle: true, CanRise: true, Windows: map[string]WindowFacts{
-					"5h": {Kind: status.WindowStale, Stale: status.StaleLapsed, At: Built.Add(-20 * time.Minute), ResetSinceRead: true, Lapsed: true},
+					"5h": {Kind: status.WindowNotStarted, ResetSinceRead: true, Lapsed: true},
 					"7d": {Kind: status.WindowStale, Stale: status.StaleLapsed, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(3 * day)},
 				}},
 				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},

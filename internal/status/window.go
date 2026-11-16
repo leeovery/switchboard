@@ -31,9 +31,9 @@ const (
 	// where that's unknown.
 	WindowLimited
 	// WindowStale is a window of an account whose token is refused, or whose
-	// last read failed, last read At, as its StaleCause says. A refusal, of
-	// its token or its subscription's login, is tried before
-	// WindowNotStarted, and a read failed otherwise after it.
+	// last read failed, last read At, as its StaleCause says. The router's
+	// refusal of its token is tried before WindowNotStarted, and a failed
+	// read, whatever it says, after it.
 	WindowStale
 	// WindowNotStarted is the window a request starts, lapsed, as hasLapsed
 	// judges it: it isn't running, and reads empty, until a request starts it.
@@ -67,13 +67,6 @@ const (
 	// StaleFailed is an account whose last read failed otherwise.
 	StaleFailed
 )
-
-// refused reports whether the cause is a refusal of the account's token or
-// its subscription's login, which say how the account stands whatever its
-// windows read.
-func (c StaleCause) refused() bool {
-	return c == StaleLapsed || c == StaleRefused
-}
 
 // staleCause is why the account's reading is stale at now, as StaleCause
 // orders the causes: zero where it isn't, its token not refused at now and
@@ -238,13 +231,13 @@ func (s windowStates) kind(w quota.Window, j judged) (WindowKind, time.Time) {
 
 // unheld is the kind of the account's window w, read, standing as j has it,
 // with any limit holding it set aside, as it stands once that lifts, and when
-// what the kind says comes: the first that holds of its token or its
-// subscription's login refused, not started, its last read failed otherwise,
-// the cap, running out, and open, its allowance running to its reset.
+// what the kind says comes: the first that holds of its token refused, not
+// started, its last read failed, the cap, running out, and open, its
+// allowance running to its reset.
 func (s windowStates) unheld(w quota.Window, j judged) (WindowKind, time.Time) {
-	a := s.account
+	a, stood := s.account, s.stood
 	switch {
-	case s.stale.refused():
+	case stood.refused:
 		return WindowStale, a.FetchedAt
 	case j.lapsed:
 		return WindowNotStarted, time.Time{}

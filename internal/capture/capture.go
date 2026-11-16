@@ -593,6 +593,7 @@ var pages = []page{
 	{name: "runway-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "graphs-160x37", size: wide(37), world: accountWorlds.auto, keys: toGraphs()},
+	{name: "graphs-lapsed-160x37", size: wide(37), world: accountWorlds.lapsed, keys: toGraphs()},
 	{name: "graphs-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toGraphs()},
 	{name: "graphs-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs()},
 	{name: "graphs-phone-52", size: phone(63), world: accountWorlds.auto, keys: toGraphs()},

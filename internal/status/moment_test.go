@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -212,12 +211,11 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 
 // unheldKindOf is the kind of account a's window, standing at now as w has
 // it, running out where runsOut says it does, once the limit holding it
-// lifts: stale where its token is refused, by the router or its last read,
-// or its subscription has lapsed, not started where it has lapsed, stale
-// where its last read failed otherwise, at its cap, running out, else open.
+// lifts: stale where its token is refused, not started where it has lapsed,
+// stale where its last read failed, at its cap, running out, else open.
 func unheldKindOf(a status.Account, w status.WindowNow, runsOut bool, now time.Time) status.WindowKind {
 	switch {
-	case a.TokenRefused(now), claude.TokenRefusedRead(a.Error), claude.LoginBarredRead(a.Error):
+	case a.TokenRefused(now):
 		return status.WindowStale
 	case w.Lapsed:
 		return status.WindowNotStarted
