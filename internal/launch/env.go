@@ -283,7 +283,10 @@ func (e environ) routedByRun() bool {
 // setEnv), whatever key holds now: "" where it says none, or the mark can't
 // be read.
 func (e environ) runGave(key string) string {
-	mark, _ := e.mark()
+	mark, ok := e.mark()
+	if !ok {
+		return ""
+	}
 	return mark.Get(setKey + key)
 }
 

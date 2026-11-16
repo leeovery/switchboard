@@ -72,7 +72,7 @@ The project follows the pool:
 | If the folder it starts in is | Then its project is |
 |---|---|
 | In a repository, or a worktree of one | That repository |
-| In the folder of a bare repository, or in a folder holding one named `.bare` or beside it, outside every worktree | The folder itself |
+| In the folder of a bare repository, a folder holding one named `.bare`, or a folder beside `.bare`, outside every worktree | The folder itself |
 | In no repository, and in the same pool as the session | The same project as the session |
 | In no repository, and a fence takes it into another pool | The folder itself |
 
@@ -82,7 +82,7 @@ the environment the session's `claude` started with, which the programs the sess
 change. If `run` finds no session there, it reads the environment this `claude` inherits instead.
 
 `run` takes the pool and project of the session from `SWITCHBOARD_SET`, which records what `run`
-gave the session's `claude`. It never reads them from `SWITCHBOARD_POOL` and `SWITCHBOARD_PROJECT`.
+gave the session's `claude`. It never reads them from `SWITCHBOARD_POOL` or `SWITCHBOARD_PROJECT`.
 So a variable changed or unset since doesn't move this `claude` out of the session's pool.
 
 No session is found if:

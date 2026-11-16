@@ -657,11 +657,16 @@ func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
 			env := within.environment(t)
 			_, routed := env["ANTHROPIC_BASE_URL"]
 			_, token := env["CLAUDE_CODE_OAUTH_TOKEN"]
-			// A SWITCHBOARD_POOL changed since stays as it is where what run
-			// set goes.
-			pool, named := env["SWITCHBOARD_POOL"]
-			if routed != tt.wantRouted || token != tt.wantRouted || tt.edited == "" && named != tt.wantRouted {
-				t.Errorf("started routed: %v, with a token: %v, in pool %q; want each %v", routed, token, pool, tt.wantRouted)
+			if routed != tt.wantRouted || token != tt.wantRouted {
+				t.Errorf("started routed: %v, with a token: %v; want both %v", routed, token, tt.wantRouted)
+			}
+			// A SWITCHBOARD_POOL changed since stays as it is, whether or not
+			// what run set goes.
+			switch pool, named := env["SWITCHBOARD_POOL"]; {
+			case tt.edited != "" && pool != tt.edited:
+				t.Errorf("started in pool %q, want %q, as it was changed to since", pool, tt.edited)
+			case tt.edited == "" && named != tt.wantRouted:
+				t.Errorf("started in pool %q, named: %v; want it named: %v", pool, named, tt.wantRouted)
 			}
 		})
 	}

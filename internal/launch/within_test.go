@@ -876,9 +876,10 @@ func TestASessionsPoolAndProjectAreWhatItsMarkSays(t *testing.T) {
 		name string
 		// read is what's read of the environment the claude of the session
 		// within first started in, as chain has them, unread where it can't
-		// be; environ is the one the launch inherits.
+		// be, and firstUnread whether first's can't be read; environ is the
+		// one the launch inherits.
 		read, environ          []string
-		unread                 bool
+		unread, firstUnread    bool
 		wantPool               config.Pool
 		wantToken, wantProject string
 	}{
@@ -887,13 +888,19 @@ func TestASessionsPoolAndProjectAreWhatItsMarkSays(t *testing.T) {
 			read: withoutVars(inAcme, "SWITCHBOARD_POOL"), environ: cleaned, wantPool: acmePool, wantToken: acme1Token, wantProject: acmeDir,
 		},
 		{
+			name: "a session started in a scratchpad within a fenced pool's session, its pool gone from what's read, the launch's environment cleaned, " +
+				"the session around it unread: its pool, from its own mark",
+			read: withoutVars(inAcme, "SWITCHBOARD_POOL"), environ: cleaned, firstUnread: true, wantPool: acmePool, wantToken: acme1Token, wantProject: acmeDir,
+		},
+		{
 			name: "a session of another fenced pool, its pool gone from what's read, the launch's environment cleaned: its pool, not the one around it",
 			read: withoutVars(inClient, "SWITCHBOARD_POOL"), environ: cleaned, wantPool: clientPool, wantToken: sideToken, wantProject: notes,
 		},
 		{
-			name: "a session whose claude's environment is unread, its pool changed since in the one inherited: its pool",
-			read: inAcme, unread: true, environ: append(withoutVars(inAcme, "SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+defaultPool.ID),
-			wantPool: acmePool, wantToken: acme1Token, wantProject: acmeDir,
+			name: "a session of another fenced pool whose claude's environment is unread, its pool changed since in the one inherited: " +
+				"its pool, from the inherited mark, not the one around it",
+			read: inClient, unread: true, environ: append(withoutVars(inClient, "SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+defaultPool.ID),
+			wantPool: clientPool, wantToken: sideToken, wantProject: notes,
 		},
 		{
 			name: "a session, its project gone from what's read, the launch's environment cleaned: its project",
@@ -906,9 +913,9 @@ func TestASessionsPoolAndProjectAreWhatItsMarkSays(t *testing.T) {
 			h := newHarness(t, tt.environ...)
 			h.launcher.Dir, h.launcher.Project, h.launcher.PID = innerScratchpad, repositories, innerWithinPID
 			table := chain(first, tt.read)
-			second := table[withinPID]
-			second.unread = tt.unread
-			table[withinPID] = second
+			second, outer := table[withinPID], table[pid]
+			second.unread, outer.unread = tt.unread, tt.firstUnread
+			table[withinPID], table[pid] = second, outer
 			h.launcher.Processes = table
 			return h
 		}
