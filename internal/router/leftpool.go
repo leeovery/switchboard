@@ -112,7 +112,8 @@ func (p *proxy) refuseStrayed(w http.ResponseWriter, pools *poolTable, pool stri
 	if p.left.first(account, session) {
 		level = slog.LevelWarn
 	}
-	logger.Log(context.Background(), level, why, append(attrs, "session", status.ShortID(session), "account", account, "pool", pool)...)
+	attrs = append(attrs, "session", status.ShortID(session), "account", account)
+	logger.Log(context.Background(), level, why, append(attrs, poolSaid(pool)...)...)
 	writeError(w, leftPool.status, leftPool.kind, strayedWords(pools, pool))
 }
 

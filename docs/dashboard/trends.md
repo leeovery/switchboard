@@ -5,7 +5,7 @@ burning down, when in the day you work, and how the last 12 months went. It's a 
 you turn on and off, with a burn-down card for each account at the top.
 
 <div align="center">
-<img src="../../art/graphs.webp" alt="Trends: a burn-down card for each account, its room over the week, two to a row, work capped till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the room of the open accounts under them" width="840">
+<img src="../../art/graphs.webp" alt="Trends: a burn-down card for each account, its room over the week, two to a row, work capped till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the room of the pool under them" width="840">
 </div>
 
 *Trends at 160 columns: a card for each account, each heading for its `✕`.*
@@ -18,7 +18,7 @@ size. The dashboard remembers which show.
 | Section | Key | At first | What it is |
 |---|---|---|---|
 | WEEK | `w` | shown | A burn-down card for each account, over its week |
-| POOL | `o` | hidden | The room of the open accounts over Runway's week, each account stacked |
+| POOL | `o` | hidden | The room of the pool over Runway's week, each account stacked |
 | GLANCE | `g` | hidden | A row for each account and for `Σ pool`: the week's room as a sparkline, with the words `usage` prints |
 | WHEN YOU WORK | `h` | hidden | Requests by the hour of the day and the day of the week, over the last four weeks |
 | YEAR | `y` | hidden | The last 12 months, a square a day and a column a week, with their totals |
@@ -66,15 +66,15 @@ A card takes its colour from its week's state, as a lane on Runway does:
 
 - An account not read yet shows its words from Runway and an empty chart, with only now drawn.
 - An account the router doesn't have yet, just added to the config, shows its label only.
-- A stale account is faded, and one outside the open accounts is faint.
+- A stale account is faded, and one that a pin leaves out of the pool is faint.
 
 The cards follow the config's order, two side by side if both fit at 35 cells or more. Every
 card is as wide as the others, so the same burn draws the same slope on each. With three accounts,
 the third sits under the first, as wide. Each card keeps its own clock: its days and its now fall
 where that week puts them, not where the card beside it does.
 
-Under the cards, `Σ pool` gives the room in the week of the open accounts, such as
-`week 1.2 of 3 left`. At the foot, over the key line, a legend names the marks.
+Under the cards, `Σ pool` gives the pool's room in the week, such as `week 1.2 of 3 left`.
+At the foot, over the key line, a legend names the marks.
 
 Trends charts the week that all models share, as Runway does. A model's own week has no card, and
 neither has the 5-hour window, which the Overview shows.
@@ -88,7 +88,7 @@ the Overview, Trends and Runway.*
 
 ## POOL
 
-POOL charts the room of the open accounts over the week Runway shows, from a day before now.
+POOL charts the room of the pool over the week Runway shows, from a day before now.
 
 - Each account's room stacks from the foot, in its own colour, so the top edge is their total.
 - Before now, each account shows its room as it stood.
@@ -106,7 +106,7 @@ GLANCE lists every account in a few rows, as [`usage`](../commands/usage.md) doe
   it's heading, with `✕` where it runs out.
 - Then come the room left now, such as `66%`, and the words `usage` gives the week. For example,
   `out ~Sat` or `19%/day till Sun 21:00`.
-- The `Σ pool` row gives the sparkline and room of the open accounts.
+- The `Σ pool` row gives the sparkline and room of the pool.
 
 ## WHEN YOU WORK
 

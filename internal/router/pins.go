@@ -89,12 +89,12 @@ func (ps pins) fitted(t *poolTable) (next pins, gone []gonePin, changed bool) {
 // where none does.
 func (ps pins) fit(t *poolTable, from, into string, pin status.Pin) (gonePin, bool) {
 	if !t.within(into) {
-		logger.Warn("pin dropped: its pool is no longer configured", "pool", from, "accounts", strings.Join(pin.Accounts, ","))
+		logger.Warn("pin dropped: its pool is no longer configured", append(poolSaid(from), "accounts", strings.Join(pin.Accounts, ","))...)
 		return gonePin{pool: from, pin: pin}, true
 	}
 	held := slices.DeleteFunc(slices.Clone(pin.Accounts), func(id string) bool { return !t.holds(into, id) })
 	for _, id := range except(pin.Accounts, held) {
-		logger.Warn("dropped from its pool's pin: the account is no longer in the pool", "pool", into, "account", id)
+		logger.Warn("dropped from its pool's pin: the account is no longer in the pool", append(poolSaid(into), "account", id)...)
 	}
 	if len(held) == 0 {
 		return gonePin{pool: into, pin: pin}, true
@@ -116,7 +116,7 @@ func (ps pins) take(pool string, pin status.Pin) (gonePin, bool) {
 	if !pin.Since.After(held.Since) {
 		stands, goes = held, pin
 	}
-	logger.Warn("pin dropped: a later one holds in its pool", "pool", pool, "accounts", strings.Join(goes.Accounts, ","))
+	logger.Warn("pin dropped: a later one holds in its pool", append(poolSaid(pool), "accounts", strings.Join(goes.Accounts, ","))...)
 	ps[pool] = stands
 	return gonePin{pool: pool, pin: goes}, true
 }

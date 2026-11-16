@@ -60,7 +60,7 @@ A document that falls back for `before pools` is of every account, never of one 
 | `best` | string | The account new sessions go to next. Left out if there's none. |
 | `primary` | string | The id of the pool's [primary](../glossary.md). |
 | `pin` | object | The pool's pin, as `{accounts, since, move}`. Left out if there's none. |
-| `pool` | object | The room new sessions can go to, summed across the open accounts. See below. |
+| `pool` | object | The room new sessions can go to, summed across the pool's accounts. See below. |
 | `prime` | object | The priming schedule. Left out if priming is off. |
 | `coming_up` | list of objects | What happens next to the accounts, soonest first. |
 | `demand` | object | The pool's use, as the week forecast takes it. From the router only. |
@@ -71,8 +71,9 @@ A document that falls back for `before pools` is of every account, never of one 
 
 ### `pool`
 
-`pool` holds `accounts`, the ids of the open accounts, and `pinned`, set if those are the accounts
-the pin names. Its `windows` hold one entry for each window:
+`pool` holds `accounts`, the ids of the accounts it sums: every account in the pool, or only the
+pinned ones while the pool's pin holds. `pinned` is set if those are the accounts the pin names.
+The `windows` of `pool` hold one entry for each window:
 
 | Field | Type | Meaning |
 |---|---|---|
