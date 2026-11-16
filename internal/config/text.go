@@ -437,6 +437,48 @@ func withValue(line, value string) string {
 	return key + "=" + given[:start] + value + given[start+end:]
 }
 
+// The marks beside the ids switchboard makes: a changed id parts an account
+// from its token and its history, and a pool from its accounts and its
+// history.
+const (
+	accountIDMark = "# do not edit: links the account to its history"
+	poolIDMark    = "# do not edit: links the pool to its history"
+)
+
+// withIDsMarked returns the document with the line that sets each account's
+// and each pool's id marked, as markedLine marks it.
+func (d document) withIDsMarked() document {
+	for _, tables := range []struct {
+		spans []span
+		mark  string
+	}{{d.accounts(), accountIDMark}, {d.pools(), poolIDMark}} {
+		for _, s := range tables.spans {
+			if i := d.keyAt(s, "id"); i >= 0 {
+				d = d.replaced(i, markedLine(d.lines[i], tables.mark))
+			}
+		}
+	}
+	return d
+}
+
+// markedLine returns line, which sets a key, with mark after its value, where
+// the value ends on the line and nothing follows it: otherwise line as it
+// is, so a comment of the user's stays.
+func markedLine(line, mark string) string {
+	body, cr := strings.CutSuffix(line, "\r")
+	_, given, _ := strings.Cut(body, "=")
+	value := strings.TrimLeft(given, " \t")
+	end := valueEnd(value)
+	if end <= 0 || strings.TrimSpace(value[end:]) != "" {
+		return line
+	}
+	body = strings.TrimRight(body, " \t") + "  " + mark
+	if cr {
+		body += "\r"
+	}
+	return body
+}
+
 // valueEnd returns the length of the value text starts with: a string's, as
 // stringEnd has it; an array's, as arrayEnd has it; -1 for an inline table;
 // else a bare value's, such as a number's, up to the whitespace or the

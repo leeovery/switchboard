@@ -40,13 +40,13 @@ const Example = `# One [[account]] per Claude subscription, each added by switch
 # Its token is in a file of its own: <state dir>/tokens/<id>.
 
 [[account]]
-id      = "b6s7"  # switchboard's, made from the subscription: commands take it
+id      = "b6s7"  # do not edit: links the account to its history
 label   = "Work"  # what it's called on screen: required, and unique
 primary = true    # optional: the account the browser and the Claude apps use; else the first
 # reserve = 0.1   # optional, on any account: the share of every window the router leaves; else 0
 
 [[account]]
-id    = "k2m9"
+id    = "k2m9"  # do not edit: links the account to its history
 label = "Personal"
 
 # Optional: start the 5-hour windows on a staggered schedule over the day, in

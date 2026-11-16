@@ -22,19 +22,19 @@ import (
 func TestAccounts(t *testing.T) {
 	path := writeConfig(t, `
 [[account]]
-id    = "work"
+id    = "work"  # do not edit: links the account to its history
 label = "Work"
 
 [[account]]
-id      = "personal"
+id      = "personal"  # do not edit: links the account to its history
 primary = true
 
 [[account]]
-id    = "side-project"
+id    = "side-project"  # do not edit: links the account to its history
 label = "Side project"
 
 [[account]]
-id    = "spare"
+id    = "spare"  # do not edit: links the account to its history
 label = "Spare"
 `)
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
@@ -64,7 +64,7 @@ label = "Spare"
 }
 
 func TestAccountsSaysATokenTheRouterFoundAnothersIsTheWrongToken(t *testing.T) {
-	path := writeConfig(t, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n")
+	path := writeConfig(t, "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
 	writeToken(t, deps, "work", "test-token-work")
 	writeToken(t, deps, "side", "test-token-side")
@@ -91,8 +91,8 @@ func TestAccountsSaysATokenTheRouterFoundAnothersInAFencedPoolIsTheWrongToken(t 
 			if everyFenced {
 				defaultDirs = "dirs  = [\"/work/default\"]\n"
 			}
-			path := writeConfig(t, "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"\npool = \"q7mt\"\n\n"+
-				"[[pool]]\nid    = \"b2n8\"\nlabel = \"Default\"\n"+defaultDirs+"\n[[pool]]\nid    = \"q7mt\"\nlabel = \"Acme\"\ndirs  = [\"/work/acme\"]\n")
+			path := writeConfig(t, "[[account]]\nid = \"work\"  # do not edit: links the account to its history\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\npool = \"q7mt\"\n\n"+
+				"[[pool]]\nid    = \"b2n8\"  # do not edit: links the pool to its history\nlabel = \"Default\"\n"+defaultDirs+"\n[[pool]]\nid    = \"q7mt\"  # do not edit: links the pool to its history\nlabel = \"Acme\"\ndirs  = [\"/work/acme\"]\n")
 			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
 			writeToken(t, deps, "work", "test-token-work")
 			writeToken(t, deps, "side", "test-token-side")
@@ -128,7 +128,7 @@ func TestAccountsSaysATokenTheRouterFoundAnothersInAFencedPoolIsTheWrongToken(t 
 }
 
 func TestAccountsMarksTheFirstPrimaryWhenNoneIsMarked(t *testing.T) {
-	path := writeConfig(t, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n")
+	path := writeConfig(t, "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
 
 	got := run(t, deps, "accounts")
@@ -167,7 +167,7 @@ func TestAccountsWithInvalidConfig(t *testing.T) {
 }
 
 func TestAccountsWithoutAStateDirectory(t *testing.T) {
-	path := writeConfig(t, "[[account]]\nid = \"work\"\n")
+	path := writeConfig(t, "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
 	deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
 
@@ -178,7 +178,7 @@ func TestAccountsWithoutAStateDirectory(t *testing.T) {
 }
 
 func TestAccountsCleansLabels(t *testing.T) {
-	path := writeConfig(t, "[[account]]\nid    = \"work\"\nlabel = \"Work\\u001b[2J\\tday\"\n")
+	path := writeConfig(t, "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\\u001b[2J\\tday\"\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
 	writeToken(t, deps, "work", "test-token-work")
 
@@ -192,11 +192,11 @@ func TestAccountsCleansLabels(t *testing.T) {
 // personalAndSide are the accounts configured before work is added.
 const personalAndSide = `
 [[account]]
-id    = "personal"
+id    = "personal"  # do not edit: links the account to its history
 label = "Personal"
 
 [[account]]
-id    = "side"
+id    = "side"  # do not edit: links the account to its history
 label = "Side"
 `
 
@@ -209,7 +209,7 @@ var probedWork = []string{"test-token-work claude-fable-5-1", "test-token-work c
 
 func TestAccountsToken(t *testing.T) {
 	api := newClaudeAPI(t)
-	deps, path := accountsDeps(t, api.URL, personalAndSide+"\n[[account]]\nid = \"work\"\n")
+	deps, path := accountsDeps(t, api.URL, personalAndSide+"\n[[account]]\nid = \"work\"  # do not edit: links the account to its history\n")
 	before := readFile(t, path)
 	writeToken(t, deps, "work", "test-token-stale")
 
@@ -243,7 +243,7 @@ func TestAccountsTokenRefuses(t *testing.T) {
 		},
 		{
 			name:    "an account not configured",
-			config:  "\n[[account]]\nid = \"personal\"\n",
+			config:  "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n",
 			input:   "test-token-work\n",
 			wantErr: `account "side" is not configured: switchboard accounts lists each account's id`,
 		},
@@ -303,7 +303,7 @@ func TestAccountsRemove(t *testing.T) {
 			if want := (result{stdout: tt.wantOut}); got != want {
 				t.Errorf("switchboard accounts remove = %+v, want %+v", got, want)
 			}
-			if want := "\n\n[[account]]\nid    = \"personal\"\nlabel = \"Personal\"\n"; !strings.HasSuffix(readFile(t, path), want) {
+			if want := "\n\n[[account]]\nid    = \"personal\"  # do not edit: links the account to its history\nlabel = \"Personal\"\n"; !strings.HasSuffix(readFile(t, path), want) {
 				t.Errorf("the config reads\n%s\nwant it to end with personal's table", readFile(t, path))
 			}
 			checkNoTokenFile(t, deps, "side")
@@ -439,8 +439,8 @@ func TestAccountsRemoveRefuses(t *testing.T) {
 		config  string
 		wantErr string
 	}{
-		{name: "an account not configured", config: "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"work\"\n", wantErr: `account "side" is not configured`},
-		{name: "the only account", config: "\n[[account]]\nid = \"side\"\n", wantErr: `account "side" is the only one, and a config needs one at least`},
+		{name: "an account not configured", config: "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"work\"  # do not edit: links the account to its history\n", wantErr: `account "side" is not configured`},
+		{name: "the only account", config: "\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n", wantErr: `account "side" is the only one, and a config needs one at least`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -527,15 +527,15 @@ func TestAccountsEdit(t *testing.T) {
 		},
 		{
 			name:    "a label for an account that had none",
-			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n",
+			config:  "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 			args:    []string{"--label", "Day job"},
 			wantOut: "edited side: label \"Day job\" (was none)\n",
-			old:     "id = \"side\"\n",
-			new:     "id = \"side\"\nlabel = \"Day job\"\n",
+			old:     "id = \"side\"" + idMark + "\n",
+			new:     "id = \"side\"" + idMark + "\nlabel = \"Day job\"\n",
 		},
 		{
 			name:    "a tidy label in place of the same written untidily, saved and said so",
-			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Day  job \"\n",
+			config:  "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Day  job \"\n",
 			args:    []string{"--label", "Day job"},
 			wantOut: "edited side: label \"Day job\" (was written untidily)\n",
 			old:     `label = "Day  job "`,
@@ -559,7 +559,7 @@ func TestAccountsEdit(t *testing.T) {
 		},
 		{
 			name:    "a label in place of one written by hand with a zero-width space, which is said escaped",
-			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Day job\\u200B\"\n",
+			config:  "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Day job\\u200B\"\n",
 			args:    []string{"--label", "Day job"},
 			wantOut: "edited side: label \"Day job\" (was \"Day job\\u200B\")\n",
 			old:     `label = "Day job\u200B"`,
@@ -567,7 +567,7 @@ func TestAccountsEdit(t *testing.T) {
 		},
 		{
 			name:    "a label in place of one written by hand with an override, which is said escaped",
-			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"\\u202Ekrow\"\n",
+			config:  "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"\\u202Ekrow\"\n",
 			args:    []string{"--label", "work"},
 			wantOut: "edited side: label \"work\" (was \"\\u202Ekrow\")\n",
 			old:     `label = "\u202Ekrow"`,
@@ -575,7 +575,7 @@ func TestAccountsEdit(t *testing.T) {
 		},
 		{
 			name:    "a label in place of its id written as one by hand, which is said as written",
-			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"side\"\n",
+			config:  "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"side\"\n",
 			args:    []string{"--label", "Side"},
 			wantOut: "edited side: label \"Side\" (was \"side\")\n",
 			old:     `label = "side"`,
@@ -623,7 +623,7 @@ func TestAccountsEdit(t *testing.T) {
 		},
 		{
 			name:    "the label it has but for the whitespace within it, which changes nothing",
-			config:  "\n[[account]]\nid = \"personal\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Day job\"\n",
+			config:  "\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Day job\"\n",
 			args:    []string{"--label", "Day  job"},
 			wantOut: "side has every value given already, so nothing changed\n",
 		},
@@ -776,8 +776,8 @@ func TestAccountsEditWarnsOfAPrimaryWithoutAUsableToken(t *testing.T) {
 }
 
 func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
-	const fourAccounts = "\n[[account]]\nid      = \"work\"\nprimary = true\n\n[[account]]\nid = \"side\"\n\n" +
-		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"spare\"\n"
+	const fourAccounts = "\n[[account]]\nid      = \"work\"  # do not edit: links the account to its history\nprimary = true\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n" +
+		"[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n"
 	tests := []struct {
 		name    string
 		tokens  []string
@@ -829,13 +829,13 @@ func TestAccountsEditSaysWhichTokenTheRunningSessionsKeep(t *testing.T) {
 }
 
 func TestAccountsEditTakesItsIDWithAStrayVariationSelectorAsNoLabel(t *testing.T) {
-	deps, path := accountsDeps(t, newClaudeAPI(t).URL, "\n[[account]]\nid    = \"work\"\nlabel = \"Work\"\n")
+	deps, path := accountsDeps(t, newClaudeAPI(t).URL, "\n[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\n")
 
 	got := run(t, deps, "accounts", "edit", "work", "--label", "work\ufe0f")
 	if want := (result{stdout: "edited work: label none, shown by its id (was \"Work\")\n"}); got != want {
 		t.Errorf("switchboard accounts edit work --label = %+v, want %+v", got, want)
 	}
-	if got := readFile(t, path); !strings.HasSuffix(got, "\n[[account]]\nid    = \"work\"\n") || strings.Contains(got, "label") {
+	if got := readFile(t, path); !strings.HasSuffix(got, "\n[[account]]\nid    = \"work\"  # do not edit: links the account to its history\n") || strings.Contains(got, "label") {
 		t.Errorf("the config reads\n%s\nwant work's label taken out", got)
 	}
 }

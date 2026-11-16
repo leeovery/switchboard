@@ -28,7 +28,7 @@ func TestAddCheckedDecidesTheIDByTheOrganization(t *testing.T) {
 	spare := identity.Entry{ID: "h7c2", Label: "Spare", Added: before, Removed: before}
 	side := identity.Entry{ID: "m2x7", Organization: "test-org-other", Label: "Old side", Added: before, Removed: before}
 	withAt := func(id string) string {
-		return twoAccounts + "\n[[account]]\nid    = \"" + id + "\"\nlabel = \"Side\"\n"
+		return twoAccounts + "\n[[account]]\nid    = \"" + id + "\"" + idMark + "\nlabel = \"Side\"\n"
 	}
 	tests := []struct {
 		name string
@@ -66,7 +66,7 @@ func TestAddCheckedDecidesTheIDByTheOrganization(t *testing.T) {
 		},
 		{
 			name:         "a configured account's, as the record has it",
-			config:       twoAccounts + "\n[[account]]\nid    = \"k3f9\"\nlabel = \"Team\"\n",
+			config:       twoAccounts + "\n[[account]]\nid    = \"k3f9\"  # do not edit: links the account to its history\nlabel = \"Team\"\n",
 			record:       []identity.Entry{{ID: "k3f9", Organization: organization, Added: before}},
 			organization: organization,
 			wantErr:      &accounts.ConfiguredError{ID: "k3f9", Label: "Team"},

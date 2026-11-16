@@ -23,6 +23,9 @@ var (
 	spare   = identity.Entry{ID: "r4n8", Label: "Spare", Added: testNow.AddDate(-1, 0, 0), Removed: time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC)}
 )
 
+// idMark is the mark the config is written with beside an account's id.
+const idMark = "  # do not edit: links the account to its history"
+
 // adding is a command's deps of personal and side configured, personal's
 // token in its file, every token checked with the organizations API, and
 // the accounts record holding entries.
@@ -58,14 +61,14 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 			name:    "a new account",
 			args:    []string{"accounts", "add", "Work"},
 			wantOut: `added "Work" as ` + workID + "\n",
-			table:   "[[account]]\nid    = \"" + workID + "\"\nlabel = \"Work\"\n",
+			table:   "[[account]]\nid    = \"" + workID + "\"" + idMark + "\nlabel = \"Work\"\n",
 			entry:   identity.Entry{ID: workID, Organization: "org-work", Added: testNow},
 		},
 		{
 			name:    "a new account, the primary",
 			args:    []string{"accounts", "add", "Work", "--primary"},
 			wantOut: `added "Work" as ` + workID + ", the primary\n",
-			table:   "[[account]]\nid      = \"" + workID + "\"\nlabel   = \"Work\"\nprimary = true\n",
+			table:   "[[account]]\nid      = \"" + workID + "\"" + idMark + "\nlabel   = \"Work\"\nprimary = true\n",
 			entry:   identity.Entry{ID: workID, Organization: "org-work", Added: testNow},
 		},
 		{
@@ -73,7 +76,7 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 			args:    []string{"accounts", "add", "Work"},
 			record:  []identity.Entry{returned},
 			wantOut: `added "Work" as k3f9, an account this Mac had, so its history carries on` + "\n",
-			table:   "[[account]]\nid    = \"k3f9\"\nlabel = \"Work\"\n",
+			table:   "[[account]]\nid    = \"k3f9\"  # do not edit: links the account to its history\nlabel = \"Work\"\n",
 			entry:   identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
 		},
 		{
@@ -82,14 +85,14 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 			record:   []identity.Entry{returned},
 			wantOut:  `added "Work" as k3f9, an account this Mac had, so its history carries on` + "\n",
 			wantSaid: "switchboard: --new went unused: the token's organization says it's k3f9, an account this Mac had\n",
-			table:    "[[account]]\nid    = \"k3f9\"\nlabel = \"Work\"\n",
+			table:    "[[account]]\nid    = \"k3f9\"  # do not edit: links the account to its history\nlabel = \"Work\"\n",
 			entry:    identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
 		},
 		{
 			name:    "a new account answered where the organization says so",
 			args:    []string{"accounts", "add", "Work", "--new"},
 			wantOut: `added "Work" as ` + workID + "\n",
-			table:   "[[account]]\nid    = \"" + workID + "\"\nlabel = \"Work\"\n",
+			table:   "[[account]]\nid    = \"" + workID + "\"" + idMark + "\nlabel = \"Work\"\n",
 			entry:   identity.Entry{ID: workID, Organization: "org-work", Added: testNow},
 		},
 		{
@@ -97,7 +100,7 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 			args:    []string{"accounts", "add", "Work", "--returning", "K3F9"},
 			record:  []identity.Entry{returned},
 			wantOut: `added "Work" as k3f9, an account this Mac had, so its history carries on` + "\n",
-			table:   "[[account]]\nid    = \"k3f9\"\nlabel = \"Work\"\n",
+			table:   "[[account]]\nid    = \"k3f9\"  # do not edit: links the account to its history\nlabel = \"Work\"\n",
 			entry:   identity.Entry{ID: "k3f9", Organization: "org-work", Added: returned.Added},
 		},
 		{
@@ -105,7 +108,7 @@ func TestAccountsAddDecidesTheIDByTheOrganization(t *testing.T) {
 			args:     []string{"accounts", "add", "Work", "--returning", "k3f9"},
 			wantOut:  `added "Work" as ` + workID + "\n",
 			wantSaid: "switchboard: --returning k3f9 went unused: the token's organization says it's a new account\n",
-			table:    "[[account]]\nid    = \"" + workID + "\"\nlabel = \"Work\"\n",
+			table:    "[[account]]\nid    = \"" + workID + "\"" + idMark + "\nlabel = \"Work\"\n",
 			entry:    identity.Entry{ID: workID, Organization: "org-work", Added: testNow},
 		},
 	}
@@ -243,7 +246,7 @@ func TestAccountsAddAsksWhereTheOrganizationDoesntSettleIt(t *testing.T) {
 			if want := (result{stdout: tt.wantOut}); got != want || id == "" {
 				t.Fatalf("switchboard accounts add = %+v, want %+v", got, want)
 			}
-			if want := before + "\n[[account]]\nid    = \"" + id + "\"\nlabel = \"Work\"\n"; readFile(t, path) != want {
+			if want := before + "\n[[account]]\nid    = \"" + id + "\"" + idMark + "\nlabel = \"Work\"\n"; readFile(t, path) != want {
 				t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 			}
 			checkTokenFile(t, deps, id, tt.token+"\n")

@@ -106,7 +106,7 @@ func registeredHarness(t *testing.T, steps *registered) *harness {
 }
 
 // threeAccounts is a config of three accounts, work the primary, marked.
-const threeAccounts = "[[account]]\nid = \"work\"\nprimary = true\n\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n"
+const threeAccounts = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nprimary = true\n\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n"
 
 // The primary removed, two left with none marked, p on the account chosen,
 // the first, marks it in the config, and enter moves on: through setup's
@@ -122,7 +122,7 @@ func TestRemovingThePrimaryThenPOnTheFirstMovesOn(t *testing.T) {
 	}
 
 	h.pressAndDeliver("p")
-	if want := "[[account]]\nid = \"personal\"\nprimary = true\n\n[[account]]\nid = \"side\"\n"; steps.config(t) != want {
+	if want := "[[account]]\nid = \"personal\"  # do not edit: links the account to its history\nprimary = true\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n"; steps.config(t) != want {
 		t.Errorf("the config reads\n%s\nwant personal marked the primary\n%s", steps.config(t), want)
 	}
 	if review := h.model.status.review; review.Unmarked || !review.Accounts[0].Primary {

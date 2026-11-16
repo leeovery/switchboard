@@ -252,8 +252,8 @@ func TestHealingWritesTheNewIDsBackInAConfigPutBackToTheOld(t *testing.T) {
 // ends.
 func TestAConfigMergedMidMoveToNameAnAccountByBothItsIDsKeepsTheOneByItsNew(t *testing.T) {
 	f := newFixture(t)
-	merged := "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n" +
-		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"" + workID + "\"\n"
+	merged := "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n" +
+		"[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"" + workID + "\"\n"
 	f.lives(t, func(step string) error {
 		if step == "give" {
 			writeFile(t, f.config, merged)
@@ -279,9 +279,9 @@ func TestHealingReadsAConfigWithPoolsInTheHomeDirectory(t *testing.T) {
 	f := newFixture(t)
 	f.moved(t, answering())
 	home := func() (string, error) { return "/Users/test", nil }
-	pooled := "[[account]]\nid      = \"work\"\nlabel   = \"Work\"\nprimary = true\npool    = \"b2n8\"\n\n" +
-		"[[account]]\nid   = \"personal\"\npool = \"b2n8\"\n\n" +
-		"[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid   = \"q7mt\"\ndirs = [\"~/Code/acme\"]\n"
+	pooled := "[[account]]\nid      = \"work\"  # do not edit: links the account to its history\nlabel   = \"Work\"\nprimary = true\npool    = \"b2n8\"\n\n" +
+		"[[account]]\nid   = \"personal\"  # do not edit: links the account to its history\npool = \"b2n8\"\n\n" +
+		"[[pool]]\nid = \"b2n8\"  # do not edit: links the pool to its history\n\n[[pool]]\nid   = \"q7mt\"  # do not edit: links the pool to its history\ndirs = [\"~/Code/acme\"]\n"
 	writeFile(t, f.config, pooled)
 
 	if healed, err := idmove.Heal(f.config, f.state, nil); err == nil || healed {
@@ -313,8 +313,8 @@ func TestHealingReadsAConfigWithPoolsInTheHomeDirectory(t *testing.T) {
 func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T) {
 	f := newFixture(t)
 	f.moved(t, answering())
-	merged := "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n" +
-		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"" + workID + "\"\nlabel = \"Work again\"\nplan = \"pro\"\n"
+	merged := "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n" +
+		"[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"" + workID + "\"\nlabel = \"Work again\"\nplan = \"pro\"\n"
 	writeFile(t, f.config, merged)
 
 	healed, err := idmove.Heal(f.config, f.state, nil)
@@ -340,7 +340,7 @@ func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T)
 // wasn't the primary, or was another pool's. Another pool's primary keeps
 // its mark. A config without pools is one pool of every account.
 func TestHealingCarriesThePrimaryWithinItsPool(t *testing.T) {
-	const pools = "[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid   = \"q7mt\"\ndirs = [\"~/Code/acme\"]\n"
+	const pools = "[[pool]]\nid = \"b2n8\"  # do not edit: links the pool to its history\n\n[[pool]]\nid   = \"q7mt\"  # do not edit: links the pool to its history\ndirs = [\"~/Code/acme\"]\n"
 	// acme is an account in Acme, q7mt, never marked.
 	const acme = "m4x9"
 	// account is an account's table, in the pool given, none for "".
