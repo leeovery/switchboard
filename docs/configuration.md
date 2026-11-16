@@ -173,7 +173,7 @@ router makes the first pool, labelled `Default`, as it moves your record onto po
 | `label` | The id | What screens show, at most 100 characters. |
 | `dirs` | None (unfenced) | The folders the pool is fenced to. |
 
-- **`id`** has `# do not edit` written beside it, as an account's has.
+- **`id`** has `# do not edit` written beside it, the same as an account's.
 - **`label`** is kept unique by `pool add` and `pool edit`, ignoring case.
 - **`dirs`** holds absolute paths, or paths starting `~/`. A session started under one of them, or
   in a git worktree of a repository there, uses only this pool.
