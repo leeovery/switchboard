@@ -202,8 +202,6 @@ func TestTurnedComparesAgainstItIsWholeAt40(t *testing.T) {
 func TestTurnedComparesWEEKSAndWORTHAreBands(t *testing.T) {
 	const at = 13
 	_, rows := chartedCompare(t, 73, turnedRows, chartedPage(t))
-	f, _ := threeCompared(t, 73, turnedRows)
-	edge := f.edge()
 	weeks := slices.Index(rows, rowStarting(t, rows, "WEEKS  each week at its peak"))
 	if byModel := slices.Index(rows, rowStarting(t, rows, "BY MODEL")); byModel > weeks {
 		t.Errorf("WEEKS is on row %d, want it after BY MODEL, on %d", weeks, byModel)
@@ -237,9 +235,6 @@ func TestTurnedComparesWEEKSAndWORTHAreBands(t *testing.T) {
 		}
 		if axis := rows[top+worthChartRows]; columnOf(axis, "Mon") != at || !strings.HasSuffix(strings.TrimRight(axis, " "), "Sun") {
 			t.Errorf("%s's axis reads %q, want Mon at %d to Sun", want.name, axis, at)
-		}
-		if axis, sun := rows[top+worthChartRows], at+chartSlots(edge-at, 7)[6].x; columnOf(axis, "Sun") != sun {
-			t.Errorf("%s's axis reads %q, want Sun at %d, its chart to the frame's edge, %d, no gutter", want.name, axis, sun, edge)
 		}
 		if peak := rows[top+worthChartRows+1]; columnOf(peak, want.peak) != at {
 			t.Errorf("%s's peak reads %q, want %q at %d", want.name, peak, want.peak, at)

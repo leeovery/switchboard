@@ -31,22 +31,21 @@ const capLevel = "┄"
 // weeksSection draws WEEKS from row y, and returns its last row: its
 // heading, a month's fullest week named at 12 months; then in each column
 // its peaks in the reach's columns, weeksChartRows tall at a full week, as
-// peakColumn draws them, laid across the cells chartCells gives as
-// chartSlots lays them, the cap's level across them where its account keeps
-// a reserve, as capLine draws it; under them their axis, as reachNames has
-// it; and under that its facts, as weeksFacts says them, cut as its figures
-// are.
+// peakColumn draws them, laid across its head's cells as compareSlots lays
+// them, the cap's level across them where its account keeps a reserve, as
+// capLine draws it; under them their axis, as reachNames has it; and under
+// that its facts, as weeksFacts says them, cut as its figures are.
 func (cp compared) weeksSection(c *canvas, y int, columns []compareColumn) int {
 	cp.weeksHead(c, y, y+1)
 	floor := y + weeksChartRows
-	cells := cp.laid.chartCells(len(cp.page.Reach))
 	for _, col := range columns {
-		slots := chartSlots(cells, len(cp.page.Reach))
+		names := cp.reachNames(col.row)
+		slots := compareSlots(col.head, names)
 		cp.capLine(c, col, floor, slots)
 		for i, p := range col.row.Reached {
 			peakColumn(c, cp.f.Look, col.x+slots[i].x, floor, weeksChartRows, slots[i].width, p)
 		}
-		chartAxis(c, col.x, floor+1, cells, slots, cp.reachNames(col.row))
+		chartAxis(c, col.x, floor+1, col.head, slots, names)
 		c.line(col.x, floor+2, fitParts(col.width, weeksFacts(col.row.Reaching).fitting(col.width)...))
 	}
 	return floor + 2
@@ -137,21 +136,19 @@ func leftFacts(v views.AccountVerdict) partForms {
 
 // worthSection draws WORTH from row y, and returns its last row: its
 // heading, naming its bucket; then in each column its worth over the period
-// in the finest bucket that fits each column, as the layout's chartFits has
-// it, so every column's is in the same one, worthChartRows tall, as
-// worthChart draws it across the cells chartCells gives all accounts' chart:
-// each account's against the highest bucket of every configured account's,
-// shown or not, so they compare, and all accounts' against its own; and
-// under it its peak, in the fullest of peakForms' forms its column holds, as
-// its figures take theirs.
+// in the finest bucket that fits the narrowest column, as chartFits has it,
+// so every column's is in the same one, worthChartRows tall, as worthChart
+// draws it: each account's against the highest bucket of every configured
+// account's, shown or not, so they compare, and all accounts' against its
+// own; and under it its peak, in the fullest of peakForms' forms its column
+// holds, as its figures take theirs.
 func (cp compared) worthSection(c *canvas, y int, columns []compareColumn) int {
-	fits := cp.laid.chartFits()
-	cells := cp.laid.chartCells(len(cp.page.All.WorthBy.Fitting(fits).Buckets))
+	fits := chartFits(cp.laid.narrowest())
 	cp.worthHead(c, y, y+1, fits)
 	scale := cp.worthScale(fits)
 	for _, col := range columns {
 		by, against := scale.of(col)
-		worthChart(c, cp.f.Look, col.x, y+1, cells, worthChartRows, by, against)
+		worthChart(c, cp.f.Look, col.x, y+1, col.head, worthChartRows, compareSlots, by, against)
 		c.line(col.x, y+1+worthChartRows+1, fitParts(col.width, peakForms(by, col.all).fitting(col.width)...))
 	}
 	return y + compareWorthUnder

@@ -51,10 +51,10 @@ WEEKS  each week at its peak
 WORTH  at API prices, by day
 
  work
-             ▁▁▁▁▁▁                     ▁▁▁▁▁▁
-                      ▆▆▆▆▆▆
-                               ▇▇▇▇▇▇
-             Mon      Tue      Wed      Thu     Fri      Sat      Sun
+             ▁▁▁▁▁▁                  ▁▁▁▁▁▁
+                     ▆▆▆▆▆▆
+                             ▇▇▇▇▇▇
+             Mon     Tue     Wed     Thu     Fri     Sat     Sun
              peak Mon $57.70
 
 ▼ 38 more below · j/k
