@@ -39,7 +39,7 @@ func Check(t *testing.T, root, module string, r Rule, dirs []string, a Allowance
 // Check is Check of the packages in dirs as l loads them, so a rule judges
 // the very objects a guard worked something out of with l beforehand.
 func (l *Loader) Check(r Rule, dirs []string, a Allowance) []string {
-	t, root := l.t, l.root
+	t, root := l.t, l.u.root
 	t.Helper()
 	var problems []string
 	broken, declared, called := make(map[string]bool), make(map[string]bool), make(map[string]bool)
