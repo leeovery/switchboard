@@ -134,7 +134,7 @@ func TestASessionsPageNamesAnAccountNoLongerConfigured(t *testing.T) {
 			shown := moved()
 			shown.Page.Accounts[0].Account = gone
 			shown.Page.Turns[0].Accounts = []string{gone}
-			d, _ := pageDrawn(pageFrame(t, shown, 160, 60), doc)
+			d := pageLaid(pageFrame(t, shown, 160, 60), doc)
 			rows := drawnRows(d)
 			stay, turns := rows[d.l.accountsAt], strings.Join(rows[d.l.heads:], "\n")
 			if !strings.HasPrefix(stay, gone+" ") {

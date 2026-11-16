@@ -224,18 +224,21 @@ func TestAccountsShowNoHeadingWithoutItsFirstRow(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		for height := 14; height <= 37; height++ {
-			f := tt.f
-			f.Height = height
-			for scroll := range f.Scrolling(tt.doc, routedAt).Most + 1 {
-				f.Scroll = scroll
-				rows := textOf(f.Draw(tt.doc, routedAt))
-				view := rows[f.top() : f.top()+f.viewRows()]
-				if y := headingAlone(view, tt.cells, tt.headings); y > 0 {
-					t.Errorf("%s at %d rows, scrolled %d, row %d is a heading without its first row:\n%s", tt.name, height, scroll, f.top()+y+1, strings.Join(rows, "\n"))
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			for height := 14; height <= 37; height++ {
+				f := tt.f
+				f.Height = height
+				for scroll := range f.Scrolling(tt.doc, routedAt).Most + 1 {
+					f.Scroll = scroll
+					rows := textOf(f.Draw(tt.doc, routedAt))
+					view := rows[f.top() : f.top()+f.viewRows()]
+					if y := headingAlone(view, tt.cells, tt.headings); y > 0 {
+						t.Errorf("at %d rows, scrolled %d, row %d is a heading without its first row:\n%s", height, scroll, f.top()+y+1, strings.Join(rows, "\n"))
+					}
 				}
 			}
-		}
+		})
 	}
 }
 

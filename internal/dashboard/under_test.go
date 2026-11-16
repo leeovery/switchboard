@@ -64,6 +64,20 @@ func TestUnderTheOverviewIsTheViewOverUSAGEsBodyAloneAsItScrollsAndElsewhereNoth
 	heldUnder(t, hidden, runwayThree(), textOf(hidden.Draw(runwayThree(), now)), 1, 0)
 }
 
+// edgesOf are the columns of a row width cells wide where what's under them
+// can change, about a box from column left to right: the row's ends, each
+// of the box's edges and the columns either side, and its middle.
+func edgesOf(width, left, right int) []int {
+	var columns []int
+	for _, x := range []int{0, left - 1, left, (left + right) / 2, right, right + 1, width - 1} {
+		if 0 <= x && x < width {
+			columns = append(columns, x)
+		}
+	}
+	slices.Sort(columns)
+	return slices.Compact(columns)
+}
+
 // heldUnder holds the frame's cells under the pointer, its rows drawn of
 // doc: the view's from row first to last, those that scroll, along each,
 // and nothing on any other row, nor off the frame.
@@ -130,18 +144,15 @@ func TestUnderACardIsTheCardInItsBoxAndElsewhereNothing(t *testing.T) {
 				t.Fatalf("the frame reads\n%s\nwant the card's foot under its top, from column %d to %d", strings.Join(rows, "\n"), left+1, right+1)
 			}
 			for y := range rows {
-				t.Run(fmt.Sprintf("row %d", y), func(t *testing.T) {
-					t.Parallel()
-					for x := range tt.width {
-						want := UnderNothing
-						if left <= x && x <= right && top <= y && y <= foot {
-							want = UnderCard
-						}
-						if got := f.Under(doc, now, x, y); got != want {
-							t.Fatalf("under %d,%d is %v, want %v: the card's drawn from %d,%d to %d,%d", x, y, got, want, left, top, right, foot)
-						}
+				for _, x := range edgesOf(tt.width, left, right) {
+					want := UnderNothing
+					if left <= x && x <= right && top <= y && y <= foot {
+						want = UnderCard
 					}
-				})
+					if got := f.Under(doc, now, x, y); got != want {
+						t.Errorf("under %d,%d is %v, want %v: the card's drawn from %d,%d to %d,%d", x, y, got, want, left, top, right, foot)
+					}
+				}
 			}
 		})
 	}

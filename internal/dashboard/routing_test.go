@@ -633,7 +633,10 @@ func routingHeading(f Frame, doc status.Document) string {
 func TestROUTINGsHeadingSwitchesToItsFullerWordsOnceAsTheFrameWidensWhenEverItsPinWasSet(t *testing.T) {
 	t.Parallel()
 	sinces := []time.Time{routedClock(1, 13, 40), time.Date(2026, 9, 28, 9, 5, 0, 0, time.UTC)}
-	for n := 1; n <= len(accountIDs); n++ {
+	// The heading's words are the pin's and its room the frame's width, so
+	// how many accounts there are moves nothing: one, two and the most will
+	// do, the frame drawn whole at every width.
+	for _, n := range []int{1, 2, len(accountIDs)} {
 		for _, long := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%d accounts, long names %t", n, long), func(t *testing.T) {
 				t.Parallel()
