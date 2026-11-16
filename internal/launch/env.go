@@ -289,6 +289,13 @@ func (e environ) setByRun(key string) string {
 	return ""
 }
 
+// runSet reports whether the environment's mark says run gave key a value
+// (see setEnv), whatever key holds now.
+func (e environ) runSet(key string) bool {
+	mark, ok := e.mark()
+	return ok && mark.Has(setKey+key)
+}
+
 // holdsWhatRunSet reports whether key holds the value mark says run gave it.
 func (e environ) holdsWhatRunSet(key string, mark url.Values) bool {
 	value, isSet := e.lookup(key)

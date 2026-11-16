@@ -722,25 +722,31 @@ within, where it's started within one, and the session keeps that pool for its w
     them with NULs, so the empty strings past the arguments counted are passed over; a title that
     ran on over the environment would take its first variables, and one ending where
     `SWITCHBOARD_STARTED` begins would take what `run` set and leave the mark whole. So where what's
-    read holds no session, or can't be read, the environment the `claude` inherits is read in its
-    place, judged alike; and where it holds a session that names no pool, as where a title took
-    the variables ahead of `SWITCHBOARD_PROJECT`, `SWITCHBOARD_POOL` among them, the inherited one
-    gives the pool, where it names one by the same checks. A process another user runs is never a
-    session's `claude`: what it started with can't be read, and only an environment inherited, as
-    through `sudo -E`, could name it. A process is a session's `claude` where that environment's
-    mark, `SWITCHBOARD_STARTED` (see Finding the real `claude`), names it by its process id, and it
-    started no later than the mark says, to the second, so a later process that took the id of a
-    `claude` since ended is none; where its mark of what `run` set was made for that `claude`,
-    naming its id and the second it started as its `SWITCHBOARD_STARTED` does, so a `claude`
-    started since in a session's environment that carries that mark on, as a local subcommand's
-    `claude` or an unaided start's does, is none, though it took the id of the session's `claude`
-    since ended; and where it names the session's pool or project, `SWITCHBOARD_POOL` and
-    `SWITCHBOARD_PROJECT`, as that mark says `run` gave them, as `run` marks them in every routed
-    or direct session's environment, even where the user's held the same (see What `run` set). In
-    a config with pools, a session naming no pool, as one started while the config had none,
-    places nothing: the walk goes on to the next one out that names a pool, its project with it;
-    in a config without, the nearest's project counts. Neither the router nor the control API
-    learns anything new. Where none is found, or off macOS, it's within none, as before.
+    read holds no session, as where a title took the mark, or can't be read, the environment the
+    `claude` inherits is read in its place, judged alike; and where it holds a session but names
+    no pool or no project, as where a title took the variables ahead of the other, the inherited
+    one gives each it leaves out, where it names it by the same checks. A process run by another
+    user than the `claude` starting is never a session's `claude`, whether what it started with can
+    be read or not: so a `claude` started as another user within a session, as `sudo claude` starts
+    one, which as root can read it, is placed by its folder, as before sessions were looked for. A
+    process is a session's `claude` where that environment's mark, `SWITCHBOARD_STARTED` (see
+    Finding the real `claude`), names it by its process id, and it started no later than the mark
+    says, to the second, so a later process that took the id of a `claude` since ended is none;
+    where its mark of what `run` set was made for that `claude`, naming its id and the second it
+    started as its `SWITCHBOARD_STARTED` does, so a `claude` started since in a session's
+    environment that carries that mark on, as a local subcommand's `claude` or an unaided start's
+    does, is none, though it took the id of the session's `claude` since ended; and where that mark
+    says `run` gave the session a pool or a project, `SWITCHBOARD_POOL` or `SWITCHBOARD_PROJECT`,
+    as `run` marks them in every routed or direct session's environment, even where the user's held
+    the same (see What `run` set), each counting where it still holds what the mark says. In a
+    config with pools, a session `run` gave no pool, as one started while the config had none,
+    places nothing: the walk goes on to the next one out that `run` gave a pool, its project with
+    it. One whose mark says `run` gave it a pool that neither read gives, as where a title took it
+    and the `claude` starting had its environment cleaned, stops the walk all the same: the
+    `claude` is placed by its folder, as its pool can't be told, never through a session further
+    out, which may be in another pool. In a config without pools, the nearest's project counts.
+    Neither the router nor the control API learns anything new. Where none is found, or off
+    macOS, it's within none, as before.
   - **A session whose `claude` isn't among the processes that started a `claude` is none,** though
     its mark lives on in the environment, as in a tmux server started within the session and every
     pane of it, which outlive the shell that started them: otherwise every `claude` started there,
@@ -7389,16 +7395,15 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   folder of a bare repository, or of one holding a bare `.bare`, is in one, though its project is
   its own directory, and one whose nearest `.git` can't be read is in none. One started within a
   session (see Which pool a session is in) outside every repository counts as that session's
-  project, as `SWITCHBOARD_PROJECT` names it, so a `claude` the
-  session's tooling starts in Claude Code's scratchpad, with no `.git` above it, is the session's
-  work, rather than a project of its own each run (the owner's call, 15 November 2026). That holds
-  while it's in the session's pool: one a fence takes into another pool, as from a session of the
-  unfenced pool, is placed as if it weren't started within the session, and counts as its own
-  directory, so no pool records another's project. Each session passes on its own project, which
-  within a session outside every repository is the one it was given, so a chain of them resolves
-  to its first session's. `run` finds it through a seam of its own (`cli.Deps.FindProject`), never
-  through the pools' worktree lookup, so a config with no fenced pool still looks for no worktree.
-  Lines and sessions from before carry none:
+  project, as `SWITCHBOARD_PROJECT` names it, so a `claude` the session's tooling starts in Claude
+  Code's scratchpad, with no `.git` above it, is the session's work, rather than a project of its
+  own each run (the owner's call, 15 November 2026). That holds while it's in the session's pool:
+  one a fence takes into another pool, as from a session of the unfenced pool, is placed as if it
+  weren't started within the session, and counts as its own directory, so no pool records another's
+  project. Each session passes on its own project, which within a session outside every repository
+  is the one it was given, so a chain of them resolves to its first session's. `run` finds it
+  through a seam of its own (`cli.Deps.FindProject`), never through the pools' worktree lookup, so a
+  config with no fenced pool still looks for no worktree. Lines and sessions from before carry none:
   a `dir` of the form `<repo>/.claude/worktrees/<name>`, a worktree Claude Code made, counts as
   `<repo>`, any other as itself, and no `dir` as no project (`status.ProjectOf`, which no drawing
   package or command calls), each path cleaned, so one written two ways is one project. A project is

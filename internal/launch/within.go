@@ -1,6 +1,7 @@
 package launch
 
 import (
+	"cmp"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -30,11 +31,24 @@ type Process struct {
 }
 
 // session is a session a launch is started within, as sessionOf finds it:
-// the process id of its claude, and the id of the pool it's in and the
-// project it runs in, each "" where it names none. The zero session is none.
+// the process id of its claude; the id of the pool it's in and the project
+// it runs in, each "" where it names none; and whether run set it a pool, as
+// its mark says, though no read of it may give the pool, as where a title
+// took it. The zero session is none.
 type session struct {
 	pid           int
 	pool, project string
+	poolSet       bool
+}
+
+// or returns s, as one read of a session's claude finds it, with what other,
+// another read of that claude, gives where s gives none: each of the pool and
+// the project, and whether run set it a pool.
+func (s session) or(other session) session {
+	return session{
+		pid: cmp.Or(s.pid, other.pid), pool: cmp.Or(s.pool, other.pool), project: cmp.Or(s.project, other.project),
+		poolSet: s.poolSet || other.poolSet,
+	}
 }
 
 // attrs are what the log says of s, where it's a session: the process id of
@@ -47,8 +61,8 @@ func (s session) attrs() []any {
 }
 
 // outerSessions are the sessions a launch is started within, as findOuter
-// finds them: the nearest, and the nearest naming a pool, each none where
-// there's no such session.
+// finds them: the nearest, and the nearest run set a pool for, each none
+// where there's no such session.
 type outerSessions struct {
 	nearest, pooled session
 }
@@ -58,15 +72,18 @@ func (o outerSessions) with(s session) outerSessions {
 	if o.nearest.pid == 0 {
 		o.nearest = s
 	}
-	if o.pooled.pid == 0 && s.pool != "" {
+	if o.pooled.pid == 0 && s.poolSet {
 		o.pooled = s
 	}
 	return o
 }
 
 // among returns the session a launch among pools is started within: the
-// nearest naming a pool, where there are pools, as one naming none can't
-// place it among them; else the nearest.
+// nearest run set a pool for, where there are pools, as one it set none for,
+// started while the config had none, can't place it among them, though one
+// whose pool no read gives places it by its folder alone (see outerPool),
+// never through a session further out, whose pool may be another's; else
+// the nearest.
 func (o outerSessions) among(pools config.Pools) session {
 	if len(pools) > 0 {
 		return o.pooled
@@ -86,13 +103,15 @@ const ancestorsMost = 64
 // findOuter returns the sessions a launch is started within, as Processes
 // tells of the processes running: those whose claude is among the processes
 // that started it, up from its parent, as sessionOf finds them, until one
-// names a pool. A session whose claude isn't among them is none, though its
-// mark lives on, as in a tmux server started within it, which every claude
-// started in it would inherit. A process another user runs is never a
-// session's claude, as only the environment the launch inherits could name
-// it, as through sudo -E. The walk stops at a process that started after the
-// one it started, as no parent does: its id was taken, as the walk went, by
-// a later process. None without Processes.
+// run set a pool for. A session whose claude isn't among them is none,
+// though its mark lives on, as in a tmux server started within it, which
+// every claude started in it would inherit. A process another user than the
+// launch's runs is never a session's claude, whether or not what it started
+// with can be read, so a launch run as another user, as sudo claude runs
+// one, is placed by its folder, as before sessions were looked for. The walk
+// stops at a process that started after the one it started, as no parent
+// does: its id was taken, as the walk went, by a later process. None
+// without Processes.
 func (l Launcher) findOuter() outerSessions {
 	var outer outerSessions
 	if l.Processes == nil {
@@ -120,26 +139,20 @@ func (l Launcher) findOuter() outerSessions {
 // sessionOf returns the session whose claude is p, the process whose id is
 // pid, and whether it's one: none where a user other than owner runs p; else
 // as sessionIn finds it in the environment p started in, which nothing the
-// session runs can change; else in the one the launch starts from, as
-// inherited, which also gives the pool where the one p started in names
-// none. What's read of a process is its memory as it is, which the process
-// can write over, as Claude Code's title does under Node, so a read that
-// holds no session, as one whose title took what run set, is passed over as
-// one that can't be read is, and one that lost the pool alone, as one whose
-// title took the variables ahead of the project, takes the inherited one's.
+// session runs can change, each of its pool and project that's not there
+// given by the environment the launch starts from, as inherited, as sessionIn
+// finds it there. What's read of a process is its memory as it is, which the
+// process can write over, as Claude Code's title does under Node, so a read
+// whose title took the mark is passed over as one that can't be read is, and
+// one whose title took the pool or the project alone takes the inherited
+// one's.
 func (l Launcher) sessionOf(pid int, p Process, owner int) (session, bool) {
 	if p.Owner != owner {
 		return session{}, false
 	}
+	own, owns := l.ownSession(pid, p)
 	inherited, inherits := sessionIn(environ(l.Environ), pid, p)
-	s, found := l.ownSession(pid, p)
-	switch {
-	case !found:
-		return inherited, inherits
-	case s.pool == "" && inherits:
-		s.pool = inherited.pool
-	}
-	return s, true
+	return own.or(inherited), owns || inherits
 }
 
 // ownSession returns the session sessionIn finds in the environment p, the
@@ -160,20 +173,22 @@ func (l Launcher) ownSession(pid int, p Process) (session, bool) {
 // isn't; where env's mark of what run set was made for that claude (see
 // markedFor), as a claude started since in the session's environment, as
 // Local starts one, carries on a mark made for another, though it took the
-// id of the one it was made for; and where env names the pool or project run
-// set (see setByRun).
+// id of the one it was made for; and where that mark says run set a pool or
+// a project. Each of the pool and project is env's where it's still what run
+// set (see setByRun), so one changed or gone since is none.
 func sessionIn(env environ, pid int, p Process) (session, bool) {
 	m, marked := env.started()
 	if !marked || m.pid != pid || p.Started.After(m.at.Add(markRounding)) || !env.markedFor(m) {
 		return session{}, false
 	}
-	s := session{pid: pid, pool: env.setByRun(PoolEnv), project: env.setByRun(projectEnv)}
-	return s, s.pool != "" || s.project != ""
+	s := session{pid: pid, pool: env.setByRun(PoolEnv), project: env.setByRun(projectEnv), poolSet: env.runSet(PoolEnv)}
+	return s, s.poolSet || env.runSet(projectEnv)
 }
 
 // outerPool returns the session a launch among pools is started within, as
-// among has it, and its pool of pools: false where it's within none, or that
-// pool isn't one of pools, as where it's been removed since.
+// among has it, and its pool of pools: false where it's within none, no read
+// of it gives its pool, or that pool isn't one of pools, as where it's been
+// removed since.
 func (l Launcher) outerPool(pools config.Pools) (session, config.Pool, bool) {
 	s := l.outer.among(pools)
 	if s.pool == "" {

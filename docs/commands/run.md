@@ -71,19 +71,25 @@ The project follows the pool:
 
 | If the folder it starts in is | Then its project is |
 |---|---|
-| In a repository | That repository |
+| In a repository, or a worktree of one | That repository |
+| In the folder of a bare repository, or beside one named `.bare`, outside every worktree | The folder itself |
 | In no repository, and in the same pool as the session | The same project as the session |
 | In no repository, and a fence takes it into another pool | The folder itself |
 
 The session is the one whose `claude` started this `claude`, directly or through other programs.
 `run` looks for that `claude` among the programs that started this one, nearest first. It reads
 the environment that `claude` started with, which the programs the session runs can't change.
+
 Claude Code under Node writes its title over the memory `run` reads, though. If `run` finds no
-session in what it reads there, it reads the environment this `claude` inherits instead.
+session in what it reads there, it reads the environment this `claude` inherits instead. It reads
+the inherited environment too if the one the session started with names no pool or no project. If
+neither environment names the pool that `run` gave the session, this `claude` is placed by its
+folder.
 
 No session is found if:
 
 - The session has ended.
+- The `claude` runs as another user, for example with `sudo claude`.
 - The session only started the tmux server a `claude` runs in.
 - The `claude` started in the background from a shell that exits at once, for example with
   `claude -p … &`. The `claude` may pass to launchd before `run` looks, and is then placed by its

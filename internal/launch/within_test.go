@@ -494,28 +494,34 @@ func TestASessionsClaudeStartedWithinTheSecondItsMarkSaysIsItsClaude(t *testing.
 	}
 }
 
-// A process another user runs is never a session's claude, though the
-// environment the launch inherits names it, as through sudo -E, where what
-// that process started with can't be read.
+// A process another user than the launch's runs is never a session's claude,
+// though the environment the launch inherits names it, as through sudo -E,
+// and whether what that process started with can be read or not: so a launch
+// run as root within a session, as sudo claude runs one, which can read it,
+// is placed by its folder.
 func TestAProcessAnotherUserRunsIsNoSessionsClaude(t *testing.T) {
-	const user, other = 501, 502
+	const root, user, other = 0, 501, 502
 	cfg := pooledConfig()
 	sessionEnv := session(t, cfg, acmeDir)
 	for _, tt := range []struct {
 		name string
-		// owner runs the session's claude, and user the rest.
-		owner     int
-		inSession bool
+		// launcher runs the launch, and owner the session's claude, user
+		// running the shell between; unread is whether what the session's
+		// claude started with can't be read.
+		launcher, owner int
+		unread          bool
+		inSession       bool
 	}{
-		{name: "the session's claude run by the launch's user", owner: user, inSession: true},
-		{name: "the session's claude run by another user", owner: other},
+		{name: "the session's claude run by the launch's user, what it started with unread", launcher: user, owner: user, unread: true, inSession: true},
+		{name: "the session's claude run by another user, what it started with unread", launcher: user, owner: other, unread: true},
+		{name: "the launch run as root, as under sudo, what the session's claude started with read", launcher: root, owner: user},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			h := within(t, sessionEnv, sessionEnv, scratchpad)
 			h.launcher.Processes = processes{
-				withinPID: {parent: shellPID, started: launched.Add(time.Minute), owner: user},
+				withinPID: {parent: shellPID, started: launched.Add(time.Minute), owner: tt.launcher},
 				shellPID:  {parent: pid, started: launched.Add(time.Second), owner: user},
-				pid:       {parent: 1, started: launched.Add(-time.Second), owner: tt.owner, unread: true},
+				pid:       {parent: 1, started: launched.Add(-time.Second), owner: tt.owner, environ: switchboards(sessionEnv), unread: tt.unread},
 			}
 
 			runs(t, h, cfg)
@@ -843,6 +849,58 @@ func TestASessionNamingNoPoolPlacesNoLaunchAmongPools(t *testing.T) {
 			t.Errorf("started in the project %q, want the nearest session's, %q", got, tool)
 		}
 	})
+}
+
+// A session whose mark says run set it a pool that no read of it gives, as
+// where its claude's title took SWITCHBOARD_POOL and the launch's
+// environment was cleaned, places a launch within it by the launch's folder:
+// never through a session further out, which may be in another pool.
+func TestASessionWhosePoolIsLostPlacesALaunchWithinItByItsFolder(t *testing.T) {
+	const notes = "/Volumes/Client/notes"
+	cfg := configOf(config.Pools{defaultPool, acmePool, clientPool})
+	first := session(t, cfg, acmeDir)
+	started := newHarness(t, "HOME=/home/tester")
+	started.launcher.Dir, started.launcher.Project, started.launcher.PID = notes, repositories, withinPID
+	runs(t, started, cfg)
+	second := started.only(t).inherited()
+	without := func(names ...string) []string {
+		return slices.DeleteFunc(slices.Clone(second), func(v string) bool {
+			name, _, _ := strings.Cut(v, "=")
+			return slices.Contains(names, name)
+		})
+	}
+	cleaned := []string{"HOME=/home/tester"}
+	tests := []struct {
+		name string
+		// read is what's read of the environment the second session's claude
+		// started in, and environ the one the launch inherits.
+		read, environ                    []string
+		wantPool, wantToken, wantProject string
+	}{
+		{name: "its pool read: its pool and project", read: second, environ: cleaned, wantPool: clientPool.ID, wantToken: sideToken, wantProject: notes},
+		{
+			name: "its pool taken from what's read, the environment inherited naming it: its pool and project", read: without("SWITCHBOARD_POOL"), environ: second,
+			wantPool: clientPool.ID, wantToken: sideToken, wantProject: notes,
+		},
+		{
+			name: "its pool taken from what's read, the environment cleaned: placed by its folder", read: without("SWITCHBOARD_POOL"), environ: cleaned,
+			wantPool: defaultPool.ID, wantToken: workToken, wantProject: innerScratchpad,
+		},
+		{
+			name: "its pool and project taken from what's read, the environment cleaned: placed by its folder", read: without("SWITCHBOARD_POOL", "SWITCHBOARD_PROJECT"),
+			environ: cleaned, wantPool: defaultPool.ID, wantToken: workToken, wantProject: innerScratchpad,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, tt.environ...)
+			h.launcher.Dir, h.launcher.Project, h.launcher.PID = innerScratchpad, repositories, innerWithinPID
+			h.launcher.Processes = chain(first, tt.read)
+
+			runs(t, h, cfg)
+			placedIn(t, h.environment(t), tt.wantPool, tt.wantToken, tt.wantProject)
+		})
+	}
 }
 
 // A pin to an account of another pool is refused, saying where the session's

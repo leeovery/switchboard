@@ -32,12 +32,13 @@ func FindProject(dir string) (string, bool) {
 	if dir == "" {
 		return "", false
 	}
-	project, found := repositoryWalked(dir, repositoryAt)
-	if !found {
-		project = filepath.Clean(dir)
+	if project, found := repositoryWalked(dir, repositoryAt); found {
+		// RepositoryOf's walk meets this .git, or a bare repository nearer:
+		// in one either way.
+		return project, true
 	}
 	_, inRepository := RepositoryOf(dir)
-	return project, inRepository
+	return filepath.Clean(dir), inRepository
 }
 
 // RepositoryOf returns the project of the repository the directory dir is
