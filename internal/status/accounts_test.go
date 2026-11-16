@@ -114,6 +114,14 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "■ lapsed", head: "■ subscription lapsed · its subscription needs renewing"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
+		"its token refused before anything was read": {
+			"work": {state: "■ refused", head: "■ refused (401) · its token needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"its read refused its token": {
+			"work": {state: "■ refused", head: "■ token refused · its token needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
 		"probed, of several accounts": {
 			"work": {state: "● open", head: "● open"},
 			"side": {state: "● open", head: "● open"},

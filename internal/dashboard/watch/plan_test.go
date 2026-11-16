@@ -19,7 +19,7 @@ func TestPlanAt(t *testing.T) {
 	}{
 		{name: "reading the router, before the next look", now: at(13, 12, 4), routed: true},
 		{name: "reading the router, a look once it's due, which never probes", now: at(13, 12, 5), routed: true, want: status.Read{}, wantOK: true},
-		{name: "reading the router, a look having it refresh once a window on screen has reset", now: at(13, 21, 0), routed: true, want: status.Read{Refresh: status.FreshFor}, wantOK: true},
+		{name: "reading the router, a look having it refresh once a window on screen has reset", now: at(13, 21, 0), routed: true, want: status.AfterReset(), wantOK: true},
 		{name: "reading the router, a full read once it's due, which has it probe nothing", now: at(13, 42, 0), routed: true, want: full, wantOK: true},
 		{name: "probing, in the minute the router was last asked after", now: at(13, 12, 59), routed: false},
 		{name: "probing, a question after the router in the next minute, which has it probe nothing", now: at(13, 13, 0), routed: false, want: status.Read{}, wantOK: true},
@@ -65,7 +65,7 @@ func TestPlanLanded(t *testing.T) {
 		},
 		{
 			name: "a look having the router refresh what it hasn't read in the last minute, once a window on screen has reset",
-			read: status.Read{Refresh: status.FreshFor},
+			read: status.AfterReset(),
 			doc:  routerDocument(account("work", "Work", session(0.25, -time.Hour), week(0.5))),
 			want: plan{interval: interval, due: at(13, 42, 0), next: now.Add(lookEvery), reset: start.Add(3*day + resetGrace).UTC(), fresh: now, asked: now, failures: 1},
 		},

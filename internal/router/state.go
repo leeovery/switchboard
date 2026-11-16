@@ -893,19 +893,21 @@ func (s *state) due(id string, now time.Time) bool {
 	return now.Sub(u.updated) > staleAfter && s.probeable(u, now) && !u.spacedOff(now)
 }
 
-// refreshing returns what reports whether a refresh asking for usage no
-// older than age probes an account at now: nothing has been read of it for
-// longer than age, or it can take no request anyway, however lately it was
-// read: it's spent, as spent says, as the answer that reached its limit reads
-// it, and a limit lifted by hand shows only to a probe, or its last read was
-// refused, as readRefused says, as only a read that comes back clean lifts
-// that; and it can be probed, as probeable says.
-func (s *state) refreshing(age time.Duration) func(id string, now time.Time) bool {
+// refreshing returns what reports whether a refresh asking as ask does probes
+// an account at now: nothing has been read of it for longer than ask's max
+// age, or it can take no request anyway, however lately it was read: it's
+// spent, as spent says, as the answer that reached its limit reads it, and a
+// limit lifted by hand shows only to a probe, or its last read was refused,
+// as readRefused says, as only a read that comes back clean lifts that; it
+// can be probed, as probeable says; and, where ask is spaced, its read
+// refused doesn't space it off, as spacedOff says.
+func (s *state) refreshing(ask refreshAsk) func(id string, now time.Time) bool {
 	return func(id string, now time.Time) bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		u := s.usage[id]
-		return (now.Sub(u.updated) > age || u.spent(s.policy, now) || u.readRefused()) && s.probeable(u, now)
+		stale := now.Sub(u.updated) > ask.maxAge || u.spent(s.policy, now) || u.readRefused()
+		return stale && s.probeable(u, now) && (!ask.spaced || !u.spacedOff(now))
 	}
 }
 

@@ -7,28 +7,28 @@ subscription.
 ## An account reads `subscription lapsed`
 
 ROUTING reads `■ subscription lapsed · its subscription needs renewing`, and USAGE reads
-`subscription lapsed` in red. Anthropic refused the last read of the account's usage. Anthropic
-refuses the login of an ended subscription that way.
+`subscription lapsed` in red. When the router last read the account, Anthropic refused the read.
+Anthropic refuses the login of an ended subscription that way.
 
 The router sends nothing on that account until a read of it comes back clean:
 
-- The account's sessions move to the other accounts.
+- Sessions on the account move to the other accounts.
 - A pin to the account yields.
-- `Σ pool` leaves out the account's room.
+- `Σ pool` counts no room on the account.
 
 If every account in a pool reads so, no account there can take a request. What you see turns on the
-account Claude Code's token belongs to:
+account Claude Code itself signs in with:
 
-| If Claude Code's token belongs to | You see |
+| If Claude Code signs in with | You see |
 |---|---|
-| The pool's primary, as usual | The request goes out on the primary, and Anthropic refuses it. Claude Code shows an API error, `switchboard: the upstream refused account b6s7 (HTTP 403)`, with Anthropic's reason, and doesn't retry. |
+| The pool's primary, as usual | The request goes out on the primary, and Anthropic refuses it. Claude Code shows an API error, `switchboard: the upstream refused account b6s7 (HTTP 403)`, with the reason Anthropic gave, and doesn't retry. |
 | An account you removed, or one that just left the pool | Nothing goes out. Switchboard answers as a usage limit: `switchboard: no account in pool Acme can take the request; account b6s7: subscription lapsed`. |
 
 Renew one account, or give one a new token, to carry on.
 
 To bring the account back, renew the subscription. The router reads the account again within half
 an hour, and sends it sessions once that read is clean. Press `R` on the dashboard to read it
-sooner. If you no longer use the account, remove it. Switchboard keeps the account's history.
+sooner. If you no longer use the account, remove it. Switchboard keeps the history.
 
 ```bash
 # Removes the account; its history stays
@@ -37,9 +37,9 @@ switchboard accounts remove b6s7
 
 ## An account reads `token refused`
 
-ROUTING reads `■ token refused · its token needs renewing`. Anthropic refused the token in the
-account's file when the router last read the account. The router sends the account nothing until a
-read comes back clean, the same as for `subscription lapsed`.
+ROUTING reads `■ token refused · its token needs renewing`. When the router last read the account,
+Anthropic refused the token. The router sends the account nothing until a read comes back clean,
+the same as for `subscription lapsed`.
 
 Give the account a new token. The router takes up a new token within 3 seconds of the file
 changing, and routes to the account at once. The same token written back to the file lifts

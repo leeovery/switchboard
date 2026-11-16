@@ -447,7 +447,7 @@ func TestAnAccountWhoseAnswersStoppedReportingItsSessionIsProbedAsAnyOther(t *te
 		due func(s *state) func(id string, now time.Time) bool
 	}{
 		{name: "before a choice", due: func(s *state) func(string, time.Time) bool { return s.due }},
-		{name: "on a refresh", due: func(s *state) func(string, time.Time) bool { return s.refreshing(0) }},
+		{name: "on a refresh", due: func(s *state) func(string, time.Time) bool { return s.refreshing(refreshAsk{}) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

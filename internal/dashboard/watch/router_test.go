@@ -201,7 +201,7 @@ func TestHasTheRouterRefreshAtOnceForAWindowThatResetBeforeTheWatchBegan(t *test
 
 	h.tickUntilAsked()
 	h.tickUntilAsked()
-	want := []status.Read{{Probe: true}, {Refresh: status.FreshFor}, {}}
+	want := []status.Read{{Probe: true}, status.AfterReset(), {}}
 	if !slices.Equal(h.source.asked, want) {
 		t.Errorf("asked for %+v, want %+v: the first look has the router refresh what it hasn't read in the last minute, once", h.source.asked, want)
 	}

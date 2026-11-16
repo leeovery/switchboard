@@ -332,7 +332,7 @@ func (h *harness) refreshesUntil(t time.Time) []time.Time {
 		asked := len(h.source.asked)
 		h.fire(h.lastTick())
 		for _, r := range h.source.asked[asked:] {
-			if r == (status.Read{Refresh: status.FreshFor}) {
+			if r == status.AfterReset() {
 				refreshed = append(refreshed, h.clock.now)
 			}
 		}

@@ -281,7 +281,7 @@ func TestTheSessionsAreListedWithAutoSafelyBesideRequests(t *testing.T) {
 func readAfresh(t *testing.T, r *routed, client *router.Client) {
 	t.Helper()
 	r.clock.advance(time.Minute)
-	if _, err := client.Refresh(t.Context(), 0); err != nil {
+	if _, err := client.Refresh(t.Context(), status.Read{}); err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
 }

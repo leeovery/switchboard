@@ -472,26 +472,27 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   refused again keeps it, saying why afresh, as a 401 after a 403 says `token refused`. A held
   account is never passed over for being held: it's probed on the router's rounds at any hour, as
   one whose probe read nothing, so a subscription renewed is seen within the half hour (see The
-  router's rounds); a choice probes it no sooner, nor is a failed prime of it sent again sooner, as
-  each read refused would only be another warning. A new token in its file lifts the hold at once,
-  as it starts its probes afresh. The same token lost and back keeps it, as that token would only
-  be refused again: a file moved away and back, holding no usable token two looks running, as a
-  loss takes, or the router restarting while the file holds none, the state file keeping the
-  refusal for the token it held last. A read that fails otherwise with no refusal before it holds
-  nothing: the account routes on its windows as last read. A limit holding the account too doesn't
-  hide the hold: ROUTING, the routing card and `status` say the refusal first, and nothing says
-  it's back as the limit lifts, its windows' words reading `limit` with no `back`, and Runway's
+  router's rounds); a choice probes it no sooner, nor the dashboard's refresh after a reset, nor is
+  a failed prime of it sent again sooner, as each read refused would only be another warning. `R`
+  and `--refresh` probe it at once, as someone asks to see a renewal. A new token in its file lifts
+  the hold at once, as it starts its probes afresh. The same token lost and back keeps it, as that
+  token would only be refused again: a file moved away and back, holding no usable token two looks
+  running, as a loss takes, or the router restarting while the file holds none, the state file
+  keeping the refusal for the token it held last. A read that fails otherwise with no refusal before
+  it holds nothing: the account routes on its windows as last read. A limit holding the account too
+  doesn't hide the hold: ROUTING, the routing card and `status` say the refusal first, and nothing
+  says it's back as the limit lifts, its windows' words reading `limit` with no `back`, and Runway's
   stretch through now no `back` either. An account whose first read is refused, as one added with
   its subscription already ended, says the refusal too, while every view draws it as not read yet,
-  as nothing of it has been. The hold begins at the first refusal of a run, kept through the
-  refusals and failures after it, which the state file keeps beside the last probe; the pools'
-  room, which the forecast's day rate counts, holds the account back only from then, never before,
-  so a restart replaying the readings history counts its room till then, however long it's been
-  probed since. A state file from before keeps no start, and the hold runs from its last probe; a
-  router from before reads the file all the same, passing over the start. The router judges the
-  hold from its own state, through the readers of Claude's answers, and the status document states
-  it once, as the account's `RefusedRead`: no view reads the error again. An account removed goes
-  as any other, its history kept.
+  as nothing of it has been, unless a limit holds it too. The hold begins at the first refusal of a
+  run, kept through the refusals and failures after it, which the state file keeps beside the last
+  probe; the pools' room, which the forecast's day rate counts, holds the account back only from
+  then, never before, so a restart replaying the readings history counts its room till then, however
+  long it's been probed since. A state file from before keeps no start, and the hold runs from its
+  last probe; a router from before reads the file all the same, passing over the start. The router
+  judges the hold from its own state, through the readers of Claude's answers, and the status
+  document states it once, as the account's `RefusedRead`: no view reads the error again. An account
+  removed goes as any other, its history kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -1837,13 +1838,14 @@ accounts:
   then 4, doubling to the half hour, and every half hour after, while it can't be read: a refused
   token probed every 5 minutes would only fill the log. One held back by a read refused (see 401s
   and 403s) is probed so, never passed over for the hold, as only a clean read lifts it, and a
-  choice made afresh, or one with no room, waits out that backoff too before it probes it. One whose
-  token the router refused isn't probed on the rounds while it's so, nor one without a usable
-  token. One that goes out on another token,
-  loses its usable token, or has a usable one again, starts afresh: how its probes went on the
-  token before says nothing of this one, so neither their error nor their backoff holds. A probe
-  that ends while its account has no usable token, sent before it lost it or after, as a choice
-  made a moment before may, leaves nothing of how it went, as one on the token before doesn't.
+  choice made afresh, one with no room, or the dashboard's refresh after a reset, waits out that
+  backoff too before it probes it, though `R` and `--refresh` don't. One whose token the router
+  refused isn't probed on the rounds while it's so, nor one without a usable token. One that goes
+  out on another token, loses its usable token, or has a usable one again, starts afresh: how its
+  probes went on the token before says nothing of this one, so neither their error nor their backoff
+  holds. A probe that ends while its account has no usable token, sent before it lost it or after,
+  as a choice made a moment before may, leaves nothing of how it went, as one on the token before
+  doesn't.
 - **Across a restart,** `state.json` keeps how each account's probes went, beside its reading: when
   one last ended, why the last read nothing, and how many in a row did, counted to the fifth, past
   which the wait stays the half hour. So the minute after a probe and the backoff hold across it,
@@ -6082,10 +6084,11 @@ request ledger).
   and a reset's `│` at its top and bottom, where the frames draw `▆`, the lower three quarters of a
   cell. Every window that every model shares counts, the 5-hour among them. `│` in `text.subtle`
   marks where each account's week resets, on now's column or after it. An account without a usable token has no room all along, and one not read
-  yet is left blank (settled in the plan), whatever ROUTING says holds it back. An account whose
-  first read failed is left blank, as not read yet: its label says `not read`, and from the lanes'
-  first column, in `text.subtle`, `can't read it: HTTP 529 · Overloaded` (the owner's call, 13
-  October 2026), or, where the API refused the read, ROUTING's words, `subscription lapsed: its
+  yet is left blank (settled in the plan), whatever ROUTING says, unless the router's own refusal
+  of its token or a limit holds it, which its lane draws till it lifts, blank after. An account
+  whose first read failed is left blank, as not read yet: its label says `not read`, and from the
+  lanes' first column, in `text.subtle`, `can't read it: HTTP 529 · Overloaded` (the owner's call,
+  13 October 2026), or, where the API refused the read, ROUTING's words, `subscription lapsed: its
   subscription needs renewing`. An account whose token is refused has the windows' use under its
   name faded as stale (the owner's call, 13 October 2026).
 
@@ -8421,21 +8424,21 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   (see Priming), and `R` asks for a read at once (settled by its owner on 26 October 2026). Every
   interval, it reads in full: the document as a look does, with the router's history (below). A
   minute after a window on screen resets, the next look has the router refresh first with a
-  `max_age` of a minute, once a reset, so an idle account's window doesn't read `resets now` until
-  the router's rounds next read it; but not for the windows of an account whose 5-hour window has
-  lapsed, as a refresh probes it only while it can take no request (see Priming): that window reads
-  empty instead, and the account's others as read. The interval is how often the dashboard probes
-  every account when it probes for itself, without the router or with `--probe`: it reads every
-  interval, a minute after a window on screen resets, and sooner after a failure, backing off from
-  2 minutes to the interval. A look never probes: when the router stops answering one, the
-  router's last document stays on screen, the status line saying
-  since when the router hasn't answered (see The page), and the looks go on every 5 seconds,
-  reading the router again as soon as it answers. A router away for a moment, as when it restarts
-  or is slow on waking, so has no account probed directly, which would start every lapsed 5-hour
-  window at once, off the priming schedule. Only the next full read, due an interval after the
-  last, or `R`, probes instead. Probing, it asks after the router at each
-  probe and once a minute between, and reads it again as soon as it answers, so it never goes back
-  and forth faster than that.
+  `max_age` of a minute, `"spaced": true` leaving an account held back by a read refused to its
+  backoff, once a reset, so an idle account's window doesn't read `resets now` until the router's
+  rounds next read it; but not for the windows of an account whose 5-hour window has lapsed, as a
+  refresh probes it only while it can take no request (see Priming): that window reads empty
+  instead, and the account's others as read. The interval is how often the dashboard probes every
+  account when it probes for itself, without the router or with `--probe`: it reads every interval,
+  a minute after a window on screen resets, and sooner after a failure, backing off from 2 minutes
+  to the interval. A look never probes: when the router stops answering one, the router's last
+  document stays on screen, the status line saying since when the router hasn't answered (see The
+  page), and the looks go on every 5 seconds, reading the router again as soon as it answers. A
+  router away for a moment, as when it restarts or is slow on waking, so has no account probed
+  directly, which would start every lapsed 5-hour window at once, off the priming schedule. Only the
+  next full read, due an interval after the last, or `R`, probes instead. Probing, it asks after the
+  router at each probe and once a minute between, and reads it again as soon as it answers, so it
+  never goes back and forth faster than that.
 - **`R`** refreshes, on every page: it has the router probe the accounts it hasn't read in the last
   minute, and those that can take no request anyway, however lately it read them, as a reset made
   by hand shows only to a probe, but for those whose 5-hour window has lapsed and that can take a
@@ -11180,7 +11183,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, project, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `project` the project that directory is in, as its line will give it, left out alike, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
 | `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
-| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
+| `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; with `"spaced": true`, leave an account held back by a read refused to its backoff, as a choice does, rather than probe it however lately it was; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets, spaced |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself), and while an export of the history runs, naming its folder, to be tried again once it ends, the folder given as `exporting` beside `error` too, for a caller to tell a router up and answering (see On a schedule). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 
 A request an endpoint refuses is answered `{"error": "<why>"}`; any other path or method gets the

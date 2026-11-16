@@ -40,6 +40,7 @@ personal · Personal
 
 side · Side
   HTTP 401 · Invalid bearer token
+  token refused · its token needs renewing
 
 probed directly: the router isn't running
 `,

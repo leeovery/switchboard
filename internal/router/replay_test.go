@@ -405,7 +405,7 @@ func TestAnAccountGoesOutOnTheTokenItsFileHeldWhenReadAgain(t *testing.T) {
 		t.Errorf("the requests went out with %q, want %q: the first renewed work's token, which the second goes out on", got, want)
 	}
 	r.clock.advance(time.Minute)
-	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Nanosecond); err != nil {
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), status.Read{Refresh: time.Nanosecond}); err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
 	if n := r.prober.probes(renewed); n != 1 {

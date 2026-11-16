@@ -64,7 +64,7 @@ func (s usageSource) inPool(pool string) usageSource {
 // read in its place. A router refusing gives its health with the refusal,
 // as it answered it.
 func (s usageSource) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
-	read, err := s.fromRouter(ctx, r.Refresh)
+	read, err := s.fromRouter(ctx, r)
 	switch {
 	case err != nil:
 		return status.Document{}, read.health, err
@@ -93,8 +93,8 @@ type routerRead struct {
 	ok       bool
 }
 
-// fromRouter reads the router's document, having the router probe the
-// accounts it hasn't read for refresh first, when that's more than zero, and
+// fromRouter reads the router's document, having the router refresh first as
+// r asks, when its Refresh is more than zero, as document has it, and
 // its health check's answer. What's worked out of the document, as
 // WorkedOut says, is worked out as it's read, as a router from before it
 // gave that, still running between an upgrade and its restart, gives none.
@@ -103,7 +103,7 @@ type routerRead struct {
 // document, or is one from before pools, as status.BeforePools has it of the
 // config's pools as they stand; and fails with router.PoolNeeded where it
 // refuses for want of a pool, giving its health as it answered.
-func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (routerRead, error) {
+func (s usageSource) fromRouter(ctx context.Context, r status.Read) (routerRead, error) {
 	switch {
 	case !s.ask:
 		return routerRead{}, nil
@@ -117,14 +117,14 @@ func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (rou
 	case status.BeforePools(health.ReportsPools, s.probe.pools):
 		return routerRead{fallback: status.Fallback{Router: status.RouterBeforePools}}, nil
 	}
-	doc, err := s.document(ctx, refresh)
+	doc, err := s.document(ctx, r)
 	if _, needs := errors.AsType[router.PoolNeeded](err); needs {
 		return routerRead{health: health}, err
 	}
 	if err != nil {
 		return routerRead{fallback: fallbackFrom(err)}, nil
 	}
-	logger.Debug("read the router", "refresh", refresh, "healthy", doc.Router.Healthy)
+	logger.Debug("read the router", "refresh", r.Refresh, "healthy", doc.Router.Healthy)
 	return routerRead{doc: doc.WorkedOut(claude.Policy()), health: health, ok: true}, nil
 }
 
@@ -191,11 +191,12 @@ func (s usageSource) Stream(ctx context.Context) (<-chan router.StreamEvent, err
 	return s.router.Stream(ctx)
 }
 
-// document is the router's status document, once it has probed the accounts
-// it hasn't read for refresh, when that's more than zero.
-func (s usageSource) document(ctx context.Context, refresh time.Duration) (status.Document, error) {
-	if refresh > 0 {
-		return s.router.Refresh(ctx, refresh)
+// document is the router's status document, once it has refreshed as r asks,
+// probing the accounts it hasn't read for its Refresh, when that's more than
+// zero.
+func (s usageSource) document(ctx context.Context, r status.Read) (status.Document, error) {
+	if r.Refresh > 0 {
+		return s.router.Refresh(ctx, r)
 	}
 	return s.router.Status(ctx)
 }

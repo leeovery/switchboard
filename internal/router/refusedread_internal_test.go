@@ -301,16 +301,47 @@ func TestAnAccountWhoseReadWasRefusedIsHeldTillItGoesOutOnAnotherToken(t *testin
 	}
 }
 
-func TestARefreshReadsAnAccountWhoseReadWasRefusedHoweverLatelyItWasRead(t *testing.T) {
+func TestOnlyAnUnspacedRefreshReadsAnAccountWhoseReadWasRefusedHoweverLatelyItWasRead(t *testing.T) {
 	for _, tt := range readFailures {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			s := newTestState(clock)
 			s.record("work", []quota.Window{session, soonWeek}, s.mark())
 			probesEnd(s, "work", tt.reads)
+			minuteOn := start.Add(reprobeAfter)
 
-			if due, want := s.refreshing(30*time.Minute)("work", start.Add(reprobeAfter)), tt.held != 0; due != want {
+			if due, want := s.refreshing(refreshAsk{maxAge: 30 * time.Minute})("work", minuteOn), tt.held != 0; due != want {
 				t.Errorf("work due a refresh asking for usage no older than 30 minutes, a minute after it was read = %v, want %v", due, want)
+			}
+			if s.refreshing(refreshAsk{maxAge: 30 * time.Minute, spaced: true})("work", minuteOn) {
+				t.Error("work due a spaced refresh asking for usage no older than 30 minutes, a minute after it was read, want it left to its backoff")
+			}
+		})
+	}
+}
+
+func TestRefreshLeavesAnAccountWhoseReadWasRefusedToItsBackoffWhereSpaced(t *testing.T) {
+	tests := []struct {
+		name, body string
+		want       bool
+	}{
+		{name: "as R asks", body: `{"max_age": "1m"}`, want: true},
+		{name: "as the dashboard's look after a reset asks", body: `{"max_age": "1m", "spaced": true}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			prober := &stubProber{}
+			r := newTestRouter(t, clock.read, prober)
+			readWorkFirst(r)
+			failWorksRead(r, errSubscriptionEnded)
+			clock.now = start.Add(reprobeAfter)
+
+			if got := askToRefresh(t.Context(), r, tt.body); got.Code != http.StatusOK {
+				t.Fatalf("POST /refresh %s answered %d %s, want 200", tt.body, got.Code, got.Body)
+			}
+			if probed := prober.counts()[workToken] > 0; probed != tt.want {
+				t.Errorf("work probed a minute after its read was refused = %v, want %v", probed, tt.want)
 			}
 		})
 	}
@@ -329,7 +360,7 @@ var spacings = []struct {
 	{name: "the probe timed out", err: errTimedOut},
 }
 
-func TestAChoiceProbesAnAccountWhoseReadWasRefusedNoSoonerThanItsRounds(t *testing.T) {
+func TestAChoiceOrASpacedRefreshProbesAnAccountWhoseReadWasRefusedNoSoonerThanItsRounds(t *testing.T) {
 	for _, tt := range spacings {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
@@ -342,7 +373,11 @@ func TestAChoiceProbesAnAccountWhoseReadWasRefusedNoSoonerThanItsRounds(t *testi
 			for _, ask := range []struct {
 				name string
 				due  func(id string, now time.Time) bool
-			}{{"before a choice", s.due}, {"with no room", s.dueAgain}} {
+			}{
+				{"before a choice", s.due},
+				{"with no room", s.dueAgain},
+				{"on a spaced refresh", s.refreshing(refreshAsk{maxAge: status.FreshFor, spaced: true})},
+			} {
 				if due := ask.due("work", sooner); due == tt.spaced {
 					t.Errorf("work due a probe %s 5 minutes after its third failed = %v, want %v", ask.name, due, !tt.spaced)
 				}
@@ -466,6 +501,31 @@ func TestARestartWithoutItsTokenHoldsAnAccountWhoseReadWasRefusedTillAnotherToke
 				t.Errorf("with %s, side's read refused: %v, since %v; want %v, since %v: only another token lifts it", tt.name, refused, since, tt.held, wantSince)
 			}
 		})
+	}
+}
+
+func TestARefusalKeptByARouterStartedWithoutItsTokenHoldsOnceItsBack(t *testing.T) {
+	// Side's subscription ended, and the router restarts an hour on with
+	// side's token file holding none it can use, saving the state file as
+	// work's read changes; then it restarts again, its same token back.
+	path := filepath.Join(t.TempDir(), "state.json")
+	first := newTestFile(at(start), testAccounts())
+	first.load(path)
+	probesEnd(first.state, "side", []error{errSubscriptionEnded})
+	first.save()
+	tokenless := newTestFile(at(start.Add(time.Hour)), resolve(testConfigured, tokenstest.Files{"work": workToken}.Read, unrecorded))
+	tokenless.load(path)
+	tokenless.state.record("work", []quota.Window{session, soonWeek}, tokenless.state.mark())
+	if !tokenless.changes.unsaved.Load() {
+		t.Fatal("the router without side's token has nothing to save, want work's read saved")
+	}
+	tokenless.save()
+
+	back := newTestFile(at(start.Add(2*time.Hour)), testAccounts())
+	back.load(path)
+	if u := back.state.usage["side"]; !u.readRefused() || !u.refusedSince.Equal(start) {
+		t.Errorf("with its same token back, side's read refused: %v, since %v; want refused since %v, as the router without it saved it",
+			u.readRefused(), u.refusedSince, start)
 	}
 }
 

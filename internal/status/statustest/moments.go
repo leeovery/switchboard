@@ -666,6 +666,39 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
+			// Work's first request was answered 401 before anything of it
+			// was read: the router's own refusal holds it till it ends.
+			Name: "its token refused before anything was read",
+			Doc: Router(policy, nil,
+				Routed{ID: "work", Label: "work", TokenSet: true, Refused: status.Refusal{Until: Built.Add(time.Hour), Status: 401}},
+				Routed{Account: side},
+			),
+			Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingRefused, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{}},
+				"side": sideOpen,
+			}},
+		},
+		{
+			// Work's last read was answered 401, its token refused, which
+			// holds it till a read comes back clean.
+			Name: "its read refused its token",
+			Doc: Router(policy, nil,
+				Routed{Account: with(readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.5, 2*day)), func(a *status.Account) {
+					a.FetchedAt, a.Error = Built.Add(-20*time.Minute), "HTTP 401 · Invalid bearer token"
+				})},
+				Routed{Account: side},
+			),
+			Now: Built.Add(5 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingRefused, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(2 * time.Hour)},
+					"7d": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built.Add(-20 * time.Minute), Used: 0.5, Next: Built.Add(2 * day)},
+				}},
+				"side": sideOpen,
+			}},
+		},
+		{
 			Name: "probed, of several accounts",
 			Doc: Probed(policy,
 				readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.5, 2*day)),

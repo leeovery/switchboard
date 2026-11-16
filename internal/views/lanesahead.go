@@ -36,14 +36,15 @@ func (s stood) holdsAt(t time.Time) bool {
 }
 
 // ahead is how an account stands from now on, as the moment has it: without
-// a usable token, or nothing read of it, all along, whatever ROUTING says
-// holds it back; each hold at now, a part of its own, in the precedence Then
-// judges by, from when the router's event of it tells till it lifts: a limit
-// holding back every request, till its hold's until; its token refused, till
-// the refusal's; and its cap, till it lets go; and each window every model
-// shares that runs out ahead, as its RunsOutAhead has it. Where its read is
-// refused, as its RefusedRead has it, it's drawn as last read all the same,
-// but nothing says when it next has room, as roomFrom says.
+// a usable token all along; each hold at now, a part of its own, in the
+// precedence Then judges by, from when the router's event of it tells till
+// it lifts: a limit holding back every request, till its hold's until; its
+// token refused, till the refusal's; and its cap, till it lets go; nothing
+// read of it, unknown where none of those holds, as in place of room; and
+// each window every model shares that runs out ahead, as its RunsOutAhead
+// has it. Where its read is refused, as its RefusedRead has it, it's drawn
+// as last read all the same, but nothing says when it next has room, as
+// roomFrom says.
 type ahead struct {
 	tokenless, unknown, refusedRead bool
 	holds                           []stood
@@ -83,23 +84,24 @@ func aheadOf(a status.AccountNow) ahead {
 	return h
 }
 
-// at is how the account stands at t, from now on: without a usable token, or
-// nothing known of it, all along, as neither has a hold or a run-out; else
-// by the precedence Then judges by, held at a limit, by its hold at now or a
-// run-out to it, its token refused, or held at its cap, by its hold at now
-// or a run-out to it; with room, running out ahead, where the view draws
-// that; else with room.
+// at is how the account stands at t, from now on: without a usable token
+// all along, as that has no hold or run-out; else by the precedence Then
+// judges by, held at a limit, by its hold at now or a run-out to it, its
+// token refused, or held at its cap, by its hold at now or a run-out to it;
+// nothing known of it, where nothing was read of it, as its holds alone are
+// known, and none of them can be its cap; with room, running out ahead,
+// where the view draws that; else with room.
 func (h ahead) at(t time.Time) stood {
-	switch {
-	case h.tokenless:
+	if h.tokenless {
 		return stood{cell: CellTokenless}
-	case h.unknown:
-		return stood{}
 	}
 	for _, cell := range []Cell{CellLimited, CellRefused, CellCapped} {
 		if s, ok := h.heldAt(cell, t); ok {
 			return s
 		}
+	}
+	if h.unknown {
+		return stood{}
 	}
 	if slices.ContainsFunc(h.outs, func(o runOut) bool { return t.Before(o.at) }) {
 		return stood{cell: CellRunsOut}
