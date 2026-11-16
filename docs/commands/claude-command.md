@@ -160,6 +160,8 @@ that pool for its whole life. A resumed session gets the pool its folder is in a
   wherever the worktree lives. If the worktree itself lies in a fence, the two must agree.
 - **In a worktree of a bare repository,** it's the pool where the bare repository lies.
 - **A submodule or clone inside a worktree** goes by the worktree.
+- **Inside another session,** it's the session's pool, unless a fence holds the folder. See
+  [`switchboard run`](run.md).
 
 Inside a pool, the rules above narrow to the pool:
 
@@ -168,12 +170,12 @@ Inside a pool, the rules above narrow to the pool:
 | Routed | Claude Code holds the primary's token, or else the pool's first usable one. |
 | `--account` | Must name an account of the pool. |
 | Direct | Goes out only on the pool's accounts. |
-| Claude Code's own login | Refused inside a fence. |
+| Claude Code's own login | Refused inside a fence, and inside a session of a fenced pool. |
 
 - **Routed,** the router is told the pool in a header, and `SWITCHBOARD_POOL` holds its id for the
   skill.
 - **Claude Code's own login** is what `--direct` and a start without switchboard use. It could go
-  out on any account, so `claude` refuses it inside a fence.
+  out on any account, so `claude` refuses it inside a fence, and inside a session of a fenced pool.
 - **If the config can't be read,** `claude` takes the fences from the config file, or else from
   the running router, or else from the accounts record. Before your record has moved to pools, it
   starts without switchboard instead.

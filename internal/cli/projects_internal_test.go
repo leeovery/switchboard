@@ -23,7 +23,7 @@ func TestTheCommandsReadProjectsAgainstTheMachineTheyreGiven(t *testing.T) {
 	}
 	given := Deps{
 		Root: machine, HomeDir: func() (string, error) { return "/Users/you", nil }, Getenv: getenv, UID: 501,
-		FindProject: func(dir string) string { return dir },
+		FindProject: func(dir string) (string, bool) { return dir, false },
 		RepositoryOf: func(dir string) (string, bool) {
 			return "/Users/you/Code/api", dir == "/Users/you/Code/api/.claude/worktrees"
 		},

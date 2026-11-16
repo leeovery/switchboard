@@ -46,12 +46,53 @@ routed or recorded.
 | You also pass `--account` | `run` refuses: the two don't go together. |
 | The folder is inside a fenced pool | `run` refuses, because the login may not be an account of the pool. |
 | The folder is a git worktree of a repository inside a fenced pool | `run` refuses, for the same reason. |
+| `claude` starts inside a session of a fenced pool | `run` refuses, for the same reason. |
 
 ## In a pool
 
 A session belongs to the pool of the folder it starts in, for its whole life. In a git worktree, it
 belongs to the pool of its repository. If `run` refuses to start in a folder, see
 [Troubleshooting: pools](../troubleshooting/pools.md).
+
+## Inside another session
+
+A `claude` that a session starts belongs to the same pool as the session. So a test that runs
+`claude -p` in the session's scratchpad spends accounts in that pool. A fence still keeps its own
+work:
+
+| If the folder it starts in is | Then it belongs to |
+|---|---|
+| Inside no fence | The same pool as the session |
+| Inside the fence of the pool the session is in | The same pool as the session |
+| Inside a fence, and the session is in the unfenced pool | The fenced pool, as if no session started it |
+| Inside a fence, and the session is in another fenced pool | No pool: `run` refuses |
+
+The project follows the pool:
+
+| If the folder it starts in is | Then its project is |
+|---|---|
+| In a repository, or a worktree of one | That repository |
+| In the folder of a bare repository, a folder holding one named `.bare`, or a folder beside `.bare`, outside every worktree | The folder itself |
+| In no repository, and in the same pool as the session | The same project as the session |
+| In no repository, and a fence takes it into another pool | The folder itself |
+
+The session is the one whose `claude` started this `claude`, directly or through other programs.
+`run` looks for that `claude` among the programs that started this one, nearest first. It reads
+the environment the session's `claude` started with, which the programs the session runs can't
+change. If `run` finds no session there, it reads the environment this `claude` inherits instead.
+
+`run` takes the pool and project of the session from `SWITCHBOARD_SET`, which records what `run`
+gave the session's `claude`. It never reads them from `SWITCHBOARD_POOL` or `SWITCHBOARD_PROJECT`.
+So a variable changed or unset since doesn't move this `claude` out of the session's pool.
+
+No session is found if:
+
+- The session has ended.
+- The `claude` runs as another user, for example with `sudo claude`.
+- The session only started the tmux server a `claude` runs in.
+- The `claude` started in the background from a shell that exits at once, for example with
+  `claude -p … &`. The `claude` may pass to launchd before `run` looks, and is then placed by its
+  folder.
 
 ## Exit status
 

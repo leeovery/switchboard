@@ -57,9 +57,14 @@ type Deps struct {
 	// starts Claude Code in, which it tells the router of.
 	Getwd func() (string, error)
 	// FindProject finds the project a session started in a directory runs
-	// in, as launch.FindProject does, which run tells the router of beside
-	// the directory: nil tells none.
-	FindProject func(dir string) string
+	// in, and whether the directory is in a repository, as launch.FindProject
+	// does, which run tells the router of beside the directory: nil tells
+	// none.
+	FindProject func(dir string) (string, bool)
+	// Processes tells of the processes running, as launch.ProcessTable does,
+	// so run finds the session a claude is started within, through the
+	// processes that started it: nil tells of none.
+	Processes launch.Processes
 	// RepositoryOf returns the project of the repository a directory is in,
 	// and whether it's in one, as launch.RepositoryOf does, which a
 	// scratchpad's session is read against where its slug names a worktree

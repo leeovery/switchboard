@@ -30,9 +30,10 @@ type ProjectsConfig struct {
 	TempDir string
 	// UID is the user's id, which Claude Code names its scratch root by.
 	UID int
-	// Find is the project of a directory, by its whole path, as
-	// launch.FindProject finds it: nil reads it as ProjectOf does.
-	Find func(dir string) string
+	// Find is the project of a directory, by its whole path, and whether
+	// it's in a repository, as launch.FindProject finds them, the project
+	// alone read: nil reads it as ProjectOf does.
+	Find func(dir string) (string, bool)
 	// Repository is the project of the repository a directory, by its
 	// whole path, is in, and whether it's in one, as launch.RepositoryOf
 	// has them: nil, that none is.
@@ -169,7 +170,8 @@ func (r *projectsRead) find(dir string) string {
 	if r.Find == nil {
 		return ProjectOf("", dir)
 	}
-	return cleaned(r.Find(dir))
+	project, _ := r.Find(dir)
+	return cleaned(project)
 }
 
 // repository is the project of the repository the directory dir, a whole

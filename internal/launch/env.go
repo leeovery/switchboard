@@ -47,7 +47,11 @@ func StartedBy(getenv func(string) string) bool {
 // it set, under "set:" and the variable's name, and the user's value it
 // replaced, under "had:", and each line it added to Claude Code's custom
 // headers, under "header", with the user's headers under "had:" where they
-// were set to nothing but blank lines.
+// were set to nothing but blank lines; and, under "claude", the claude it was
+// made for, as the mark of that claude names it (see startedMark's claude),
+// so a claude started since in the session's environment, which carries the
+// mark on, isn't taken for the session's, though it took the id of the
+// session's claude since ended (see markedFor).
 const setEnv = "SWITCHBOARD_SET"
 
 // The keys of setEnv's mark.
@@ -55,17 +59,24 @@ const (
 	setKey    = "set:"
 	hadKey    = "had:"
 	headerKey = "header"
+	claudeKey = "claude"
 )
 
 // PoolEnv names, in a session's environment, the id of the pool the session
-// is in, for the skill to name to the verbs.
+// is in, for the skill to name to the verbs, and for a claude started within
+// the session to be in too (see sessionOf).
 const PoolEnv = "SWITCHBOARD_POOL"
+
+// projectEnv names, in a session's environment, the project the session runs
+// in, by its path, links unresolved, for a claude started within the session
+// outside every repository to run in too (see sessionOf).
+const projectEnv = "SWITCHBOARD_PROJECT"
 
 // markedVars are the variables setEnv names, of those run sets. The token
 // isn't among them: a user's own, which run replaced, can't be written into
 // the mark, and without the value run gave it, a token set since, as by a
 // script, couldn't be told from run's.
-var markedVars = []string{claude.BaseURLEnv, claude.HintHeadersEnv, PoolEnv}
+var markedVars = []string{claude.BaseURLEnv, claude.HintHeadersEnv, PoolEnv, projectEnv}
 
 // environ is an environment as os.Environ gives it: "key=value", a variable
 // each. Its methods return a changed copy, leaving it as it was.
@@ -114,11 +125,38 @@ func (e environ) hinting() environ {
 	return e.with(claude.HintHeadersEnv, "1")
 }
 
-// startingAt returns the environment marked as the one the claude at path
-// starts in at now, in the place of the switchboard whose process id is pid,
-// in place of any mark it held.
-func (e environ) startingAt(pid int, now time.Time, path string) environ {
-	return e.with(startedEnv, strconv.Itoa(pid)+":"+strconv.FormatInt(now.Unix(), 10)+":"+path)
+// startingAt returns the environment marked as the one the claude m names
+// starts in (see startedEnv), in place of any mark it held.
+func (e environ) startingAt(m startedMark) environ {
+	return e.with(startedEnv, m.claude()+":"+m.path)
+}
+
+// startedMark is what the mark of a claude switchboard started says (see
+// startedEnv): the process id of the switchboard that started it, which the
+// claude keeps, when, to the second, and where the claude is.
+type startedMark struct {
+	pid  int
+	at   time.Time
+	path string
+}
+
+// claude names the claude m marks, as "<pid>:<time>": the process id it
+// keeps, and the second it started.
+func (m startedMark) claude() string {
+	return strconv.Itoa(m.pid) + ":" + strconv.FormatInt(m.at.Unix(), 10)
+}
+
+// started returns what the environment's mark of the claude switchboard
+// started in it says: false where it holds none, or one that can't be read.
+func (e environ) started() (startedMark, bool) {
+	id, rest, _ := strings.Cut(e.get(startedEnv), ":")
+	at, path, _ := strings.Cut(rest, ":")
+	pid, idErr := strconv.Atoi(id)
+	unix, atErr := strconv.ParseInt(at, 10, 64)
+	if idErr != nil || atErr != nil {
+		return startedMark{}, false
+	}
+	return startedMark{pid: pid, at: time.Unix(unix, 0), path: path}, true
 }
 
 // startedAt returns where the claude is that the switchboard whose process
@@ -126,40 +164,39 @@ func (e environ) startingAt(pid int, now time.Time, path string) environ {
 // switchboard, started again in the claude's place, at now, within
 // startedFor of starting it: "" when it isn't, or the mark can't be read.
 func (e environ) startedAt(pid int, now time.Time) string {
-	id, rest, _ := strings.Cut(e.get(startedEnv), ":")
-	at, path, _ := strings.Cut(rest, ":")
-	started, err := strconv.ParseInt(at, 10, 64)
-	if id != strconv.Itoa(pid) || err != nil {
+	m, ok := e.started()
+	if !ok || m.pid != pid {
 		return ""
 	}
-	if age := now.Sub(time.Unix(started, 0)); age < 0 || age > startedFor {
+	if age := now.Sub(m.at); age < 0 || age > startedFor {
 		return ""
 	}
-	return path
+	return m.path
 }
 
-// markedAgainst returns the environment marked with what it sets that own,
-// the environment run started from, doesn't (see setEnv), in place of any
-// mark it held: each of markedVars it gives a value own didn't, with own's
-// value where own had one, and each custom header line own didn't hold, with
-// own's custom headers where they were set to nothing but blank lines. The
-// base URL is marked even where own held the same value, as its mark is what
-// says the environment is still routed (see routedByRun); restoring it then
-// changes nothing. The mark sits in the environment of everything the session
-// runs, which never held own's replaced values before, so nothing secret is
-// written into it: a value run set holding anything token-shaped goes
-// unmarked, and stays, and a value of own's holding a secret, as
-// redact.HoldsSecret finds one, such as a gateway's URL with credentials in
-// it, isn't kept, its variable marked as set where the user had none.
-func (e environ) markedAgainst(own environ) environ {
+// markedAgainst returns the environment marked, for the claude m marks, with
+// what it sets against own, the environment run started from
+// (see setEnv), in place of any mark it held: each of markedVars it gives a
+// value, with own's value where own had one, and each custom header line own
+// didn't hold, with own's custom headers where they were set to nothing but
+// blank lines. A variable own held the same value of is marked too, as a mark
+// says what run set: the base URL's that the environment is still routed
+// (see routedByRun), and the pool's and project's which session it is (see
+// sessionOf), as where a shell names the pool already; restoring it changes
+// nothing. The mark sits in the environment of everything the session runs,
+// which never held own's replaced values before, so nothing secret is written
+// into it: a value run set holding anything token-shaped goes unmarked, and
+// stays, and a value of own's holding a secret, as redact.HoldsSecret finds
+// one, such as a gateway's URL with credentials in it, isn't kept, its
+// variable marked as set where the user had none.
+func (e environ) markedAgainst(own environ, m startedMark) environ {
 	mark := url.Values{}
 	for _, key := range markedVars {
 		set, isSet := e.lookup(key)
-		had, hadIt := own.lookup(key)
-		unchanged := hadIt && had == set && key != claude.BaseURLEnv
-		if !isSet || unchanged || redact.HoldsToken(set) {
+		if !isSet || redact.HoldsToken(set) {
 			continue
 		}
+		had, hadIt := own.lookup(key)
 		mark.Set(setKey+key, set)
 		if hadIt {
 			keepHad(mark, key, had)
@@ -177,7 +214,15 @@ func (e environ) markedAgainst(own environ) environ {
 	if len(mark) == 0 {
 		return e.without(setEnv)
 	}
+	mark.Set(claudeKey, m.claude())
 	return e.with(setEnv, mark.Encode())
+}
+
+// markedFor reports whether the environment's mark of what run set was made
+// for the claude m marks (see setEnv).
+func (e environ) markedFor(m startedMark) bool {
+	mark, ok := e.mark()
+	return ok && mark.Get(claudeKey) == m.claude()
 }
 
 // keepHad writes into mark the user's value of key that run replaced, unless
@@ -231,11 +276,24 @@ func (e environ) restoredHeaders(mark url.Values) environ {
 // of its own.
 func (e environ) routedByRun() bool {
 	mark, ok := e.mark()
-	if !ok || !mark.Has(setKey+claude.BaseURLEnv) {
-		return false
+	return ok && e.holdsWhatRunSet(claude.BaseURLEnv, mark)
+}
+
+// runGave returns the value the environment's mark says run gave key (see
+// setEnv), whatever key holds now: "" where it says none, or the mark can't
+// be read.
+func (e environ) runGave(key string) string {
+	mark, ok := e.mark()
+	if !ok {
+		return ""
 	}
-	value, isSet := e.lookup(claude.BaseURLEnv)
-	return isSet && value == mark.Get(setKey+claude.BaseURLEnv)
+	return mark.Get(setKey + key)
+}
+
+// holdsWhatRunSet reports whether key holds the value mark says run gave it.
+func (e environ) holdsWhatRunSet(key string, mark url.Values) bool {
+	value, isSet := e.lookup(key)
+	return isSet && mark.Has(setKey+key) && value == mark.Get(setKey+key)
 }
 
 // mark returns what run set in the environment, as its mark says (see
@@ -253,8 +311,7 @@ func (e environ) mark() (url.Values, bool) {
 // mark has it, or unset where the user had none, while it holds the value
 // mark says run gave it.
 func (e environ) restored(key string, mark url.Values) environ {
-	value, isSet := e.lookup(key)
-	if !isSet || !mark.Has(setKey+key) || value != mark.Get(setKey+key) {
+	if !e.holdsWhatRunSet(key, mark) {
 		return e
 	}
 	if mark.Has(hadKey + key) {
@@ -290,13 +347,13 @@ func (e environ) inPool(pool string) environ {
 	return e.withHeader(router.PoolHeader, pool)
 }
 
-// poolNamed returns the environment naming the pool with the given id as the
-// session's, in PoolEnv, or naming none for "".
-func (e environ) poolNamed(pool string) environ {
-	if pool == "" {
-		return e.without(PoolEnv)
+// withOrUnset returns the environment with key set to value, such as the id
+// of the session's pool in PoolEnv, or unset for "".
+func (e environ) withOrUnset(key, value string) environ {
+	if value == "" {
+		return e.without(key)
 	}
-	return e.with(PoolEnv, pool)
+	return e.with(key, value)
 }
 
 // withHeader returns the environment with Claude Code's custom headers

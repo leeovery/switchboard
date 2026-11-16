@@ -29,8 +29,10 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 		links map[string]string
 		pipes []string
 		// start is where the session starts, and want the project it runs
-		// in, by their paths from the root.
+		// in, by their paths from the root; inNone is whether it's in no
+		// repository the walk can read.
 		start, want string
+		inNone      bool
 	}{
 		{name: "a repository", dirs: []string{"api/.git"}, start: "api", want: "api"},
 		{name: "a subdirectory of one", dirs: []string{"api/.git", "api/cmd/server"}, start: "api/cmd/server", want: "api"},
@@ -70,8 +72,19 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			files: map[string]string{"app/lib/.git": "gitdir: ../.git/modules/lib\n"},
 			start: "app/lib", want: "app/lib",
 		},
-		{name: "in no repository, the directory itself", dirs: []string{"notes/2026"}, start: "notes/2026", want: "notes/2026"},
-		{name: "within a bare repository, the directory itself", dirs: []string{"api.git/refs/heads"}, start: "api.git/refs/heads", want: "api.git/refs/heads"},
+		{name: "in no repository, the directory itself", dirs: []string{"notes/2026"}, start: "notes/2026", want: "notes/2026", inNone: true},
+		{
+			name: "within a bare repository, the directory itself, in the repository", dirs: []string{"api.git/refs/heads"},
+			files: map[string]string{"api.git/config": bareConfig}, start: "api.git/refs/heads", want: "api.git/refs/heads",
+		},
+		{
+			name: "within a folder named as a bare repository that no config says is one, the directory itself", dirs: []string{"api.git/refs/heads"},
+			start: "api.git/refs/heads", want: "api.git/refs/heads", inNone: true,
+		},
+		{
+			name: "beside a bare repository in .bare, the directory itself, in the repository", dirs: []string{"api/.bare/refs", "api/notes"},
+			files: map[string]string{"api/.bare/config": bareConfig}, start: "api/notes", want: "api/notes",
+		},
 		{
 			name: "a worktree of a bare repository, the bare repository", dirs: []string{"api.git/worktrees/fix-login", "fix-login/web"},
 			files: map[string]string{
@@ -142,17 +155,17 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 		{
 			name: "a .git file naming no git directory, the directory itself", dirs: []string{"api/.git", "api/web"},
 			files: map[string]string{"api/web/.git": "not a link to a git directory\n"},
-			start: "api/web", want: "api/web",
+			start: "api/web", want: "api/web", inNone: true,
 		},
 		{
 			name: "a .git file naming an empty git directory, the directory itself", dirs: []string{"api/.git", "api/web"},
 			files: map[string]string{"api/web/.git": "gitdir: \n"},
-			start: "api/web", want: "api/web",
+			start: "api/web", want: "api/web", inNone: true,
 		},
 		{
 			name: "a .git file naming a git directory that isn't there, the directory itself", dirs: []string{"fix-login"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/gone\n"},
-			start: "fix-login", want: "fix-login",
+			start: "fix-login", want: "fix-login", inNone: true,
 		},
 		{
 			name: "a .git file longer than git writes, the directory itself", dirs: []string{worktreeGitDir, "fix-login"},
@@ -160,28 +173,28 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 				"fix-login/.git":              "gitdir: <root>/" + worktreeGitDir + "\n" + strings.Repeat("\n", 4096),
 				worktreeGitDir + "/commondir": commonDir,
 			},
-			start: "fix-login", want: "fix-login",
+			start: "fix-login", want: "fix-login", inNone: true,
 		},
 		{
 			name: "a commondir naming a directory that isn't there, the directory itself", dirs: []string{worktreeGitDir, "fix-login"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n", worktreeGitDir + "/commondir": "../../../../gone/.git\n"},
-			start: "fix-login", want: "fix-login",
+			start: "fix-login", want: "fix-login", inNone: true,
 		},
 		{
 			name: "an empty commondir, the directory itself", dirs: []string{worktreeGitDir, "fix-login"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n", worktreeGitDir + "/commondir": "\n"},
-			start: "fix-login", want: "fix-login",
+			start: "fix-login", want: "fix-login", inNone: true,
 		},
 		{
 			name: "a .git that's a pipe, never read, the directory itself", dirs: []string{"api/.git", "api/web"},
 			pipes: []string{"api/web/.git"},
-			start: "api/web", want: "api/web",
+			start: "api/web", want: "api/web", inNone: true,
 		},
 		{
 			name: "a commondir that's a pipe, never read, the directory itself", dirs: []string{worktreeGitDir, "fix-login"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n"},
 			pipes: []string{worktreeGitDir + "/commondir"},
-			start: "fix-login", want: "fix-login",
+			start: "fix-login", want: "fix-login", inNone: true,
 		},
 		{
 			name: "started through a link into a repository's subdirectory, walked with its links resolved first: the repository, by the path given",
@@ -235,8 +248,8 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			}
 
 			start, want := filepath.Join(root, tt.start), filepath.Join(root, tt.want)
-			if got := launch.FindProject(start); got != want {
-				t.Errorf("FindProject(%q) = %q, want %q", start, got, want)
+			if got, inRepository := launch.FindProject(start); got != want || inRepository == tt.inNone {
+				t.Errorf("FindProject(%q) = %q, in a repository: %v; want %q, %v", start, got, inRepository, want, !tt.inNone)
 			}
 		})
 	}
@@ -299,8 +312,8 @@ func TestFindProjectGivesAMainRepositoryByThePathTheWalkTook(t *testing.T) {
 			}
 
 			start, want := filepath.Join(link, tt.start), strings.ReplaceAll(tt.want, "<link>", link)
-			if got := launch.FindProject(start); got != want {
-				t.Errorf("FindProject(%q) = %q, want %q", start, got, want)
+			if got, inRepository := launch.FindProject(start); got != want || !inRepository {
+				t.Errorf("FindProject(%q) = %q, in a repository: %v; want %q, in one", start, got, inRepository, want)
 			}
 		})
 	}
@@ -328,16 +341,16 @@ func TestFindProjectTakesAnUnreadableFileForNoRepository(t *testing.T) {
 			}
 
 			start := filepath.Join(root, "fix-login")
-			if got := launch.FindProject(start); got != start {
-				t.Errorf("FindProject(%q) = %q, want the directory itself, %s unreadable", start, got, tt.name)
+			if got, inRepository := launch.FindProject(start); got != start || inRepository {
+				t.Errorf("FindProject(%q) = %q, in a repository: %v; want the directory itself, in none, %s unreadable", start, got, inRepository, tt.name)
 			}
 		})
 	}
 }
 
 func TestFindProjectOfNoDirectoryIsNone(t *testing.T) {
-	if got := launch.FindProject(""); got != "" {
-		t.Errorf(`FindProject("") = %q, want none`, got)
+	if got, inRepository := launch.FindProject(""); got != "" || inRepository {
+		t.Errorf(`FindProject("") = %q, %v; want none, in no repository`, got, inRepository)
 	}
 }
 
@@ -450,7 +463,7 @@ func TestARemovedWorktreeIsTheProjectFindProjectFoundOfItLive(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			lay(t, root, tt.dirs, tt.files)
-			live := launch.FindProject(filepath.Join(root, tt.worktree))
+			live, _ := launch.FindProject(filepath.Join(root, tt.worktree))
 			if err := os.RemoveAll(filepath.Join(root, tt.worktree)); err != nil {
 				t.Fatal(err)
 			}
@@ -473,5 +486,69 @@ func TestAFolderOfNoRepositoryHasNone(t *testing.T) {
 	}
 	if _, ok := launch.RepositoryOf(""); ok {
 		t.Error(`RepositoryOf("") is one, want none`)
+	}
+}
+
+// FindProject says a directory is in a repository where RepositoryOf finds
+// one, and nowhere else: so a session started there, and one whose
+// scratchpad's slug names it once it's gone, are read alike.
+func TestFindProjectIsInARepositoryWhereRepositoryOfFindsOne(t *testing.T) {
+	tests := []struct {
+		name  string
+		dirs  []string
+		files map[string]string
+		links map[string]string
+		// start is the directory asked of, by its path from the root, and
+		// in whether it's in a repository.
+		start string
+		in    bool
+	}{
+		{name: "a subfolder of a repository", dirs: []string{"api/.git", "api/web"}, start: "api/web", in: true},
+		{name: "a folder of no repository", dirs: []string{"notes"}, start: "notes"},
+		{
+			name: "a subfolder of a bare repository", dirs: []string{"api.git/wt"},
+			files: map[string]string{"api.git/config": bareConfig}, start: "api.git/wt", in: true,
+		},
+		{
+			name: "the folder holding a bare repository in .bare", dirs: []string{"api/.bare/refs"},
+			files: map[string]string{"api/.bare/config": bareConfig}, start: "api", in: true,
+		},
+		{
+			name: "a folder beside a bare repository in .bare", dirs: []string{"api/.bare/refs", "api/notes"},
+			files: map[string]string{"api/.bare/config": bareConfig}, start: "api/notes", in: true,
+		},
+		{
+			name: "beside a .bare that no config says is bare", dirs: []string{"api/.bare/refs", "api/notes"},
+			files: map[string]string{"api/.bare/config": notBareConfig}, start: "api/notes",
+		},
+		{
+			name: "a folder whose nearest .git is lost, though a repository holds it", dirs: []string{"api/.git", "api/web/src"},
+			files: map[string]string{"api/web/.git": "gitdir: <root>/gone\n"}, start: "api/web/src",
+		},
+		{
+			name: "a bare repository in a folder whose .git is lost", dirs: []string{"fix/lib.git/refs"},
+			files: map[string]string{"fix/.git": "gitdir: <root>/gone\n", "fix/lib.git/config": bareConfig}, start: "fix/lib.git/refs", in: true,
+		},
+		{
+			name: "through a link into a bare repository", dirs: []string{"api.git/wt"},
+			files: map[string]string{"api.git/config": bareConfig}, links: map[string]string{"wt": "api.git/wt"}, start: "wt", in: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := realDir(t)
+			lay(t, root, tt.dirs, tt.files)
+			for path, target := range tt.links {
+				if err := os.Symlink(filepath.Join(root, target), filepath.Join(root, path)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			start := filepath.Join(root, tt.start)
+			_, found := launch.RepositoryOf(start)
+			_, inRepository := launch.FindProject(start)
+			if found != tt.in || inRepository != tt.in {
+				t.Errorf("of %s, RepositoryOf finds one: %v, FindProject in one: %v; want both %v", tt.start, found, inRepository, tt.in)
+			}
+		})
 	}
 }

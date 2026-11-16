@@ -21,16 +21,34 @@ import (
 // directory, and its project, the repository the worktree's .git leads to,
 // each from home: the router's stream tells of its request in them, its
 // session's assignment holds them, as GET /sessions gives it, and its line in
-// the request ledger keeps them.
+// the request ledger keeps them, whole, however long a path a session starts
+// in runs.
 func TestRunTellsTheProjectThroughTheRouterToTheStreamTheSessionsAndTheLedger(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		// repo is where the repository is, from home.
+		repo string
+	}{
+		{name: "in a repository", repo: "Code/api"},
+		{name: "in a repository past the 200 bytes a line holds of a text", repo: "Code/" + strings.Repeat("a", 220) + "/api"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tellsTheProject(t, tt.repo)
+		})
+	}
+}
+
+// tellsTheProject checks what the test above says of a session started in a
+// worktree Claude Code made of the repository at repo, from home.
+func tellsTheProject(t *testing.T, repo string) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	stop := srv.start(t)
 	home, err := srv.deps.HomeDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo := filepath.Join(home, "Code", "api")
-	gitDir, worktree := filepath.Join(repo, ".git", "worktrees", "fix-login"), filepath.Join(repo, ".claude", "worktrees", "fix-login")
+	at := filepath.Join(home, repo)
+	gitDir, worktree := filepath.Join(at, ".git", "worktrees", "fix-login"), filepath.Join(at, ".claude", "worktrees", "fix-login")
 	for _, dir := range []string{gitDir, worktree} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
@@ -47,11 +65,11 @@ func TestRunTellsTheProjectThroughTheRouterToTheStreamTheSessionsAndTheLedger(t 
 	if got := run(t, srv.deps, "run"); got != (result{}) {
 		t.Fatalf("switchboard run = %+v, want exit status 0 and no output", got)
 	}
+	want := place{dir: "~/" + repo + "/.claude/worktrees/fix-login", project: "~/" + repo}
 	headers := handed.only(t).env["ANTHROPIC_CUSTOM_HEADERS"]
-	if want := "X-Switchboard-Dir: ~/Code/api/.claude/worktrees/fix-login\nX-Switchboard-Project: ~/Code/api\nX-Switchboard-Pool: b2n8"; headers != want {
-		t.Fatalf("handed over with ANTHROPIC_CUSTOM_HEADERS %q, want %q", headers, want)
+	if told := "X-Switchboard-Dir: " + want.dir + "\nX-Switchboard-Project: " + want.project + "\nX-Switchboard-Pool: b2n8"; headers != told {
+		t.Fatalf("handed over with ANTHROPIC_CUSTOM_HEADERS %q, want %q", headers, told)
 	}
-	want := place{dir: "~/Code/api/.claude/worktrees/fix-login", project: "~/Code/api"}
 
 	stream, err := router.NewClient(srv.socket()).Stream(t.Context())
 	if err != nil {

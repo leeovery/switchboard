@@ -83,6 +83,7 @@ func TestRunUnreadRoutesThroughTheRunningRouter(t *testing.T) {
 				"CLAUDE_CODE_OAUTH_TOKEN":          sideToken,
 				"ANTHROPIC_CUSTOM_HEADERS":         tt.wantHeaders,
 				"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
+				"SWITCHBOARD_PROJECT":              project,
 			}
 			if env := h.environment(t); !maps.Equal(env, want) {
 				t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
@@ -111,6 +112,7 @@ func TestRunUnreadRoutesThroughAnUnhealthyRouter(t *testing.T) {
 		"CLAUDE_CODE_OAUTH_TOKEN":          sideToken,
 		"ANTHROPIC_CUSTOM_HEADERS":         "X-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 		"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
+		"SWITCHBOARD_PROJECT":              project,
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
 		t.Errorf("started with the environment\n%q\nwant\n%q, routed as through a healthy router", env, want)

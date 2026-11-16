@@ -32,6 +32,8 @@ the one the verbs act on. Each tab shows only that pool:
 - A request made before you had pools counts as the first pool's.
 - A session resumed in another pool, after you change its folder's fence, shows in each pool
   with the work it did there.
+- A `claude` that a session starts, such as a test running `claude -p`, shows in the session's
+  pool, unless a fence holds its folder.
 - A project worked on in two pools shows only the work in the pool shown.
 - The days begin where the work in the pool does. A pool added to a ledger months old shows no
   empty days or months before it.

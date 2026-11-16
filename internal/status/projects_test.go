@@ -52,14 +52,14 @@ func machine() fstest.MapFS {
 
 // gitWalk is the project of a directory of fsys as a walk up from it to the
 // first directory holding a .git finds it, as launch.FindProject walks.
-func gitWalk(fsys fs.FS) func(string) string {
-	return func(dir string) string {
+func gitWalk(fsys fs.FS) func(string) (string, bool) {
+	return func(dir string) (string, bool) {
 		for at := dir; at != "/"; at = path.Dir(at) {
 			if _, err := fs.Stat(fsys, at[1:]+"/.git"); err == nil {
-				return at
+				return at, true
 			}
 		}
-		return dir
+		return dir, false
 	}
 }
 
@@ -116,6 +116,9 @@ func TestAProjectInAScratchpadIsTheProjectItsSlugNames(t *testing.T) {
 			project: scratchpad("/scratch/tmp", "-Users-you-Code-api", scratchOne, ""), dir: scratchpad("/scratch/tmp", "-Users-you-Code-api", scratchOne, ""),
 			want: "~/Code/api"},
 		{name: "a folder in the scratchpad", dir: scratchpad("/scratch/tmp", "-Users-you-Code-api", scratchOne, "/probe/run"), want: "~/Code/api"},
+		{name: "a claude a session started in a scratchpad, recorded with the session's project, that project, not the slug's",
+			project: "~/Code/api", dir: scratchpad("/private/tmp", "-Users-you-Code-agentic-workflows", scratchOne, "/probe"),
+			want: "~/Code/api"},
 		{name: "a worktree removed since, its repository",
 			dir: scratchpad("/private/tmp", "-Users-you-Code-agentic-workflows--claude-worktrees-gone", scratchOne, ""), want: "~/Code/agentic-workflows"},
 		{name: "a folder of a repository, its repository", dir: scratchpad("/private/tmp", "-Users-you-Code-api-web", scratchOne, ""), want: "~/Code/api"},

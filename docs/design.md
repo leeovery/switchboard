@@ -622,8 +622,8 @@ hold the old primary's token, and Routing within a pool says what happens to the
 
 ### Which pool a session is in
 
-`run` decides, as it starts, from the directory Claude Code starts in, and the session keeps that
-pool for its whole life:
+`run` decides, as it starts, from the directory Claude Code starts in, and the session it's started
+within, where it's started within one, and the session keeps that pool for its whole life:
 
 - `run` finds the fenced pool whose directories hold the start directory, each side taken both as
   it's given and with its links resolved, so a link into a fence or out of one leaves the session
@@ -694,6 +694,61 @@ pool for its whole life:
       `.git`, is of a repository that isn't bare: `can't tell which pool ~/wt/x is in: its
       worktree at ~/wt/x is a submodule's or a separate git directory's, which can't be placed`,
       worked in from the submodule's or the separate git directory's checkout instead.
+- **A session started within a session is in that session's pool** (the owner's call, 15 November
+  2026), as what a session's tooling starts, a `claude -p` in Claude Code's scratchpad, an isolated
+  run, or any other, is the session's work, and a scratchpad lies under no fence. Where no fenced
+  pool holds its start directory, by the rules above, it's in that session's pool, even where every
+  pool is fenced and none covers the directory. Where one does, a fence keeps its own work: it's
+  that fenced pool's, where the session is in that pool itself, or in the unfenced pool, where it's
+  placed as if it weren't started within the session at all, its project its own (see A session's
+  page, A project); where the session is in another fenced pool, `run` refuses, naming both, as
+  either way work would cross between them: `switchboard: ~/Code/client/site is in pool Client,
+  but the session it's started within is in pool Acme — not starting claude`. What refuses without
+  a session refuses within one, as a directory two fences hold, or one `run` can't place. A session
+  whose pool the config no longer has is passed over, the directory deciding. Each session passes
+  on its own pool, which is the one it was given unless a fence held its directory, so a chain
+  resolves to its first session, and a fence holds the rest of a chain started inside it.
+  - **The session is found as `claude` starts, deterministically:** it's the nearest of the
+    processes that started the `claude`, up from its parent, 64 at most, that's a session's
+    `claude`, read as the system tells of them (`kern.proc.pid`), the walk stopping at a process
+    that started after the one it's read as starting, as no parent does: its id was taken as the
+    walk went. Each is judged by the environment it started in, as the system gives it of the
+    user's own processes (`kern.procargs2`, keeping switchboard's variables alone, never another,
+    which can hold a token), which nothing the session runs can change, so a test harness that
+    starts `claude` with its environment cleaned changes nothing. **A session's pool and project
+    are what `run` gave its `claude`, as the mark of what `run` set records them**
+    (`set:SWITCHBOARD_POOL` and `set:SWITCHBOARD_PROJECT`, see What `run` set), never what the
+    variables hold now: a variable edited, unset or written over since, in the session's
+    environment or in what's read of it, moves no launch out of the session's pool. The system
+    reads that memory as it is now, though, which the process itself can write over: Claude Code
+    sets its title, and under Node, as npm's `claude` and `~/.claude/local/claude` run, libuv
+    writes the title over the arguments, never past them, and fills the rest of them with NULs, so
+    the empty strings past the arguments counted are passed over. So where what's read holds no
+    session, as where its marks are gone, or can't be read, the environment the `claude` inherits
+    is read in its place, judged alike. A process run by another
+    user than the `claude` starting is never a session's `claude`, whether what it started with can
+    be read or not: so a `claude` started as another user within a session, as `sudo claude` starts
+    one, which as root can read it, is placed by its folder, as before sessions were looked for. A
+    process is a session's `claude` where that environment's mark, `SWITCHBOARD_STARTED` (see
+    Finding the real `claude`), names it by its process id, and it started no later than the mark
+    says, to the second, so a later process that took the id of a `claude` since ended is none;
+    where its mark of what `run` set was made for that `claude`, naming its id and the second it
+    started as its `SWITCHBOARD_STARTED` does, so a `claude` started since in a session's
+    environment that carries that mark on, as a local subcommand's `claude` or an unaided start's
+    does, is none, though it took the id of the session's `claude` since ended; and where that mark
+    says `run` gave the session a pool or a project, as `run` marks them in every routed or direct
+    session's environment, even where the user's held the same. In a config with pools, a session
+    naming no pool, as one started while the config had none, places nothing: the walk goes on to
+    the next one out that names a pool, its project with it; in a config without, the nearest's
+    project counts. Neither the router nor the control API learns anything new. Where none is
+    found, or off macOS, it's within none, as before.
+  - **A session whose `claude` isn't among the processes that started a `claude` is none,** though
+    its mark lives on in the environment, as in a tmux server started within the session and every
+    pane of it, which outlive the shell that started them: otherwise every `claude` started there,
+    the user's own work, would be in the session's pool while it runs, crossing into it, or refused
+    under another fence. Accepted, as it fails as before: a process the session's tooling started
+    that has left its tree, as a daemon outliving the shell that started it, starts `claude` within
+    no session, placed by its directory alone.
 
 ### Launching in a pool
 
@@ -706,13 +761,19 @@ pool for its whole life:
   starting claude`. Every launch names its pool's id to the router in a header,
   `X-Switchboard-Pool`, alongside the pin and directory headers (see Launching), told only to a
   router that says `strips_own_headers`, as the directory is, and sets `SWITCHBOARD_POOL` in the
-  session's environment, for the skill, routed or direct, marked as what `run` set (see Launching).
-  The header is cleared on every path where the pin header is, and `SWITCHBOARD_POOL` with it on
-  Claude Code's own login. What `run` refuses for the pools and the pin alone, it refuses before it
-  asks the router how it is, where the pools don't need the router's answer.
+  session's environment, for the skill, routed or direct, marked as what `run` set (see Launching),
+  and `SWITCHBOARD_PROJECT` beside it, the session's project by its path, links unresolved, the
+  mark of each giving a `claude` started within the session its pool and project (see Which pool a
+  session is in, and A session's page, A project). The header is cleared on every path where the pin
+  header is, and `SWITCHBOARD_POOL` and `SWITCHBOARD_PROJECT` with it on Claude Code's own login.
+  What `run` refuses for the pools and the pin alone, it refuses before it asks the router how it
+  is, where the pools don't need the router's answer.
 - **`--account`** must name an account in the start directory's pool. One in another pool is
   refused, saying which pool each is in, for example: `Acme 1 (k3f9) is in pool Acme; this directory
-  is in pool Default`.
+  is in pool Default`, and, where the session it's started within alone puts it in its pool, a
+  fenced one, no fence holding the directory, as the own-login refusal does: `work is in pool
+  Default; this directory is in pool Acme, through the session it's started within`. Within a
+  session of the unfenced pool, where the directory would be anyway, it says nothing more.
 - **A router that doesn't know the pools counts as down.** The router reports in its health answer
   the pools it routes for, with their directories, accounts and primaries (see Control API). Until
   they match the config's, `run` waits for the router to take them up, asking again every 200ms, 5
@@ -751,11 +812,16 @@ pool for its whole life:
   account Claude Code is signed into: `switchboard: ~/Code/acme is in pool Acme, where claude never
   starts on its own login — not starting claude`, and from a worktree outside the fence, `in its
   repository, ~/Code/acme-feature is at ~/Code/acme, in pool Acme, where claude never starts on
-  its own login`. Claude Code's local subcommands, which look after
+  its own login`. A start within a session of a fenced pool refuses so too, wherever it starts,
+  as it's in that pool (see Which pool a session is in): `switchboard: /tmp/x is in pool Acme,
+  through the session it's started within, where claude never starts on its own login — not
+  starting claude`. Claude Code's local subcommands, which look after
   Claude Code rather than run a session, start on its own login wherever they're asked for. Where a
   pool is fenced, an unaided start within a session passes the session's routing on only where the
-  session's pool, as its `SWITCHBOARD_POOL` names it, is the start directory's, else it drops the
-  session's token too, as it can't be told from another pool's. Where the config can't be read,
+  session's pool, as the mark of what `run` set records it, whatever `SWITCHBOARD_POOL` holds now,
+  is the pool the start is in, as Which pool a session is in places it, the session it's started
+  within counted, else it drops the session's
+  token too, as it can't be told from another pool's. Where the config can't be read,
   `run` takes the pools from the router while it answers, as it takes the accounts (see
   Launching): those its health reports, or, from a router reporting none, the accounts its status document names in the
   one pool the config file writes, where it writes one. It routes through it only where the router
@@ -5179,13 +5245,16 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   - **No project:** a slug naming nothing below the home's parents counts as
     `temporary folders` (`status.TemporaryFolders`). So does one naming only its own start where
     the folder found is in no repository, as of a repository or a volume gone. Else it's the project
-    `launch.RepositoryOf` gives, injected, of the nearest folder up that's one of these:
+    `launch.RepositoryOf` gives, injected, of the nearest folder up that's one of these, walked as
+    `FindProject` walks, its links resolved first:
     - a bare repository's directory: that folder;
     - a folder holding a bare `.bare`: that folder;
-    - a folder holding a `.git`: `FindProject`'s project of it.
+    - a folder holding a `.git`: `FindProject`'s project of it, or none if the `.git` can't be read.
 
     So a worktree removed from inside its repository's folder counts as `FindProject` named it
-    live. A slug can't tell `-` from `/`, so a removed folder whose name begins with a sibling's
+    live. `FindProject` says a directory is in a repository where `RepositoryOf` finds one, so a
+    start there and a removed worktree's scratchpad are read alike (see A session's page, A
+    project). A slug can't tell `-` from `/`, so a removed folder whose name begins with a sibling's
     name and a `-` counts as that sibling: a removed `~/Code/api-v2` as `~/Code/api`. That's
     decided: the deepest existing folder wins.
   - **Temporary folders:** these three alone, each compared with its case folded:
@@ -7317,16 +7386,27 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   walk stopping at its own `.git`, where its pool is placed through the worktree it's in, as that
   reading walks every `.git` up. One outside any repository, or where what it finds can't be read
   as one (a `.git` file unreadable or naming nothing, a git or common directory that isn't there),
-  counts as its own directory. `run` finds it through a seam of its own (`cli.Deps.FindProject`),
-  never through the pools' worktree lookup, so a config with no fenced pool still looks for no
-  worktree. Lines and sessions from before carry none:
-  a `dir` of the form `<repo>/.claude/worktrees/<name>`, a worktree Claude Code made, counts as
-  `<repo>`, any other as itself, and no `dir` as no project (`status.ProjectOf`, which no drawing
-  package or command calls), each path cleaned, so one written two ways is one project. A project is
-  named by its folder's name, `switchboard`, and two with one name by as many of their parents' as
-  tell them apart, `client/api` and `own/api`, or `a/x/api` and `b/x/api`, cut as `status.DirName`
-  cuts (`status.ProjectNames`); within it, a session keeps its own directory's name. Nothing drawn
-  names a project yet (the owner's call, 13 November 2026).
+  counts as its own directory. Whether a directory is in a repository is one reading, for a start
+  and a removed worktree's scratchpad alike (see Projects, No project), `launch.RepositoryOf`'s: a
+  folder of a bare repository, or of one holding a bare `.bare`, is in one, though its project is
+  its own directory, and one whose nearest `.git` can't be read is in none. One started within a
+  session (see Which pool a session is in) outside every repository counts as that session's
+  project, as the mark of `SWITCHBOARD_PROJECT` records it, so a `claude` the session's tooling
+  starts in Claude Code's scratchpad, with no `.git` above it, is the session's work, rather than a
+  project of its own each run (the owner's call, 15 November 2026). That holds while it's in the
+  session's pool: one a fence takes into another pool, as from a session of the unfenced pool, is
+  placed as if it weren't started within the session, and counts as its own directory, so no pool
+  records another's project. Each session passes on its own project, which within a session outside
+  every repository is the one it was given, so a chain of them resolves to its first session's.
+  `run` finds it through a seam of its own (`cli.Deps.FindProject`), never through the pools'
+  worktree lookup, so a config with no fenced pool still looks for no worktree. Lines and sessions
+  from before carry none: a `dir` of the form `<repo>/.claude/worktrees/<name>`, a worktree Claude
+  Code made, counts as `<repo>`, any other as itself, and no `dir` as no project
+  (`status.ProjectOf`, which no drawing package or command calls), each path cleaned, so one written
+  two ways is one project. A project is named by its folder's name, `switchboard`, and two with one
+  name by as many of their parents' as tell them apart, `client/api` and `own/api`, or `a/x/api` and
+  `b/x/api`, cut as `status.DirName` cuts (`status.ProjectNames`); within it, a session keeps its
+  own directory's name. Nothing drawn names a project yet (the owner's call, 13 November 2026).
 - **Its rows,** at 160×37: the title row (0) and the status line (2), as every page has them (see
   The page); the heading (4); now (6 and 7); STORY (9 to 17): its heading (9), a move's label (10),
   its columns (11 to 15), the ribbon (16) and the axis (17); the accounts it ran on, a row each,
@@ -8808,12 +8888,17 @@ from the first day a router that has it runs, so nothing before then is in it.
     difference. It's the directory `claude` was started in, which a session doesn't keep: one
     resumed elsewhere carries the new one from then on. `project`: the repository that directory
     is in, as `run` found it and tells the router beside it, written as `dir` is, as
-    `~/Code/api` for a session in `~/Code/api/.claude/worktrees/fix-login` (see A session's page,
+    `~/Code/api` for a session in `~/Code/api/.claude/worktrees/fix-login`, or, for a `claude`
+    `run` started within a session outside every repository, that session's (see A session's page,
     A project); left out where a request names none, as every line from before it was told does.
     `model`: the model it asked for. Each is cut to 200 bytes once anything shaped like a token in
-    it is hidden: a session's id and a model's at their end, as the request stream cuts them, and
-    a directory at its start, `…` standing for what's cut, so it keeps its own name; a project
-    longer than that is left out, as one cut would name another.
+    it is hidden, a session's id and a model's at their end, as the request stream cuts them, but
+    a directory and a project, which are kept whole to 1024 bytes, macOS's `PATH_MAX`, the longest
+    working directory the system gives: a directory past that is cut at its start, `…` standing
+    for what's cut, so it keeps its own name, and a project past it is left out, as one cut would
+    name another. (Through v0.9.0 they were cut at 200 bytes, as every other text is, and a
+    directory in Claude Code's scratchpad, or a worktree within one, runs past that: those lines
+    give it cut, with `…`, and its project left out.)
   - `account`: the account whose answer the client got, by its id. `reason` and `from` say how
     that account was chosen: `reason` why, as the `routed` line gives it (`sticky`, `new`,
     `pinned`, `moved: personal hit its limit`), and `from` the account the request's session was
@@ -10959,11 +11044,13 @@ fails as it is; one that parses has every problem reported at once:
   can't carry it as it is, and nowhere else: a control character, such as a newline, which would
   end the header's line; each byte of a character past ASCII; a space at either end, which would
   be trimmed off; and a percent sign. One that doesn't decode is passed over, and the request's
-  line names no directory.
+  line names no directory. Neither header has a limit of its own that a path reaches: the router
+  reads a request's headers to 1 MiB, Go's default, and a path of the 1024 bytes a line holds,
+  each byte percent-encoded at worst, runs to 3 KiB, in the environment as in the request.
 - `X-Switchboard-Project: <project>`, set by `run` beside the directory, names the project that
   directory is in, the repository's path (see A session's page, A project), encoded as the
-  directory is. One that's missing, doesn't decode, or runs past the 200 bytes a line holds is
-  passed over, never refusing the request, and the request names no project: its session's
+  directory is. One that's missing, doesn't decode, or runs past the 1024 bytes a line holds of a
+  path is passed over, never refusing the request, and the request names no project: its session's
   project is then its directory's, as a line from before projects has it. It's read as cheaply as
   the directory, from the header alone.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
@@ -11295,19 +11382,26 @@ verbs).
   unrouted, spending the primary past its reserve (the owner's call, 9 November 2026).
 - **What `run` set:** a routed session's environment carries what `run` set there to every process
   the session starts, so `run` marks it, in `SWITCHBOARD_SET`: the value it gave
-  `ANTHROPIC_BASE_URL`, even where the user's was the same, and `CLAUDE_CODE_GATEWAY_HINT_HEADERS`
-  where it set it, each with the user's value it replaced, and each line it added to
-  `ANTHROPIC_CUSTOM_HEADERS`, with the user's headers where they were set to nothing. Every launch
-  but a local subcommand's, and an unaided one's within a session still sent to `run`'s router that
-  hasn't found that router down, starts from the environment as the user set it: each variable the
-  mark names that still holds the value `run` gave it goes back to the user's, or goes where the
-  user had none, and the header lines `run` added go, the user's own staying. A variable changed
-  since, as by a script pointing `claude` at a gateway of its own, stays as it is. So a `claude`
-  started within a session that switchboard steps aside for, which a key must never send through the
-  router, carries nothing of switchboard's, and a session started within a session marks only what
-  it sets itself. One started unaided within a session whose base URL is still the one `run` gave it
-  gets the session's environment as it is, mark and all, so the session's router, which still runs,
-  routes and records it as before: only that launch couldn't take part, and its line on stderr ends
+  `ANTHROPIC_BASE_URL`, and `CLAUDE_CODE_GATEWAY_HINT_HEADERS`, `SWITCHBOARD_POOL` and
+  `SWITCHBOARD_PROJECT` where it set them, even where the user's was the same, as a shell or direnv
+  may name the pool already, each with the user's value it replaced; each line it added to
+  `ANTHROPIC_CUSTOM_HEADERS`, with the user's headers where they were set to nothing; and the
+  `claude` it was made for, as `claude=<pid>:<time>`, its process id and the second it started, as
+  its `SWITCHBOARD_STARTED` names them. A `claude` started within the session reads the mark in the
+  environment the session's `claude` started in, for the pool and project the session is in, the
+  values the mark records rather than the variables (see Which pool a session is in). Sessions
+  started through v0.9.0 carry no `claude=`, so a `claude` started within one is placed as before,
+  by its directory, till the session is restarted. Every launch but a local subcommand's, and an
+  unaided one's within a session still sent to `run`'s router that hasn't found that router down,
+  starts from the environment as the user set it: each variable the mark names that still holds the
+  value `run` gave it goes back to the user's, or goes where the user had none, and the header lines
+  `run` added go, the user's own staying. A variable changed since, as by a script pointing `claude`
+  at a gateway of its own, stays as it is. So a `claude` started within a session that switchboard
+  steps aside for, which a key must never send through the router, carries nothing of switchboard's,
+  and a session started within a session marks only what it sets itself. One started unaided within
+  a session whose base URL is still the one `run` gave it gets the session's environment as it is,
+  mark and all, so the session's router, which still runs, routes and records it as before: only
+  that launch couldn't take part, and its line on stderr ends
   `— starting claude through this session's router`. That holds only where the launch didn't ask the
   router, as when it can't locate the router's state directory, or asked it and found it could be
   routed through, healthy or not. One that found the router down, going direct, as
@@ -11318,18 +11412,18 @@ verbs).
   starts from the user's environment too, the changed base URL staying, so nothing of switchboard's
   reaches another gateway. The token isn't marked: the user's own, which `run` replaced, can't be
   written into the mark, and without the value `run` gave it, a token set since couldn't be told
-  from `run`'s. Nothing secret is written into the mark, which
-  every process the session runs can read: a value `run` set holding anything token-shaped goes
-  unmarked, and stays, and a value of the user's that `run` replaced holding a secret, anything
-  token-shaped, or, as a URL, credentials in its userinfo or a query, isn't kept, so its variable is
-  marked as set where the user had none, and goes. A key a URL carries in its path or its host, as a
-  gateway that takes its key as a path segment has it, isn't seen, and is kept: it can't be told
-  from an ordinary path, which most gateways have, and the value was in the session's environment
-  already, as the user set it, so dropping every base URL with a path would lose most gateways on
-  stepping aside, to keep from the mark what every process already reads (decided in the cleanliness
-  release's review, 26 October 2026). A session started before the mark has none, and its
-  environment goes on as it is, but for the pin, directory and project a routed or direct launch
-  takes off (built in the cleanliness release, 26 October 2026).
+  from `run`'s. Nothing secret is written into the mark, which every process the session runs can
+  read: a value `run` set holding anything token-shaped goes unmarked, and stays, and a value of the
+  user's that `run` replaced holding a secret, anything token-shaped, or, as a URL, credentials in
+  its userinfo or a query, isn't kept, so its variable is marked as set where the user had none, and
+  goes. A key a URL carries in its path or its host, as a gateway that takes its key as a path
+  segment has it, isn't seen, and is kept: it can't be told from an ordinary path, which most
+  gateways have, and the value was in the session's environment already, as the user set it, so
+  dropping every base URL with a path would lose most gateways on stepping aside, to keep from the
+  mark what every process already reads (decided in the cleanliness release's review, 26 October
+  2026). A session started before the mark has none, and its environment goes on as it is, but for
+  the pin, directory and project a routed or direct launch takes off (built in the cleanliness
+  release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude` but for the router
   being down, as Stopped says. A config it can't read doesn't keep it out while the router answers:
   `run` routes through the running router all the same, as Without the config says (the owner's
@@ -11383,7 +11477,9 @@ verbs).
   Claude Code session, has an id of its own, and looks everywhere, as does one whose id a mark
   older than that names: a later process that took the id of a `claude` long gone, the mark living
   on in something started within its session, such as a tmux server, or one running `claude` again
-  in its own place much later.
+  in its own place much later. The same mark tells a `claude` started within a session which of
+  the processes that started it is the session's `claude` (see Which pool a session is in), and
+  the log's `starting claude` line names that `claude`'s id as `within`.
   Probes claim the version of the `claude` found the same way, so the router, whose `PATH` is
   launchd's, finds it where its installers put it. Claude Code's arguments go after `--`,
   untouched and never logged; the log notes the decision: routed, direct or stopped, the router's

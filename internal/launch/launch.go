@@ -43,13 +43,19 @@ type Launcher struct {
 	// Dir is the directory Claude Code starts in, as os.Getwd gives it, and
 	// Home the user's home directory, as os.UserHomeDir does, each "" where
 	// it isn't known: through a router that keeps it from the API, Claude
-	// Code's requests tell it Dir, and the project Dir is in, as Project
-	// finds it, each from Home where it's within it, as ~/Code/api.
+	// Code's requests tell it Dir, and the project Dir is in (see project),
+	// each from Home where it's within it, as ~/Code/api.
 	Dir  string
 	Home string
-	// Project finds the project a session started in a directory runs in, as
-	// FindProject does: nil for none.
-	Project func(dir string) string
+	// Project finds the project a session started in a directory runs in, and
+	// whether the directory is in a repository, as FindProject does: nil for
+	// none.
+	Project func(dir string) (string, bool)
+	// Processes tells of the processes running, as ProcessTable does, so a
+	// launch is found within the session whose claude started it, or started
+	// what did (see findOuter): nil tells of none, and no launch is within a
+	// session.
+	Processes Processes
 	// EvalSymlinks resolves the links in a path, as filepath.EvalSymlinks
 	// does, so the pool Dir is in is the pool of where it leads.
 	EvalSymlinks func(path string) (string, error)
@@ -77,6 +83,11 @@ type Launcher struct {
 	// on; and when it starts through a router that isn't healthy, or without
 	// the config.
 	Stderr io.Writer
+
+	// outer holds the sessions the launch is started within, as findOuter
+	// finds them once, at the launch's start, so every rule it's placed by
+	// sees the same.
+	outer outerSessions
 }
 
 // Route is what starting Claude Code on an account's token takes.
@@ -148,8 +159,15 @@ type Route struct {
 // pools. A config naming no pools once the move to pools is done takes them
 // from elsewhere (see withPools). What it refuses for the pools and the pin
 // alone, it refuses before the router is asked how it is, where the pools
-// don't need its answer. Run returns only when Claude Code didn't start.
+// don't need its answer.
+//
+// Started within another session (see findOuter), the session is in that
+// session's pool, but where a fence holds Dir (see sessionPool), and, while
+// it's in that session's pool, runs in that session's project, where Dir is
+// in no repository (see project).
+// Run returns only when Claude Code didn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
+	l.outer = l.findOuter()
 	path, err := l.find()
 	if err != nil {
 		return err
@@ -248,6 +266,7 @@ func routerUnpooled(from poolsSource) string {
 // can't find them once the move to pools is done. It returns only when
 // Claude Code didn't start.
 func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread error) error {
+	l.outer = l.findOuter()
 	path, err := l.find()
 	if err != nil {
 		return err
@@ -307,27 +326,29 @@ func (l Launcher) routeUnread(path string, args []string, r Route, state routerS
 // on c's token, pinned to pin unless it's "", in in's pool, as Run says, the
 // config unread as unread says why: nil where it was read.
 func (l Launcher) routed(path string, args []string, state routerState, c choice, pin string, in place, unread error) error {
-	own := l.own()
+	own, project := l.own(), l.project(in)
 	env := own.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).
-		pinnedTo(pin).workingIn(l.told(state)).inPool(state.told(in.id())).poolNamed(in.id()).hinting()
-	l.routedThrough(state, c, pin, in.id(), path, unread)
-	return l.exec(path, args, env.markedAgainst(own))
+		pinnedTo(pin).workingIn(l.told(state, project)).inPool(state.told(in.id())).
+		withOrUnset(PoolEnv, in.id()).withOrUnset(projectEnv, project).hinting()
+	l.routedThrough(state, c, pin, in, path, unread)
+	return l.execSession(path, args, env, own)
 }
 
 // routedThrough logs Claude Code starting at path through the router in
-// state, on c's token, pinned to pin unless it's "", in the pool with the
-// given id unless it's "": at info, or at warn where the router isn't
-// healthy, Stderr hearing so, or where the config can't be read, as unread,
-// nil where it was read, says why.
-func (l Launcher) routedThrough(state routerState, c choice, pin, pool, path string, unread error) {
+// state, on c's token, pinned to pin unless it's "", in in's pool, where it's
+// in one: at info, or at warn where the router isn't healthy, Stderr hearing
+// so, or where the config can't be read, as unread, nil where it was read,
+// says why.
+func (l Launcher) routedThrough(state routerState, c choice, pin string, in place, path string, unread error) {
 	attrs := []any{"mode", "routed", "router", state.name}
 	if !state.healthy() {
 		attrs = append(attrs, "reason", state.reason)
 	}
 	attrs = append(attrs, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", pin)
-	if pool != "" {
-		attrs = append(attrs, "pool", pool)
+	if in.pooled() {
+		attrs = append(attrs, "pool", in.id())
 	}
+	attrs = append(attrs, in.within.attrs()...)
 	if unread != nil {
 		attrs = append(attrs, "config_error", unread)
 	}
@@ -346,14 +367,16 @@ func (l Launcher) routedThrough(state routerState, c choice, pin, pool, path str
 // says: Stderr hears so.
 func (l Launcher) connectDirectly(path string, args []string, state routerState, c choice, in place) error {
 	own := l.own()
-	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("", "").inPool("").poolNamed(in.id())
+	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("", "").inPool("").
+		withOrUnset(PoolEnv, in.id()).withOrUnset(projectEnv, l.project(in))
 	attrs := []any{"mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why}
 	if in.pooled() {
 		attrs = append(attrs, "pool", in.id())
 	}
+	attrs = append(attrs, in.within.attrs()...)
 	logger.Warn("starting claude", append(attrs, "claude", path)...)
 	Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
-	return l.exec(path, args, env.markedAgainst(own))
+	return l.execSession(path, args, env, own)
 }
 
 // Direct starts Claude Code with args in this process's place, on its own
@@ -364,6 +387,7 @@ func (l Launcher) connectDirectly(path string, args []string, state routerState,
 // pools placed in Home first (see placedInHome). It returns only when Claude
 // Code couldn't start.
 func (l Launcher) Direct(args []string, pools config.Pools) error {
+	l.outer = l.findOuter()
 	path, err := l.find()
 	if err != nil {
 		return err
@@ -378,9 +402,10 @@ func (l Launcher) Direct(args []string, pools config.Pools) error {
 // OwnLogin returns env, an environment as os.Environ gives it, as Claude Code
 // starts on its own login, as Direct starts it: as the user set it (see own),
 // without the token, the base URL, a pin, the directory, project or pool told
-// the router, nor the pool's id, nor any mark of switchboard's.
+// the router, nor the session's pool or project, nor any mark of
+// switchboard's.
 func OwnLogin(env []string) []string {
-	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv, PoolEnv).pinnedTo("").workingIn("", "").inPool("")
+	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv, PoolEnv, projectEnv).pinnedTo("").workingIn("", "").inPool("")
 }
 
 // Local starts Claude Code with args, which run one of its local
@@ -388,7 +413,9 @@ func OwnLogin(env []string) []string {
 // switchboard weren't there: switchboard has no part in them. Its environment
 // goes as it is, a pin inherited from a session included, but for the mark
 // every claude switchboard starts carries (see startedEnv), and Stderr hears
-// nothing. It returns only when Claude Code couldn't start.
+// nothing. A mark of what run set goes on as it is, made for a session's
+// claude, so this claude is never taken for one (see sessionOf). It returns
+// only when Claude Code couldn't start.
 func (l Launcher) Local(args []string) error {
 	path, err := l.find()
 	if err != nil {
@@ -430,6 +457,7 @@ func (l Launcher) StepAside(args []string, key string) error {
 // line says. Inside the directories of a fenced pool of pools it refuses, as
 // Direct does. It returns only when Claude Code couldn't start.
 func (l Launcher) Unaided(args []string, pools config.Pools, couldnt string, err error) error {
+	l.outer = l.findOuter()
 	path, findErr := l.find()
 	if findErr != nil {
 		return findErr
@@ -446,6 +474,7 @@ func (l Launcher) Unaided(args []string, pools config.Pools, couldnt string, err
 // the session's pool, the pin's, else the primary's, else the first usable,
 // refusing as Run does. It returns only when Claude Code didn't start.
 func (l Launcher) RouterUnfound(r Route, args []string, err error) error {
+	l.outer = l.findOuter()
 	path, findErr := l.find()
 	if findErr != nil {
 		return findErr
@@ -537,7 +566,7 @@ func (l Launcher) unaided(path string, args []string, cant cantTakePart, foundDo
 // within a session pointed at a gateway of its own since, it's the user's
 // own, so Claude Code isn't sent to a router that can't take it. Where a
 // pool of pools is fenced, the session's is passed on only where it's in the
-// pool a session started in Dir is in, as its PoolEnv names it: else that
+// pool a session started in Dir is in, as its mark records it: else that
 // router would route this claude in the session's pool. And where it isn't
 // passed on, Claude Code's token goes too, as a session's, run's or the
 // user's, can't be told apart, and would go out on an account of another
@@ -556,11 +585,13 @@ func (l Launcher) unaidedEnv(foundDown bool, pools config.Pools) environ {
 	return env.unmarked().without(claude.TokenEnv)
 }
 
-// inSessionsPool reports whether env, a session's, names, in PoolEnv, the
-// pool of pools a session started in Dir is in, as sessionPool finds it.
+// inSessionsPool reports whether env, a session's, is in the pool of pools a
+// session started in Dir is in, as sessionPool finds it: the pool its mark
+// says run gave it (see runGave), whatever PoolEnv holds now, as the router
+// routes it by the header run added beside it.
 func (l Launcher) inSessionsPool(env environ, pools config.Pools) bool {
 	p, why := l.sessionPool(pools)
-	return why == "" && config.SamePool(env.get(PoolEnv), p.ID)
+	return why == "" && config.SamePool(env.runGave(PoolEnv), p.pool.ID)
 }
 
 // own returns the environment Claude Code starts from as the user set it:
@@ -596,11 +627,32 @@ func firstLine(err error) string {
 }
 
 // exec starts Claude Code, at path, with args and env, marked as started by
-// this process, in this process's place, without whenDownEnv, which is the
-// launch's it was given to alone: every process the session starts would
-// carry it on. Its arguments are never logged: they can hold a prompt.
+// this process, now, as execMarked starts it.
 func (l Launcher) exec(path string, args []string, env environ) error {
-	env = env.without(whenDownEnv).startingAt(l.PID, l.Now(), path)
+	return l.execMarked(path, args, env, l.starting(path))
+}
+
+// execSession starts Claude Code, at path, with args, in env, as exec does,
+// for a session run starts: env marked with what run set there against own
+// (see markedAgainst), made for the claude it starts, both marks naming it by
+// the same second, read once.
+func (l Launcher) execSession(path string, args []string, env, own environ) error {
+	m := l.starting(path)
+	return l.execMarked(path, args, env.markedAgainst(own, m), m)
+}
+
+// starting is the mark of the claude at path that this process starts in its
+// place now (see startedEnv).
+func (l Launcher) starting(path string) startedMark {
+	return startedMark{pid: l.PID, at: l.Now(), path: path}
+}
+
+// execMarked starts Claude Code, at path, with args and env, marked as m
+// says, in this process's place, without whenDownEnv, which is the launch's
+// it was given to alone: every process the session starts would carry it on.
+// Its arguments are never logged: they can hold a prompt.
+func (l Launcher) execMarked(path string, args []string, env environ, m startedMark) error {
+	env = env.without(whenDownEnv).startingAt(m)
 	if err := l.Exec(path, append([]string{claude.Command}, args...), env); err != nil {
 		return fmt.Errorf("start claude at %s: %w", path, err)
 	}
@@ -620,19 +672,35 @@ func (l Launcher) find() (string, error) {
 }
 
 // told returns the directory the router in state is told Claude Code starts
-// in, as shownDir has it, and the project it runs in, as Project finds it,
-// none without Project, as shown shows it, where the router takes every
-// header of switchboard's own off what it sends upstream: neither for one
-// that doesn't, which would send them on to the API, as routerState's told
-// has it, nor where Dir isn't known.
-func (l Launcher) told(state routerState) (dir, project string) {
+// in, as shownDir has it, and project, the one it runs in, as shown shows
+// it, none for "", where the router takes every header of switchboard's own
+// off what it sends upstream: neither for one that doesn't, which would send
+// them on to the API, as routerState's told has it, nor where Dir isn't
+// known.
+func (l Launcher) told(state routerState, project string) (dir, shownProject string) {
 	if !state.strips || l.Dir == "" {
 		return "", ""
 	}
-	if l.Project == nil {
+	if project == "" {
 		return l.shownDir(), ""
 	}
-	return l.shownDir(), l.shown(l.Project(l.Dir))
+	return l.shownDir(), l.shown(project)
+}
+
+// project returns the project the session, in in, runs in, by its path: the
+// repository Dir is in, as Project finds it; else, Dir in none, the project
+// of the session it's started within, where it's in that one's pool, and
+// that names one, so a claude its tooling starts in a scratchpad runs in its
+// project; else Dir itself. "" where Dir isn't known, or there's no Project.
+func (l Launcher) project(in place) string {
+	if l.Project == nil || l.Dir == "" {
+		return ""
+	}
+	project, inRepository := l.Project(l.Dir)
+	if !inRepository && in.within.project != "" {
+		return in.within.project
+	}
+	return project
 }
 
 // shownDir returns Dir as the router is told it, as shown shows it.

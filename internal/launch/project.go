@@ -24,51 +24,82 @@ import (
 // it, where that goes through the repository or a directory it's in; else
 // by its path with every link resolved. Where neither walk finds a .git, or
 // the first found can't be read as a repository, as worktreeAt finds it
-// lost, the project is dir itself, as given. It runs no git. "" for "".
-func FindProject(dir string) string {
+// lost, the project is dir itself, as given. It reports whether dir is in a
+// repository as RepositoryOf does, so a folder of a bare repository, or of
+// the folder holding one in .bare, is in one, though its project is itself.
+// It runs no git. "" for "".
+func FindProject(dir string) (string, bool) {
 	if dir == "" {
-		return ""
+		return "", false
 	}
-	dir = filepath.Clean(dir)
-	for _, from := range resolvedFirst(dir) {
-		if repo, held := repositoryAround(from); held {
-			if repo == "" {
-				return dir
-			}
-			return walkedTo(dir, repo)
-		}
+	if project, found := repositoryWalked(dir, repositoryAt); found {
+		// RepositoryOf's walk meets this .git, or a bare repository nearer:
+		// in one either way.
+		return project, true
 	}
-	return dir
+	_, inRepository := RepositoryOf(dir)
+	return filepath.Clean(dir), inRepository
 }
 
 // RepositoryOf returns the project of the repository the directory dir is
 // in, as FindProject named a worktree kept there while it was, and whether
-// dir is in one: of the nearest directory, dir itself or one up from it,
-// that's a bare repository's directory, as isBare reads it, that
-// directory; that holds a bare repository named .bare, that folder, as
-// projectOf names a .bare layout's; or that holds a .git, as repositoryAt
-// reads it, the project FindProject finds of dir. So the folder a worktree
-// since removed was kept in, in any of those, gives the project the
-// worktree had, though FindProject finds the folder its own. It runs no git.
-// It walks up dir as it's given, links unresolved, to the nearest such
-// directory; FindProject, for a .git, resolves them. False for "".
+// dir is in one: of the nearest directory up from dir, itself first, that
+// marks one, as repositoryMarkedAt reads it, walked both ways as FindProject
+// walks for a .git, the bare repository's directory, the folder holding one
+// in .bare, or the project FindProject finds of dir; none where it's a .git
+// that's lost. So the folder a worktree since removed was kept in, in any of
+// those, gives the project the worktree had, though FindProject finds the
+// folder its own. It runs no git. False for "".
 func RepositoryOf(dir string) (string, bool) {
 	if dir == "" {
 		return "", false
 	}
-	for at := filepath.Clean(dir); ; at = filepath.Dir(at) {
-		switch _, held := repositoryAt(at); {
-		case isBare(at):
-			return at, true
-		case isBare(filepath.Join(at, bareLayout)):
-			return at, true
-		case held:
-			return FindProject(dir), true
+	return repositoryWalked(dir, repositoryMarkedAt)
+}
+
+// repositoryWalked returns the repository the directory dir is in, as
+// marks reads the nearest directory up from dir it finds one of, walked
+// from each of resolvedFirst's paths in turn to the filesystem's root at
+// most, by the path dir is given by, as walkedTo has it; and whether it's in
+// one: none where neither walk finds one, or the first found is lost.
+func repositoryWalked(dir string, marks func(at string) (string, bool)) (string, bool) {
+	dir = filepath.Clean(dir)
+	for _, from := range resolvedFirst(dir) {
+		if repo, held := nearestUp(from, marks); held {
+			if repo == "" {
+				return "", false
+			}
+			return walkedTo(dir, repo), true
+		}
+	}
+	return "", false
+}
+
+// nearestUp returns what read finds of the nearest directory up from from,
+// itself first, to the filesystem's root at most, that it finds anything
+// of, and whether any is.
+func nearestUp(from string, read func(at string) (string, bool)) (string, bool) {
+	for at := from; ; at = filepath.Dir(at) {
+		if found, ok := read(at); ok {
+			return found, true
 		}
 		if filepath.Dir(at) == at {
 			return "", false
 		}
 	}
+}
+
+// repositoryMarkedAt returns the repository the directory at marks, and
+// whether it marks one: where it's a bare repository's directory, or holds
+// one named .bare, as isBare reads it, itself, as projectOf names a .bare
+// layout's; else the repository whose .git it holds, as repositoryAt reads
+// it, "" where that's lost. What it marks is what RepositoryOf, and so
+// FindProject, count as in a repository.
+func repositoryMarkedAt(at string) (string, bool) {
+	if isBare(at) || isBare(filepath.Join(at, bareLayout)) {
+		return at, true
+	}
+	return repositoryAt(at)
 }
 
 // resolvedFirst are the paths dir is walked up from: dir with its links
@@ -88,21 +119,6 @@ func resolvedPath(path string) string {
 		return real
 	}
 	return path
-}
-
-// repositoryAround returns the repository the directory from is in, walking
-// up from it to the first directory holding a .git, to the filesystem's root
-// at most, as repositoryAt reads it, and whether any holds one: "" where
-// the first can't be read as a repository.
-func repositoryAround(from string) (string, bool) {
-	for at := from; ; at = filepath.Dir(at) {
-		if repo, held := repositoryAt(at); held {
-			return repo, true
-		}
-		if filepath.Dir(at) == at {
-			return "", false
-		}
-	}
 }
 
 // repositoryAt returns the repository whose .git the directory at holds, and

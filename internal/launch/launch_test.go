@@ -103,6 +103,7 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 		"CLAUDE_CODE_OAUTH_TOKEN":          workToken,
 		"ANTHROPIC_CUSTOM_HEADERS":         "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 		"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
+		"SWITCHBOARD_PROJECT":              project,
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
 		t.Errorf("started with the environment\n%q\nwant\n%q", env, want)
@@ -648,6 +649,7 @@ func TestRunThroughAnUnhealthyRouter(t *testing.T) {
 				"CLAUDE_CODE_OAUTH_TOKEN":          workToken,
 				"ANTHROPIC_CUSTOM_HEADERS":         tt.wantHeaders,
 				"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
+				"SWITCHBOARD_PROJECT":              project,
 			}
 			if env := h.environment(t); !maps.Equal(env, want) {
 				t.Errorf("started with the environment\n%q\nwant\n%q, routed as through a healthy router", env, want)
@@ -912,9 +914,9 @@ func TestRunTellsTheRouterTheProjectClaudeCodeStartsIn(t *testing.T) {
 			h := newHarness(t)
 			h.launcher.Dir = tt.dir
 			var asked []string
-			h.launcher.Project = func(dir string) string {
+			h.launcher.Project = func(dir string) (string, bool) {
 				asked = append(asked, dir)
-				return tt.found
+				return tt.found, true
 			}
 
 			if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
@@ -1726,10 +1728,13 @@ func TestNothingSecretIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
 			want:   map[string]string{},
 		},
 		{
-			name:   "a directory holding a token-shaped value, its lines unmarked, stay",
+			name:   "a directory holding a token-shaped value, its lines and its project unmarked, stay",
 			secret: shaped,
 			dir:    homeDir + "/Code/" + shaped,
-			want:   map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped + "\nX-Switchboard-Project: ~/Code/" + shaped},
+			want: map[string]string{
+				"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped + "\nX-Switchboard-Project: ~/Code/" + shaped,
+				"SWITCHBOARD_PROJECT":      homeDir + "/Code/" + shaped,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -2334,7 +2339,7 @@ func newHarness(t *testing.T, environ ...string) *harness {
 // projected is h, its launcher finding each directory its own project, as
 // one in no repository is.
 func (h *harness) projected() *harness {
-	h.launcher.Project = func(dir string) string { return dir }
+	h.launcher.Project = func(dir string) (string, bool) { return dir, false }
 	return h
 }
 

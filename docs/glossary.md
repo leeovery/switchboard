@@ -43,11 +43,12 @@ signed into the primary.
 accounts reset one after another rather than together.
 
 **Project.** The repository a session runs in, with its worktrees folded in. A session in a
-worktree or a folder beneath the repository counts as the repository's, and one started outside
-any repository as its own folder's. A session started in a Claude Code scratchpad counts as the
-project the scratchpad was made for. A session started in any other temporary folder has no
-project: it counts under `temporary folders`. `run` records the project as the session starts. See
-[the ledger](reference/ledger.md).
+worktree or subfolder of the repository counts in that repository. A session started outside any
+repository counts in the folder it started in. A session in a Claude Code scratchpad counts as the
+project the scratchpad was made for. A session in any other temporary folder has no project: it
+counts under `temporary folders`. A `claude` another session starts outside any repository joins
+that session's project instead, if both run in one pool. `run` records the project as the session
+starts. See [the ledger](reference/ledger.md).
 
 **Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
 

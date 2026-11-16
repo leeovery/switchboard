@@ -21,8 +21,9 @@ type place struct {
 }
 
 func TestASessionsDirectoryAndProjectReachItsAssignmentTheStreamTheStateFileAndTheLedger(t *testing.T) {
-	long := "~/" + strings.Repeat("a", 300) + "/project/sk-ant-oat01-fake_dir-token-shaped"
-	cut := "…" + strings.Repeat("a", 200-len("…/project/")-len(redact.Placeholder)) + "/project/" + redact.Placeholder
+	long := "~/" + strings.Repeat("a", 300) + "/project"
+	tooLong := "~/" + strings.Repeat("a", 1024) + "/project/sk-ant-oat01-fake_dir-token-shaped"
+	cut := "…" + strings.Repeat("a", 1024-len("…/project/")-len(redact.Placeholder)) + "/project/" + redact.Placeholder
 	tests := []struct {
 		name string
 		// dir and project are the headers' values run sends, "" for none.
@@ -39,7 +40,12 @@ func TestASessionsDirectoryAndProjectReachItsAssignmentTheStreamTheStateFileAndT
 			want: place{dir: "~/Code/api/.claude/worktrees/fix-login", project: "~/Code/api"},
 		},
 		{
-			name: "too long, the directory cut from its front, the project none, a token in each hidden", dir: router.EncodeDir(long), project: router.EncodeDir(long),
+			name: "past the 200 bytes a line holds of a text, as a scratchpad's runs, each whole", dir: router.EncodeDir(long), project: router.EncodeDir(long),
+			want: place{dir: long, project: long},
+		},
+		{
+			name: "past the 1024 bytes a line holds of a path, the directory cut from its front, the project none, a token in each hidden",
+			dir:  router.EncodeDir(tooLong), project: router.EncodeDir(tooLong),
 			want: place{dir: cut},
 		},
 		{name: "a project that doesn't decode, none", dir: "~/Code/api", project: "~/Code/%zz", want: place{dir: "~/Code/api"}},
