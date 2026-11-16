@@ -215,12 +215,13 @@ Option in iTerm2 and Terminal.app, and Shift in most others.
 | `▼ 214 new`, on the Log | Follows again. |
 | a tick in the `f` panel on the Log | Ticks it. |
 
-The wheel scrolls what's under the pointer. Over the list on Projects, it chooses a project a turn
-instead. Some rows act differently:
+The wheel scrolls what's under the pointer. Some rows act differently:
 
 - A click on a row of SESSIONS on the Overview opens the session page at once.
 - A click on an account in the list on Detail, or a project in the list on Projects, opens nothing.
 - With a turn open, a click on a turn closes the open turn. If the turn clicked is another, the
   click then chooses it.
+
+Over the list on Projects, the wheel chooses a project a turn instead of scrolling.
 
 No click opens the routing card or acts in it, so a stray click never moves a session.

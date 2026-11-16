@@ -59,8 +59,8 @@ func TestTheWheelOverProjectsListChoosesAProjectATime(t *testing.T) {
 			chosen := func() string { return h.model.projects.shown.Chosen }
 
 			h.wheel(tea.MouseWheelUp, x, y)
-			if chosen() != rows[0] || h.model.projects.shown.ListScroll != 0 {
-				t.Errorf("a turn up at the list's top chose %s, scrolled %d; want %s still, unscrolled", chosen(), h.model.projects.shown.ListScroll, rows[0])
+			if chosen() != rows[0] || h.model.projects.shown.ListScroll != 0 || h.model.projects.chose {
+				t.Errorf("a turn up at the list's top chose %s, scrolled %d, held as chosen %v; want %s still, unscrolled, the top row not held", chosen(), h.model.projects.shown.ListScroll, h.model.projects.chose, rows[0])
 			}
 			h.wheel(tea.MouseWheelDown, x, y)
 			if chosen() != rows[1] || h.model.projects.shown.InSessions {

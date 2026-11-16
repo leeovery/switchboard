@@ -416,8 +416,7 @@ const (
 // Under is what's under the cell at x along row y, as the frame draws doc at
 // now: while a card is open, the card, in its box, and nothing outside it;
 // else, where the page has room for the view, as cramped says, Projects'
-// list, as chooses has it, or what of the view scrolls, as
-// scrolls has it.
+// list, as chooses has it, or what of the view scrolls, as scrolls has it.
 func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 	f = f.At(doc, now)
 	inside := func(left, top, width, height int) bool {

@@ -5374,8 +5374,8 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   nor a day read whole for another reader that it lets go of. Whether it's to be built is judged
   before the days are joined, joined only to build it. While another tab shows, such a change
   leaves it stale, built as Projects next shows, never a frame at a time; and the chosen project's
-  as the page or the choice does. The project shown is held as chosen once any
-  key, click or turn of the wheel moves the choice, the top row's included, else the top row is chosen as the list
+  as the page or the choice does. The project shown is held as chosen once any key, click or turn
+  of the wheel moves the choice, the top row's included, else the top row is chosen as the list
   ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
   where the session selected showed, it's kept in view; a project that leaves the list leaves the
   top row chosen, the list with the choice, no session selected and SESSIONS from its top.

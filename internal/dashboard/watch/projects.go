@@ -290,7 +290,7 @@ func (m Model) showProjects(s dashboard.ProjectsShown) Model {
 // projectsWheeled is m with the wheel turned the way given over Projects'
 // list: the project before or after the one chosen, as Wheeled has it, shown
 // as showProjects has it, the page acting as acting has it; m as it is where
-// there's none that way.
+// Wheeled changes nothing.
 func (m Model) projectsWheeled(way int) Model {
 	next, changed := m.projects.shown.Wheeled(way)
 	if !changed {
