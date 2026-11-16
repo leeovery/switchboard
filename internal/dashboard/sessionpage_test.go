@@ -469,9 +469,9 @@ func TestRowSevenSaysAWindowItsAccountLacksInPlaceOfItsFigure(t *testing.T) {
 	if at := ansi.StringWidth(row) - ansi.StringWidth("no 5-hour limit   fable week 4%"); c.at(at, 7).ink != dimInk {
 		t.Errorf("no 5-hour limit is in %+v, want text.subtle", c.at(at, 7).ink)
 	}
-	every, _ := pageDrawn(f, pageDoc())
+	every := pageLaid(f, pageDoc())
 	for _, ids := range [][]string{{"side"}, {"work"}} {
-		d, _ := pageDrawn(f, pageDocChanged(usageLacking(ids...)))
+		d := pageLaid(f, pageDocChanged(usageLacking(ids...)))
 		if got, want := d.row7Least(), every.row7Least()+len("no 5-hour limit")-len("5-hour 100%"); got != want {
 			t.Errorf("with %s lacking its 5-hour, row 7's least is %d, want %d", ids[0], got, want)
 		}
@@ -555,7 +555,7 @@ func TestTheNewestTurnAsksWhileTheSessionWaits(t *testing.T) {
 			if got := rowOf(c, 6); !strings.HasPrefix(got, tt.said+"   ") || c.cells[6][0].ink != tt.ink {
 				t.Errorf("row 7 reads %q in %+v, want it to lead with %q in %+v", got, c.cells[6][0].ink, tt.said, tt.ink)
 			}
-			d, _ := pageDrawn(f, pageDoc())
+			d := pageLaid(f, pageDoc())
 			col, _ := d.turnColumnOf(turnAsking)
 			askingAt := col.x
 			asking := strings.TrimSpace(string([]rune(rowOf(c, 25) + strings.Repeat(" ", c.width))[askingAt:]))

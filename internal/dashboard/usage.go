@@ -524,17 +524,17 @@ func (b usageBlock) wordCells() int {
 	return shortCells
 }
 
-// draw draws the block's rows from row y, as lay lays them out, and returns
+// draw draws the block's rows from row y, as layout lays them out, and returns
 // the row after the last.
 func (b usageBlock) draw(c *canvas, y int) int {
 	return b.lay(c, y).end
 }
 
-// laid is the block's rows as drawn: the row after the last; where each row
-// is; its heads, each window's heading, a block's name on a row of its own
-// and the pool's rule, over the first row under each, in the order of their
-// rows; and its windows' headings, each kept over the rows under it as they
-// scroll, to the end of its window's.
+// laid is the block's rows as laid out: the row after the last; where each
+// row is; its heads, each window's heading, a block's name on a row of its
+// own and the pool's rule, over the first row under each, in the order of
+// their rows; and its windows' headings, each kept over the rows under it as
+// they scroll, to the end of its window's, in the order of its windows.
 type laid struct {
 	end    int
 	placed []rowAt
@@ -542,30 +542,46 @@ type laid struct {
 	kept   []keptHeading
 }
 
-// rowAt is where the block drew a row: its account's id, "" for the pool's,
+// rowAt is where the block draws a row: its account's id, "" for the pool's,
 // and the rows it takes from row y.
 type rowAt struct {
 	id      string
 	y, rows int
 }
 
-// lay draws the block's rows from row y, as its grouping and its width lay
-// them out: by account; else as a matrix; else its windows stacked.
-func (b usageBlock) lay(c *canvas, y int) laid {
+// layout is the block's rows laid out from row y, as its grouping and its
+// width lay them out: by account; else as a matrix; else its windows
+// stacked. It draws nothing, so measuring the block costs no drawing.
+func (b usageBlock) layout(y int) laid {
 	var l laid
 	switch {
 	case b.by == ByAccount:
-		l = b.byAccount(c, y)
+		l = b.byAccountLaid(y)
 	case b.matrixed():
-		l = b.matrix(c, y)
+		l = b.matrixLaid(y)
 	default:
-		l = b.stacked(c, y)
+		l = b.stackedLaid(y)
 	}
 	slices.SortFunc(l.heads, func(a, b headed) int { return a.at - b.at })
 	return l
 }
 
-// nameAt is the column the block's rows' names start at, as lay lays them
+// lay draws the block's rows from row y, where layout lays them out, and
+// returns them as laid.
+func (b usageBlock) lay(c *canvas, y int) laid {
+	l := b.layout(y)
+	switch {
+	case b.by == ByAccount:
+		b.byAccount(c, l)
+	case b.matrixed():
+		b.matrix(c, l)
+	default:
+		b.stacked(c, l)
+	}
+	return l
+}
+
+// nameAt is the column the block's rows' names start at, as layout lays them
 // out: a cell in where its windows are stacked, under their headings, or
 // where the page starts its names so, as namesFrom has it; else column 0.
 func (b usageBlock) nameAt() int {
@@ -609,27 +625,32 @@ func (b usageBlock) bar() int {
 	return b.cells().bar
 }
 
-// matrix draws the block's windows side by side, a group each from the name
-// column, its heading over it, and a row an account, the pool last, from row
-// y.
-func (b usageBlock) matrix(c *canvas, y int) laid {
+// matrixLaid is the block laid out as a matrix from row y: its windows'
+// headings on row y, and a row an account under them, the pool last.
+func (b usageBlock) matrixLaid(y int) laid {
+	first := y + b.underHeading()
+	l := b.each(first, 2, 1)
+	l.heads = append(l.heads, headed{at: y, first: first})
+	l.kept = []keptHeading{{at: y, end: l.end}}
+	return l
+}
+
+// matrix draws the block's windows side by side, as l lays them out, a
+// group each from the name column, its heading over it, and a row an
+// account, the pool last.
+func (b usageBlock) matrix(c *canvas, l laid) {
 	row := b.cells()
 	bar, group := row.bar, row.bar+afterBar+row.words+groupGap
 	for i, w := range b.windows {
-		c.line(b.names+i*group, y, line{{strings.ToUpper(w.name), dimInk}})
+		c.line(b.names+i*group, l.kept[0].at, line{{strings.ToUpper(w.name), dimInk}})
 	}
-	first := y + b.underHeading()
-	l := b.each(c, first, 2, func(r usageRow, y int) int {
+	b.drawEach(c, l.placed, func(r usageRow, y int) {
 		c.line(b.nameAt(), y, b.name(r))
 		for i, g := range r.gauges {
 			next := b.names + (i+1)*group
 			b.gauge(c, g, next-group, y, bar, next-groupGap)
 		}
-		return y
 	})
-	l.heads = append(l.heads, headed{at: y, first: first})
-	l.kept = []keptHeading{{at: y, end: l.end}}
-	return l
 }
 
 // underHeading is how far a window's first row is from its heading: a row
@@ -642,24 +663,18 @@ func (b usageBlock) underHeading() int {
 	return 2
 }
 
-// stacked draws the block's windows one under another, each a section, its
-// heading, then a row an account, the pool last, from row y, a blank line
-// between sections, as before the key line. A section has only the rows of
-// its window, as having has them.
-func (b usageBlock) stacked(c *canvas, y int) laid {
-	bar := b.bar()
+// stackedLaid is the block's windows laid out one under another from row
+// y, each a section, its heading, then a row an account, the pool last, a
+// blank line between sections, as before the key line. A section has only
+// the rows of its window, as having has them.
+func (b usageBlock) stackedLaid(y int) laid {
 	all := laid{end: y}
-	for i, w := range b.windows {
+	for i := range b.windows {
 		if i > 0 {
 			y++
 		}
-		c.line(0, y, line{{strings.ToUpper(w.name), headingInk}})
 		first := y + b.underHeading()
-		section := b.having(i).each(c, first, 2, func(r usageRow, y int) int {
-			c.line(b.nameAt(), y, b.name(r))
-			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
-			return y
-		})
+		section := b.having(i).each(first, 2, 1)
 		all.placed = append(all.placed, section.placed...)
 		all.heads = append(all.heads, headed{at: y, first: first})
 		all.heads = append(all.heads, section.heads...)
@@ -667,6 +682,21 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		y, all.end = section.end, section.end
 	}
 	return all
+}
+
+// stacked draws the block's windows one under another, as l lays them out,
+// each a section, its heading over its rows.
+func (b usageBlock) stacked(c *canvas, l laid) {
+	bar, placed := b.bar(), l.placed
+	for i, w := range b.windows {
+		c.line(0, l.kept[i].at, line{{strings.ToUpper(w.name), headingInk}})
+		section := b.having(i)
+		section.drawEach(c, placed[:len(section.rows)], func(r usageRow, y int) {
+			c.line(b.nameAt(), y, b.name(r))
+			b.gauge(c, r.gauges[i], b.names, y, bar, b.width-afterWords)
+		})
+		placed = placed[len(section.rows):]
+	}
 }
 
 // having is the block with only the rows that have its window i: none of an
@@ -678,12 +708,11 @@ func (b usageBlock) having(i int) usageBlock {
 	return b
 }
 
-// each draws the block's rows from row y, each as draw draws it from the row
-// given, returning its last, a row's first apart rows on from the last of
-// the row before, or a row fewer where the block has given way the blank
-// rows between its accounts. The pool's row comes last, apart rows on, its
-// rule in the row above it.
-func (b usageBlock) each(c *canvas, y, apart int, draw func(r usageRow, y int) int) laid {
+// each lays the block's rows out from row y, each rows rows tall, a row's
+// first apart rows on from the last of the row before, or a row fewer where
+// the block has given way the blank rows between its accounts. The pool's
+// row comes last, apart rows on, its rule in the row above it.
+func (b usageBlock) each(y, apart, rows int) laid {
 	accounts, pool := b.split()
 	between := apart
 	if b.given >= givenApart {
@@ -692,19 +721,30 @@ func (b usageBlock) each(c *canvas, y, apart int, draw func(r usageRow, y int) i
 	var l laid
 	last, next := y, y
 	for _, r := range accounts {
-		last = draw(r, next)
-		l.placed = append(l.placed, rowAt{id: r.id, y: next, rows: last - next + 1})
+		last = next + rows - 1
+		l.placed = append(l.placed, rowAt{id: r.id, y: next, rows: rows})
 		next = last + between
 	}
 	next = last + apart
 	if pool != nil {
-		c.line(0, next-1, line{{rule(b.width), borderInk}})
-		last = draw(*pool, next)
-		l.placed = append(l.placed, rowAt{id: pool.id, y: next, rows: last - next + 1})
+		last = next + rows - 1
+		l.placed = append(l.placed, rowAt{id: pool.id, y: next, rows: rows})
 		l.heads = append(l.heads, headed{at: next - 1, first: next})
 	}
 	l.end = last + 1
 	return l
+}
+
+// drawEach draws the block's rows where placed has them, in its order, each
+// as draw draws it from its first row; the pool's last, its rule in the row
+// above it.
+func (b usageBlock) drawEach(c *canvas, placed []rowAt, draw func(r usageRow, y int)) {
+	for i, r := range b.rows {
+		if r.pool {
+			c.line(0, placed[i].y-1, line{{rule(b.width), borderInk}})
+		}
+		draw(r, placed[i].y)
+	}
 }
 
 // split is the block's rows: the accounts', and the pool's, nil where it has
@@ -716,22 +756,35 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 	return b.rows, nil
 }
 
-// byAccount draws a block an account from row y, each window a row of it,
-// the pool's last, as far apart as blocksApart has them, the pool's rule in
-// the last blank line before it: the name beside its first window's row and
-// each label in the name column, where they fit, as labels says; else the
-// name on a line of its own above, as the row says it, and the labels a cell
-// in. Its bars take what the block's width leaves them, and its words end a
-// cell before the edge, but where the Overview sets its bars: then its words
-// end besideCells before besideAt, the gap before ROUTING's blocks beside
-// them.
-func (b usageBlock) byAccount(c *canvas, y int) laid {
+// byAccountLaid is the block laid out a block an account from row y, each
+// window a row of it, the pool's last, as far apart as blocksApart has them,
+// the pool's rule in the last blank line before it; each block's name a head
+// over its windows where it's on a line of its own above them, as labels
+// says.
+func (b usageBlock) byAccountLaid(y int) laid {
+	l := b.each(y, blocksApart, b.blockRows())
+	if _, _, above := b.labels(); above {
+		for _, p := range l.placed {
+			l.heads = append(l.heads, headed{at: p.y, first: p.y + 1})
+		}
+	}
+	return l
+}
+
+// byAccount draws a block an account, as l lays them out: the name beside
+// its first window's row and each label in the name column, where they fit,
+// as labels says; else the name on a line of its own above, as the row says
+// it, and the labels a cell in. Its bars take what the block's width leaves
+// them, and its words end a cell before the edge, but where the Overview
+// sets its bars: then its words end besideCells before besideAt, the gap
+// before ROUTING's blocks beside them.
+func (b usageBlock) byAccount(c *canvas, l laid) {
 	labelAt, cells, above := b.labels()
 	bar, end := b.bar(), b.width-afterWords
 	if b.accountBar > 0 {
 		end = b.besideAt() - besideCells
 	}
-	l := b.each(c, y, blocksApart, func(r usageRow, y int) int {
+	b.drawEach(c, l.placed, func(r usageRow, y int) {
 		name := b.name(r)
 		if above {
 			name = r.standalone
@@ -745,14 +798,7 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 			c.line(labelAt, at, line{{prose.Cut(status.Short(b.windows[j].name), cells-1), dimInk}})
 			b.gauge(c, g.besideLabel(), labelAt+cells, at, bar, end)
 		}
-		return y + b.blockRows() - 1
 	})
-	if above {
-		for _, p := range l.placed {
-			l.heads = append(l.heads, headed{at: p.y, first: p.y + 1})
-		}
-	}
-	return l
 }
 
 // blocksApart is how far a block by account's first row is from the last
@@ -871,26 +917,53 @@ func (g gauge) number(kind NumberKind) Number {
 	return Number{Kind: kind, Account: g.of.Account, Of: g.of.Window}
 }
 
-// key draws the block's key line at row y, saying what its marks mean: one
-// line from the name column, the cap's part after even pace's, where it fits
-// there, as oneLineKey judges it; else two lines from column 0, the cap's
-// part on the second. The marks the Overview names follow the cap's part,
-// each part a gap after the one before, in the first of their forms
-// that fits the line, as keyForms and firstFit have them. Where the block
-// has given way its key, it draws none.
+// key draws the block's key line at row y, its lines as keyLines has them,
+// one a row.
 func (b usageBlock) key(c *canvas, y int) {
+	for i, k := range b.keyLines() {
+		c.line(k.x, y+i, k.said)
+	}
+}
+
+// keyLine is a line of a key line, said from column x.
+type keyLine struct {
+	x    int
+	said line
+}
+
+// keyLines are the lines of the block's key line, saying what its marks
+// mean: one line from the name column, the cap's part after even pace's,
+// where it fits there, as oneLineKey judges it; else two lines from column
+// 0, the cap's part on the second, where there's one. The marks the
+// Overview names follow the cap's part, each part a gap after the one
+// before, in the first of their forms that fits the line, as keyForms and
+// firstFit have them. Where the block has given way its key, it has none.
+func (b usageBlock) keyLines() []keyLine {
 	if b.given >= givenKey {
-		return
+		return nil
 	}
 	pace, forms := b.keyParts(b.bar())
 	if b.oneLineKey() {
-		c.line(b.names, y, firstFit(b.width-b.names, keyForms(forms, pace)...))
-		return
+		return []keyLine{{b.names, firstFit(b.width-b.names, keyForms(forms, pace)...)}}
 	}
-	c.line(0, y, pace.fit(b.width))
+	lines := []keyLine{{0, pace.fit(b.width)}}
 	if second := keyForms(forms); second[0] != nil {
-		c.line(0, y+1, firstFit(b.width, second...))
+		lines = append(lines, keyLine{0, firstFit(b.width, second...)})
 	}
+	return lines
+}
+
+// keyRows are the rows the block's key line takes as key draws it: to the
+// last of its lines that draws a cell, as one cut to nothing, or starting
+// past the edge, draws none.
+func (b usageBlock) keyRows() int {
+	rows := 0
+	for i, k := range b.keyLines() {
+		if k.x < b.width && k.said.width() > 0 {
+			rows = i + 1
+		}
+	}
+	return rows
 }
 
 // oneLineKey reports whether the block's key line is one line, from the name
@@ -948,10 +1021,17 @@ const (
 )
 
 // height is how many rows the block takes as it's laid out, its key line
-// after a blank row, where it keeps it.
+// after a blank row, where it keeps one: worked out as layout and keyRows
+// have them, without drawing it.
 func (b usageBlock) height() int {
-	c := growing(b.width)
-	end := b.draw(c, 0)
-	b.key(c, end+1)
-	return max(c.height(), end)
+	return b.heightLaid(b.layout(0))
+}
+
+// heightLaid is how many rows the block takes laid out as l, from row 0, as
+// height has them.
+func (b usageBlock) heightLaid(l laid) int {
+	if keyed := b.keyRows(); keyed > 0 {
+		return l.end + 1 + keyed
+	}
+	return l.end
 }

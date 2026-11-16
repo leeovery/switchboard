@@ -53,8 +53,11 @@ func sentAt(id string, sent time.Time) views.Told {
 func ledgerHolding(now time.Time, lines ...ledger.Line) fakeLedger {
 	held := slices.SortedStableFunc(slices.Values(lines), func(a, b ledger.Line) int { return a.At.Compare(b.At) })
 	named := make(map[string][]string)
+	seen := make(map[[2]string]bool)
 	for _, l := range held {
-		if date := l.At.Local().Format(time.DateOnly); l.Session != "" && !slices.Contains(named[date], l.Session) {
+		date := l.At.Local().Format(time.DateOnly)
+		if l.Session != "" && !seen[[2]string{date, l.Session}] {
+			seen[[2]string{date, l.Session}] = true
 			named[date] = append(named[date], l.Session)
 		}
 	}

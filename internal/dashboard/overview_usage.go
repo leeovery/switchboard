@@ -250,14 +250,15 @@ func (b usageBlock) enlarges() bool {
 
 // usageViews are the block's views, as USAGE shows it in however many rows
 // it's given, scrolled however far: the block; the rows it takes with its big
-// bars, and as it's laid out; and, worked out only once it's asked for, the block laid out
-// whole and drawn so, as paged pages it. Where it's short of rows, its
-// leaner views are the block as it gives way, a step at a time, as giving
-// has them.
+// bars, and as it's laid out; the block laid out whole, as paged pages it;
+// and, drawn only once it's asked for, the block drawn whole, which a
+// heading kept is taken from. Where it's short of rows, its leaner views are
+// the block as it gives way, a step at a time, as giving has them.
 type usageViews struct {
 	block    usageBlock
 	big, all int
-	whole    func() (laid, *canvas)
+	laid     laid
+	whole    func() *canvas
 	leaner   []usageViews
 }
 
@@ -277,16 +278,18 @@ func (b usageBlock) views() usageViews {
 // so, and once more with its big bars where it has them, as enlarges says;
 // else its big bars' rows are its own.
 func (b usageBlock) viewsAsLaid() usageViews {
-	all := b.height()
+	l := b.layout(0)
+	all := b.heightLaid(l)
 	big := all
 	if b.enlarges() {
 		big = b.enlarged().height()
 	}
 	return usageViews{
-		block: b, big: big, all: all,
-		whole: sync.OnceValues(func() (laid, *canvas) {
+		block: b, big: big, all: all, laid: l,
+		whole: sync.OnceValue(func() *canvas {
 			c := growing(b.width)
-			return b.lay(c, 0), c
+			b.draw(c, 0)
+			return c
 		}),
 	}
 }
@@ -339,19 +342,18 @@ func (v usageViews) leanerRows() []int {
 // pages in rows rows, a row at a time: each window's heading, and each
 // block's name on a row of its own, shown with the first row under it, and
 // each window's heading kept on the page's first row while its rows scroll
-// under it, as lay has them.
+// under it, as layout has them.
 func (v usageViews) paged(rows int) rowsPaged {
-	l, _ := v.whole()
-	return rowsPaged{rows: rows, content: v.all, heads: l.heads, kept: l.kept, says: true}
+	return rowsPaged{rows: rows, content: v.all, heads: v.laid.heads, kept: v.laid.kept, says: true}
 }
 
 // usageShown is USAGE's block as it's shown in a body's rows: its rows from
-// from up to to, as paged pages them where it scrolls, the block laid out
+// from up to to, as paged pages them where it scrolls, the block drawn
 // whole with them, which a heading kept is taken from; its rows from the
 // first to the body's last where it fits.
 type usageShown struct {
 	block    usageBlock
-	whole    *canvas
+	whole    func() *canvas
 	paged    rowsPaged
 	from, to int
 }
@@ -377,9 +379,8 @@ func (v usageViews) scrollForm(rows int) usageForm {
 	if v.all <= rows {
 		return usageForm{}
 	}
-	l, _ := v.whole()
 	_, _, above := v.block.labels()
-	return usageForm{by: v.block.by, given: v.block.given, matrix: v.block.matrixed(), above: above, over: l.end}
+	return usageForm{by: v.block.by, given: v.block.given, matrix: v.block.matrixed(), above: above, over: v.laid.end}
 }
 
 // shown is the block as USAGE shows it in rows rows, scrolled offset rows
@@ -391,8 +392,7 @@ func (v usageViews) shown(rows, offset int) usageShown {
 	}
 	p := v.paged(rows)
 	from, to := p.shown(offset)
-	_, whole := v.whole()
-	return usageShown{block: v.block, whole: whole, paged: p, from: from, to: to}
+	return usageShown{block: v.block, whole: v.whole, paged: p, from: from, to: to}
 }
 
 // fitted is the block as USAGE draws it in rows rows, as it is or at a step
@@ -432,7 +432,7 @@ func (s usageShown) draw(c *canvas, body bounds) {
 	end := s.block.draw(in, body.y-s.from)
 	s.block.key(in, end+1)
 	if at, ok := s.paged.keeps(s.from, s.to); ok {
-		c.within(bounds{x: body.x, y: body.y, width: body.width, rows: 1}).paste(s.whole, at, body.y, 1)
+		c.within(bounds{x: body.x, y: body.y, width: body.width, rows: 1}).paste(s.whole(), at, body.y, 1)
 	}
 	s.paged.said(c, body.y, s.from, s.to, s.block.width, usageRowsOut)
 }
@@ -449,7 +449,7 @@ func (s usageShown) rowsIn(body bounds) bounds {
 // placed is where the block draws each of its rows, the accounts' and the
 // pool's, counted from its first row.
 func (b usageBlock) placed() []rowAt {
-	return b.lay(growing(b.width), 0).placed
+	return b.layout(0).placed
 }
 
 // beside is where the block draws its rows shown in body, for ROUTING to be

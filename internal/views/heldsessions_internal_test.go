@@ -433,8 +433,7 @@ func toldOfLine(s *story, l *ledger.Line) string {
 func TestTheStoreFedLookByLookTellsWhatOneReadAtOnceTells(t *testing.T) {
 	t.Parallel()
 	prices := changingPrices()
-	met := make(map[string]bool)
-	for seed := range uint64(150) {
+	met := metOfSeeds(t, 150, func(t *testing.T, seed uint64, met map[string]bool) {
 		f := &feeding{
 			t: t, seed: seed, lines: generatedRun(seed), prices: prices, held: HoldSessions(prices),
 			given: make(map[lineKey]ledger.Line), read: make(map[lineKey]bool), met: met,
@@ -461,10 +460,10 @@ func TestTheStoreFedLookByLookTellsWhatOneReadAtOnceTells(t *testing.T) {
 		last := ended(&f.lines[len(f.lines)-1])
 		if looked < len(f.lines) {
 			f.look(last.AddDate(0, 0, 2), 0, false, 0)
-			continue
+			return
 		}
 		f.look(last.Add(3*time.Hour), 0, false, 0)
-	}
+	})
 	for _, moment := range []string{
 		"a line given again", "a read whole overlapping the next look's", "a day read again whole", "a day before yesterday read again whole",
 		"a day before yesterday gaining a line",

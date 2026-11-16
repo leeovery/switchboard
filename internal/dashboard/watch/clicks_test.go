@@ -102,6 +102,10 @@ func TestAClickOnTheTabShownChangesNothing(t *testing.T) {
 	}
 }
 
+// A click lands on a target or on none, as targetAt has it, so a cell off
+// every target acts as every other in its run of them: the test clicks the
+// cells each run starts and ends on, beside a target or at the row's edge,
+// and one inside it, as runEnds has them.
 func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
 	t.Parallel()
 	settled := func(t *testing.T) *harness {
@@ -115,11 +119,8 @@ func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
 			t.Parallel()
 			h := settled(t)
 			was := h.model
-			targets := h.targets()
-			for x := range was.size.Width {
-				if _, on := targetAt(targets, x, y); on {
-					continue
-				}
+			off, _ := runEnds(h.targets(), y, was.size.Width)
+			for _, x := range off {
 				if h.click(x, y) || h.model.view != was.view || h.model.open != nothingOpen || h.model.scroll != was.scroll ||
 					h.model.sections != was.sections || h.model.by != was.by || h.model.picker.open || len(h.source.orders) > 0 {
 					t.Fatalf("a click at %d,%d, on no target, acted: showing %q, open %v, scrolled %d, sections %v, by %v, orders %q",
@@ -128,6 +129,30 @@ func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
 			}
 		})
 	}
+}
+
+// runEnds are the cells of row y, of a page width cells wide, that a click
+// tells apart: the row split into runs of cells under one target of those
+// given, or under none, each run's first, middle and last cell, those off
+// every target and those on one.
+func runEnds(targets []dashboard.Target, y, width int) (off, on []int) {
+	for x := 0; x < width; {
+		under, onTarget := targetAt(targets, x, y)
+		end := x
+		for end+1 < width {
+			if next, onNext := targetAt(targets, end+1, y); next != under || onNext != onTarget {
+				break
+			}
+			end++
+		}
+		if onTarget {
+			on = append(on, x, (x+end)/2, end)
+		} else {
+			off = append(off, x, (x+end)/2, end)
+		}
+		x = end + 1
+	}
+	return slices.Compact(off), slices.Compact(on)
 }
 
 func TestATargetTakesTheCellsItSpans(t *testing.T) {
@@ -336,7 +361,8 @@ func TestNoClickActsWhileACardIsOpen(t *testing.T) {
 					t.Parallel()
 					h := opened(t)
 					open := h.model.open
-					for x := range h.model.size.Width {
+					off, on := runEnds(h.targets(), y, h.model.size.Width)
+					for _, x := range slices.Concat(off, on) {
 						if h.click(x, y) || h.model.open != open || len(h.source.orders) > 0 || h.model.help.scroll != 0 {
 							t.Fatalf("with %v open, a click at %d,%d acted: open %v, orders %q", open, x, y, h.model.open, h.source.orders)
 						}

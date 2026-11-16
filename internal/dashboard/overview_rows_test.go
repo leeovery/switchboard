@@ -124,10 +124,11 @@ func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 			for _, width := range []int{52, 73, 108, 138, 160, 220} {
 				t.Run(fmt.Sprintf("%s, %v at %d", w.name, shown.Names(), width), func(t *testing.T) {
 					t.Parallel()
+					f := frameOf(width, 0)
+					f.Sections, f.Sessions, f.By = shown, flippingSessions(), w.by
+					allots := allotmentsOf(f, w.doc)
 					for height := 10; height <= 120; height++ {
-						f := frameOf(width, height)
-						f.Sections, f.Sessions, f.By = shown, flippingSessions(), w.by
-						allottedFully(t, f, w.doc)
+						allottedFully(t, allots, height)
 					}
 				})
 			}
@@ -135,16 +136,48 @@ func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 	}
 }
 
-// allottedFully holds the units of doc as the frame allots them to the
+// allotments are the units of doc a frame allots at each height, each
+// height's worked out once: a sweep asks for most of them more than once.
+type allotments struct {
+	frame Frame
+	doc   status.Document
+	at    map[int][]unit
+}
+
+// allotmentsOf are the allotments of doc in frames as f but for their
+// height.
+func allotmentsOf(f Frame, doc status.Document) allotments {
+	return allotments{frame: f, doc: doc, at: make(map[int][]unit)}
+}
+
+// sized is the frame height rows tall.
+func (a allotments) sized(height int) Frame {
+	f := a.frame
+	f.Height = height
+	return f
+}
+
+// of are the units the frame height rows tall allots.
+func (a allotments) of(height int) []unit {
+	units, ok := a.at[height]
+	if !ok {
+		units = a.sized(height).allotted(a.doc, now)
+		a.at[height] = units
+	}
+	return units
+}
+
+// allottedFully holds the units allotted at height to the
 // rules: none folded that fits at its least, the others at theirs, USAGE's
 // blank rows between its accounts given way; and no row blank at the foot
 // that a unit not folded, short of its most, could take its next step in,
 // but where USAGE's blank rows between its accounts are given way and come
 // back before a section unfolds, as heldAt works it out, which holds them
 // from every form.
-func allottedFully(t *testing.T, f Frame, doc status.Document) {
+func allottedFully(t *testing.T, allots allotments, height int) {
 	t.Helper()
-	units, room := f.allotted(doc, now), f.viewRows()
+	f := allots.sized(height)
+	units, room := allots.of(height), f.viewRows()
 	for i, u := range units {
 		if !u.fold {
 			continue
@@ -159,7 +192,7 @@ func allottedFully(t *testing.T, f Frame, doc status.Document) {
 		}
 	}
 	spare := room - rowsDown(units)
-	held := heldAt(f, doc, units)
+	held := heldAt(allots, height, units)
 	for _, u := range units {
 		if held && !u.sections[0].lists() && !u.ledBy(SectionUsage) {
 			continue
@@ -538,16 +571,15 @@ var heightWorlds = []struct {
 }
 
 // heldAt reports whether the rows to spare are held from the forms in the
-// units of doc the frame allots: USAGE's blank rows between its accounts
-// given way, and a taller frame, before one whose sections fold otherwise,
-// has them back.
-func heldAt(f Frame, doc status.Document, units []unit) bool {
+// units allotted at height: USAGE's blank rows between its accounts given
+// way, and a taller frame, before one whose sections fold otherwise, has
+// them back.
+func heldAt(allots allotments, height int, units []unit) bool {
 	if !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() }) {
 		return false
 	}
-	for taller := f; ; {
-		taller.Height++
-		got := taller.allotted(doc, now)
+	for taller := height + 1; ; taller++ {
+		got := allots.of(taller)
 		if !oneArrangement(got, units) {
 			return false
 		}

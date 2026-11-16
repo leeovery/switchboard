@@ -40,9 +40,12 @@ const mostLabelled = 24
 var headed = regexp.MustCompile(`^\s*(COMING UP|LATELY|SESSIONS|ROUTING|USAGE|~?(\pL{3} )?\d\d:\d\d |~\pL{3} )`)
 
 // labelledWorld is a world of the scene's accounts, each labelled as labels
-// has it, or its own where it has none, kept by the name given.
+// has it, or its own where it has none, kept by the name given among the
+// labelled worlds alone: the worlds are kept for the whole process, and a
+// fixture's world of the same name, as mixed, must never be drawn with these
+// labels.
 func (a accountWorlds) labelledWorld(name string, labels map[string]string) accountWorld {
-	return a.kept(name, func() accountWorld {
+	return a.kept("labelled "+name, func() accountWorld {
 		w := a.scene()
 		w.accounts = append(w.accounts[:0:0], w.accounts...)
 		for i, account := range w.accounts {
@@ -147,6 +150,21 @@ func TestNoLabelIsDrawnPastALabelsMost(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+}
+
+// A labelled world is kept apart from a fixture's world of the same name, so
+// the labels guard, run in one process with the frames' test, leaves the
+// fixtures' accounts labelled as their own worlds label them.
+func TestALabelledWorldLeavesAFixturesWorldOfItsNameAsItIs(t *testing.T) {
+	worlds := newAccountWorlds(worldsNow().now)
+	for _, w := range labelWorlds {
+		worlds.labelledWorld(w.name, w.labels)
+	}
+	for _, account := range worlds.mixed().accounts {
+		if label, ok := mixedLabels[account.ID]; ok && account.Label == label {
+			t.Errorf("the mixed world, built after the labelled world of its name, labels %s %q, want its own label", account.ID, label)
 		}
 	}
 }

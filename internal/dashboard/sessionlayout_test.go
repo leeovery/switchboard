@@ -567,7 +567,7 @@ func TestTheChromeDecidesNothingButTheHeadings(t *testing.T) {
 	shown.Story = movedStory()
 	for width := 40; width <= 220; width++ {
 		f := pageFrame(t, shown, width, 60)
-		d, _ := pageDrawn(f, pageDoc())
+		d := pageLaid(f, pageDoc())
 		wide := d
 		wide.l = f.sessionLayout(len(shown.Page.Accounts), true, false)
 		rows, wideRows := drawnRows(d), drawnRows(wide)
@@ -601,7 +601,7 @@ func TestASessionsContentFormsSwitchOnceWhereTheyFit(t *testing.T) {
 		wasNow, wasLabel := false, false
 		for width := 40; width <= 220; width++ {
 			f := pageFrame(t, shown, width, 60)
-			d, _ := pageDrawn(f, world.doc())
+			d := pageLaid(f, world.doc())
 			rows := drawnRows(d)
 			label := strings.Contains(strings.Join(rows, "\n"), "cached again")
 			if d.nowWide != wasNow {
@@ -743,13 +743,18 @@ func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
 								doc.Accounts[i].Primary = doc.Accounts[i].ID == primary
 							}
 							now := sessionNow.AddDate(0, 0, later)
-							switched := 0
-							for width := 40; width <= 220 && switched == 0; width++ {
-								if pageFrame(t, shown, width, 37).At(doc, now).sessionDrawn(doc, now).nowWide {
-									switched = width
-								}
+							wideAt := func(width int) bool {
+								return pageFrame(t, shown, width, 37).At(doc, now).sessionDrawn(doc, now).nowWide
 							}
-							if want := wideFrom[state.name][w]; switched != want {
+							want := wideFrom[state.name][w]
+							// Each world, state and ▲ is swept from 40 columns once; at
+							// the other ◆s and days, the rows are held to switching at
+							// the same width, and swept only to say where they don't.
+							switched := want
+							if primary == "work" && later == 0 || wideAt(want-1) || !wideAt(want) {
+								switched = firstWide(wideAt)
+							}
+							if switched != want {
 								t.Errorf("%s, %s, ▲ on %q, ◆ on %s, %d days on, the now rows are wide from %d columns, want %d",
 									world.name, state.name, best, primary, later, switched, want)
 							}
@@ -759,6 +764,17 @@ func TestTheNowRowsSwitchWhereTheSessionsWordsSay(t *testing.T) {
 			}
 		}
 	}
+}
+
+// firstWide is the narrowest width from 40 to 220 columns that wideAt
+// reports wide, 0 where none is.
+func firstWide(wideAt func(width int) bool) int {
+	for width := 40; width <= 220; width++ {
+		if wideAt(width) {
+			return width
+		}
+	}
+	return 0
 }
 
 // Row 6's right takes its fullest form where it fits beside the left as
@@ -786,7 +802,7 @@ func TestRow6sRightIsAsFullAsTheWordsSaidNowLeaveRoomFor(t *testing.T) {
 				for _, doing := range doings {
 					shown := *state.shown
 					shown.Page.Activity = doing
-					d, _ := pageDrawn(pageFrame(t, &shown, width, 37), pageDoc())
+					d := pageLaid(pageFrame(t, &shown, width, 37), pageDoc())
 					forms = append(forms, d.startedFit().plain())
 				}
 				if slices.ContainsFunc(forms, func(form string) bool { return form != forms[0] }) {
@@ -810,7 +826,7 @@ func TestRow6sRightCountsTheMarksItsNameCarries(t *testing.T) {
 	doc.Best = "personal"
 	switchedAt := func(doc status.Document) int {
 		for width := 40; width <= 220; width++ {
-			if d, _ := pageDrawn(pageFrame(t, resumed(), width, 30), doc); d.nowWide {
+			if d := pageLaid(pageFrame(t, resumed(), width, 30), doc); d.nowWide {
 				return width
 			}
 		}
@@ -943,6 +959,12 @@ func stayText(row []rune, d sessionDrawn, p stayPart) string {
 	return strings.TrimSpace(string(row[col.x : col.x+col.width]))
 }
 
+// pageLaid is the page f draws of doc at the frames' now, as it lays it
+// out, for a test that reads none of it drawn.
+func pageLaid(f Frame, doc status.Document) sessionDrawn {
+	return f.At(doc, sessionNow).sessionDrawn(doc, sessionNow)
+}
+
 // pageDrawn is the page f draws of doc at the frames' now, as it lays it
 // out, and drawn, as text, a row a slice of runes as wide as the frame.
 func pageDrawn(f Frame, doc status.Document) (sessionDrawn, [][]rune) {
@@ -989,7 +1011,7 @@ func TestATurnsColumnsLeaveInTheirOrder(t *testing.T) {
 	leaving := []turnPart{turnTools, turnAsking, turnRead, turnWritten, turnOut}
 	for _, world := range pageWorlds {
 		for width := 40; width <= 220; width++ {
-			d, _ := pageDrawn(pageFrame(t, moved(), width, 37), world.doc())
+			d := pageLaid(pageFrame(t, moved(), width, 37), world.doc())
 			for _, p := range kept {
 				if _, ok := d.turnColumnOf(p); !ok {
 					t.Errorf("%s, at %d columns, column %d doesn't show, want it kept", world.name, width, p)
@@ -1082,7 +1104,7 @@ func TestAnAccountsRowGivesWayInItsOrder(t *testing.T) {
 		var beforeRows [][]rune
 		var steps, want []int
 		for width := 220; width >= 40; width-- {
-			d, _ := pageDrawn(pageFrame(t, moved(), width, 37), world.doc())
+			d := pageLaid(pageFrame(t, moved(), width, 37), world.doc())
 			step := stayStep(t, world.name, width, d)
 			if len(steps) == 0 || step != steps[len(steps)-1] {
 				steps = append(steps, step)
@@ -1492,9 +1514,9 @@ func TestOnlyASessionThatCanAskKeepsAskingsCells(t *testing.T) {
 	quiet := moved()
 	quiet.Page.Activity = views.Activity{Since: sessionNow.Add(-9 * time.Minute)}
 	for width := 40; width <= 220; width++ {
-		running, _ := pageDrawn(pageFrame(t, moved(), width, 37), pageDoc())
-		between, _ := pageDrawn(pageFrame(t, quiet, width, 37), pageDoc())
-		ended, _ := pageDrawn(pageFrame(t, over, width, 37), pageDoc())
+		running := pageLaid(pageFrame(t, moved(), width, 37), pageDoc())
+		between := pageLaid(pageFrame(t, quiet, width, 37), pageDoc())
+		ended := pageLaid(pageFrame(t, over, width, 37), pageDoc())
 		if !slices.Equal(running.turnColumns, between.turnColumns) {
 			t.Errorf("at %d columns, a quiet session's turns are laid out\n%+v\nwant them as a running one's\n%+v", width, between.turnColumns, running.turnColumns)
 		}
