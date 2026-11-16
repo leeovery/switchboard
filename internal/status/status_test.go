@@ -1864,6 +1864,10 @@ func TestShut(t *testing.T) {
 		{name: "past its limit", account: status.Account{Limit: status.Limit{Windows: []string{"5h"}, Until: built}}},
 		{name: "its token refused", account: status.Account{Refused: status.Refusal{Until: later, Status: 401}}, want: true},
 		{name: "refused a model family alone", account: status.Account{Refused: status.Refusal{Until: later, Status: 403, Family: "fable"}}},
+		{name: "its subscription ended, as its last read says", account: status.Account{Error: endedSubscription}, want: true},
+		{name: "its token refused as it was last read", account: status.Account{Error: "HTTP 401 · Invalid bearer token"}, want: true},
+		{name: "its last read refused otherwise", account: status.Account{Error: "HTTP 403 · Request not allowed"}},
+		{name: "its last read unanswered", account: status.Account{Error: "timed out after 5s"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -24,10 +24,10 @@ const maxMessage = 100
 // the hash of the token whose year its status gives, "" where it gives none;
 // whether its quota leaves it room for a request of any model, which is known
 // once its usage has been read or a limit has barred it, and the keys of the
-// windows that leave it none, where it has none; whether its token was
-// refused too lately for anything to go out on it; the id of its pool, ""
-// in a config without pools; and the label of its pool, as a notification
-// of it names the pool once there's a second, "" till then.
+// windows that leave it none, where it has none; whether its token is
+// refused, so nothing goes out on it, as usage's turnedAway says; the id of
+// its pool, "" in a config without pools; and the label of its pool, as a
+// notification of it names the pool once there's a second, "" till then.
 type standing struct {
 	status.Account
 	yearOf                string

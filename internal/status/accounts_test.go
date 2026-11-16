@@ -39,8 +39,8 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
 		"its subscription ended, its 5-hour reset since it was read": {
-			"work": {state: "● open", head: "○ idle · window starts with its next request"},
-			"side": {state: "● open", head: "● open"},
+			"work": {state: "■ lapsed", head: "■ subscription lapsed · its subscription needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
 		"a stale document, built three hours before now": {
 			"work": {state: "● open", head: "○ idle · window starts with its next request"},

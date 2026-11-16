@@ -62,6 +62,7 @@ With more than one account, a lane for the pool sits under the others, labelled
 `Σ pool`.
 
 - Each column shows how many accounts have room.
+- From now on, an account with an ended subscription or a refused token counts as having none.
 - A low red bar along its foot, `▂`, marks where none has.
 - Under the label is the room left in the week, such as `week 1.2 of 3 left`. It counts the
   accounts that have the week.

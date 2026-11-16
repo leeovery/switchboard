@@ -40,6 +40,8 @@ The key line under the block names the marks:
   ROUTING may still show it as `● open`.
 - **The `Σ pool` row** counts only the accounts that have the window, for example `1.2 of 3 left`.
   If fewer than two accounts have the window, and not all of them, the row shows nothing for it.
+  An account with an ended subscription or a refused token adds no room, because the router sends
+  it nothing.
 - **With one account** there's no `Σ pool` row. The heading says the room left in each window
   instead, if the heading has room for it.
 
@@ -79,10 +81,18 @@ ROUTING says in words how each account stands with the router. For example:
 - `● under pressure · out ~16:05`
 - `■ limit reached · back 15:54`
 - `○ idle · window starts at its prime, 16:20`
+- `■ subscription lapsed · its subscription needs renewing`
 - `✕ its token is another subscription's · switchboard accounts token b6s7`
 
-The last one means the token file for the account holds the token of another subscription. USAGE
-and Runway call it `wrong token`. To fix it, see [`switchboard accounts`](../commands/accounts.md).
+`subscription lapsed` means the account's subscription has ended. `token refused` means Anthropic
+refused the account's token. The router sends such an account nothing until a read comes back
+clean.
+To bring the account back, see
+[Troubleshooting: an account's token or subscription](../troubleshooting/tokens.md).
+
+`its token is another subscription's` means the token file for the account holds the token of
+another subscription. USAGE and Runway call it `wrong token`. To fix it, see
+[`switchboard accounts`](../commands/accounts.md).
 
 Each account row also shows:
 

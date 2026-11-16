@@ -21,7 +21,7 @@ whenever you like.
 **Lapsed.** A 5-hour window that has passed its reset with nothing read since. It reads empty,
 because it isn't running until a request starts it. Only the 5-hour window lapses: a week past its
 reset keeps its last reading until the next one. An account whose subscription has ended shows
-`subscription lapsed`, which is not this.
+`subscription lapsed`, or `lapsed` where space is short, which is not this.
 
 **Ledger.** Every request the router handles, kept without its content in a file a day. The ledger is
 part of the record, kept for 400 days unless you set another length.

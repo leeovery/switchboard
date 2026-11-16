@@ -872,15 +872,17 @@ func (s *state) due(id string, now time.Time) bool {
 
 // refreshing returns what reports whether a refresh asking for usage no
 // older than age probes an account at now: nothing has been read of it for
-// longer than age, or it's spent, as spent says, however lately it was read,
-// as the answer that reached its limit reads it, and a limit lifted by hand
-// shows only to a probe; and it can be probed, as probeable says.
+// longer than age, or it can take no request anyway, however lately it was
+// read: it's spent, as spent says, as the answer that reached its limit reads
+// it, and a limit lifted by hand shows only to a probe, or its last read was
+// refused, as readRefused says, as only a read that comes back clean lifts
+// that; and it can be probed, as probeable says.
 func (s *state) refreshing(age time.Duration) func(id string, now time.Time) bool {
 	return func(id string, now time.Time) bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		u := s.usage[id]
-		return (now.Sub(u.updated) > age || u.spent(s.policy, now)) && s.probeable(u, now)
+		return (now.Sub(u.updated) > age || u.spent(s.policy, now) || u.readRefused()) && s.probeable(u, now)
 	}
 }
 
@@ -905,12 +907,14 @@ func (s *state) probeable(u *usage, now time.Time) bool {
 
 // harmless reports whether a probe of the account at now starts no window it
 // shouldn't, as policy judges: none of its windows has lapsed, as a probe is
-// a request, and would start it. An account that's spent, as spent says, is
-// the exception: it can take no request anyway, so a probe that starts its
-// window costs nothing, and a probe is how a limit lifted before its reset,
-// as by a reset made by hand, is seen.
+// a request, and would start it. An account that can take no request anyway
+// is the exception, as a probe that starts its window costs nothing: one
+// that's spent, as spent says, as a probe is how a limit lifted before its
+// reset, as by a reset made by hand, is seen; and one whose last read was
+// refused, as readRefused says, as a read that comes back clean is how it
+// takes requests again.
 func (u *usage) harmless(policy score.Policy, now time.Time) bool {
-	return u.spent(policy, now) || len(policy.Lapsed(u.latest(), now)) == 0
+	return u.spent(policy, now) || u.readRefused() || len(policy.Lapsed(u.latest(), now)) == 0
 }
 
 // rounding returns what reports whether the router's rounds probe an account
@@ -1166,17 +1170,35 @@ func (u *usage) barred(now time.Time, family string, applies func(key string) bo
 }
 
 // refuses reports whether a refusal in force at now holds back a request of a
-// model of family: the account's token's, or the family's.
+// model of family: the account's token's, as turnedAway has it, or the
+// family's.
 func (u *usage) refuses(now time.Time, family string) bool {
-	return u.refused.inForce(now) || u.forbidden[family].inForce(now)
+	return u.turnedAway(now) || u.forbidden[family].inForce(now)
 }
 
 // shut reports whether the account has no room at now for a request of any
-// model, whatever its windows read: its token's refusal is in force, or a
-// limit it reached holds back the requests of every model, which shared says
-// the windows of.
+// model, whatever its windows read: it's turned away, as turnedAway says, or
+// a limit it reached holds back the requests of every model, which shared
+// says the windows of.
 func (u *usage) shut(now time.Time, shared func(key string) bool) bool {
-	return u.refused.inForce(now) || u.limited.holds(now, shared)
+	return u.turnedAway(now) || u.limited.holds(now, shared)
+}
+
+// turnedAway reports whether the account's token is refused at now, holding
+// back every request: the upstream's refusal of it is in force, or its last
+// read was refused, as readRefused says. Only the upstream's refusal keeps
+// it off the rounds and unprimed for a while: a read refused is lifted by
+// the next read that comes back clean, so it's read on.
+func (u *usage) turnedAway(now time.Time) bool {
+	return u.refused.inForce(now) || u.readRefused()
+}
+
+// readRefused reports whether the API refused the account's last read, as
+// status.RefusedRead finds its error: its subscription has ended, or its
+// token is refused. Any reading clears the error, as take has it, and so
+// does the account going out on another token, as probesAfresh has it.
+func (u *usage) readRefused() bool {
+	return status.RefusedRead(u.probeErr) != 0
 }
 
 // spent reports whether the account's quota leaves it no room at now for a
@@ -1440,7 +1462,7 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 		yearOf:  yearOf,
 		quota:   !limited && score.Available(st.Windows, a.Reserve, policy.IsShared, now),
 		known:   limited || len(st.Windows) > 0,
-		refused: u.refused.inForce(now),
+		refused: u.turnedAway(now),
 	}
 	if limited {
 		s.held = slices.Clone(u.limited.windows)

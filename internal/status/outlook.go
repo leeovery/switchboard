@@ -110,13 +110,15 @@ func (d Document) AccountWorkedOut(id string, policy score.Policy) (Account, boo
 // them; what limit holds it, as held says, limited set where any does;
 // whether its cap holds it back from every request, a window every model
 // shares having reached its reserve, which holds it back, as reserveHolds
-// says; and whether its token is refused.
+// says; whether the router saw its token refused; and why the API refused
+// its last read, as RefusedRead has it, zero where it didn't.
 type standing struct {
-	lapsed  []string
-	held    Hold
-	limited bool
-	capped  bool
-	refused bool
+	lapsed      []string
+	held        Hold
+	limited     bool
+	capped      bool
+	refused     bool
+	refusedRead StaleCause
 }
 
 // hasLapsed reports whether the account's window with the given key has
@@ -226,9 +228,16 @@ func (s standing) outOfQuota() bool {
 }
 
 // shut reports whether the account can take no request: it's out of quota,
-// as outOfQuota says, or its token is refused.
+// as outOfQuota says, or it's turned away, as turnedAway says.
 func (s standing) shut() bool {
-	return s.outOfQuota() || s.refused
+	return s.outOfQuota() || s.turnedAway()
+}
+
+// turnedAway reports whether the account can take no request, whatever its
+// windows read, as its token is refused: the router saw it refused, or the
+// API refused its last read.
+func (s standing) turnedAway() bool {
+	return s.refused || s.refusedRead != 0
 }
 
 // lastHold is which of the holds that keep an account from new work lifts
@@ -245,11 +254,12 @@ const (
 // back is when the account is back from every hold that keeps it from new
 // work: once the last lifts of a limit holding back its every request, as
 // held has it, its cap, at capBack, and the refusal of its token, at
-// refused, each where it holds; zero where none does, or one of them lifts
-// at no known time. last is the hold it's back from, the last to lift: its
-// cap where that lifts after any such limit, and the refusal of its token
-// where that lifts after both; where two lift together, a hold of its quota
-// before the refusal, and its limit before its cap.
+// refused, or at no known time where its read was refused, which holds till
+// a read comes back clean, each where it holds; zero where none does, or one
+// of them lifts at no known time. last is the hold it's back from, the last
+// to lift: its cap where that lifts after any such limit, and the refusal of
+// its token where that lifts after both; where two lift together, a hold of
+// its quota before the refusal, and its limit before its cap.
 func (s standing) back(capBack, refused time.Time) (back time.Time, last lastHold) {
 	var lifts []time.Time
 	var quotaBack time.Time
@@ -262,7 +272,10 @@ func (s standing) back(capBack, refused time.Time) (back time.Time, last lastHol
 			last, quotaBack = lastCap, capBack
 		}
 	}
-	if s.refused {
+	if s.refusedRead != 0 {
+		refused = time.Time{}
+	}
+	if s.turnedAway() {
 		lifts = append(lifts, refused)
 		if !s.outOfQuota() || refused.After(quotaBack) {
 			last = lastRefusal
@@ -462,10 +475,11 @@ func (j judgedAccount) usedOf(w judged) (float64, bool) {
 
 // uncounted reports whether the pool counts nothing of the account, neither
 // its use nor its room: one without a usable token, or nothing read, as
-// unknown says, or whose token is refused.
+// unknown says, or turned away, its token or its read refused, as
+// turnedAway says.
 func (s windowStates) uncounted() bool {
 	_, unknown := s.unknown(true)
-	return unknown || s.stood.refused
+	return unknown || s.stood.turnedAway()
 }
 
 // poolRoom is the room the account has left in its window w at now, as the

@@ -120,6 +120,11 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 	unread.FetchedAt = time.Time{}
 	limitedCapped := readAccount("both", sessionOf(0.5, 3*time.Hour), weekOf(0.95, 2*time.Hour))
 	limitedCapped.Reserve, limitedCapped.Limit = 0.1, status.Limit{Until: now.Add(time.Hour).UTC()}
+	failedWith := func(id, err string) status.Account {
+		a := readAccount(id, sessionOf(0.1, time.Hour))
+		a.Error = err
+		return a
+	}
 	tests := []struct {
 		name    string
 		account status.Account
@@ -134,6 +139,13 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 		{name: "held at its limit", account: limitedAccount("limited"), want: RoutingRow{Reason: "at its limit till 14:12"}},
 		{name: "held at its limit, its cap holding it longer: till it's back", account: limitedCapped, want: RoutingRow{Reason: "at its limit till 15:12"}},
 		{name: "its token refused", account: refused, want: RoutingRow{Reason: "token refused (401)"}},
+		{
+			name:    "its subscription ended, as its last read says",
+			account: failedWith("ended", "HTTP 403 · OAuth authentication is currently not allowed for this organ"),
+			want:    RoutingRow{Reason: "subscription lapsed"},
+		},
+		{name: "its token refused as it was last read", account: failedWith("refusedread", "HTTP 401 · Invalid bearer token"), want: RoutingRow{Reason: "token refused"}},
+		{name: "its last read failed otherwise", account: failedWith("failed", "HTTP 529 · Overloaded"), want: RoutingRow{Open: true, Pickable: true}},
 		{name: "without a token", account: tokenless, want: RoutingRow{Reason: "no token"}},
 		{name: "its token another subscription's", account: foreign, want: RoutingRow{Reason: "wrong token"}},
 	}

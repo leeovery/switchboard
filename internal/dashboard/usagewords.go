@@ -111,11 +111,8 @@ func lacked(window string) usageWords {
 // token refused; else when it was last read, as prose.NotReadSince says it,
 // in text.subtle.
 func staleWords(cause status.StaleCause, at, now time.Time) usageWords {
-	switch cause {
-	case status.StaleLapsed:
-		return usageWords{full: line{{prose.SubscriptionLapsed, errorInk}}, short: line{{prose.SubscriptionLapsedShort, errorInk}}}
-	case status.StaleRefused:
-		return usageWords{full: line{{prose.TokenRefused, errorInk}}, short: line{{prose.TokenRefusedShort, errorInk}}}
+	if full, short := cause.Said(); full != "" {
+		return usageWords{full: line{{full, errorInk}}, short: line{{short, errorInk}}}
 	}
 	full, short := prose.NotReadSince(now, at)
 	return usageWords{full: line{{full, dimInk}}, short: line{{short, dimInk}}}

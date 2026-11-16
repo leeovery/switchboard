@@ -1,5 +1,7 @@
 package status
 
+import "github.com/leeovery/switchboard/internal/prose"
+
 // AccountState is an account's state in a word, as Accounts says it and
 // counts its accounts in: how it stands with the router, in fewer words than
 // ROUTING's.
@@ -19,6 +21,8 @@ const (
 	StateLimit
 	// StateRefused is an account whose token was refused.
 	StateRefused
+	// StateLapsed is an account whose subscription has ended.
+	StateLapsed
 	// StateNotRead is an account whose usage isn't read: without a usable
 	// token, not read yet, or unreadable.
 	StateNotRead
@@ -36,7 +40,9 @@ func (s AccountState) Word() string {
 	case StateLimit:
 		return "limit"
 	case StateRefused:
-		return "refused"
+		return prose.TokenRefusedShort
+	case StateLapsed:
+		return prose.SubscriptionLapsedShort
 	case StateNotRead:
 		return "not read"
 	}
@@ -57,6 +63,8 @@ func (s AccountState) Means() string {
 		return "a limit holds it back from every request"
 	case StateRefused:
 		return "its token was refused"
+	case StateLapsed:
+		return "its subscription has ended: the API refuses its login"
 	case StateNotRead:
 		return "its usage isn't read: it has no usable token, or its usage couldn't be read or hasn't been yet"
 	}
@@ -64,10 +72,11 @@ func (s AccountState) Means() string {
 }
 
 // Glyph is the glyph the state's word leads with: ■ held back from every
-// request by a limit or a refusal; ○ not read; and ● otherwise.
+// request by a limit, a refusal or its subscription ended; ○ not read; and ●
+// otherwise.
 func (s AccountState) Glyph() string {
 	switch s {
-	case StateLimit, StateRefused:
+	case StateLimit, StateRefused, StateLapsed:
 		return "■"
 	case StateNotRead:
 		return "○"
@@ -92,6 +101,8 @@ func (k RoutingKind) State() AccountState {
 		return StateLimit
 	case RoutingRefused:
 		return StateRefused
+	case RoutingLapsed:
+		return StateLapsed
 	case RoutingTokenless, RoutingUnread, RoutingUnreadable:
 		return StateNotRead
 	}

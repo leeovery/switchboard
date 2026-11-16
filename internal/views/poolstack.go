@@ -143,10 +143,12 @@ func stackedRooms(a status.AccountNow, key string, tl Timeline, past []heldColum
 // key at t, ahead of now, by its projection: RoomAhead's room, counted from
 // none used, less what the account's floor keeps back, so it's counted from
 // its floor, as RoomThen and the room now count it, and the two meet at now;
-// or now's, where RoomAhead says nothing of it.
+// or now's, where RoomAhead says nothing of it, or a's read is refused, as
+// its RefusedRead has it, which no time lifts, though a limit holding it
+// does.
 func roomAhead(a status.AccountNow, key string, t time.Time, now float64) float64 {
 	room, ok := a.RoomAhead(key, t)
-	if !ok {
+	if !ok || a.RefusedRead != 0 {
 		return now
 	}
 	return max(room-(1-a.Floor), 0)

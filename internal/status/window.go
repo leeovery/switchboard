@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -68,17 +69,55 @@ const (
 	StaleFailed
 )
 
+// Said is the cause in words, in full and short, where the API refused the
+// read: "subscription lapsed" and "lapsed" of an ended subscription, "token
+// refused" and "refused" of a refused token, as prose has them; none of a
+// read that failed otherwise.
+func (c StaleCause) Said() (full, short string) {
+	switch c {
+	case StaleLapsed:
+		return prose.SubscriptionLapsed, prose.SubscriptionLapsedShort
+	case StaleRefused:
+		return prose.TokenRefused, prose.TokenRefusedShort
+	}
+	return "", ""
+}
+
+// RefusedRead is why the API refused a read whose error is err, as a probe's
+// error gives it: StaleLapsed where it refused the organization's login, as
+// claude.LoginBarredRead finds it, which is how an ended subscription is
+// answered; StaleRefused where it refused the token, as
+// claude.TokenRefusedRead finds it; and zero where it didn't, as of a read
+// that timed out or was answered otherwise, or that didn't fail. A read
+// refused holds its account back from every request, as the router's
+// refusal of its token does, till a read comes back clean, which clears the
+// error: it's the one rule the router and status hold an account back by.
+func RefusedRead(err string) StaleCause {
+	switch {
+	case claude.LoginBarredRead(err):
+		return StaleLapsed
+	case claude.TokenRefusedRead(err):
+		return StaleRefused
+	}
+	return 0
+}
+
+// refusedRead is why the API refused the account's last read, as RefusedRead
+// has it of its error.
+func (a Account) refusedRead() StaleCause {
+	return RefusedRead(a.Error)
+}
+
 // staleCause is why the account's reading is stale at now, as StaleCause
 // orders the causes: zero where it isn't, its token not refused at now and
 // its last read not failed.
 func (a Account) staleCause(now time.Time) StaleCause {
-	failed := a.Error != ""
-	switch {
-	case failed && claude.LoginBarredRead(a.Error):
+	switch read := a.refusedRead(); {
+	case read == StaleLapsed:
 		return StaleLapsed
-	case a.tokenRefused(now), failed && claude.TokenRefusedRead(a.Error):
+	case a.tokenRefused(now), read == StaleRefused:
 		return StaleRefused
-	case failed:
+	case a.Error != "":
 		return StaleFailed
 	}
 	return 0
@@ -130,7 +169,7 @@ func (d Document) windowStatesOf(a Account, now time.Time, policy score.Policy) 
 		refusing: a.Refused.holds(now), idle: a.idleAt(now, policy), pressed: a.underPressure(now),
 		lacks: a.lacking(policy), stale: a.staleCause(now),
 	}
-	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.tokenRefused(now)}
+	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.tokenRefused(now), refusedRead: a.refusedRead()}
 	s.stood.held, s.stood.limited = a.held(now, policy)
 	s.stood.capped = d.reserveHolds(a) && slices.ContainsFunc(s.reached, policy.IsShared)
 	if s.stood.capped {

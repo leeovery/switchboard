@@ -234,6 +234,7 @@ const (
 	heldNoToken = "held: no token"
 	heldLimit   = "held: limit"
 	heldRefused = "held: token refused"
+	heldLapsed  = "held: subscription lapsed"
 	heldCap     = "held: cap"
 )
 
@@ -246,6 +247,8 @@ func routingStands(k status.RoutingKind) string {
 		return heldLimit
 	case status.RoutingRefused:
 		return heldRefused
+	case status.RoutingLapsed:
+		return heldLapsed
 	case status.RoutingCapped:
 		return heldCap
 	default:
@@ -266,6 +269,8 @@ func cardStands(r RoutingRow) string {
 		return heldLimit
 	case strings.HasPrefix(r.Reason, "token refused"):
 		return heldRefused
+	case r.Reason == "subscription lapsed":
+		return heldLapsed
 	default:
 		return r.Reason
 	}

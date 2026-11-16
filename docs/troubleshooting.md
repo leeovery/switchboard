@@ -27,7 +27,8 @@ order, then find your symptom in the table below.
 | An import is refused | [The move onto account ids](troubleshooting/account-ids.md) |
 | `claude` starts nothing in a folder, or a pool refuses a request | [Sessions in a pool](troubleshooting/pools.md) |
 | A command, the dashboard or the config is refused for a pool | [Commands in a pool](troubleshooting/pool-commands.md) |
-| An account reads `wrong token` | [An account with the wrong token](troubleshooting/tokens.md) |
+| An account reads `subscription lapsed` or `token refused` | [An account's token or subscription](troubleshooting/tokens.md) |
+| An account reads `wrong token` | [An account's token or subscription](troubleshooting/tokens.md) |
 | An export fails, or shows `running` for long | [An export that fails](troubleshooting/exports.md) |
 | Notifications don't show, or show as Script Editor | [Notifications that don't show](troubleshooting/notifications.md) |
 | The Log, or the session page, is slow to open | [The dashboard is slow to look back](troubleshooting/slow-pages.md) |

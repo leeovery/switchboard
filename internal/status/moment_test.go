@@ -125,9 +125,14 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	if doc.CapHolds(a, now, policy) {
 		lifts = append(lifts, capBack)
 	}
-	if a.TokenRefused(now) {
+	refusedRead := status.RefusedRead(a.Error)
+	switch {
+	case refusedRead != 0:
+		lifts = append(lifts, time.Time{})
+	case a.TokenRefused(now):
 		lifts = append(lifts, a.Refused.Until)
 	}
+	turnedAway := a.TokenRefused(now) || refusedRead != 0
 	limit, _ := doc.LimitEvent(a, now)
 	want := status.AccountNow{
 		ID: a.ID, Label: a.Label, Place: place, Primary: a.Primary,
@@ -137,10 +142,10 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		TokenSet: a.TokenSet, Read: !a.FetchedAt.IsZero(), ReadAt: a.FetchedAt, Error: prose.Clean(a.Error), Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: got.Routing, Hold: hold, Held: held, LimitHolds: a.Limit.Holds(now), LimitSince: got.LimitSince, LimitMoved: limit.Count,
 		ReachedReserve: a.ReachedReserve(now), CapHolds: doc.CapHolds(a, now, policy), CapSince: got.CapSince, CapBack: capBack,
-		Refusal: refusal, RefusedSince: got.RefusedSince, TokenRefused: a.TokenRefused(now),
+		Refusal: refusal, RefusedSince: got.RefusedSince, TokenRefused: a.TokenRefused(now), RefusedRead: refusedRead,
 		Pressure: status.PressureNow{Under: a.UnderPressure(now), Window: a.Pressure.Window, Out: pressureOut},
 		Idle:     a.HasLapsed(policy.Started, now, policy), NextPrime: primeOf(doc, a.ID),
-		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !a.TokenRefused(now),
+		OutOfQuota: outOfQuota, CanRise: a.TokenSet && !a.FetchedAt.IsZero() && !outOfQuota && !turnedAway,
 		Back:    lastOf(lifts),
 		Windows: got.Windows,
 	}
@@ -162,7 +167,7 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 		TokenSet: a.TokenSet, Read: a.Read, ReadAt: a.ReadAt, Error: a.Error, Failures: a.Failures, Sessions: a.Sessions, Extra: a.Extra,
 		Routing: a.Routing, Hold: a.Hold, Held: a.Held, LimitHolds: a.LimitHolds, LimitSince: a.LimitSince, LimitMoved: a.LimitMoved,
 		ReachedReserve: a.ReachedReserve, CapHolds: a.CapHolds, CapSince: a.CapSince, CapBack: a.CapBack,
-		Refusal: a.Refusal, RefusedSince: a.RefusedSince, TokenRefused: a.TokenRefused, Pressure: a.Pressure,
+		Refusal: a.Refusal, RefusedSince: a.RefusedSince, TokenRefused: a.TokenRefused, RefusedRead: a.RefusedRead, Pressure: a.Pressure,
 		Idle: a.Idle, NextPrime: a.NextPrime, OutOfQuota: a.OutOfQuota, CanRise: a.CanRise, Back: a.Back, Windows: a.Windows,
 	}
 }

@@ -127,4 +127,4 @@ If the router uses another state directory, config file or Claude Code config di
 - [`switchboard setup`](../commands/setup.md): every page of `setup`, and its keys.
 - [`claude` doesn't go through switchboard](claude-link.md): when the `claude` link step finds
   another `claude`.
-- [Tokens](tokens.md): an account with the wrong token.
+- [Tokens](tokens.md): an account with an ended subscription, a refused token or the wrong token.

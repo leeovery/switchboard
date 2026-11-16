@@ -1,7 +1,49 @@
-# Troubleshooting: an account with the wrong token
+# Troubleshooting: an account's token or subscription
 
 Each account has a token file, and the API says which subscription a token is for. This page covers
-an account whose token belongs to another subscription.
+an account whose subscription has ended, whose token is refused, or whose token belongs to another
+subscription.
+
+## An account reads `subscription lapsed`
+
+ROUTING reads `■ subscription lapsed · its subscription needs renewing`, and USAGE reads
+`subscription lapsed` in red. Anthropic refused the last read of the account's usage. Anthropic
+refuses the login of an ended subscription that way.
+
+The router sends nothing on that account until a read of it comes back clean:
+
+- The account's sessions move to the other accounts.
+- A pin to the account yields.
+- `Σ pool` leaves out the account's room.
+- If every account in a pool reads so, work in that pool waits, the same as when every account is
+  out.
+
+To bring the account back, renew the subscription. The router reads the account again within half
+an hour, and sends it sessions once that read is clean. Press `R` on the dashboard to read it
+sooner. If you no longer use the account, remove it. Switchboard keeps the account's history.
+
+```bash
+# Removes the account; its history stays
+switchboard accounts remove b6s7
+```
+
+## An account reads `token refused`
+
+ROUTING reads `■ token refused · its token needs renewing`. Anthropic refused the token in the
+account's file when the router last read the account. The router sends the account nothing until a
+read comes back clean, the same as for `subscription lapsed`.
+
+Give the account a new token. The router takes up a new token within 3 seconds of the file
+changing, and routes to the account at once.
+
+```bash
+# Makes a new token for work; or press t in
+# setup
+switchboard accounts token b6s7
+```
+
+A read that fails for another reason, such as a timeout or an overloaded API, holds nothing back. The
+account keeps taking sessions on its last reading.
 
 ## An account reads `wrong token`
 

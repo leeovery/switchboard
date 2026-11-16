@@ -424,7 +424,9 @@ func HardMoments(policy score.Policy) []HardMoment {
 		},
 		{
 			// An ended subscription's probe is refused its organization's
-			// login, 403, its message cut to the 60 characters kept.
+			// login, 403, its message cut to the 60 characters kept: the
+			// router sends it nothing till a read comes back clean, so new
+			// sessions go to side.
 			Name: "its subscription ended, its 5-hour reset since it was read",
 			Doc: Router(policy, nil,
 				Routed{Account: with(readAt("work", windowIn("5h", 0.7, 2*time.Minute), windowIn("7d", 0.4, 3*day)), func(a *status.Account) {
@@ -433,12 +435,12 @@ func HardMoments(policy score.Policy) []HardMoment {
 				Routed{Account: side},
 			),
 			Now: Built.Add(5 * time.Minute),
-			Want: Facts{Next: "work", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingIdle, Idle: true, CanRise: true, Windows: map[string]WindowFacts{
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingLapsed, Idle: true, Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowNotStarted, ResetSinceRead: true, Lapsed: true},
 					"7d": {Kind: status.WindowStale, Stale: status.StaleLapsed, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(3 * day)},
 				}},
-				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
+				"side": sideOpen,
 			}},
 		},
 		{

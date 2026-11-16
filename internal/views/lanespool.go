@@ -36,7 +36,8 @@ func (p Pool) Limited() bool {
 // poolOf is the pool's lane over the accounts' lanes given, as Pool has it:
 // none where the moment has no pool, as with one account, nor where the pool
 // has none, as poolCounts has it, though a lane of one is left, as where a
-// pin names one account.
+// pin names one account. An account counts with room where its lane has it,
+// till roomUntil's column.
 func (from LanesFrom) poolOf(lanes []Lane) Pool {
 	in := from.Moment.Pool().Accounts
 	if len(in) == 0 {
@@ -48,15 +49,29 @@ func (from LanesFrom) poolOf(lanes []Lane) Pool {
 		return Pool{}
 	}
 	pool := Pool{Of: of, Key: from.viewKey(), Columns: make([]PoolColumn, max(from.Timeline.Columns, 0))}
-	for c := range pool.Columns {
-		for _, l := range members {
+	for _, l := range members {
+		until := from.roomUntil(l.ID, len(pool.Columns))
+		for c := range pool.Columns {
 			pool.Columns[c].Known = pool.Columns[c].Known || l.Cells[c] != CellUnknown
-			if l.Cells[c].HasRoom() {
+			if c < until && l.Cells[c].HasRoom() {
 				pool.Columns[c].With++
 			}
 		}
 	}
 	return pool
+}
+
+// roomUntil is the column, of the columns given, from which the pool counts
+// the account with the given id without room, whatever its lane draws: now's,
+// where the moment has its read refused, as its RefusedRead has it, as the
+// router sends it nothing from then till a read comes back clean; else
+// none, past the last.
+func (from LanesFrom) roomUntil(id string, columns int) int {
+	now := from.Timeline.NowColumn()
+	if a, ok := from.Moment.Account(id); ok && a.RefusedRead != 0 && now >= 0 {
+		return now
+	}
+	return columns
 }
 
 // poolCounts is how many of the pool's accounts its lane counts in the view's

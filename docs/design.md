@@ -323,7 +323,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | Reason | Why |
 |---|---|
 | `pinned` | The session's own pin (step 1) |
-| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit or a refusal from before this request holds it back, or it has no usable token |
+| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit, a refusal or a read refused from before this request holds it back, or it has no usable token |
 | `pin yields: <id> hit its limit`, `pin yields: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it |
 | `moved by pin` | A global pin with `--move` (step 2) |
 | `sticky` | The session's account, its cache warm (step 3), a session that yielded its pin included (step 1) |
@@ -453,6 +453,21 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   returns 502, shaped as the API shapes its errors and marked `X-Should-Retry: false`, as the same
   token would only be refused again, its message giving the upstream's reason, cut to 200
   characters, with anything shaped like a token hidden.
+- **A read refused holds the account back** (the owner's call, 16 November 2026): where the API
+  refuses a read of the account's usage, answering 401, its token refused, or 403 with OAuth
+  authentication not allowed for its organization, which is how an ended subscription is answered,
+  the router holds the account back from every request, as for a token it refused itself. It's no
+  candidate, however much room it has; sessions on it move; a pin to it yields; and its pool counts
+  none of its room, so a pool whose every account is held has none, as when every account is out.
+  The hold has no timer: it lasts till a read of it comes back clean, by a probe, a prime or an
+  answer, which clears the error. A held account is never passed over for being held: it's probed
+  on the router's rounds at any hour, as one whose probe read nothing, so a subscription renewed is
+  seen within the half hour (see The router's rounds). A new token in its file lifts the hold at
+  once, as it starts its probes afresh. A read that fails otherwise, as one timed out, unanswered
+  or answered 5xx, holds nothing: the account routes on its windows as last read. The router
+  judges the hold from its own state, through the readers of Claude's answers, and the status
+  document states it once, as the account's `RefusedRead`: no view reads the error again. An
+  account removed goes as any other, its history kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -1615,10 +1630,12 @@ built:
   than room that isn't there (the owner's call, 9 November 2026). The status document carries it
   at 1, 3, 6, 12, 24 and 48 hours, with `learning` while it's the default; between them it's read
   as straight lines, and past 48 hours it falls straight to none at 96.
-- **An account that can't take requests,** its token refused or none usable, holds none of its
-  use: the router sends its sessions' requests elsewhere, and its use goes where a new session
-  would. Nor does a new session go to it. A token refused as the document is built is played as
-  refused all week: the router bars it for minutes, but a token refused once is refused again.
+- **An account that can't take requests,** its token refused, its read refused (see 401s and
+  403s) or none usable, holds none of its use: the router sends its sessions' requests elsewhere,
+  and its use goes where a new session would. Nor does a new session go to it. A token refused as
+  the document is built is played as refused all week: the router bars it for minutes, but a token
+  refused once is refused again. A read refused is played so too, as nothing but a clean read
+  lifts it.
 - **The rest goes where a new session would go** at that moment, as Choosing an account's steps 1
   and 2 choose one, among the global pin's accounts while one holds. Each account's 5-hour window is
   left out: its resets and limits come and go within a day, and nothing forecasts them.
@@ -1700,7 +1717,9 @@ come back one at a time rather than together: once all are spent, the wait for t
   minutes on. An account that can take no request anyway (see No accidental windows), or whose token
   is refused, isn't primed while it's so, as a prime couldn't start its window, but the moment it
   could be, once its limit or refusal ends, or its spent window resets; it's still probed where the
-  probe rules allow, which is how a reset made by hand is seen.
+  probe rules allow, which is how a reset made by hand is seen. One held back by a read refused
+  (see 401s and 403s) is the exception: it's primed as its schedule has it, as a prime that reads it
+  is a clean read, which lifts the hold.
 - **Through the day,** whenever an account's window resets, in use or not, the router primes it 5
   seconds on, so its windows stay back to back: the API's clock may be a little behind the Mac's,
   and a prime it took in before the reset would start nothing, and go again five minutes later,
@@ -1734,12 +1753,14 @@ last reading's reset passed with nothing read since, except to prime it, and on 
 the window it starts resets before the account's prime (see The router's rounds): that window reads
 empty, and the account's weekly readings stand. This covers the probes as the router starts, before
 it decides afresh, when no account has room, and for `POST /refresh`. The one exception is an
-account that can take no request anyway: a limit holds back its every request, or a window every
+account that can take no request anyway: a limit holds back its every request, a window every
 model shares reads spent, as last read, as when its week is spent, the limit or not, as a restart
-keeps the reading but not the limit. A probe that starts its window costs nothing then, and a probe
-is how a limit lifted before its reset, as by a reset made by hand on claude.ai, is seen, the
-reading showing its windows with room lifting the limit. A limit reached in one model's week alone
-is no exception, as the account takes other models' requests, nor is a refused token or model.
+keeps the reading but not the limit, or the API refused its last read (see 401s and 403s). A probe
+that starts its window costs nothing then, and a probe is how a limit lifted before its reset, as
+by a reset made by hand on claude.ai, is seen, the reading showing its windows with room lifting
+the limit, and how a subscription renewed is. A limit reached in one model's week alone is no
+exception, as the account takes other models' requests, nor is a token or model the router
+refused.
 Readings persist in `state.json`, with the model families each window has been seen to count, so a
 restart needs no probe but its rounds' (see The router's rounds). An account never read has no
 window known to have lapsed: it's probed as the router starts, unless a probe of it ended in the
@@ -1788,8 +1809,10 @@ accounts:
   `POST /refresh` make, as those share theirs: an account whose probe ended, read or not, waits a
   minute for the next. One whose probe read nothing is probed again on the rounds 2 minutes on,
   then 4, doubling to the half hour, and every half hour after, while it can't be read: a refused
-  token probed every 5 minutes would only fill the log. One whose token is refused isn't probed on
-  the rounds while it's so, nor one without a usable token. One that goes out on another token,
+  token probed every 5 minutes would only fill the log. One held back by a read refused (see 401s
+  and 403s) is probed so, never passed over for the hold, as only a clean read lifts it. One whose
+  token the router refused isn't probed on the rounds while it's so, nor one without a usable
+  token. One that goes out on another token,
   loses its usable token, or has a usable one again, starts afresh: how its probes went on the
   token before says nothing of this one, so neither their error nor their backoff holds. A probe
   that ends while its account has no usable token, sent before it lost it or after, as a choice
@@ -3939,10 +3962,10 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   every account on auto, only those the global pin names when pinned. Each window's room is summed
   to each account's cap, `cap − used` and never below 0, but to its limit for an account the global
   pin names, as the pin spends its reserve, with nothing from the 5-hour window of an
-  account at its limit or its cap, nor from any window of an account without a usable token, refused
-  or not read. Its percentage is its accounts' mean use of the window, each as its row shows it,
-  leaving out one without a usable token, not read, whose token is refused, or that hasn't reported
-  the window; where none is left it shows `—`, its bar empty, as a window nothing is read of (the
+  account at its limit or its cap, nor from any window of an account without a usable token, its
+  token or its read refused (see 401s and 403s), or not read. Its percentage is its accounts' mean
+  use of the window, each as its row shows it, leaving out one without a usable token, not read,
+  whose token or read is refused, or that hasn't reported the window; where none is left it shows `—`, its bar empty, as a window nothing is read of (the
   owner's call, 17 October 2026: a share of the room used read a 5% reserve as 1% used when every
   account read 0%). Its bar fills to its percentage, coloured as every bar is, with no cap's mark;
   its even pace is the mean of its accounts'. Its words are the room, their reserves counted, to one
@@ -4231,9 +4254,11 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
   | Its token another subscription's (see Account identity) | `✕ its token is another subscription's · switchboard accounts token work · or add that subscription as an account of its own` | `state.destructive` | `wrong token` |
   | A limit holds it back from every request | `■ limit reached · back 15:54` | `state.destructive` | `limit reached · 15:54` |
   | A limit holds back some models alone (settled in the plan) | `■ Fable wk limit · back Mon 21:00 · other models still come here` | `accent.attention` | `Fable wk limit` |
+  | Its subscription ended, as its last read says (the owner's call, 16 November 2026) | `■ subscription lapsed · its subscription needs renewing` | `state.destructive` | `lapsed` |
+  | Its token refused, as its last read says (the owner's call, 16 November 2026) | `■ token refused · its token needs renewing` | `state.destructive` | `refused` |
   | Its token refused | `■ refused (401) · its token needs renewing` | `state.destructive` | `refused (401)` |
   | One model's requests refused alone (settled in the plan) | `■ refused (403, opus) · other models still come here` | `accent.attention` | `refused (403)` |
-  | Its usage can't be read, nothing read before (settled in the plan) | `! can't read it · timed out` | `state.destructive` | `can't read it` |
+  | Its usage can't be read, nothing read before, the API refusing neither its token nor its login (settled in the plan) | `! can't read it · timed out` | `state.destructive` | `can't read it` |
   | Nothing read yet | `○ not read yet` | `text.subtle` | `not read yet` |
   | At its cap, which holds it back | `● at its cap · back 17:10 · new sessions go elsewhere` | `accent.attention` | `at its cap · 17:10` |
   | At its cap, the global pin naming it (settled in the plan) | `● at its cap · pinned, so new sessions still come here` | `accent.attention` | `at its cap · pinned` |
@@ -4605,8 +4630,9 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   open, at its cap, at its limit or refused, is the account's, and shows.
 - **Its accounts' states counted,** wherever an account's state goes for `all accounts`:
   `2 open · 1 at cap`, `1 open · 1 limit · 1 refused`, in the order open, pressure, at cap, limit,
-  refused and not read, each count in its state's colour (`open` in `text.secondary`, `pressure` and
-  `at cap` in `accent.attention`, `limit` and `refused` in `state.destructive`, `not read` in
+  refused, lapsed and not read, each count in its state's colour (`open` in `text.secondary`,
+  `pressure` and `at cap` in `accent.attention`, `limit`, `refused` and `lapsed` in
+  `state.destructive`, `not read` in
   `text.subtle`), ` · ` in `text.faint`. Too wide for its room, it's how many are open, pressure
   counting as open, `8 of 10 open`, in `text.secondary`.
 - **A view never changes shape with the number of accounts.** Where a view has two shapes, `v` picks
@@ -4685,7 +4711,8 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   the rest scrolls: an account's name and marks, bold, as `usage` draws a name
   (see `usage`, the printout); under them, its state in a word, as the Overview colours its
   state: `● open`, the dot `state.positive` and the word `text.secondary`; `● pressure` and
-  `● at cap`, in `accent.attention`; `■ limit` and `■ refused`, in `state.destructive`;
+  `● at cap`, in `accent.attention`; `■ limit`, `■ refused` and `■ lapsed`, the last of a
+  subscription ended (see 401s and 403s), in `state.destructive`;
   `○ not read`, in `text.subtle`. `all accounts`' head is `all accounts`, bold in
   `text.secondary`, with its accounts' states counted under it. A name is at most 24 cells
   with its marks, however wide its column: one past it, or past the column less a cell, is cut
@@ -6104,7 +6131,9 @@ blank row; with two, on the row after its words.
   top cell part-filled, as Trends' cards fill theirs (see Trends). They're coloured as `usage`
   colours a use, by `1 − with room ÷ accounts`: green under 70%, yellow from 70% and red from
   90%; the past dimmed. An account at its cap or its limit counts without room; one running out at
-  its pace has room until it does. A column where none has room, the pool at its limit, is `▂`, a
+  its pace has room until it does; and one whose read is refused counts without room from now's
+  column on, as the router sends it nothing (see 401s and 403s), though its own lane is drawn as
+  last read. A column where none has room, the pool at its limit, is `▂`, a
   quarter-cell, in `state.destructive` along its lower row, so it steps down from a half-cell column
   beside it, where a lane's `━` would sit level with its top; the past dimmed alike (the owner's
   call, 21 October 2026). The accounts' lanes keep `━`. So `▂` on the floor means the limit alone,
@@ -6536,7 +6565,8 @@ them at the section's width, from a day before now, for a week:
   then, by the readings its live views read, the readings history's live tail and those the
   dashboard read itself (see Runway's What it reads, and Live updates): none in the window a request
   starts while a limit or its cap held it back from every request, as Runway's pool lane counts it
-  without room then, and none in any while its token was refused, or isn't usable now; else the
+  without room then, and none in any while its token was refused, or isn't usable now, nor from
+  now on while its read is refused (see 401s and 403s); else the
   window's room to where it runs out, its cap where its reserve holds, else its limit, as its last
   reading by then has it: none where that read it spent or rejected, and all of it once that
   reading's reset had passed, so an account idle before its window started has all its room till
@@ -6548,7 +6578,8 @@ them at the section's width, from a day before now, for a week:
   the readings by then among it, as none after changes it, and none is judged past when the
   readings were last read through. From now on, at its projection, falling at its pace to where it runs
   out, then its floor to its reset, then full, as nothing is known of its next window, in its hue
-  mixed with the canvas so 50% of it shows.
+  mixed with the canvas so 50% of it shows; an account whose read is refused has none, as no time
+  lifts that (see 401s and 403s).
 - **Now:** `│` in `text.primary` down now's column, through every row.
 - **Under it,** Runway's axis, its three rows as Runway draws them at that width; then its key: each
   account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, as
@@ -8048,7 +8079,9 @@ numbers (see Account identity).
   choices, which reopens itself as its window resets. A pin spends the caps of the accounts it names
   (see Pinning), so an account at its cap can be picked, and takes new sessions up to its limit.
 - **Red where Anthropic closed it:** a limit holding back its every request, `at its limit till
-  15:54`; or its token refused, `token refused (401)`; and red too an account with no usable token,
+  15:54`; its read refused, as its last read says, `subscription lapsed` or `token refused`, which
+  holds till a read comes back clean (see 401s and 403s); or its token refused,
+  `token refused (401)`; and red too an account with no usable token,
   `no token`, which the router refuses a pin to (settled in the plan), or `wrong token` where its
   token is another subscription's (see Account identity).
 - **An account that can't take a session can't be picked,** in either card: its row stays, with its

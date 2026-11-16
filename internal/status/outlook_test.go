@@ -343,6 +343,24 @@ func TestThePool(t *testing.T) {
 			},
 		},
 		{
+			name:     "none from an account whose subscription ended, nor one whose read refused its token, though both count",
+			doc:      routerDocOf(with(work, failedWith(endedSubscription)), with(plainSide, failedWith("HTTP 401 · Invalid bearer token"))),
+			accounts: []string{"work", "side"},
+			want: []string{
+				"5h Session: room 0, used none, pace 0.6",
+				"7d Week: room 0, used none, pace 0.428571",
+			},
+		},
+		{
+			name:     "all from an account whose read failed otherwise, as last read",
+			doc:      routerDocOf(with(work, failedWith("HTTP 529 · Overloaded")), plainSide),
+			accounts: []string{"work", "side"},
+			want: []string{
+				"5h Session: room 1.4, used 0.3, pace 0.6",
+				"7d Week: room 1.4, used 0.3, pace 0.428571",
+			},
+		},
+		{
 			name:     "none from an account whose token is refused, nor one not read, though both count",
 			doc:      routerDocOf(with(work, refused), status.Account{ID: "personal", Label: "personal", TokenSet: true}, plainSide),
 			accounts: []string{"work", "personal", "side"},

@@ -47,6 +47,10 @@ func weekAccount(id string, now time.Time, used float64, reset time.Time, change
 	return a
 }
 
+// endedSubscription is how a read of an account whose subscription has ended
+// fails: its organization's login refused.
+const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+
 // keeping has the account keep back the reserve given.
 func keeping(reserve float64) func(*status.Account) {
 	return func(a *status.Account) { a.Reserve = reserve }
@@ -210,6 +214,21 @@ func TestThePoolsStackAheadIsEachAccountsRoomByItsProjection(t *testing.T) {
 		{name: "without a usable token", account: weekAccount("work", stackAt, 0.3, stackReset, func(a *status.Account) { a.TokenSet = false }), want: []at{
 			{k: 0, room: 0},
 			{k: 1, room: 0},
+			{k: 96, room: 0},
+		}},
+		{name: "its subscription ended, so the router sends it nothing", account: weekAccount("work", stackAt, 0.3, stackReset, func(a *status.Account) {
+			a.Error = endedSubscription
+		}), want: []at{
+			{k: 0, room: 0},
+			{k: 1, room: 0},
+			{k: 96, room: 0},
+		}},
+		{name: "held by its limit for two hours, its subscription ending meanwhile: none once its limit lifts", account: weekAccount("work", stackAt, 0.3, stackReset, func(a *status.Account) {
+			a.Limit = status.Limit{Windows: []string{claude.WeekWindow}, Until: stackAt.Add(2 * time.Hour)}
+			a.Error = endedSubscription
+		}), want: []at{
+			{k: 0, room: 0},
+			{k: 3, room: 0},
 			{k: 96, room: 0},
 		}},
 	}
