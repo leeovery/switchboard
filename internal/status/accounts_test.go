@@ -98,6 +98,10 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
+		"its subscription ended, a limit naming no window holding": {
+			"work": {state: "■ lapsed", head: "■ subscription lapsed · its subscription needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
 		"one account without a token, another not read yet": {
 			"work": {state: "○ not read", head: "✕ no token · switchboard accounts token work"},
 			"side": {state: "○ not read", head: "○ not read yet"},

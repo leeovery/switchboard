@@ -16,9 +16,15 @@ The router sends nothing on that account until a read of it comes back clean:
 - A pin to the account yields.
 - `Σ pool` leaves out the account's room.
 
-If every account in a pool reads so, no account there can take a request. A request in that pool
-goes out on one of its accounts, and Anthropic refuses it. Claude Code then shows an API error with
-the reason, and doesn't retry. Renew one account, or give one a new token, to carry on.
+If every account in a pool reads so, no account there can take a request. What you see turns on the
+account Claude Code's token belongs to:
+
+| If Claude Code's token belongs to | You see |
+|---|---|
+| The pool's primary, as usual | The request goes out on the primary, and Anthropic refuses it. Claude Code shows an API error, `switchboard: the upstream refused account b6s7 (HTTP 403)`, with Anthropic's reason, and doesn't retry. |
+| An account you removed, or one that just left the pool | Nothing goes out. Switchboard answers as a usage limit: `switchboard: no account in pool Acme can take the request; account b6s7: subscription lapsed`. |
+
+Renew one account, or give one a new token, to carry on.
 
 To bring the account back, renew the subscription. The router reads the account again within half
 an hour, and sends it sessions once that read is clean. Press `R` on the dashboard to read it
@@ -36,7 +42,8 @@ account's file when the router last read the account. The router sends the accou
 read comes back clean, the same as for `subscription lapsed`.
 
 Give the account a new token. The router takes up a new token within 3 seconds of the file
-changing, and routes to the account at once.
+changing, and routes to the account at once. The same token written back to the file lifts
+nothing, because Anthropic would refuse it again.
 
 ```bash
 # Makes a new token for work; or press t in

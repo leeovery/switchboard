@@ -85,6 +85,7 @@ router has taken it up.
 | Words | When they show |
 |---|---|
 | `limit · back 15:54` | Claude's limit holds the window. |
+| `limit` | Claude's limit holds the window, and Anthropic refused the account's last read, so no time brings the account back. Only a clean read does. |
 | `at cap · back 17:10` | The window has reached the cap, so the router holds the account back. |
 | `out ~16:05` | The window runs out before it resets. Within a day, the time shows. |
 | `out ~Sat` | It runs out more than a day ahead, so the day shows only, because a forecast days out can miss by a day. |

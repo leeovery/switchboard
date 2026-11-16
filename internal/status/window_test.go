@@ -191,10 +191,30 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
-			name:    "its token refused, the router's limit naming the window: the limit, before the refusal",
+			name:    "its token refused, the router's limit naming the window: the limit, before the refusal, back as the later refusal ends",
 			account: with(with(readNow(0.9, 0.3, 0), refused), limited("5h")),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.9, At: at(1, 15, 54).UTC()},
+			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.9, At: at(1, 21, 40).UTC()},
+		},
+		{
+			name: "its token refused till before the router's limit naming the window lifts: back as the limit lifts",
+			account: with(with(readNow(0.9, 0.3, 0), func(a *status.Account) {
+				a.Refused = status.Refusal{Until: at(1, 15, 0).UTC(), Status: 401}
+			}), limited("5h")),
+			key:  "5h",
+			want: status.WindowNow{Kind: status.WindowLimited, Used: 0.9, At: at(1, 15, 54).UTC()},
+		},
+		{
+			name:    "its subscription ended, the router's limit naming the window: the limit, back when not known",
+			account: with(with(readNow(0.9, 0.3, 0), ended), limited("5h")),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.9},
+		},
+		{
+			name:    "its last read refusing its token, the router's limit naming the window: the limit, back when not known",
+			account: with(with(readNow(0.9, 0.3, 0), readRefused), limited("5h")),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.9},
 		},
 	}
 	for _, tt := range tests {

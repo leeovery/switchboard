@@ -53,9 +53,12 @@ type usage struct {
 	// probeErr says why the last probe read nothing, but a refused read's
 	// error outlasts the failures after it, as failed says; and misses counts
 	// the probes in a row that read nothing, until a reading comes in, to
-	// backingOff.
-	probeErr string
-	misses   int
+	// backingOff. refusedSince is when its read was first refused, of the
+	// refusals probeErr has kept in a row, which the hold runs from, zero
+	// while none has.
+	probeErr     string
+	misses       int
+	refusedSince time.Time
 	// warned holds, by key, when each window the last probe couldn't read was
 	// last warned of, as warnOf has it. It's kept in memory alone.
 	warned map[string]time.Time
@@ -377,7 +380,7 @@ func (s *state) take(id string, windows []quota.Window, at time.Time, sent momen
 	for key, rise := range risen {
 		s.rose(id, key, rise, at)
 	}
-	s.judgeRooms(s.weekHeld, s.pinnedIn, at)
+	s.judgeRooms(s.roomsNow(), at)
 	for _, key := range back {
 		logger.Info("reports the window again", "account", id, "window", key)
 	}
@@ -551,7 +554,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if err != nil {
 		if !taken.tokenGone {
 			u.probed, u.ended = at, at
-			u.failed(redact.Text(err.Error()))
+			u.failed(redact.Text(err.Error()), at)
 			u.misses = min(u.misses+1, backingOff)
 			s.routine()
 		}
@@ -693,38 +696,55 @@ func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 }
 
 // tokenGained notes that the account with the given id has a usable token
-// again, or for the first time: its probes start afresh, as probesAfresh
-// says, and the token's to be checked, as unchecked says. A token it had
-// before, back unchanged, excuses none of the failures of the probes and
-// requests still out on it: only another does, which tokenReplaced notes.
+// again, or for the first time: its probes start afresh, but for its read
+// refused, as probesAfreshOnItsToken says, and the token's to be checked, as
+// unchecked says. A token it had before, back unchanged, excuses none of the
+// failures of the probes and requests still out on it: only another does,
+// which tokenReplaced notes, before this, as the account goes out on it.
 func (s *state) tokenGained(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	u.probesAfresh()
+	u.probesAfreshOnItsToken()
 	u.tokenless, u.unchecked = false, true
 }
 
 // tokenLost notes that the account with the given id has no usable token:
-// its probes start afresh, as probesAfresh says, so the state file keeps
-// none of how they went on the token it lost, which a restart with that
-// token back would otherwise take up, as one the router never lost; and
-// until it gains one, a probe that ends went out on a token it doesn't
-// hold, as recordProbe says, and leaves nothing of how it went.
+// its probes start afresh, but for its read refused, as
+// probesAfreshOnItsToken says, so the state file keeps none of how they went
+// on the token it lost, which a restart with that token back would otherwise
+// take up, as one the router never lost, but the refusal, which that token
+// back would only meet again; and until it gains one, a probe that ends went
+// out on a token it doesn't hold, as recordProbe says, and leaves nothing of
+// how it went.
 func (s *state) tokenLost(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	u.probesAfresh()
+	u.probesAfreshOnItsToken()
 	u.tokenless = true
 }
 
 // probesAfresh forgets how the account's probes went, as it goes out on a
-// token it didn't have, has a usable one again, or loses it: the probes on
-// another, or on none, say nothing of it, so neither their errors, the
-// windows they couldn't read among them, nor their backoff hold.
+// token it didn't have: the probes on another say nothing of it, so neither
+// their errors, a read refused among them, the windows they couldn't read,
+// nor their backoff hold.
 func (u *usage) probesAfresh() {
-	u.probed, u.probeErr, u.misses, u.failures, u.warned = time.Time{}, "", 0, nil, nil
+	u.probed, u.probeErr, u.refusedSince, u.misses, u.failures, u.warned = time.Time{}, "", time.Time{}, 0, nil, nil
+}
+
+// probesAfreshOnItsToken forgets how the account's probes went, as
+// probesAfresh does, as it loses its token or has it back, but its read
+// refused, as readRefused says, and when that began: the same token would
+// only be refused again, and another one, which lifts it, goes out by way of
+// tokenReplaced.
+func (u *usage) probesAfreshOnItsToken() {
+	refused, since := u.probeErr, u.refusedSince
+	keep := u.readRefused()
+	u.probesAfresh()
+	if keep {
+		u.probeErr, u.refusedSince = refused, since
+	}
 }
 
 // forbid notes that the upstream refused the account the request with the id
@@ -1184,12 +1204,19 @@ func (u *usage) refuses(now time.Time, family string) bool {
 	return u.turnedAway(now) || u.forbidden[family].inForce(now)
 }
 
-// shut reports whether the account had no room at at for a request of any
-// model, whatever its windows read: its token's refusal was in force then,
-// its read refused held it back then, as heldByReadAt says, or a limit it
-// reached held back the requests of every model, which shared says the
-// windows of.
-func (u *usage) shut(at time.Time, shared func(key string) bool) bool {
+// shut reports whether the account has no room at now for a request of any
+// model, whatever its windows read: it's turned away, as turnedAway says, or
+// a limit it reached holds back the requests of every model, which shared
+// says the windows of.
+func (u *usage) shut(now time.Time, shared func(key string) bool) bool {
+	return u.turnedAway(now) || u.limited.holds(now, shared)
+}
+
+// shutThen reports whether the account had no room at at, a moment gone, as
+// seed judges the history, for a request of any model, as shut says, but
+// held back by its read refused only from when that began, as heldByReadAt
+// says, as the moments before it weren't.
+func (u *usage) shutThen(at time.Time, shared func(key string) bool) bool {
 	return u.refused.inForce(at) || u.heldByReadAt(at) || u.limited.holds(at, shared)
 }
 
@@ -1206,28 +1233,45 @@ func (u *usage) turnedAway(now time.Time) bool {
 // status.RefusedRead finds its error: its subscription has ended, or its
 // token is refused. Only a reading clears it, as take has it, or the
 // account going out on another token, as probesAfresh has it: a read that
-// fails otherwise after it keeps it, as failed says.
+// fails otherwise after it keeps it, as failed says, and so does its token
+// lost and back, as probesAfreshOnItsToken says.
 func (u *usage) readRefused() bool {
 	return status.RefusedRead(u.probeErr) != 0
 }
 
-// heldByReadAt reports whether the account's read refused held it back at
-// at, as a moment gone is judged, as seed judges the history: from the end
-// of its last probe on, which is the refused read's or a failed read's after
-// it, so never before the refusal. Routing, which judges now alone, holds it
-// whatever the clock says, as turnedAway has it.
-func (u *usage) heldByReadAt(at time.Time) bool {
-	return u.readRefused() && !at.Before(u.probed)
+// readRefusedSaid says why the API refused the last read of the account with
+// the given id, in the words ROUTING gives the cause, as status.StaleCause's
+// Said has them, "" where it didn't, as readRefused says.
+func (s *state) readRefusedSaid(id string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	said, _ := status.RefusedRead(s.usage[id].probeErr).Said()
+	return said
 }
 
-// failed notes err as why the account's last probe read nothing, but where
-// its read was refused, as readRefused says, and err isn't a refusal too:
-// a read that times out, or is answered otherwise, says nothing of whether
-// the refusal has ended, so the account stays held till a read comes back
-// clean.
-func (u *usage) failed(err string) {
-	if u.readRefused() && status.RefusedRead(err) == 0 {
+// heldByReadAt reports whether the account's read refused held it back at
+// at, as a moment gone is judged, as seed judges the history: from when its
+// read was first refused on, as refusedSince has it, never before. Routing,
+// which judges now alone, holds it whatever the clock says, as turnedAway
+// has it.
+func (u *usage) heldByReadAt(at time.Time) bool {
+	return u.readRefused() && !at.Before(u.refusedSince)
+}
+
+// failed notes err as why the account's last probe, ended at at, read
+// nothing, but where its read was refused, as readRefused says, and err
+// isn't a refusal too: a read that times out, or is answered otherwise, says
+// nothing of whether the refusal has ended, so the account stays held till a
+// read comes back clean. A refusal that follows none starts the hold, at at;
+// one after another, as a token refused after a subscription ended, says why
+// afresh, the hold running on from when it began.
+func (u *usage) failed(err string, at time.Time) {
+	refused := status.RefusedRead(err) != 0
+	switch {
+	case u.readRefused() && !refused:
 		return
+	case refused && !u.readRefused():
+		u.refusedSince = at
 	}
 	u.probeErr = err
 }
@@ -1303,7 +1347,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 	if len(merged) == 0 {
 		return nil, nil, false
 	}
-	u.updated, u.probeErr, u.misses = at, "", 0
+	u.updated, u.probeErr, u.refusedSince, u.misses = at, "", time.Time{}, 0
 	if u.limited.liftedBy(merged, at, sent) {
 		u.lift()
 	}
@@ -1601,16 +1645,17 @@ func (s *state) saved() savedUsage {
 
 // saved is what the state file keeps of the account's usage: its windows as
 // last read, and when, the account and each window, the windows retired, its
-// extra usage, and how its probes went. It reports false where there's none
+// extra usage, and how its probes went, a read refused and when it began
+// among it, which its token lost keeps. It reports false where there's none
 // of that to keep.
 func (u *usage) saved() (savedReading, bool) {
-	if len(u.windows) == 0 && len(u.absent) == 0 && !u.extra.Given() && u.probed.IsZero() {
+	if len(u.windows) == 0 && len(u.absent) == 0 && !u.extra.Given() && u.probed.IsZero() && u.probeErr == "" {
 		return savedReading{}, false
 	}
 	return savedReading{
 		ReadAt: u.updated, Windows: u.latest(), WindowsReadAt: u.windowsReadAt(),
 		WindowsAbsent: slices.Sorted(maps.Keys(u.absent)), Extra: u.extra,
-		Probed: u.probed, ProbeError: u.probeErr, Misses: u.misses,
+		Probed: u.probed, ProbeError: u.probeErr, Misses: u.misses, RefusedSince: u.refusedSince,
 	}, true
 }
 
@@ -1679,7 +1724,25 @@ func (u *usage) recall(kept savedReading, held bool, shared func(key string) boo
 	if held {
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
 		u.probeErr = redact.Text(kept.ProbeError)
+		u.refusedSince = u.refusalKept(kept, now)
 	}
 	u.unchecked = !held
-	return !u.probed.Equal(kept.Probed) || u.misses != kept.Misses || u.probeErr != kept.ProbeError
+	return !u.probed.Equal(kept.Probed) || u.misses != kept.Misses || u.probeErr != kept.ProbeError ||
+		!u.refusedSince.Equal(kept.RefusedSince)
+}
+
+// refusalKept is when the account's read was first refused, as the state
+// file kept it, at now, where its error kept is a refusal, as readRefused
+// says: its RefusedSince, or, where a file from before kept none, when its
+// last probe ended, which is never before the refusal; none ending after
+// now, as for a probe kept so. It's zero where the error kept isn't one.
+func (u *usage) refusalKept(kept savedReading, now time.Time) time.Time {
+	if !u.readRefused() {
+		return time.Time{}
+	}
+	since := kept.RefusedSince
+	if since.IsZero() {
+		since = kept.Probed
+	}
+	return score.Earlier(since.UTC(), now)
 }

@@ -98,6 +98,7 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 	reservingLess := workAt(func(d *status.Document) { d.Accounts[0].Reserve = 0.02 })
 	pinned := workAt(func(d *status.Document) { d.Pin = status.Pin{Accounts: []string{"work"}} })
 	tokenless := workAt(func(d *status.Document) { d.Accounts[0] = status.Account{ID: "work", Label: "work"} })
+	ended := workAt(func(d *status.Document) { d.Accounts[0].Error = endedSubscription })
 	tests := []struct {
 		name string
 		// moment is of work as it's configured and read now: its reserve,
@@ -301,6 +302,16 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 			name: "a limit naming no window, as told, its token refused", moment: capping, read: []readings.Reading{week, afresh},
 			told: []status.Span{refusal, untoldLimit}, t: at(1, 14, 30),
 			want: status.Was{Kind: status.WasLimited, Until: at(1, 15, 30)},
+		},
+		{
+			name: "a limit naming no window, as told, its subscription ended: the limit, at Now too, as its lane draws it as last read", moment: ended,
+			read: []readings.Reading{week, afresh}, told: []status.Span{untoldLimit}, t: stateNow,
+			want: status.Was{Kind: status.WasLimited, Until: at(1, 15, 30)},
+		},
+		{
+			name: "its subscription ended: room, at Now too, as its lane draws it as last read", moment: ended,
+			read: []readings.Reading{week, afresh}, t: stateNow,
+			want: status.Was{Kind: status.WasRoom},
 		},
 		{
 			name: "a window's limit as its event tells, read after", moment: capping,
@@ -827,21 +838,43 @@ func eventSince(a status.AccountNow, kind status.WasKind) time.Time {
 // it, by ROUTING's kind, each hold lifting as that hold alone does, as Then
 // says a kind at a time, though another may hold the account back after it:
 // held back from every request by a limit, till its hold lifts; its token
-// refused, till the refusal ends; nothing read of it; at its cap, which
-// holds it back, till its cap lets it go; and room, as a hold of some
-// models' requests alone, a cap the global pin spends, pressure and an idle
-// window all leave it.
+// refused, till the refusal ends, but where its read was refused, its
+// subscription's end among it, as asLastRead says; nothing read of it; at
+// its cap, which holds it back, till its cap lets it go; and room, as a hold
+// of some models' requests alone, a cap the global pin spends, pressure and
+// an idle window all leave it.
 func asTheMomentHasIt(a status.AccountNow) status.Was {
 	switch a.Routing.Kind {
 	case status.RoutingTokenless:
 		return status.Was{Kind: status.WasTokenless}
 	case status.RoutingLimited:
 		return status.Was{Kind: status.WasLimited, Until: a.Hold.Until}
-	case status.RoutingRefused:
+	case status.RoutingRefused, status.RoutingLapsed:
+		if a.RefusedRead != 0 {
+			return asLastRead(a)
+		}
 		return status.Was{Kind: status.WasRefused, Until: a.Refusal.Until}
 	case status.RoutingUnreadable, status.RoutingUnread:
 		return status.Was{Kind: status.WasUnread}
 	case status.RoutingCapped:
+		return status.Was{Kind: status.WasCapped, Until: a.CapBack}
+	}
+	return status.Was{Kind: status.WasRoom}
+}
+
+// asLastRead is how the moment has the account a, whose read was refused,
+// stand, as Then says it: as last read, as Runway draws its lane, the
+// readings keeping no read refused, so what holds it back beneath the
+// refusal, in Then's precedence: a limit holding back every request, till it
+// lifts; its token refused by the router, till the refusal ends; its cap,
+// till its cap lets it go; else room.
+func asLastRead(a status.AccountNow) status.Was {
+	switch {
+	case a.Held && a.Hold.Every:
+		return status.Was{Kind: status.WasLimited, Until: a.Hold.Until}
+	case a.TokenRefused:
+		return status.Was{Kind: status.WasRefused, Until: a.Refusal.Until}
+	case a.CapHolds:
 		return status.Was{Kind: status.WasCapped, Until: a.CapBack}
 	}
 	return status.Was{Kind: status.WasRoom}

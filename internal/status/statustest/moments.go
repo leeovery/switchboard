@@ -194,6 +194,12 @@ func HardMoments(policy score.Policy) []HardMoment {
 	tokenRefused := func(a *status.Account) {
 		a.Refused = status.Refusal{Until: Built.Add(time.Hour), Status: 401}
 	}
+	// subscriptionEnded has the account's last read refused its
+	// organization's login, 403, as an ended subscription's is, its message
+	// cut to the 60 characters kept.
+	subscriptionEnded := func(a *status.Account) {
+		a.Error = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+	}
 	workUnnamed := AccountFacts{
 		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, Back: Built.Add(40 * time.Minute),
 		Windows: map[string]WindowFacts{
@@ -580,6 +586,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
+			// The limit lifts 40 minutes after Built, the refusal of work's
+			// token an hour after: its windows are back as the later ends.
 			Name: "its token refused, a limit naming no window holding",
 			Doc:  unnamed(nil, tokenRefused, side),
 			Now:  Built.Add(10 * time.Minute),
@@ -588,13 +596,31 @@ func HardMoments(policy score.Policy) []HardMoment {
 					Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, Back: Built.Add(time.Hour),
 					Windows: map[string]WindowFacts{
 						"5h": {
-							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.5, Next: Built.Add(3 * time.Hour),
+							Kind: status.WindowLimited, At: Built.Add(time.Hour), Used: 0.5, Next: Built.Add(3 * time.Hour),
 							Held: true, Out: Built.Add(2 * time.Hour),
 						},
 						"7d": {
-							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.6, Next: Built.Add(3 * day),
+							Kind: status.WindowLimited, At: Built.Add(time.Hour), Used: 0.6, Next: Built.Add(3 * day),
 							Held: true, Out: Built.Add(64 * time.Hour),
 						},
+					},
+				},
+				"side": sideOpen,
+			}},
+		},
+		{
+			// Work's subscription ended as a limit naming no window held it:
+			// the limit lifts 40 minutes after Built, but only a read that
+			// comes back clean lifts the hold, so when it's back isn't known.
+			Name: "its subscription ended, a limit naming no window holding",
+			Doc:  unnamed(nil, subscriptionEnded, side),
+			Now:  Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {
+					Routing: status.RoutingLapsed, Held: true, OutOfQuota: true, LimitHolds: true,
+					Windows: map[string]WindowFacts{
+						"5h": {Kind: status.WindowLimited, Used: 0.5, Next: Built.Add(3 * time.Hour), Held: true, Out: Built.Add(2 * time.Hour)},
+						"7d": {Kind: status.WindowLimited, Used: 0.6, Next: Built.Add(3 * day), Held: true, Out: Built.Add(64 * time.Hour)},
 					},
 				},
 				"side": sideOpen,

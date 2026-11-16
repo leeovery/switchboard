@@ -196,9 +196,11 @@ func (s savedUsage) read() int {
 // savedReading is an account's windows as last read, and when, and when each
 // window was, by its key, the keys of the windows its whole readings stopped
 // reporting, in order, and its extra usage; and how its probes went: when one
-// last ended, why the last read nothing, and how many in a row did. A file
-// from before kept none of the probes, which reads as none ended, and no
-// window retired.
+// last ended, why the last read nothing, how many in a row did, and, where
+// that's a read refused, when the refusal began. A file from before kept
+// none of the probes, which reads as none ended, and no window retired; and
+// one from before kept no refusal's start, which reads as its last probe's
+// end. A router from before reads a file kept with one, ignoring it.
 type savedReading struct {
 	ReadAt        time.Time            `json:"read_at,omitzero"`
 	Windows       []quota.Window       `json:"windows,omitempty"`
@@ -208,6 +210,7 @@ type savedReading struct {
 	Probed        time.Time            `json:"probed,omitzero"`
 	ProbeError    string               `json:"probe_error,omitempty"`
 	Misses        int                  `json:"misses,omitempty"`
+	RefusedSince  time.Time            `json:"refused_since,omitzero"`
 }
 
 // load takes in the state file at path, as the router starts, the pools as

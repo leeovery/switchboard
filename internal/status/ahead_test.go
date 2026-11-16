@@ -220,9 +220,10 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 // At every hard moment, the room ahead agrees with the moment's own
 // projection: the room now at Now, its floor where it runs out, at Out.At,
 // and the room Projected leaves at its reset where it lasts; at its cap, the
-// room its cap leaves; held, none till its limit lifts, then as the course of
-// the kind it's once that lifts; all of it past its reset; and something to
-// draw just where the window has a course ahead.
+// room its cap leaves; held, none till it has room again, at Back, then as the
+// course of the kind it's once that lifts, and none for ever where Back isn't
+// known; all of it past its reset, but for that; and something to draw just
+// where the window has a course ahead.
 func TestTheRoomAheadAgreesWithTheMomentsProjection(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -267,7 +268,7 @@ func checkRoomAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 	if w.Kind == status.WindowLimited {
 		checkHeldAhead(t, m, a, w, expect)
 	}
-	if drawn && !w.Next.IsZero() && !w.Back.After(w.Next) {
+	if back := !w.Held || !w.Back.IsZero(); drawn && back && !w.Next.IsZero() && !w.Back.After(w.Next) {
 		expect(w.Next.Add(time.Second), 1, "past its reset")
 	}
 	if _, ok := a.RoomAhead(w.Key, m.Now.Add(-time.Second)); ok {
@@ -283,6 +284,9 @@ func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 	t.Helper()
 	expect(m.Now, 0, "now, held")
 	if w.Back.IsZero() {
+		if !w.Next.IsZero() {
+			expect(w.Next.Add(time.Second), 0, "past its reset, never known back")
+		}
 		return
 	}
 	expect(w.Back, 0, "as its limit lifts")

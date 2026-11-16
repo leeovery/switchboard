@@ -119,19 +119,39 @@ func judgedKey(from views.LanesFrom) string {
 
 // asRouted is the cell an account routed as a is drawn in now: held back
 // from every request by a limit, a refusal of its token or its cap, as its
-// kind; without a usable token; blank where nothing's read of it; else with
-// room.
+// kind, but as asLastRead says where its read was refused; without a usable
+// token; blank where nothing's read of it; else with room.
 func asRouted(a status.AccountNow) views.Cell {
 	switch a.Routing.Kind {
 	case status.RoutingTokenless:
 		return views.CellTokenless
 	case status.RoutingLimited:
 		return views.CellLimited
-	case status.RoutingRefused:
+	case status.RoutingRefused, status.RoutingLapsed:
+		if a.RefusedRead != 0 {
+			return asLastRead(a)
+		}
 		return views.CellRefused
 	case status.RoutingUnreadable, status.RoutingUnread:
 		return views.CellUnknown
 	case status.RoutingCapped:
+		return views.CellCapped
+	}
+	return views.CellRoom
+}
+
+// asLastRead is the cell an account routed as a, whose read was refused, is
+// drawn in now: as last read, the router's hold of it said in its words
+// alone, so what holds it back beneath the refusal, in the precedence the
+// lanes draw by: a limit holding back every request, its token refused by
+// the router, or its cap; else room.
+func asLastRead(a status.AccountNow) views.Cell {
+	switch {
+	case a.Held && a.Hold.Every:
+		return views.CellLimited
+	case a.TokenRefused:
+		return views.CellRefused
+	case a.CapHolds:
 		return views.CellCapped
 	}
 	return views.CellRoom

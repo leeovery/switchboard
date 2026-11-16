@@ -494,6 +494,16 @@ func TestAPoolWithNoAccountToTakeARequestIsAnsweredBySwitchboardWhileAnotherCarr
 			why: "account personal: the upstream refused it lately",
 		},
 		{
+			name: "its one account's subscription ended", read: poolTokens.Read,
+			out: func(r *Router) { probesEnd(r.state, "personal", []error{errSubscriptionEnded}) },
+			why: "account personal: subscription lapsed",
+		},
+		{
+			name: "its one account's token refused as it was read", read: poolTokens.Read,
+			out: func(r *Router) { probesEnd(r.state, "personal", []error{errTokenRefused}) },
+			why: "account personal: token refused",
+		},
+		{
 			name: "its one account without a token", read: testTokens.Read, out: func(*Router) {},
 			why: "account personal: " + tokenstest.Missing("personal").Error(),
 		},

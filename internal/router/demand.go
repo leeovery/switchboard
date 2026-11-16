@@ -91,34 +91,50 @@ func (s *state) rose(id, key string, rise float64, at time.Time) {
 	}
 }
 
+// rooms is what the pools' room is judged by at a moment: each account's
+// shared week, as week gives it; the accounts each pool's pin names, as
+// pinned gives them; and whether an account could take no request of any
+// model then, as shut says, of the account whose usage it's given.
+type rooms struct {
+	week   func(id string) (quota.Window, bool)
+	pinned func(pool string) []string
+	shut   func(u *usage, at time.Time, shared func(key string) bool) bool
+}
+
+// roomsNow is what the pools' room is judged by as it stands: each account's
+// week as last read, each pool's pin as it stands, and each account shut as
+// it stands, as shut says. s.mu must be held.
+func (s *state) roomsNow() rooms {
+	return rooms{week: s.weekHeld, pinned: s.pinnedIn, shut: (*usage).shut}
+}
+
 // judgeRooms has each pool's day rate count the time from at on as time the
-// pool has room for a new session in, or none, as roomy judges it, week
-// giving each account's shared week, and pinned the accounts each pool's pin
-// names. s.mu must be held, the pools regrouped.
-func (s *state) judgeRooms(week func(id string) (quota.Window, bool), pinned func(pool string) []string, at time.Time) {
+// pool has room for a new session in, or none, as roomy judges it by what
+// by gives. s.mu must be held, the pools regrouped.
+func (s *state) judgeRooms(by rooms, at time.Time) {
 	for _, pool := range s.grouped.each() {
-		s.days[pool] = s.days[pool].Open(s.roomy(week, pool, pinned(pool), at), at)
+		s.days[pool] = s.days[pool].Open(s.roomy(by, pool, at), at)
 	}
 }
 
 // roomy reports whether the pool with the given id has room for a new
 // session at at: the router would find one of its accounts for one, choosing
-// as score.Policy.Choose does by the accounts' shared weeks alone, week
-// giving each, of those with a usable token whose week has been read, but
+// as score.Policy.Choose does by the accounts' shared weeks alone, as by
+// gives each, of those with a usable token whose week has been read, but
 // those it couldn't go out on, their token or their read refused then, or a
-// limit holding back their week, as shut says. So an account has room within
-// its reserve, or within its limit where pin, the accounts the pool's pin
-// names, names it, which spends the reserve. s.mu must be held, the pools
+// limit holding back their week, as by's shut says. So an account has room
+// within its reserve, or within its limit where the pool's pin, as by gives
+// it, names it, which spends the reserve. s.mu must be held, the pools
 // regrouped.
-func (s *state) roomy(week func(id string) (quota.Window, bool), pool string, pin []string, at time.Time) bool {
+func (s *state) roomy(by rooms, pool string, at time.Time) bool {
 	isWeek := func(key string) bool { return key == s.policy.Perishable }
 	var candidates []score.Candidate
 	for _, a := range s.grouped.routed(pool, s.accounts) {
-		if w, ok := week(a.ID); ok && a.hasToken() && !s.usage[a.ID].shut(at, isWeek) {
+		if w, ok := by.week(a.ID); ok && a.hasToken() && !by.shut(s.usage[a.ID], at, isWeek) {
 			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: []quota.Window{w}, Reserve: a.Reserve})
 		}
 	}
-	_, ok := s.policy.Choose(candidates, pin, isWeek, "", at)
+	_, ok := s.policy.Choose(candidates, by.pinned(pool), isWeek, "", at)
 	return ok
 }
 
@@ -131,7 +147,7 @@ func (s *state) repin(ps pins) {
 	defer s.mu.Unlock()
 	s.regroup()
 	s.pins = ps
-	s.judgeRooms(s.weekHeld, s.pinnedIn, at)
+	s.judgeRooms(s.roomsNow(), at)
 }
 
 // recallPins takes in each pool's pin the state file kept, as the router
@@ -197,7 +213,7 @@ func (s *state) demand(now time.Time, pool string) *status.Demand {
 	if !slices.ContainsFunc(t.routed(pool, s.accounts), func(a account) bool { return len(s.usage[a.ID].windows) > 0 }) {
 		return nil
 	}
-	s.judgeRooms(s.weekHeld, s.pinnedIn, now)
+	s.judgeRooms(s.roomsNow(), now)
 	demand := &status.Demand{Hold: holdPoints(s.hold.Points(now)), Learning: s.hold.Learning(now)}
 	if rate, over, ok := s.days[pool].Rate(now); ok {
 		demand.Day, demand.Hours = rate, over.Hours()

@@ -28,8 +28,9 @@ const (
 	// account lacks, as lacking says.
 	WindowNone
 	// WindowLimited is a window Claude's limit holds: it reads spent, or the
-	// router's limit names it, or names no window. Its room is back At, zero
-	// where that's unknown.
+	// router's limit names it, or names no window. Its room is back At, as
+	// liftsAt says: zero where that's unknown, as while its account's read is
+	// refused.
 	WindowLimited
 	// WindowStale is a window of an account whose token is refused, or whose
 	// last read failed, last read At, as its StaleCause says. The router's
@@ -259,13 +260,30 @@ func (s windowStates) known(j judged, read func(quota.Window, judged) (WindowKin
 }
 
 // kind is the kind of the account's window w, read, standing as j has it, and
-// when what the kind says comes: a limit holding it, until the hold lifts off
-// it; else as unheld says.
+// when what the kind says comes: a limit holding it, until it has room again,
+// as liftsAt says; else as unheld says.
 func (s windowStates) kind(w quota.Window, j judged) (WindowKind, time.Time) {
 	if s.stood.limited && s.stood.held.Holds(w.Key) {
-		return WindowLimited, s.stood.held.Lifts(w.Key)
+		return WindowLimited, s.liftsAt(w.Key)
 	}
 	return s.unheld(w, j)
+}
+
+// liftsAt is when the account's window with the given key, which a limit
+// holds, has room again, zero where that isn't known: where its read was
+// refused, never known, as only a read that comes back clean lifts that,
+// whenever the limit lifts; where the router refused its token, at the later
+// of the limit lifting off it and the refusal ending; else as the limit
+// lifts off it.
+func (s windowStates) liftsAt(key string) time.Time {
+	lifts := s.stood.held.Lifts(key)
+	switch {
+	case s.stood.refusedRead != 0, lifts.IsZero():
+		return time.Time{}
+	case s.stood.refused:
+		return score.Later(lifts, s.account.Refused.Until)
+	}
+	return lifts
 }
 
 // unheld is the kind of the account's window w, read, standing as j has it,

@@ -41,11 +41,13 @@ func (s stood) holdsAt(t time.Time) bool {
 // event of it tells till it lifts: a limit holding back every request, till
 // its hold's until; its token refused, till the refusal's; and its cap, till
 // it lets go; and each window every model shares that runs out ahead, as its
-// RunsOutAhead has it.
+// RunsOutAhead has it. Where its read is refused, as its RefusedRead has it,
+// it's drawn as last read all the same, but nothing says when it next has
+// room, as roomFrom says.
 type ahead struct {
-	tokenless, unknown bool
-	holds              []stood
-	outs               []runOut
+	tokenless, unknown, refusedRead bool
+	holds                           []stood
+	outs                            []runOut
 }
 
 // runOut is a window running out ahead: from when, at its pace, till it
@@ -58,7 +60,7 @@ type runOut struct {
 
 // aheadOf is how the account a stands from now on, as ahead has it.
 func aheadOf(a status.AccountNow) ahead {
-	var h ahead
+	h := ahead{refusedRead: a.RefusedRead != 0}
 	switch a.Routing.Kind {
 	case status.RoutingTokenless:
 		h.tokenless = true
@@ -161,8 +163,12 @@ func (h ahead) turns(from, to time.Time) []time.Time {
 
 // roomFrom is when the account next has room from t, as a hold lifts: once
 // no part of what holds it back, as partsAt has them, holds it then, each
-// holding on till it lifts; zero where one never does.
+// holding on till it lifts; zero where one never does, and where its read is
+// refused, which no hold lifting lifts, as ROUTING's back says.
 func (h ahead) roomFrom(t time.Time) time.Time {
+	if h.refusedRead {
+		return time.Time{}
+	}
 	for !t.IsZero() {
 		lift, held := asOne(h.partsAt(t, Cell.held))
 		if !held {

@@ -301,15 +301,17 @@ Each request's account is decided in this order:
    Choosing an account). When none of the pin's accounts that can serve the request has a score,
    the first of them does.
 5. With no candidate, the session's account, else the client's, else any other, for the upstream to
-   say why, passing over those that refused the request lately, and those held back only by their
-   reserve, which would serve it and spend the reserve. When that leaves none and an account is held
-   back by its reserve alone, switchboard answers 429 itself, shaped as the API shapes its errors,
-   with the usage headers Claude Code reads a limit from: `rejected`, and, when it's known, when the
-   first of them is let go, each at the latest reset among the windows its reserve holds. When
-   every account has refused the request lately, it goes out on the client's all the same, and,
-   refused again, ends in the 502 of Requests that need special handling. A request replayed goes
-   out on none of these: the upstream has said why on the accounts it was tried on, and the session
-   is remembered on no account the request didn't go out on.
+   say why, passing over those that refused the request lately or whose last read was refused,
+   and those held back only by their reserve, which would serve it and spend the reserve. When that
+   leaves none and an account is held back by its reserve alone, switchboard answers 429 itself,
+   shaped as the API shapes its errors, with the usage headers Claude Code reads a limit from:
+   `rejected`, and, when it's known, when the first of them is let go, each at the latest reset
+   among the windows its reserve holds. When every account has refused the request lately, or had
+   its read refused, it goes out on the client's all the same, where that's in the pool, and,
+   refused again, ends in the 502 of Requests that need special handling; where it isn't, nothing
+   goes out, and switchboard answers 429 itself, as Routing within a pool says. A request replayed
+   goes out on none of these: the upstream has said why on the accounts it was tried on, and the
+   session is remembered on no account the request didn't go out on.
 
 A request without a session id is never remembered: it goes to the launch pin it carries while that
 account can serve it, and is otherwise decided afresh every time. Before deciding afresh, and never
@@ -458,26 +460,34 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   authentication not allowed for its organization, which is how an ended subscription is answered,
   the router holds the account back from every request, as for a token it refused itself. It's no
   candidate, however much room it has; sessions on it move; a pin to it yields; and its pool counts
-  none of its room. A pool whose every account is held has no room: a request in it goes out on
-  the client's account all the same, for the upstream to refuse it, and ends in the 502 of Requests
-  that need special handling, or the router's 503 where it can't go out on that account (see
-  Choosing an account, step 5). The hold has no timer: it lasts till a read of it comes back clean,
-  by a probe, a prime or an answer, which clears the error. A read that fails otherwise after it,
-  as one timed out, unanswered or answered 5xx, keeps it, as that says nothing of whether the
-  refusal has ended; one refused again keeps it, saying why afresh. A held account is never passed
-  over for being held: it's probed on the router's rounds at any hour, as one whose probe read
-  nothing, so a subscription renewed is seen within the half hour (see The router's rounds); a
-  choice probes it no sooner, nor is a failed prime of it sent again sooner, as each read refused
-  would only be another warning. A new token in its file lifts the hold at once, as it starts its
-  probes afresh. A read that fails otherwise with no refusal before it holds nothing: the account
-  routes on its windows as last read. A limit holding the account too doesn't hide the hold:
-  ROUTING, the routing card and `status` say the refusal first, and nothing says it's back as the
-  limit lifts. The pools' room, which the forecast's day rate counts, holds it back only from the
-  end of its last probe on, never before the refusal, so a restart replaying the readings history
-  doesn't count it held across them. The router judges the hold from its own state, through the
-  readers of Claude's answers, and the status document states it once, as the account's
-  `RefusedRead`: no view reads the error again. An account removed goes as any other, its history
-  kept.
+  none of its room. A pool whose every account is held has no room, and what Claude Code sees
+  turns on the client's account, the one its token is (see Choosing an account, step 5). Where
+  that's in the pool, the request goes out on it all the same, for the upstream to refuse it: the
+  401 or 403 is never relayed, so Claude Code gets the 502 above, naming the upstream's refusal of
+  the account. Where it's outside the pool, nothing goes out: switchboard answers 429 itself, each
+  account's cause in its message, `subscription lapsed` or `token refused` (see Routing within a
+  pool). The hold has no timer: it lasts till a read of it comes back clean, by a probe, a prime or
+  an answer, which clears the error. A read that fails otherwise after it, as one timed out,
+  unanswered or answered 5xx, keeps it, as that says nothing of whether the refusal has ended; one
+  refused again keeps it, saying why afresh, as a 401 after a 403 says `token refused`. A held
+  account is never passed over for being held: it's probed on the router's rounds at any hour, as
+  one whose probe read nothing, so a subscription renewed is seen within the half hour (see The
+  router's rounds); a choice probes it no sooner, nor is a failed prime of it sent again sooner, as
+  each read refused would only be another warning. A new token in its file lifts the hold at once,
+  as it starts its probes afresh; the same token lost and back, as a file emptied while it's
+  rewritten, keeps it, as that token would only be refused again. A read that fails otherwise with
+  no refusal before it holds nothing: the account routes on its windows as last read. A limit
+  holding the account too doesn't hide the hold: ROUTING, the routing card and `status` say the
+  refusal first, and nothing says it's back as the limit lifts, its windows' words reading `limit`
+  with no `back`. The hold begins at the first refusal of a run, kept through the refusals and
+  failures after it, which the state file keeps beside the last probe; the pools' room, which the
+  forecast's day rate counts, holds the account back only from then, never before, so a restart
+  replaying the readings history counts its room till then, however long it's been probed since. A
+  state file from before keeps no start, and the hold runs from its last probe; a router from
+  before reads the file all the same, passing over the start. The router judges the hold from its
+  own state, through the readers of Claude's answers, and the status document states it once, as
+  the account's `RefusedRead`: no view reads the error again. An account removed goes as any other,
+  its history kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -497,8 +507,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   and goes out on another account. So is one carrying the token found so after the account's file
   has lost it, while the finding stands. An account whose own token it is takes the request as its
   client's first, as where one account's file was given another's token. Where none can take it,
-  as every other is without a token
-  or refused it lately, switchboard answers 503, shaped as the API shapes its errors and marked
+  as every other is without a token, refused it lately or had its read refused, switchboard
+  answers 503, shaped as the API shapes its errors and marked
   `X-Should-Retry: false`, saying why the account can't take it and what puts it right; nothing
   goes out, and the request's session stays where it was, moved nowhere (see Account identity). A
   request that was to go out again on its account, after a throttle, for a new token or after a
@@ -893,7 +903,8 @@ within, where it's started within one, and the session keeps that pool for its w
   itself, as it does for an account held back by its reserve alone, the limit's usage headers set
   but no reset given, as when the pool can take a request again isn't known: `switchboard: no
   account in pool Acme can take the request; account m4zq: …`, each account's problem after the
-  `;`, as that its token isn't usable, saying how to fix it, else that the upstream refused it
+  `;`, as that its token isn't usable, saying how to fix it, else why its last read was refused,
+  in ROUTING's words, `subscription lapsed` or `token refused`, else that the upstream refused it
   lately, and of an account the config added since the router started, that it's taken up when
   the router restarts; and of a pool with none, `the pool has no accounts`. The session's own
   token, which the fallback uses before pools, is used only when its account is in the pool. A
@@ -3906,7 +3917,10 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   today's weekday, which alone would read as today, gives its date instead, `out ~12 Nov`,
   `back 12 Nov`. An allowance's reset keeps its day alone, `19%/day · Thu`: its 14 cells can't
   hold a date beside the rate, and a rate a day can't be read as running out today. `back` is when
-  room returns: when a limit lifts, or the capped window resets. Red is for Claude's own limit; a
+  room returns: when a limit lifts, or the router's refusal of the token ends where that's later,
+  or the capped window resets. While the account's read is refused, nothing says when room returns,
+  as no time lifts that hold (see Requests that need special handling): a window a limit holds
+  reads `limit` alone, its short form `limit` too. Red is for Claude's own limit; a
   cap is movable, so it's amber. A stale reading says why where the API refused it, an ended
   subscription or a refused token, so the words say what's wrong, and when it was last read only
   where the read failed otherwise; `status` works the cause out once, from the router's refusal and
