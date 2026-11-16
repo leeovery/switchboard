@@ -244,9 +244,8 @@ func TestTheChosenProjectLiesWideAtEveryPeriodOnAMacBook(t *testing.T) {
 	}
 	for _, p := range periods {
 		d := drawn(173, bucketedPage(p.unit, p.buckets, p.weeks))
-		slots := chartSlots(d.split, len(d.worth.Buckets))
-		if last := slots[len(slots)-1]; d.form != projectWide || last.x+last.width > d.split {
-			t.Errorf("%s at 173 lies as form %d, its last column ending at %d of %d; want wide, within the left half", p.name, d.form, last.x+last.width, d.split)
+		if d.form != projectWide {
+			t.Errorf("%s at 173 lies as form %d, want wide", p.name, d.form)
 		}
 		if d := drawn(108, bucketedPage(p.unit, p.buckets, p.weeks)); d.form != projectMiddling {
 			t.Errorf("%s at 108 lies as form %d, want middling", p.name, d.form)

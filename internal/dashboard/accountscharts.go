@@ -40,7 +40,7 @@ func (cp compared) weeksSection(c *canvas, y int, columns []compareColumn) int {
 	floor := y + weeksChartRows
 	for _, col := range columns {
 		names := cp.reachNames(col.row)
-		slots := compareSlots(col.head, names)
+		slots := compareSlots(col.head, len(names))
 		cp.capLine(c, col, floor, slots)
 		for i, p := range col.row.Reached {
 			peakColumn(c, cp.f.Look, col.x+slots[i].x, floor, weeksChartRows, slots[i].width, p)
@@ -148,7 +148,7 @@ func (cp compared) worthSection(c *canvas, y int, columns []compareColumn) int {
 	scale := cp.worthScale(fits)
 	for _, col := range columns {
 		by, against := scale.of(col)
-		worthChart(c, cp.f.Look, col.x, y+1, col.head, worthChartRows, compareSlots, by, against)
+		worthChart(c, cp.f.Look, col.x, y+1, col.head, worthChartRows, compareLay, by, against)
 		c.line(col.x, y+1+worthChartRows+1, fitParts(col.width, peakForms(by, col.all).fitting(col.width)...))
 	}
 	return y + compareWorthUnder

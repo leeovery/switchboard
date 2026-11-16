@@ -133,6 +133,37 @@ func spanOf(sizes []int) (lo, hi int) {
 	return slices.Min(sizes), slices.Max(sizes)
 }
 
+// evenShare rounds to the nearest: a single spare cell falls mid-way, not
+// at either end, and all of them fall before the one past the last.
+func TestEvenShareRoundsToTheNearest(t *testing.T) {
+	for _, tt := range []struct{ i, cells, parts, want int }{
+		{0, 5, 3, 0}, {1, 1, 3, 0}, {2, 1, 3, 1}, {3, 1, 3, 1}, {1, 2, 3, 1},
+		{1, 1, 2, 1}, {1, 3, 4, 1}, {2, 3, 4, 2}, {3, 3, 4, 2}, {4, 3, 4, 3},
+		{19, 1, 40, 0}, {20, 1, 40, 1}, {40, 1, 40, 1},
+	} {
+		if got := evenShare(tt.i, tt.cells, tt.parts); got != tt.want {
+			t.Errorf("evenShare(%d, %d, %d) = %d, want %d", tt.i, tt.cells, tt.parts, got, tt.want)
+		}
+	}
+}
+
+// Compare's charts lie as they always have: whole steps across the head,
+// each column step less apart wide, a cell at least, the spare at the
+// right, the gutter between charts side by side.
+func TestCompareSlotsLieInWholeSteps(t *testing.T) {
+	for buckets := 1; buckets <= 100; buckets++ {
+		for width := 0; width <= 400; width++ {
+			apart := chartApart(width, buckets)
+			step := (width + apart) / buckets
+			for i, s := range compareSlots(width, buckets) {
+				if want := (chartSlot{x: i * step, width: max(step-apart, 1)}); s != want {
+					t.Fatalf("%d buckets in %d: slot %d is %+v, want %+v", buckets, width, i, s, want)
+				}
+			}
+		}
+	}
+}
+
 // namedChart is a chart to draw, and what it's called.
 type namedChart struct {
 	name string
@@ -140,23 +171,25 @@ type namedChart struct {
 }
 
 // namedCharts are WORTH BY's charts at 12 weeks by day, a date named each
-// week, and at 12 months by week, a month named where it starts, as
-// bucketedPage buckets them; each with its last bucket named, and not.
+// week, and at 12 months by week, a month named in three cells where it
+// starts, as bucketedPage buckets them; each with its last bucket named, as
+// its axis names it, and not. The first bucket is the peak, the rest under
+// it, so every other column's top shows in the chart's top row.
 func namedCharts() []namedChart {
 	var charts []namedChart
 	for _, period := range []struct {
-		name    string
-		unit    views.BucketUnit
-		n, days int
-		named   func(i int, start time.Time) string
+		name, last string
+		unit       views.BucketUnit
+		n, days    int
+		named      func(i int, start time.Time) string
 	}{
-		{"12 weeks by day", views.ByDay, 84, 1, func(i int, start time.Time) string {
+		{"12 weeks by day", "4 Oct", views.ByDay, 84, 1, func(i int, start time.Time) string {
 			if i%7 == 0 {
 				return start.Format("2 Jan")
 			}
 			return ""
 		}},
-		{"12 months by week", views.ByWeek, 53, 7, func(_ int, start time.Time) string {
+		{"12 months by week", "Oct", views.ByWeek, 53, 7, func(_ int, start time.Time) string {
 			if start.Day() <= 7 {
 				return start.Format("Jan")
 			}
@@ -165,14 +198,14 @@ func namedCharts() []namedChart {
 	} {
 		for _, lastNamed := range []bool{true, false} {
 			by := bucketedPage(period.unit, period.n, 0).WorthBy[0]
-			by.Peak, by.Buckets[0].Worth = 0, worthOf(1100)
+			by.Peak, by.Buckets[0].Worth = 0, worthOf(1200)
 			for i := range by.Buckets {
 				by.Buckets[i].Axis = period.named(i, routedClock(1, 0, 0).AddDate(0, 0, period.days*(i-period.n)))
 			}
 			last := &by.Buckets[len(by.Buckets)-1]
 			last.Axis = ""
 			if lastNamed {
-				last.Axis = "4 Oct"
+				last.Axis = period.last
 			}
 			charts = append(charts, namedChart{fmt.Sprintf("%s, its last named %v", period.name, lastNamed), by})
 		}
@@ -180,17 +213,17 @@ func namedCharts() []namedChart {
 	return charts
 }
 
-// Projects' WORTH BY and Detail's WORTH fill their width: every name on the
-// axis starts at its own column's first cell; where the last bucket has a
-// name, the chart leaves room for it, the name ending at the chart's edge
-// and the bars within its overhang of it, how far it would run past from
-// its column across the whole width; where it has none, the bars end at the
-// edge.
+// Projects' WORTH BY and Detail's WORTH fill their width, at every width
+// from 100 to 260: where the last bucket has a name, the chart is the
+// widest, down to a cell a column, whose last name, from its own column,
+// ends within the width, else the whole width; where it has none, the
+// whole width. Every name the axis holds starts at its own column's first
+// cell, the names from the last back giving way where they'd meet.
 func TestWorthChartsFillTheirWidthRoomForTheLastName(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	for _, chart := range namedCharts() {
-		for _, width := range []int{160, 173} {
-			t.Run(fmt.Sprintf("Projects, %s, at %d", chart.name, width), func(t *testing.T) {
+		t.Run("Projects, "+chart.name, func(t *testing.T) {
+			for width := 100; width <= 260; width++ {
 				page := bucketedPage(chart.by.Unit, len(chart.by.Buckets), 0)
 				page.WorthBy = views.WorthCharts{chart.by}
 				f := projectsFrame(t, width, 53, projectRows(3), 0, &page)
@@ -202,53 +235,76 @@ func TestWorthChartsFillTheirWidthRoomForTheLastName(t *testing.T) {
 				rows := textOf(f.Draw(doc, routedAt))
 				head := rowWith(rows, "WORTH BY")
 				if head < 0 {
-					t.Fatalf("no WORTH BY in\n%s", strings.Join(rows, "\n"))
+					t.Fatalf("at %d, no WORTH BY in\n%s", width, strings.Join(rows, "\n"))
 				}
-				checkNamedChart(t, rows[head+1], rows[head+worthRows+1], 0, cells, chart.by)
-			})
-			t.Run(fmt.Sprintf("Detail, %s, at %d", chart.name, width), func(t *testing.T) {
+				checkNamedChart(t, width, rows[head+1], rows[head+worthRows+1], 0, cells, chart.by)
+			}
+		})
+		t.Run("Detail, "+chart.name, func(t *testing.T) {
+			for width := 100; width <= 260; width++ {
 				page := detailsPage(t)
 				page.Rows[0].WorthBy = views.WorthCharts{chart.by}
 				f := detailFrame(Look{}, framedAccounts, "work", "", page, nil)
 				f.Width = width
-				rows, d := panelOf(f, usageWorld(extraOff))
+				used := usageWorld(extraOff)
+				if _, wide := f.detailIn(f.Moment(used, routedAt)); !wide {
+					rows := textOf(f.stackedOf(used, routedAt).whole().c.rows(Look{}))
+					y := slices.Index(rows, "WORTH")
+					if y < 0 {
+						t.Fatalf("at %d, no WORTH stacked in\n%s", width, strings.Join(rows, "\n"))
+					}
+					checkNamedChart(t, width, rows[y+1], rows[y+1+detailWorthChart], 0, f.edge(), chart.by)
+					continue
+				}
+				rows, d := panelOf(f, used)
 				y := d.worthAt()
-				checkNamedChart(t, rows[y], rows[y+detailWorthChart], d.l.cx(), d.l.weeksCells(), chart.by)
-			})
-		}
+				checkNamedChart(t, width, rows[y], rows[y+detailWorthChart], d.l.cx(), d.l.weeksCells(), chart.by)
+			}
+		})
 	}
 }
 
+// roomFor is the cells of the widest chart, from width down to a cell a
+// column, whose last column's name, last, from its first cell, ends within
+// width: width itself where there's no name, or no such chart.
+func roomFor(width, buckets int, last string) int {
+	if last == "" {
+		return width
+	}
+	for cells := width; cells >= buckets; cells-- {
+		if slots := chartSlots(cells, buckets); slots[buckets-1].x+len(last) <= width {
+			return cells
+		}
+	}
+	return width
+}
+
 // checkNamedChart fails where the chart drawn from x, width cells wide, its
-// top and axis rows given, doesn't hold its names to their columns, or
-// its last name, or bars, to its edge.
-func checkNamedChart(t *testing.T, top, axis string, x, width int, by views.WorthBy) {
+// top and axis rows given, the frame's width the one named, doesn't take
+// the cells roomFor has, or its axis doesn't hold the names a pick from the
+// last back would, each at its own column's first cell.
+func checkNamedChart(t *testing.T, frame int, top, axis string, x, width int, by views.WorthBy) {
 	t.Helper()
-	names := bucketNames(by)
-	slots := namedSlots(width, names)
-	placed := []rune(strings.Repeat(" ", width))
-	for i, named := range names {
-		if said := named.plain(); said != "" && cut(axis, x+slots[i].x, said) == said {
-			copy(placed[slots[i].x:], []rune(said))
-		}
-	}
-	if got, want := strings.TrimRight(ansi.Cut(axis, x, x+width), " "), strings.TrimRight(string(placed), " "); got != want {
-		t.Errorf("the axis reads\n%q, want every name at its own column's first cell\n%q", got, want)
-	}
-	bars := ansi.StringWidth(strings.TrimRight(ansi.Cut(top, x, x+width), " "))
-	last := names[len(names)-1].plain()
-	if roomless := len(names) - 1 + len(last); last == "" || roomless > width {
-		if bars != width {
-			t.Errorf("the bars end at %d, want the chart's edge, %d, its last bucket unnamed or no room for its name at a cell a column", bars, width)
-		}
+	buckets := len(by.Buckets)
+	if width < buckets {
 		return
 	}
-	if end := slots[len(slots)-1].x + len(last); cut(axis, x+slots[len(slots)-1].x, last) != last || end != width {
-		t.Errorf("the axis reads %q, want %s from its own column, ending at the chart's edge, %d", axis, last, width)
+	names := bucketNames(by)
+	cells := roomFor(width, buckets, names[buckets-1].plain())
+	slots := chartSlots(cells, buckets)
+	placed, next := []rune(strings.Repeat(" ", width)), width+1
+	for i := buckets - 1; i >= 0; i-- {
+		said := names[i].plain()
+		if said == "" || slots[i].x+len(said) >= next {
+			continue
+		}
+		copy(placed[slots[i].x:], []rune(said))
+		next = slots[i].x
 	}
-	whole := chartSlots(width, len(names))
-	overhang := max(whole[len(whole)-1].x+len(last)-width, 0)
-	if bars > width || width-bars > overhang {
-		t.Errorf("the bars end at %d, want within %d of the chart's edge, %d, its last name's overhang", bars, overhang, width)
+	if got, want := strings.TrimRight(ansi.Cut(axis, x, x+width), " "), strings.TrimRight(string(placed), " "); got != want {
+		t.Errorf("at %d, the axis reads\n%q, want each name at its own column's first cell\n%q", frame, got, want)
+	}
+	if bars := ansi.StringWidth(strings.TrimRight(ansi.Cut(top, x, x+width), " ")); bars != cells {
+		t.Errorf("at %d, the bars end at %d of %d cells, want %d, the widest that leaves room for the last name", frame, bars, width, cells)
 	}
 }

@@ -23,7 +23,7 @@ type chartSlot struct {
 }
 
 // chartLay lays a chart's columns across width cells, its axis's names
-// given: chartSlots' slots, as namedSlots or compareSlots choose them.
+// given: chartSlots' slots, as namedSlots or compareLay choose them.
 type chartLay func(width int, names []line) []chartSlot
 
 // chartApart are how many cells apart a chart's columns stand across width
@@ -71,35 +71,26 @@ func evenShare(i, cells, parts int) int {
 	return (i*cells + parts/2) / parts
 }
 
-// namedSlots are chartSlots' slots across width cells, but where the last
-// column's name, from its first cell, would run past the chart's edge,
-// across as many fewer as it would run past, laid again until it doesn't,
-// so it ends within the edge. Where it would run past even at a cell a
-// column, the chart takes the whole width, and chartAxis drops the name.
+// namedSlots are chartSlots' slots across the widest chart, of width cells
+// down to a cell a column, whose last column's name, from its first cell,
+// ends within width, so the chart leaves room for it. Where none does, the
+// chart takes the whole width, and chartAxis drops the name.
 func namedSlots(width int, names []line) []chartSlot {
-	buckets, cells := len(names), width
-	for {
+	buckets := len(names)
+	for cells := width; cells >= buckets && buckets > 0; cells-- {
 		slots := chartSlots(cells, buckets)
-		if buckets == 0 {
+		if slots[buckets-1].x+names[buckets-1].width() <= width {
 			return slots
 		}
-		over := slots[buckets-1].x + names[buckets-1].width() - width
-		switch {
-		case over <= 0:
-			return slots
-		case cells <= buckets:
-			return chartSlots(width, buckets)
-		}
-		cells = max(cells-over, buckets)
 	}
+	return chartSlots(width, buckets)
 }
 
 // compareSlots are Compare's charts' slots across a column's head, width
 // cells: whole steps, each column as wide as the rest and as far apart, as
 // chartApart has them, the spare at the right. In Compare the spare is the
 // gutter between charts side by side.
-func compareSlots(width int, names []line) []chartSlot {
-	buckets := len(names)
+func compareSlots(width, buckets int) []chartSlot {
 	if buckets == 0 {
 		return nil
 	}
@@ -107,10 +98,16 @@ func compareSlots(width int, names []line) []chartSlot {
 	return chartSlots((width+apart)/buckets*buckets-apart, buckets)
 }
 
+// compareLay is compareSlots as a chartLay, for Compare's worth charts.
+func compareLay(width int, names []line) []chartSlot {
+	return compareSlots(width, len(names))
+}
+
 // worthChart draws the worth by's columns from x, from row top down rows
-// rows, width cells wide, as lay lays them of bucketNames', each as tall
-// against rows as its worth is against top, as worthColumns draws them; and
-// under them their axis, as chartAxis draws it.
+// rows, width cells wide: laid as lay lays them, given the names bucketNames
+// has for the axis, each as tall against rows as its worth is against top,
+// as worthColumns draws them; and under them their axis, as chartAxis draws
+// it.
 func worthChart(c *canvas, look Look, x, top, width, rows int, lay chartLay, by views.WorthBy, against ledger.Picodollars) {
 	names := bucketNames(by)
 	slots := lay(width, names)

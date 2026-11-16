@@ -202,7 +202,7 @@ func TestWEEKSAxisEndsOnTheCurrentMonthAt12Months(t *testing.T) {
 	}
 	axis := head + weeksChartRows + 1
 	for _, col := range cp.columns() {
-		slots := compareSlots(col.head, make([]line, len(page.Reach)))
+		slots := compareSlots(col.head, len(page.Reach))
 		at := col.x + slots[len(slots)-1].x
 		if got := cut(rows[axis], at, "Oct"); got != "Oct" || inkAt(body, at, axis) != strongInk {
 			t.Errorf("the axis of the column from %d reads %q at %d, want now's Oct, in bold, from its column's first cell", col.x, got, at)
