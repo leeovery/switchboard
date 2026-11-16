@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-11-16
+
+✨ Added
+- Sessions a claude starts within another session now stay in that session's pool, and outside any repository run in that session's project — so a claude started from a script in a scratchpad counts as the session's work (macOS only).
+- Projects groups sessions started in a Claude Code scratchpad under the project the scratchpad is for, and shows sessions from other temporary folders as one "temporary folders" row.
+- Mouse wheel over the Projects list chooses a project at a time.
+- Accounts that left a pool keep their past work in that pool's history, requests, events and sessions, named by label with where they are now ("now in Acme").
+- Accounts whose subscription has ended show as "lapsed" (and refused tokens as "refused") in status, the dashboard and Runway, and are held back from new requests until a read comes back clean.
+- Config ids written by switchboard now carry a "do not edit" note.
+
+🔧 Changed
+- The dashboard's refresh after a window resets leaves accounts with a refused read to their backoff; `R` and `--refresh` still probe them at once.
+- Dashboard headings are drawn in a brighter text colour than labels.
+- Dashboard drawing is faster, with large usage blocks measured without being drawn.
+- Chart columns on worth charts spread evenly across the available width.
+
+🐛 Fixed
+- Long working directories and projects up to 1024 bytes are now kept whole in the ledger instead of being cut or dropped at 200.
+- Graphs cards show why an account's reading is stale (subscription lapsed, token refused, or when it was last read).
+
 ## [0.9.0] - 2026-11-15
 
 Dashboard reorganised around projects, a shared period dial and a Trends tab, so you can see where your use went over any period.
