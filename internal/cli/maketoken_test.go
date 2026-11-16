@@ -355,7 +355,7 @@ func TestAccountsTokenShowsATokenMadeButNotSaved(t *testing.T) {
 			maker: func(deps cli.Deps) *fakeTokenMaker {
 				return &fakeTokenMaker{token: madeSide, madeIt: func() {
 					path := deps.Getenv("SWITCHBOARD_CONFIG")
-					withoutSide := strings.Replace(readFile(t, path), "[[account]]\nid    = \"side\"\nlabel = \"Side\"\n", "", 1)
+					withoutSide := strings.Replace(readFile(t, path), "[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n", "", 1)
 					if err := os.WriteFile(path, []byte(withoutSide), 0o600); err != nil {
 						t.Error(err)
 					}
@@ -494,7 +494,7 @@ func TestAccountsTokenInterruptedAsItsEndingPrintsEndsInterrupted(t *testing.T) 
 // nothing says so.
 func TestAccountsTokenOfTheOnlyAccountChecksNoOther(t *testing.T) {
 	api := newOrganizationsAPI(t)
-	deps, _ := accountsDeps(t, api.URL, "[[account]]\nid    = \"personal\"\nlabel = \"Personal\"\n")
+	deps, _ := accountsDeps(t, api.URL, "[[account]]\nid    = \"personal\"  # do not edit: links the account to its history\nlabel = \"Personal\"\n")
 	writeToken(t, deps, "personal", personalsToken)
 	atATerminal(&deps)
 	deps.TokenMaker = &fakeTokenMaker{token: madeSide}
@@ -810,7 +810,7 @@ func TestAccountsAddComparesTheTokenGivenWithTheOtherAccounts(t *testing.T) {
 				checkNoTokenFile(t, deps, workID)
 				return
 			}
-			if want := before + "\n[[account]]\nid    = \"" + workID + "\"\nlabel = \"work\"\n"; readFile(t, path) != want {
+			if want := before + "\n[[account]]\nid    = \"" + workID + "\"" + idMark + "\nlabel = \"work\"\n"; readFile(t, path) != want {
 				t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 			}
 			checkTokenFile(t, deps, workID, tt.token+"\n")

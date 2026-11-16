@@ -84,9 +84,9 @@ func labelOf(id, given string) (string, error) {
 }
 
 // Draft is the config file's text, edited as text: its comments and layout
-// stay as they are, but for the lines an edit changes. Each edit is checked,
-// the text read back, to make exactly the change meant and leave the config
-// valid, before it's taken. Save writes the draft.
+// stay as they are, but for the lines an edit changes, and the ids Save
+// marks. Each edit is checked, the text read back, to make exactly the change
+// meant and leave the config valid, before it's taken. Save writes the draft.
 type Draft struct {
 	path string
 	// homeDir returns the home directory, a pool's directory starting ~/ is
@@ -457,9 +457,10 @@ func (d *Draft) cantMake(change string) error {
 
 // Save writes the draft to the config file, whole or not at all: through a
 // link, to where it leads, rather than in its place, and making a file, and
-// its directory, that isn't there. The file keeps its permissions. It fails,
-// leaving the file as it is, matching ErrChanged, when the file has changed
-// since Edit read it.
+// its directory, that isn't there. Where the draft was edited, each id that
+// switchboard makes is written with a mark saying not to edit it, as marked
+// has it. The file keeps its permissions. It fails, leaving the file as it
+// is, matching ErrChanged, when the file has changed since Edit read it.
 func (d *Draft) Save() error {
 	target, err := atomicfile.Target(d.path)
 	if err != nil {
@@ -472,10 +473,25 @@ func (d *Draft) Save() error {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
-	if err := atomicfile.Write(target, []byte(d.doc.text()), perm); err != nil {
+	if err := atomicfile.Write(target, []byte(d.marked().text()), perm); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return nil
+}
+
+// marked returns the draft's text with its ids marked, as withIDsMarked marks
+// them, where it was edited, and the marks read back as the draft's config,
+// as every edit is checked to: else as it is, so a draft no edit changed
+// writes the file as it was.
+func (d *Draft) marked() document {
+	if d.doc.text() == string(d.read) {
+		return d.doc
+	}
+	doc := d.doc.withIDsMarked()
+	if got, _, err := decode(doc.text()); err != nil || !reflect.DeepEqual(got, d.file) {
+		return d.doc
+	}
+	return doc
 }
 
 // unchanged returns the permissions of the file at target, where the config

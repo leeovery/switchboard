@@ -27,7 +27,7 @@ reserve = 0.1        # the app's share
 
 # The other one.
 [[account]]
-id   = "personal"
+id   = "personal"  # do not edit: links the account to its history
 plan = "pro"         # for now
 `, upstream)
 
@@ -212,7 +212,7 @@ func TestEditWritesNothingWhenEveryValueGivenIsTheAccounts(t *testing.T) {
 }
 
 func TestEditMarksThePrimaryWhereNoneIsMarked(t *testing.T) {
-	const unmarked = "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"personal\"\n"
+	const unmarked = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n"
 	tests := []struct {
 		name       string
 		id         string
@@ -232,7 +232,7 @@ func TestEditMarksThePrimaryWhereNoneIsMarked(t *testing.T) {
 			if !edited.Changed() || !edited.Marked || edited.FormerPrimary != tt.wantFormer || !edited.Now.Primary {
 				t.Errorf("Edit(%q) = %+v; want it changed, marked, the primary in place of %q", tt.id, edited, tt.wantFormer)
 			}
-			at := "id = \"" + tt.id + "\"\n"
+			at := "id = \"" + tt.id + "\"" + idMark + "\n"
 			w.checkConfig(t, strings.Replace(unmarked, at, at+"primary = true\n", 1))
 		})
 	}

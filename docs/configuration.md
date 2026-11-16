@@ -21,7 +21,7 @@ To use another file for one command, pass `--config <file>`.
 week_starts = "monday"
 
 [[account]]
-# written by switchboard: don't change it
+# do not edit: links the account to its history
 id      = "b6s7"
 # what every screen shows
 label   = "Work"
@@ -114,14 +114,15 @@ or with `accounts edit`.
 
 | Key | Default | What it does |
 |---|---|---|
-| `id` | Written by switchboard | Names the account in commands and records. Don't change it. |
+| `id` | Written by switchboard | Names the account in commands and records. Don't edit it. |
 | `label` | The id | What screens show, at most 100 characters. |
 | `pool` | None | The id of the pool the account is in. |
 | `primary` | The first account in the pool | `true` on the primary of the pool. |
 | `reserve` | `0` | The share of every window the router leaves unused. |
 | `plan` | None | `pro`, `max` or `ultra`. |
 
-- **`id`** is also the name of the token file.
+- **`id`** is also the name of the token file. Switchboard writes `# do not edit` beside it,
+  because a changed id cuts the account off from its token and its history.
 - **`label`** is kept unique by the `accounts` commands, ignoring case.
 - **`pool`** is needed on every account if the config has `[[pool]]` tables, and allowed on none if
   it doesn't.
@@ -168,10 +169,11 @@ router makes the first pool, labelled `Default`, as it moves your record onto po
 
 | Key | Default | What it does |
 |---|---|---|
-| `id` | Written by switchboard | Names the pool in commands and records. Don't change it. |
+| `id` | Written by switchboard | Names the pool in commands and records. Don't edit it. |
 | `label` | The id | What screens show, at most 100 characters. |
 | `dirs` | None (unfenced) | The folders the pool is fenced to. |
 
+- **`id`** has `# do not edit` written beside it, as an account's has.
 - **`label`** is kept unique by `pool add` and `pool edit`, ignoring case.
 - **`dirs`** holds absolute paths, or paths starting `~/`. A session started under one of them, or
   in a git worktree of a repository there, uses only this pool.
