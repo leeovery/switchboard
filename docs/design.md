@@ -1665,7 +1665,13 @@ built:
   stays on it, 1 at each of its hours, so where it leans wrong it leans to an early run-out rather
   than room that isn't there (the owner's call, 9 November 2026). The status document carries it
   at 1, 3, 6, 12, 24 and 48 hours, with `learning` while it's the default; between them it's read
-  as straight lines, and past 48 hours it falls straight to none at 96.
+  as straight lines, and past 48 hours it falls straight to none at 96. One curve serves every
+  account, whatever the age of the use on it. A hold by age, which kept use that had already
+  stayed `a` hours by the curve's own `S(a+h)/S(a)`, was scored against the owner's history and
+  not taken (the owner's call, 16 November 2026). It scored no better, 30.8 hours off on average
+  against the one curve's 30.6. It also missed what it was built for: a session that ran on one
+  account for two days without the hour's pause that would place it afresh. Nothing in the
+  history says beforehand that a session won't pause.
 - **An account that can't take requests,** its token refused, its read refused (see 401s and
   403s) or none usable, holds none of its use: the router sends its sessions' requests elsewhere,
   and its use goes where a new session would. Nor does a new session go to it. A token refused as
