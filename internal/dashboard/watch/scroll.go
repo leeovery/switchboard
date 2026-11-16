@@ -47,7 +47,9 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 // draws it: help, or the Log's details, over the Log or a session's page,
 // over its card; the view, over what of it scrolls, while no card is open,
 // as far as notch says, as scrollView scrolls it, as on j and k; Projects'
-// list, over it, a project at a time, as projectsWheeled has it; and nothing
+// list, over it, a project at a time the way the fingers moved, as the Mac
+// scrolls, as projectsWheeled has it, the one place the wheel moves a choice,
+// not content, which macOS already has follow the fingers; and nothing
 // else, the routing card among it, nor anything while the theme picker is
 // open. A turn scrolls a card wheelRows rows. What's under the pointer with
 // no card open is found from the page on screen alone, as onScreen has it,
@@ -70,7 +72,7 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 		case dashboard.UnderView:
 			return m.scrollView(notch(f, m.doc, at, way))
 		case dashboard.UnderProjectsList:
-			return m.projectsWheeled(way)
+			return m.projectsWheeled(m.cfg.Scrolling.Fingers(way))
 		}
 	}
 	return m

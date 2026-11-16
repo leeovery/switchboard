@@ -3710,7 +3710,24 @@ Overview's SESSIONS):
 - on the Overview and Trends, on a section's heading or its key, it hides the section;
 - on the Log's `▼ 214 new`, it follows again, and on a tick in its `f` panel, it ticks it;
 - the wheel scrolls what's under the pointer, where that scrolls; over Projects' list, it chooses
-  the project before or after, a project a turn, as the arrows do there.
+  the project before or after, a project a turn, the way the fingers move, as the arrows do there.
+
+**The wheel follows the fingers over Projects' list.** Fingers down on the trackpad choose the
+next project down, and fingers up the one above, whichever way the Mac scrolls (the owner's call,
+16 November 2026). Everywhere else, the wheel moves content, and macOS already makes content follow
+the fingers. Projects' list is the one place the wheel moves a choice instead. The dashboard
+reads the Mac's scroll setting once, as it opens, and handles each turn over the list to match:
+
+| The Mac scrolls | Fingers down reach the terminal as | Over the list, the dashboard |
+|---|---|---|
+| Naturally | The wheel turned up | Reverses each turn |
+| Traditionally | The wheel turned down | Takes each turn as it comes |
+
+The setting is `com.apple.swipescrolldirection` in the global domain, one setting for the trackpad
+and the mouse alike. `0` means traditional. `1`, no setting at all, or a read that fails means
+natural, macOS's default. Over SSH, for example from Blink on an iPad, the Mac's setting is still
+the one read. A touch drag acts as natural, so the list follows the fingers there too. A
+traditional Mac reached from an iPad gets the list's wheel backwards: an accepted miss.
 
 Routing takes keys alone: no click opens the routing card or acts in it, so a stray click never
 moves a session.
@@ -5468,7 +5485,8 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   leaves it stale, built as Projects next shows, never a frame at a time; and the chosen project's
   as the page or the choice does. The project shown is held as chosen once any key, click or turn
   of the wheel moves the choice, the top row's included, else the top row is chosen as the list
-  ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
+  ranks afresh. The wheel moves the choice the way the fingers move, as the Mac's scroll setting
+  says: the one place the wheel moves a choice, not content (see Clicks). The choice is kept by path, and the session selected by id, across a rebuild, and
   where the session selected showed, it's kept in view; a project that leaves the list leaves the
   top row chosen, the list with the choice, no session selected and SESSIONS from its top.
 
@@ -8226,7 +8244,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `↑` `↓` | Projects | Choose a project in the list; or, in its SESSIONS, a session |
 | `→` `←` | Projects | Into the project's SESSIONS, and back to the list |
-| the wheel | Projects, over the list | Choose the project before or after, a project a turn, as `↑` `↓` do in the list, and back to the list from SESSIONS, as a click on it does (settled in the plan) |
+| the wheel | Projects, over the list | Choose the project before or after, a project a turn, as `↑` `↓` do in the list, and back to the list from SESSIONS, as a click on it does (settled in the plan); fingers down choose the next project down, whichever way the Mac scrolls (the owner's call, 16 November 2026; see Clicks) |
 | `←` `→` | Runway | Step back to this week, then a week at a time; step forward, to the live view (the owner's call, 12 November 2026) |
 | `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
 | `w` `o` `g` `h` | Trends | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |

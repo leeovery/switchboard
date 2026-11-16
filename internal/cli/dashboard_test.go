@@ -26,6 +26,7 @@ import (
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/swipe"
 )
 
 func TestDashboard(t *testing.T) {
@@ -308,6 +309,37 @@ func TestDashboardGivesTheWatchTheHome(t *testing.T) {
 	cfg = recordWatch(t, &deps)
 	if got := run(t, deps, "dashboard"); got != (result{}) || cfg.Home != "" {
 		t.Errorf("without a home, switchboard dashboard = %+v, giving the watch the home %q; want none", got, cfg.Home)
+	}
+}
+
+// The dashboard reads which way the Mac scrolls once, as it opens, and gives
+// the watch it; without a way to read it, it's natural, macOS's default.
+func TestDashboardGivesTheWatchTheMacsScrolling(t *testing.T) {
+	tests := []struct {
+		name  string
+		said  string
+		reads bool
+		want  swipe.Direction
+	}{
+		{name: "traditional", said: "0\n", reads: true, want: swipe.Traditional},
+		{name: "natural", said: "1\n", reads: true, want: swipe.Natural},
+		{name: "unread", want: swipe.Natural},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, "[[account]]\nid = \"work\"\n")}, t.TempDir())
+			reads := 0
+			if tt.reads {
+				deps.Scrolling = func(context.Context) ([]byte, error) {
+					reads++
+					return []byte(tt.said), nil
+				}
+			}
+			cfg := recordWatch(t, &deps)
+			if got := run(t, deps, "dashboard"); got != (result{}) || cfg.Scrolling != tt.want || (tt.reads && reads != 1) {
+				t.Errorf("switchboard dashboard = %+v, giving the watch the scrolling %v, read %d times; want %v, read once", got, cfg.Scrolling, reads, tt.want)
+			}
+		})
 	}
 }
 

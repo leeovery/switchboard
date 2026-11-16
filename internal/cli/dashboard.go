@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/swipe"
 )
 
 const (
@@ -213,6 +214,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Prices:        pricing(cfg),
 		Home:          home,
 		Projects:      a.projects(),
+		Scrolling:     swipe.Read(ctx, a.Scrolling),
 	}
 	pools := a.dashboardPools(ctx, &wc, cfg, opts.probe, stamp)
 	shown, err := pools.opened(ctx, cfg, opts.pool)

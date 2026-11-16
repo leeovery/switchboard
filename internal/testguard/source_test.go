@@ -51,6 +51,9 @@ var processStarters = []string{
 	// The user's login shell, asked which claude it runs: main passes it to
 	// the CLI, and tests pass a fake that answers as they need.
 	"internal/shell/run_unix.go:Run",
+	// /usr/bin/defaults, by its path, reading the Mac's scroll setting as the
+	// dashboard opens: main passes it to the CLI, and tests pass a fake.
+	"internal/swipe/defaults.go:Defaults",
 }
 
 const (

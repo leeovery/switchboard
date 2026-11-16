@@ -116,6 +116,8 @@
   (literal "/usr/bin/open")
   ;; plutil, which the service runs by its path, past PATH's stubs.
   (literal "/usr/bin/plutil")
+  ;; defaults, which the dashboard runs by its path for the scroll setting.
+  (literal "/usr/bin/defaults")
   ;; Launch Services' lsregister, which registers the notifications' app, by
   ;; its path, which leads into the framework's versions; and that app
   ;; wherever it's written out.
