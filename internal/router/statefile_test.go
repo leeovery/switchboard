@@ -442,7 +442,7 @@ func checkAsARouterFromBeforeReadsIt(t *testing.T, data []byte, saved *state) {
 		kept.Readings[id] = savedReading{ReadAt: r.ReadAt, Windows: r.Windows, WindowsReadAt: r.WindowsReadAt, Extra: r.Extra}
 	}
 	before := newTestState(&testClock{now: start})
-	before.recall(kept, func(string) bool { return false })
+	before.recall(kept, func(string) tokenKept { return tokenKept{} })
 	for id, u := range saved.usage {
 		got := before.usage[id]
 		if !got.updated.Equal(u.updated) || !maps.Equal(got.windows, u.windows) {
@@ -560,7 +560,7 @@ func TestAnAccountWithoutItsTokenAsTheRouterStartsStartsAfreshOnceItsBack(t *tes
 	first := newTestFile(at(start), testAccounts())
 	first.load(path)
 	for range 4 {
-		first.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"), first.state.mark(), readings.FromProbe)
+		first.state.recordProbe("side", quota.Probe{}, errUnreadable, first.state.mark(), readings.FromProbe)
 	}
 	first.save()
 

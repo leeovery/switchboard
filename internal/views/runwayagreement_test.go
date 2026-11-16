@@ -117,14 +117,20 @@ func judgedKey(from views.LanesFrom) string {
 	return cmp.Or(from.Key, claude.WeekWindow)
 }
 
-// asRouted is the cell an account routed as a is drawn in now: held back
-// from every request by a limit, a refusal of its token or its cap, as its
-// kind, but as asLastRead says where its read was refused; without a usable
-// token; blank where nothing's read of it; else with room.
+// asRouted is the cell an account routed as a is drawn in now: without a
+// usable token, and blank where nothing's read of it, whatever ROUTING says
+// holds it back, as a first read the API refused is said before it's
+// unread; held back from every request by a limit, a refusal of its token or
+// its cap, as its kind, but as asLastRead says where its read was refused;
+// else with room.
 func asRouted(a status.AccountNow) views.Cell {
-	switch a.Routing.Kind {
-	case status.RoutingTokenless:
+	switch {
+	case !a.TokenSet:
 		return views.CellTokenless
+	case !a.Read:
+		return views.CellUnknown
+	}
+	switch a.Routing.Kind {
 	case status.RoutingLimited:
 		return views.CellLimited
 	case status.RoutingRefused, status.RoutingLapsed:
@@ -132,8 +138,6 @@ func asRouted(a status.AccountNow) views.Cell {
 			return asLastRead(a)
 		}
 		return views.CellRefused
-	case status.RoutingUnreadable, status.RoutingUnread:
-		return views.CellUnknown
 	case status.RoutingCapped:
 		return views.CellCapped
 	}

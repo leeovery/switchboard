@@ -413,8 +413,15 @@ func TestALaneWithNothingElseToSaySaysWhatItHas(t *testing.T) {
 	gone := runwayBack(civilDay(9, 21))
 	roomy := laneWith()
 	roomy.Room = true
-	unreadable := laidLane{ID: "work", Cells: make([]views.Cell, 136), account: status.AccountNow{
-		ID: "work", Routing: status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529 · Overloaded"}},
+	unreadable := laidLane{ID: "work", Cells: make([]views.Cell, 136), Use: views.Use{Unread: true}, account: status.AccountNow{
+		ID: "work", TokenSet: true, Error: "HTTP 529 · Overloaded",
+		Routing: status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529 · Overloaded"}},
+	}}
+	// lapsed is an account added with its subscription already ended: its
+	// first read refused, ROUTING says why, nothing of it read.
+	lapsed := laidLane{ID: "work", Cells: make([]views.Cell, 136), Use: views.Use{Unread: true}, account: status.AccountNow{
+		ID: "work", TokenSet: true, Error: "HTTP 403 · OAuth authentication is currently not allowed for this organ",
+		Routing: status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}},
 	}}
 	unknown := laidLane{ID: "work", Cells: make([]views.Cell, 136)}
 	tests := []struct {
@@ -431,6 +438,10 @@ func TestALaneWithNothingElseToSaySaysWhatItHas(t *testing.T) {
 		{
 			name: "a first read failed, that it can't be read, and why", shown: runwayLive(), lane: unreadable,
 			want: "can't read it: HTTP 529 · Overloaded", ink: dimInk,
+		},
+		{
+			name: "a first read refused, why, as ROUTING says it", shown: runwayLive(), lane: lapsed,
+			want: "subscription lapsed: its subscription needs renewing", ink: dimInk,
 		},
 		{name: "a week gone that read nothing of it", shown: gone, lane: unknown, want: "nothing read that week", ink: faintInk},
 		{

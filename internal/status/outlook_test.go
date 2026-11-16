@@ -677,6 +677,22 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), reset("fable", "7d", 3*day), back("fable", "7d_oi", 4*day, false)},
 		},
 		{
+			name: "a limit of a model's own week, its token refused till later: back as the refusal ends, as USAGE has it",
+			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.2, 3*day), spentIn("7d_oi", 1, time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(time.Hour)}
+				a.Refused = status.Refusal{Until: built.Add(2 * time.Hour), Status: 401}
+			})),
+			want: []status.Upcoming{reset("fable", "7d_oi", time.Hour), back("fable", "7d_oi", 2*time.Hour, false), reset("fable", "5h", 4*time.Hour), reset("fable", "7d", 3*day)},
+		},
+		{
+			name: "a limit of a model's own week, its token refused till sooner: back as the limit lifts",
+			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.2, 3*day), spentIn("7d_oi", 1, 2*time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(2 * time.Hour)}
+				a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
+			})),
+			want: []status.Upcoming{back("fable", "7d_oi", 2*time.Hour, false), reset("fable", "5h", 4*time.Hour), reset("fable", "7d", 3*day)},
+		},
+		{
 			name: "a limit of a model's own week, its subscription ended: never back, as only a clean read lifts that",
 			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.1, 2*time.Hour), windowIn("7d", 0.2, 3*day), spentIn("7d_oi", 1, 4*day)), func(a *status.Account) {
 				a.Limit, a.Error = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(4 * day)}, endedSubscription

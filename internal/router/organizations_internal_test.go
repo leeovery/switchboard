@@ -834,7 +834,7 @@ func TestATokenTakenUpWhileTheRouterWasAwayIsProbedOnItsFirstRound(t *testing.T)
 		// or another taken up meanwhile.
 		clock.now = start.Add(roundEvery)
 		after := newTestRouter(t, clock.read, &stubProber{})
-		after.state.recall(kept, func(string) bool { return held })
+		after.state.recall(kept, func(string) tokenKept { return tokenKept{same: held, usable: true} })
 		if due := after.state.rounding(after.rounds.clears)("side", clock.now); due == held {
 			t.Errorf("side, read a minute before, holding the token it held then: %v, due on its first round = %v; want %v", held, due, !held)
 		}

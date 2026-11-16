@@ -80,7 +80,7 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	out2 := cardLane(0.34)
 	out2.account.OutOfPool = true
 	unreadable := unusedLane(views.Use{Key: "7d", Unread: true})
-	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
+	unreadable.account.Error, unreadable.account.Routing = "HTTP 529 · Overloaded", status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
 	resets := cardLane(0.34)
 	resets.Resets = []views.Reset{{Column: 100, At: reset}}
 	monday := stretchOf(tl, views.CellLimited, routedClock(5, 6, 0), routedClock(5, 12, 0), tl.Column(routedClock(5, 6, 0)), 120)
@@ -257,7 +257,7 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 	running := cardLane(0.66, out)
 	unreadable := unusedLane(views.Use{Key: "7d", Unread: true})
 	unreadable.name = accountName{label: "someone@example.com"}
-	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
+	unreadable.account.Error, unreadable.account.Routing = "HTTP 529 · Overloaded", status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
 	tests := []struct {
 		name   string
 		lane   laidLane

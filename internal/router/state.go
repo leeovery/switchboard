@@ -1668,13 +1668,13 @@ func (u *usage) windowsReadAt() map[string]time.Time {
 }
 
 // recall takes in what the state file kept of the accounts' usage, as the
-// router starts, as each usage's recall has it, holding reporting whether an
+// router starts, as each usage's recall has it, holding telling how an
 // account holds the token it held then, and the hold curve; but for what it
 // kept of accounts no longer configured. It reports whether it left out the
 // reading of an account no longer configured, or took an account's probes
 // otherwise than they were kept, so the file is written again as it took
 // them.
-func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed bool) {
+func (s *state) recall(saved savedUsage, holding func(id string) tokenKept) (changed bool) {
 	now := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1699,18 +1699,21 @@ func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed 
 
 // recall takes in what the state file kept of the account, at now: its
 // reading, the windows retired, as retire has them, each absent from before
-// every moment, and, where it holds the token it held then, as held says, how
-// its probes went, which a stopped router's probes count for as they would
-// have, had it run on; else its token's to be checked, as unchecked says. A
-// window kept without when it was read, as a router from before kept them,
-// wasn't read as far as is known. What a file edited by hand can hold is
-// taken as the router would have kept it: a window kept both read and
-// retired was read; one retired that shared says no model shares wasn't
-// retired; a probe kept as ending after now, as before the clock was set
-// back, ended now; a count of misses runs from none to backingOff; and an
-// error has nothing shaped like a token in it. It reports whether it took the
-// probes otherwise than they were kept, or left them out.
-func (u *usage) recall(kept savedReading, held bool, shared func(key string) bool, now time.Time) (changed bool) {
+// every moment, and, where it holds the token it held then, as token says,
+// how its probes went, which a stopped router's probes count for as they
+// would have, had it run on, but for its read refused alone where that token
+// isn't usable now, as on its loss, as probesAfreshOnItsToken has it; and
+// where it doesn't hold that one usable, its token's to be checked, as
+// unchecked says. A window kept without when it was read, as a router from
+// before kept them, wasn't read as far as is known. What a file edited by
+// hand can hold is taken as the router would have kept it: a window kept
+// both read and retired was read; one retired that shared says no model
+// shares wasn't retired; a probe kept as ending after now, as before the
+// clock was set back, ended now; a count of misses runs from none to
+// backingOff; and an error has nothing shaped like a token in it. It reports
+// whether it took the probes otherwise than they were kept, or left them
+// out.
+func (u *usage) recall(kept savedReading, token tokenKept, shared func(key string) bool, now time.Time) (changed bool) {
 	for _, w := range kept.Windows {
 		u.windows[w.Key] = w
 		u.readAt[w.Key] = kept.WindowsReadAt[w.Key].UTC()
@@ -1721,12 +1724,15 @@ func (u *usage) recall(kept savedReading, held bool, shared func(key string) boo
 		}
 	}
 	u.updated, u.extra = kept.ReadAt.UTC(), kept.Extra
-	if held {
+	if token.same {
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
 		u.probeErr = redact.Text(kept.ProbeError)
 		u.refusedSince = u.refusalKept(kept, now)
 	}
-	u.unchecked = !held
+	if !token.usable {
+		u.probesAfreshOnItsToken()
+	}
+	u.unchecked = !token.held()
 	return !u.probed.Equal(kept.Probed) || u.misses != kept.Misses || u.probeErr != kept.ProbeError ||
 		!u.refusedSince.Equal(kept.RefusedSince)
 }

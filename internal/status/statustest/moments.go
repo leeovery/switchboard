@@ -651,6 +651,21 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
+			// Work was added with its subscription already ended: its first
+			// read was refused, so ROUTING says why, though nothing of it
+			// has ever been read.
+			Name: "its first read refused, its subscription ended, nothing read before",
+			Doc: Router(policy, nil,
+				Routed{ID: "work", Label: "work", TokenSet: true, Error: "HTTP 403 · OAuth authentication is currently not allowed for this organ"},
+				Routed{Account: side},
+			),
+			Now: Built.Add(time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingLapsed, Windows: map[string]WindowFacts{}},
+				"side": sideOpen,
+			}},
+		},
+		{
 			Name: "probed, of several accounts",
 			Doc: Probed(policy,
 				readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.5, 2*day)),

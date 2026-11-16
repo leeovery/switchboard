@@ -546,10 +546,11 @@ func (d Document) backs(j judgedAccount) []Upcoming {
 
 // backsOfModels are when the account judged as j has room again for some
 // models' requests, as each window that holds back theirs alone, as policy
-// says which, lifts, named: one a limit holds, as Lifts says, and one at its
-// cap, where its reserve holds the account back, as it resets. There are
-// none while its read is refused, which holds back every request till a read
-// comes back clean, whatever lifts.
+// says which, lifts, named: one a limit holds, as it has room again, as
+// liftsAt says, so as the router's refusal of its token ends where that's
+// later, and one at its cap, where its reserve holds the account back, as it
+// resets. There are none while its read is refused, which holds back every
+// request till a read comes back clean, whatever lifts.
 func (d Document) backsOfModels(j judgedAccount) []Upcoming {
 	a, s, policy := j.states.account, j.states.stood, j.states.policy
 	if s.refusedRead != 0 {
@@ -558,7 +559,7 @@ func (d Document) backsOfModels(j judgedAccount) []Upcoming {
 	var backs []Upcoming
 	for _, key := range s.held.Windows {
 		if s.limited && !policy.IsShared(key) {
-			backs = append(backs, Upcoming{At: s.held.Lifts(key), Account: a.ID, Kind: UpcomingBack, Window: key})
+			backs = append(backs, Upcoming{At: j.states.liftsAt(key), Account: a.ID, Kind: UpcomingBack, Window: key})
 		}
 	}
 	if !d.reserveHolds(a) {

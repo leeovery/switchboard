@@ -36,14 +36,14 @@ func (s stood) holdsAt(t time.Time) bool {
 }
 
 // ahead is how an account stands from now on, as the moment has it: without
-// a usable token, or nothing known of it, all along; each hold at now, a
-// part of its own, in the precedence Then judges by, from when the router's
-// event of it tells till it lifts: a limit holding back every request, till
-// its hold's until; its token refused, till the refusal's; and its cap, till
-// it lets go; and each window every model shares that runs out ahead, as its
-// RunsOutAhead has it. Where its read is refused, as its RefusedRead has it,
-// it's drawn as last read all the same, but nothing says when it next has
-// room, as roomFrom says.
+// a usable token, or nothing read of it, all along, whatever ROUTING says
+// holds it back; each hold at now, a part of its own, in the precedence Then
+// judges by, from when the router's event of it tells till it lifts: a limit
+// holding back every request, till its hold's until; its token refused, till
+// the refusal's; and its cap, till it lets go; and each window every model
+// shares that runs out ahead, as its RunsOutAhead has it. Where its read is
+// refused, as its RefusedRead has it, it's drawn as last read all the same,
+// but nothing says when it next has room, as roomFrom says.
 type ahead struct {
 	tokenless, unknown, refusedRead bool
 	holds                           []stood
@@ -60,13 +60,7 @@ type runOut struct {
 
 // aheadOf is how the account a stands from now on, as ahead has it.
 func aheadOf(a status.AccountNow) ahead {
-	h := ahead{refusedRead: a.RefusedRead != 0}
-	switch a.Routing.Kind {
-	case status.RoutingTokenless:
-		h.tokenless = true
-	case status.RoutingUnreadable, status.RoutingUnread:
-		h.unknown = true
-	}
+	h := ahead{tokenless: !a.TokenSet, unknown: a.TokenSet && !a.Read, refusedRead: a.RefusedRead != 0}
 	if a.Held && a.Hold.Every {
 		h.holds = append(h.holds, stood{cell: CellLimited, since: a.LimitSince, until: a.Hold.Until})
 	}

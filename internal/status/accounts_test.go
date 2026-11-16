@@ -110,6 +110,10 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "○ not read", head: "! can't read it · HTTP 529 · Overloaded"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
+		"its first read refused, its subscription ended, nothing read before": {
+			"work": {state: "■ lapsed", head: "■ subscription lapsed · its subscription needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
 		"probed, of several accounts": {
 			"work": {state: "● open", head: "● open"},
 			"side": {state: "● open", head: "● open"},

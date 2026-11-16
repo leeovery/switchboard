@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 // Why a probe read nothing, as the API answers it: an ended subscription,
@@ -417,6 +418,52 @@ func TestARestartHoldsAnAccountByItsReadRefusedOnlyFromWhenItWasFirstRefused(t *
 			}
 			if roomAt(after.state, now) {
 				t.Error("after the restart, the pool has room, want none: work's subscription has ended")
+			}
+		})
+	}
+}
+
+func TestARestartWithoutItsTokenHoldsAnAccountWhoseReadWasRefusedTillAnotherTokenComes(t *testing.T) {
+	tests := []struct {
+		name string
+		// back is the token side's file holds once it's back.
+		back string
+		held bool
+	}{
+		{name: "its own back", back: sideToken, held: true},
+		{name: "another", back: renewedToken},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Side's subscription ended, and the router restarts an hour on
+			// with side's token file holding none it can use; then the
+			// file holds a token again.
+			path := filepath.Join(t.TempDir(), "state.json")
+			first := newTestFile(at(start), testAccounts())
+			first.load(path)
+			probesEnd(first.state, "side", []error{errSubscriptionEnded})
+			first.save()
+			files := &changingFiles{files: tokenstest.Files{"work": workToken}}
+			r := newTestRouterReading(t, at(start.Add(time.Hour)), &stubProber{}, files.read)
+			r.file.load(path)
+			heldSince := func() (bool, time.Time) {
+				r.state.mu.Lock()
+				defer r.state.mu.Unlock()
+				u := r.state.usage["side"]
+				return u.readRefused(), u.refusedSince
+			}
+			if refused, since := heldSince(); !refused || !since.Equal(start) {
+				t.Fatalf("without its token, side's read refused: %v, since %v; want refused since %v, as on its loss", refused, since, start)
+			}
+
+			files.set(tokenstest.Files{"work": workToken, "side": tt.back})
+			r.upkeep.tokens.look()
+			wantSince := time.Time{}
+			if tt.held {
+				wantSince = start
+			}
+			if refused, since := heldSince(); refused != tt.held || !since.Equal(wantSince) {
+				t.Errorf("with %s, side's read refused: %v, since %v; want %v, since %v: only another token lifts it", tt.name, refused, since, tt.held, wantSince)
 			}
 		})
 	}

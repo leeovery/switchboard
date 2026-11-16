@@ -866,14 +866,17 @@ func asTheMomentHasIt(a status.AccountNow) status.Was {
 // stand, as Then says it: as last read, as Runway draws its lane, the
 // readings keeping no read refused, so what holds it back beneath the
 // refusal, in Then's precedence: a limit holding back every request, till it
-// lifts; its token refused by the router, till the refusal ends; its cap,
-// till its cap lets it go; else room.
+// lifts; its token refused by the router, till the refusal ends; nothing read
+// of it, as where its first read was the one refused; its cap, till its cap
+// lets it go; else room.
 func asLastRead(a status.AccountNow) status.Was {
 	switch {
 	case a.Held && a.Hold.Every:
 		return status.Was{Kind: status.WasLimited, Until: a.Hold.Until}
 	case a.TokenRefused:
 		return status.Was{Kind: status.WasRefused, Until: a.Refusal.Until}
+	case !a.Read:
+		return status.Was{Kind: status.WasUnread}
 	case a.CapHolds:
 		return status.Was{Kind: status.WasCapped, Until: a.CapBack}
 	}

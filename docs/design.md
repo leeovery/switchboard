@@ -474,20 +474,24 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   one whose probe read nothing, so a subscription renewed is seen within the half hour (see The
   router's rounds); a choice probes it no sooner, nor is a failed prime of it sent again sooner, as
   each read refused would only be another warning. A new token in its file lifts the hold at once,
-  as it starts its probes afresh; the same token lost and back, as a file emptied while it's
-  rewritten, keeps it, as that token would only be refused again. A read that fails otherwise with
-  no refusal before it holds nothing: the account routes on its windows as last read. A limit
-  holding the account too doesn't hide the hold: ROUTING, the routing card and `status` say the
-  refusal first, and nothing says it's back as the limit lifts, its windows' words reading `limit`
-  with no `back`. The hold begins at the first refusal of a run, kept through the refusals and
-  failures after it, which the state file keeps beside the last probe; the pools' room, which the
-  forecast's day rate counts, holds the account back only from then, never before, so a restart
-  replaying the readings history counts its room till then, however long it's been probed since. A
-  state file from before keeps no start, and the hold runs from its last probe; a router from
-  before reads the file all the same, passing over the start. The router judges the hold from its
-  own state, through the readers of Claude's answers, and the status document states it once, as
-  the account's `RefusedRead`: no view reads the error again. An account removed goes as any other,
-  its history kept.
+  as it starts its probes afresh. The same token lost and back keeps it, as that token would only
+  be refused again: a file moved away and back, holding no usable token two looks running, as a
+  loss takes, or the router restarting while the file holds none, the state file keeping the
+  refusal for the token it held last. A read that fails otherwise with no refusal before it holds
+  nothing: the account routes on its windows as last read. A limit holding the account too doesn't
+  hide the hold: ROUTING, the routing card and `status` say the refusal first, and nothing says
+  it's back as the limit lifts, its windows' words reading `limit` with no `back`, and Runway's
+  stretch through now no `back` either. An account whose first read is refused, as one added with
+  its subscription already ended, says the refusal too, while every view draws it as not read yet,
+  as nothing of it has been. The hold begins at the first refusal of a run, kept through the
+  refusals and failures after it, which the state file keeps beside the last probe; the pools'
+  room, which the forecast's day rate counts, holds the account back only from then, never before,
+  so a restart replaying the readings history counts its room till then, however long it's been
+  probed since. A state file from before keeps no start, and the hold runs from its last probe; a
+  router from before reads the file all the same, passing over the start. The router judges the
+  hold from its own state, through the readers of Claude's answers, and the status document states
+  it once, as the account's `RefusedRead`: no view reads the error again. An account removed goes
+  as any other, its history kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -4412,7 +4416,8 @@ at every width.
   `text.subtle`. A run-out's row is all in `accent.attention`, its time and countdown too. It lists,
   as the status document gives them (see The status document):
   - a limit lifting, `personal back from its limit`, or a model's own,
-    `back from its Fable wk limit`;
+    `back from its Fable wk limit`, at the time USAGE gives its window's `back`, so once the
+    refusal of its token ends where that's later;
   - a cap lifting, as the capped window resets, `work back from its cap`;
   - a refused token's refusal ending, where it holds the account back past its limit or its cap,
     `work back from its refused token`;
@@ -6077,11 +6082,12 @@ request ledger).
   and a reset's `│` at its top and bottom, where the frames draw `▆`, the lower three quarters of a
   cell. Every window that every model shares counts, the 5-hour among them. `│` in `text.subtle`
   marks where each account's week resets, on now's column or after it. An account without a usable token has no room all along, and one not read
-  yet is left blank (settled in the plan). An account whose first read failed is left blank, as not
-  read yet: its label says `not read`, and from the lanes' first column, in `text.subtle`,
-  `can't read it: HTTP 529 · Overloaded` (the owner's call, 13 October 2026). An account whose
-  token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
-  2026).
+  yet is left blank (settled in the plan), whatever ROUTING says holds it back. An account whose
+  first read failed is left blank, as not read yet: its label says `not read`, and from the lanes'
+  first column, in `text.subtle`, `can't read it: HTTP 529 · Overloaded` (the owner's call, 13
+  October 2026), or, where the API refused the read, ROUTING's words, `subscription lapsed: its
+  subscription needs renewing`. An account whose token is refused has the windows' use under its
+  name faded as stale (the owner's call, 13 October 2026).
 
 **The account column collapsed.** `a` collapses the labels to each account's use, to give the
 lanes more room, at every width, and `a` again expands them; expanded is the default, and the
