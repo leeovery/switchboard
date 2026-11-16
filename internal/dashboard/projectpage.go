@@ -119,12 +119,13 @@ func (d projectDrawn) halfLeast() int {
 
 // formOf is how the sections lie across the frame, as flex lays two halves
 // out: wide where WORTH BY at its least, as halfLeast has it, fits the left
-// half, halvesApart from the right, and BY MODEL and ON ACCOUNTS whole fit
-// the right, the left half's cells given; else middling where BY MODEL and
-// ON ACCOUNTS whole fit a half each, the column the right half starts at
-// given; else stacked.
+// half, halvesApart from the right, and BY MODEL, at the page's most, and ON
+// ACCOUNTS whole fit the right, the left half's cells given; else middling
+// where they fit a half each, the column the right half starts at given;
+// else stacked. The page's most, not the project's own, so the form holds
+// as the choice moves.
 func (d projectDrawn) formOf() (projectForm, int) {
-	right := max(d.modelsWhole(), d.accountsWhole())
+	right := max(d.modelsMost(), d.accountsWhole())
 	if left, _, ok := halves(d.f.Width, halvesApart, max(d.halfLeast(), right)); ok {
 		return projectWide, left.Size
 	}
@@ -142,10 +143,15 @@ func halves(width, apart, least int) (left, right flex.Span, ok bool) {
 	return spans[0], spans[1], ok
 }
 
-// modelsWhole are the cells BY MODEL takes whole: its versions' rows, as
-// versionRow lays them out.
-func (d projectDrawn) modelsWhole() int {
-	return versionAt + d.versionCells() + 1 + percentCells
+// modelsMost are the cells BY MODEL takes whole at the page's most: its
+// versions' rows, as byModel lays them out, of the widest name of the
+// project's versions or the page's Most.
+func (d projectDrawn) modelsMost() int {
+	cells := d.versionCells()
+	if page := d.f.Projects.Page; page != nil {
+		cells = max(cells, page.Most.VersionCells)
+	}
+	return versionAt + cells + 1 + percentCells
 }
 
 // versionCells are the cells of the widest name of BY MODEL's versions.

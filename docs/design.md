@@ -5452,9 +5452,10 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   have left, the list takes up to its third again, giving way to 2. Where BY MODEL and ON
   ACCOUNTS lie beside WORTH BY and stand taller, it keeps the rows squeezing wouldn't free. Each
   step is worked out against the most rows any project of the page takes, its numbers' lines,
-  BY MODEL's versions and ON ACCOUNTS' accounts (`views.ProjectsMost`), so the list, WORTH BY's
-  rows and the sections shown hold still as the choice moves; the chosen project draws its
-  sections at its own heights, and SESSIONS takes the rest. `projectsLaid` works the layout out
+  BY MODEL's versions and ON ACCOUNTS' accounts, and the form against the widest version name
+  among them (`views.ProjectsMost`), so the form, the list, WORTH BY's rows and the sections
+  shown hold still as the choice moves; the chosen project draws its sections at its own
+  heights, and SESSIONS takes the rest. `projectsLaid` works the layout out
   once, and the drawing, the mouse and the scrolling read it. The squeeze is Projects' alone:
   Accounts' Detail draws WORTH as it did. WORTH BY today is by the hour where a column a cell
   wide fits each hour in the cells it takes, the left half where it lies wide, else by two hours;

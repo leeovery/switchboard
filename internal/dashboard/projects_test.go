@@ -244,11 +244,16 @@ func spareAtMost(l projectsLaid, g projectsGiving) int {
 	return l.f.viewRows() - taken
 }
 
-// The list's lines, WORTH BY's columns' rows and the sections kept are the
-// page's, never the chosen project's: as the choice moves among projects of
-// more and fewer versions, accounts and numbers, they hold still at every
-// size.
+// The form the sections lie in, the list's lines, WORTH BY's columns' rows
+// and the sections kept are the page's, never the chosen project's: as the
+// choice moves among projects of more and fewer versions, accounts and
+// numbers, and of a version's name wide enough to lie otherwise on its own,
+// they hold still at every size.
 func TestProjectsHoldsStillAsTheChoiceMoves(t *testing.T) {
+	type laidOut struct {
+		form projectForm
+		projectsGiving
+	}
 	rows := projectRows(35)
 	half := 0.5
 	rows[0].Share, rows[0].Tokens.Total = &half, 1_365_000_000
@@ -258,22 +263,34 @@ func TestProjectsHoldsStillAsTheChoiceMoves(t *testing.T) {
 		pages[i].ProjectRow = rows[i]
 		pages[i].ByModel, pages[i].OnAccounts = pages[i].ByModel[:i%3], pages[i].OnAccounts[:3-i%3]
 	}
+	long := ledger.Version{Name: "Opus 5.5 under a placeholder name long enough to flip the form", Family: "opus", Shade: 1}
+	pages[3].ByModel = []views.VersionShare{{Version: long, Share: &half}}
+	most := views.ProjectsMost{Versions: 2, Accounts: 3, VersionCells: line{{long.Name, secondaryInk}}.width()}
 	doc := framedDoc(nil, nil)
-	for _, width := range []int{173, 114, 108, 73, 52} {
+	flips := false
+	for _, width := range []int{173, 114, 108, 96, 73, 52} {
+		own := func(chosen int) projectForm {
+			f := projectsFrame(t, width, 53, rows, chosen, &pages[chosen])
+			return projectDrawnOf(f, f.Moment(doc, routedAt), routedAt, pages[chosen]).form
+		}
+		flips = flips || own(0) != own(3)
 		for height := 70; height >= 22; height-- {
-			laid := func(chosen int) projectsGiving {
+			laid := func(chosen int) laidOut {
 				f := projectsFrame(t, width, height, rows, chosen, &pages[chosen])
-				f.Projects.Page.Most = views.ProjectsMost{Versions: 2, Accounts: 3}
+				f.Projects.Page.Most = most
 				l := f.projectsLaying(doc, routedAt)
-				return projectsGiving{list: l.list.linesShown(), kept: l.project.kept, chart: l.project.chart}
+				return laidOut{l.project.form, projectsGiving{list: l.list.linesShown(), kept: l.project.kept, chart: l.project.chart}}
 			}
 			first := laid(0)
 			for chosen := 1; chosen < len(pages); chosen++ {
 				if got := laid(chosen); got != first {
-					t.Errorf("at %dx%d, %d chosen gives way as %+v, the first chosen as %+v", width, height, chosen, got, first)
+					t.Errorf("at %dx%d, %d chosen lies and gives way as %+v, the first chosen as %+v", width, height, chosen, got, first)
 				}
 			}
 		}
+	}
+	if !flips {
+		t.Error("no width lies the long-named project otherwise than the first on its own: the sweep tests no form")
 	}
 }
 

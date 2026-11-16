@@ -294,7 +294,8 @@ func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 }
 
 // The page's Most are the most versions and accounts any of its projects'
-// pages has, each of another project; and each row carries its project's
+// pages has, each of another project, and the widest name of a version
+// among them; and each row carries its project's
 // share of every project's worth and its tokens, as its page does.
 func TestTheProjectsPageHasTheMostOfItsProjectsPages(t *testing.T) {
 	lines := []ledger.Held{
@@ -305,8 +306,9 @@ func TestTheProjectsPageHasTheMostOfItsProjectsPages(t *testing.T) {
 		projectAsk(clientSession, "/code/client/api", "", "personal", opus, october(7, 9, 40)),
 	}
 	page := heldDays(now, lines...).Projects(projectsIn(views.PeriodToday, now))
-	if want := (views.ProjectsMost{Versions: 2, Accounts: 3}); page.Most != want {
-		t.Errorf("the page's most are %+v, want %+v", page.Most, want)
+	switchboard, _ := page.Project("/code/switchboard")
+	if want := (views.ProjectsMost{Versions: 2, Accounts: 3, VersionCells: len(switchboard.ByModel[1].Version.Name)}); page.Most != want {
+		t.Errorf("the page's most are %+v, want %+v, the widest name switchboard's Sonnet's", page.Most, want)
 	}
 	for _, r := range page.Rows {
 		project, _ := page.Project(r.Path)

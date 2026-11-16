@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/score"
@@ -59,10 +61,12 @@ type ProjectsPage struct {
 }
 
 // ProjectsMost are the most of a page's rows any project of the list has:
-// BY MODEL's versions and ON ACCOUNTS' accounts, as its page has them, so
-// the page lays out alike whichever project is chosen.
+// BY MODEL's versions and ON ACCOUNTS' accounts, as its page has them; and
+// the cells of the widest name BY MODEL gives a version among them; so the
+// page lays out alike whichever project is chosen.
 type ProjectsMost struct {
 	Versions, Accounts int
+	VersionCells       int
 }
 
 // ProjectTotals are a project's totals over the period, or every project's:
@@ -321,8 +325,12 @@ func (t projectTallies) page(in PeriodInput) ProjectsPage {
 	page := ProjectsPage{Period: in.Period, All: t.totals(), PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
 	for _, p := range t.all {
 		page.Rows = append(page.Rows, p.row(names[p.path], in.List, t.v, page.All))
-		page.Most.Versions = max(page.Most.Versions, len(p.byModel(t.v)))
+		byModel := p.byModel(t.v)
+		page.Most.Versions = max(page.Most.Versions, len(byModel))
 		page.Most.Accounts = max(page.Most.Accounts, len(p.accounts))
+		for _, v := range byModel {
+			page.Most.VersionCells = max(page.Most.VersionCells, ansi.StringWidth(v.Version.Name))
+		}
 	}
 	slices.SortFunc(page.Rows, func(a, b ProjectRow) int {
 		return cmp.Or(cmp.Compare(b.amount(), a.amount()), strings.Compare(a.Name, b.Name), strings.Compare(a.Path, b.Path))
