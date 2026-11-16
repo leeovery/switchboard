@@ -26,13 +26,13 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │   limit hit 3 of the last 14 weeks · 12% left at a reset, on average
                     │
-                    │   WORTH                                                          ▃
-                    │                                            ▇      ▁▆      ▇     ▆
-                    │                  ▆   ▇      ▆  ▇    ▂ ▁▅  ▁ ▅                           ▆    ▄      ▃ ▁    ▁  ▁
-                    │                ▁▄ ▅      ▇   ▅  ▆            ▁▂     ▃▂  ▆  ▃▇     ▆    ▅  ▂    ▄            ▄
-                    │                        ▇      ▆      ▆                             ▇             ▇   ▇  ▆    ▂
-                    │                    ▂▁     ▂      ▂▁     ▃▁            ▄▂            ▄              ▂
-                    │                 15 Jul 22 Jul 29 Jul 5 Aug 11 Aug 18 Aug 25 Aug 1 Sep 7 Sep 13 Sep 20 Sep 27 Sep 4 Oct
+                    │   WORTH                                                                                        ▃
+                    │                                                             ▇▇         ▁▁▆          ▇        ▆▆
+                    │                    ▆     ▇▇         ▆▆   ▇▇      ▂  ▁▁▅   ▁▁  ▅                                           ▆       ▄          ▃  ▁▁      ▁▁   ▁
+                    │                 ▁▄▄ ▅▅         ▇▇     ▅    ▆                   ▁▁▂        ▃▃▂    ▆   ▃▃▇        ▆▆      ▅▅   ▂▂      ▄▄                   ▄
+                    │                             ▇▇         ▆▆         ▆▆                                              ▇▇                    ▇▇    ▇▇   ▆▆      ▂▂
+                    │                       ▂▂▁        ▂▂         ▂▂▁        ▃▃▁                   ▄▄▂▂                   ▄                      ▂▂
+                    │                  15 Jul  20 Jul  25 Jul  30 Jul  4 Aug 8 Aug  12 Aug 17 Aug  22 Aug  27 Aug  1 Sep  5 Sep 9 Sep 13 Sep 17 Sep 22 Sep  27 Sep  4 Oct
                     │               peak 25 Aug $111
                     │
                     │   LATELY      14:31      ╎ reached its cap: 3 sessions moved to side

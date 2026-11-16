@@ -25,13 +25,13 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │   limit hit 3 of the last 6 weeks · 6% left at a reset, on average
                     │
-                    │   WORTH                                                          ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
-                    │                                ▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
+                    │   WORTH                                                             ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
+                    │                                 ▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
                     │
-                    │                                                 ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
+                    │                                                   ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
                     │
                     │
-                    │               Mon              Tue              Wed              Thu              Fri              Sat              Sun
+                    │               Mon               Tue               Wed               Thu              Fri               Sat               Sun
                     │               peak Mon $57.70
                         ▼ 11 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit

@@ -41,11 +41,11 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │   WORTH
                     │                                  ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
-                    │               ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄                                        ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+                    │               ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄                                         ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
                     │
                     │
                     │
-                    │               Mon                Tue                Wed                Thu                Fri                Sat                Sun
+                    │               Mon                Tue                 Wed                Thu                Fri                 Sat                Sun
                     │               peak Wed $212
                     │
                     │   LATELY      14:41      ▲ mobile started on side, the best

@@ -26,12 +26,12 @@ WEEKS               ▏ 90          ▌   72           ▉  88              100 
 limit hit 3 of the last 8 weeks · 9% left at a reset, on average
 
 WORTH
-                                ▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
+                                 ▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
 
-                                                    ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
+                                                     ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
 
 
-            Mon                 Tue                 Wed                 Thu                 Fri                 Sat                 Sun
+            Mon                  Tue                 Wed                  Thu                  Fri                 Sat                  Sun
             peak Mon $57.70
 ▼ 4 more below · j/k
 tab views   [ ] view    < > period: this week    ? help  q quit

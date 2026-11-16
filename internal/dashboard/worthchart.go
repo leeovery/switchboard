@@ -23,9 +23,12 @@ type chartSlot struct {
 }
 
 // chartSlots are where the buckets' columns lie across a chart width cells
-// wide, each as wide as the rest, and as far apart, the spare at the right:
-// two cells apart where each is four cells or more, else a cell apart where
-// each has one, else touching, as flex fits them.
+// wide, from its first cell to its last: two cells apart where each is four
+// cells or more, else a cell apart where each has one, else touching, as
+// flex fits them. Where they stand apart each is as wide as the rest and
+// the spare widens the gaps; where they touch it widens the columns; either
+// way spread evenly across the chart, none more than a cell wider than
+// another.
 func chartSlots(width, buckets int) []chartSlot {
 	if buckets == 0 {
 		return nil
@@ -37,12 +40,27 @@ func chartSlots(width, buckets int) []chartSlot {
 			break
 		}
 	}
-	step := (width + apart) / buckets
 	slots := make([]chartSlot, buckets)
+	if apart == 0 {
+		for i := range slots {
+			x := evenShare(i, width, buckets)
+			slots[i] = chartSlot{x: x, width: max(evenShare(i+1, width, buckets)-x, 1)}
+		}
+		return slots
+	}
+	column := (width+apart)/buckets - apart
+	spare, gaps := width-(buckets*(column+apart)-apart), max(buckets-1, 1)
 	for i := range slots {
-		slots[i] = chartSlot{x: i * step, width: max(step-apart, 1)}
+		slots[i] = chartSlot{x: i*(column+apart) + evenShare(i, spare, gaps), width: column}
 	}
 	return slots
+}
+
+// evenShare is how many of cells, spread evenly across parts, fall before part
+// i, rounded to the nearest, as Bresenham steps a line: none before the
+// first, all of them before the one past the last.
+func evenShare(i, cells, parts int) int {
+	return (i*cells + parts/2) / parts
 }
 
 // worthChart draws the worth by's columns from x, from row top down rows
@@ -103,17 +121,18 @@ func axisName(named string, now bool) line {
 
 // chartAxis draws a chart's axis along row y, width cells from x: each
 // column's name, as names has them, from its column's first cell, as slots
-// lay them; but of each whose name wouldn't end a cell before the next
-// drawn, or within the chart, nothing, the names from the last back giving
-// way.
+// lay them, or where it would run past the chart, ending at its edge; but
+// of each whose name wouldn't end a cell before the next drawn, nothing,
+// the names from the last back giving way.
 func chartAxis(c *canvas, x, y, width int, slots []chartSlot, names []line) {
 	next := width + 1
 	for i, named := range slices.Backward(names) {
-		if named.width() == 0 || slots[i].x+named.width() >= next {
+		at := max(min(slots[i].x, width-named.width()), 0)
+		if named.width() == 0 || at+named.width() >= next {
 			continue
 		}
-		c.line(x+slots[i].x, y, named)
-		next = slots[i].x
+		c.line(x+at, y, named)
+		next = at
 	}
 }
 

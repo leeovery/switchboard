@@ -18,20 +18,20 @@ BY MODEL  share of use
   ● Haiku 4.5               3%                                3%                               3%                               3%
 
 WEEKS  each week at its peak, a month its fullest
-                          ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄▁┄▃┄ ┄ ┄┄                               ▄                                                                 ▁
-                                ▁ ▁ ▄ ▆ ▇                                 ▁ ▃ ▅ ▇                                  ▇                          ▁ ▃ ▃
-                          ▃ ▅ ▆                               ▁ ▂ ▄ ▅ ▆                                                           ▁ ▃ ▃ ▅ ▆ ▇
-                                                                                             ▁ ▂ ▂ ▃ ▄ ▄ ▅ ▆ ▇                ▆
+                          ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄▁┄┄▃┄┄ ┄ ┄┄┄                             ▄                                                                  ▁
+                                  ▁  ▁ ▄  ▆  ▇                                ▁  ▃ ▅  ▇                                  ▇                         ▁  ▃  ▃
+                          ▃  ▅ ▆                               ▁ ▂  ▄ ▅  ▆                                                         ▁  ▃  ▃ ▅  ▆  ▇
+                                                                                             ▁  ▂ ▂  ▃ ▄  ▄  ▅ ▆  ▇           ▆
 
-                          Oct Dec Feb Apr Jun Aug Oct       Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct
+                             Nov  Jan  Mar   May  Jul   Oct    Nov  Jan  Mar  May  Jul   Oct    Nov  Jan  Mar  May  Jul   Oct    Nov  Jan  Mar   May  Jul   Oct
                           limit hit 3 of 51 · 31% left      limit hit 0 of 51 · 44% left     limit hit 0 of 51 · 69% left     short on 3 of 51 · 48% left
 
 WORTH  at API prices, by month
-                                        ▁ ▂ ▆   ▇                               ▁ ▃                                                           ▁ ▄ ▅
-                                ▁ ▃ ▆ ▇                               ▁ ▃ ▄ ▆ ▇                                    ▃                  ▂ ▄ ▆
-                          ▅ ▇ ▅                             ▂ ▄ ▃ ▅ ▇                                  ▂ ▃ ▃ ▄ ▅ ▅            ▄ ▆ ▄
-                                                  ▁                                 ▁        ▆ ▇ ▆                   ▁                                ▁
-                          Oct Dec Feb Apr Jun Aug Oct       Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct
+                                             ▁ ▂  ▆    ▇                              ▁ ▃                                                          ▁  ▄  ▅
+                                  ▁  ▃ ▆  ▇                              ▁  ▃ ▄  ▆ ▇                                     ▃               ▂ ▄  ▆
+                          ▅  ▇ ▅                            ▂  ▄ ▃  ▅ ▇                                   ▂  ▃ ▃  ▄ ▅  ▅      ▄  ▆ ▄
+                                                          ▁                                ▁ ▆  ▇ ▆                         ▁                                 ▁
+                             Nov  Jan  Mar   May  Jul   Oct    Nov  Jan  Mar  May  Jul   Oct    Nov  Jan  Mar  May  Jul   Oct    Nov  Jan  Mar   May  Jul   Oct
                           peak Aug $1,307                   peak Sep $1,094                  peak Sep $775                    peak Sep $3,120 · its own scale
 ▼ 16 more below · j/k
 tab views   [ ] view    < > period: 12 months    ←→ account  enter its page    p pin    ? help  q quit
