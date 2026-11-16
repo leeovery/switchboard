@@ -13,8 +13,8 @@ import (
 const moreProjects = 29
 
 // moreProjectsLines are the lines of the sessions moreProjects adds, the
-// nth in ~/Code/repo-n from 08:n, its turns sampled from seed n, over a
-// span a minute longer than the one before, so each is worth a little more.
+// nth in ~/Code/repo-n from 08:n, its turns sampled from seed n over its
+// first 10+n minutes.
 func moreProjectsLines(now time.Time) []ledger.Line {
 	var lines []ledger.Line
 	for n := 1; n <= moreProjects; n++ {

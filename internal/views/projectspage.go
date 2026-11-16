@@ -44,17 +44,25 @@ type PeriodInput struct {
 // temporary folders another, the one worth most first; and every project's
 // together. A session's project is the one in's Projects reads of what its
 // lines named, and of what the router lists, of a session running. Project
-// gives each one's page.
+// gives each one's page; Most, the most rows any one's page takes.
 type ProjectsPage struct {
 	Period Period
 	Rows   []ProjectRow
 	All    ProjectTotals
+	Most   ProjectsMost
 	// PricesAsOf is the date of the day the price table worth is priced by
 	// was read, as help gives it.
 	PricesAsOf string
 
 	tallies map[string]*projectTally
 	in      PeriodInput
+}
+
+// ProjectsMost are the most of a page's rows any project of the list has:
+// BY MODEL's versions and ON ACCOUNTS' accounts, as its page has them, so
+// the page lays out alike whichever project is chosen.
+type ProjectsMost struct {
+	Versions, Accounts int
 }
 
 // ProjectTotals are a project's totals over the period, or every project's:
@@ -70,8 +78,8 @@ type ProjectTotals struct {
 // reads it, "" of the sessions with no directory, status.TemporaryFolders of
 // those of temporary folders; its name, by its path's last part, and its
 // parents' too where two share it, as status.ProjectNames names them, uncut,
-// "" of either of those; its totals; its
-// worth by model family, in the version table's order of families, as BY
+// "" of either of those; its totals; its share of every project's worth,
+// nil where either is none; its tokens; its worth by model family, in the version table's order of families, as BY
 // MONTH splits a month's; when its last request arrived, in UTC, zero
 // where none did; and what its sessions running are doing, the busiest's,
 // as busiest has it, Idle where none runs, so its last request reads as now
@@ -79,6 +87,8 @@ type ProjectTotals struct {
 type ProjectRow struct {
 	Path, Name string
 	ProjectTotals
+	Share    *float64
+	Tokens   Tokens
 	ByFamily []FamilyWorth
 	Last     time.Time
 	Activity Activity
@@ -246,7 +256,7 @@ func (p ProjectsPage) Project(path string) (ProjectPage, bool) {
 	if i < 0 {
 		return ProjectPage{}, false
 	}
-	return p.tallies[path].page(p.Rows[i], p.All, p.in), true
+	return p.tallies[path].page(p.Rows[i], p.in), true
 }
 
 // projectTallies are each project's tally, by its path, as the page's days
@@ -310,7 +320,9 @@ func (t projectTallies) page(in PeriodInput) ProjectsPage {
 	names := status.ProjectNames(paths, math.MaxInt)
 	page := ProjectsPage{Period: in.Period, All: t.totals(), PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
 	for _, p := range t.all {
-		page.Rows = append(page.Rows, p.row(names[p.path], in.List, t.v))
+		page.Rows = append(page.Rows, p.row(names[p.path], in.List, t.v, page.All))
+		page.Most.Versions = max(page.Most.Versions, len(p.byModel(t.v)))
+		page.Most.Accounts = max(page.Most.Accounts, len(p.accounts))
 	}
 	slices.SortFunc(page.Rows, func(a, b ProjectRow) int {
 		return cmp.Or(cmp.Compare(b.amount(), a.amount()), strings.Compare(a.Name, b.Name), strings.Compare(a.Path, b.Path))
@@ -435,11 +447,12 @@ func (p *projectTally) run(s ListedSession) {
 }
 
 // row is the project's row, named as given, its sessions running doing as
-// list tells, as doingIn has it.
-func (p *projectTally) row(name string, list SessionList, v versions) ProjectRow {
+// list tells, as doingIn has it, its share of every project's totals given.
+func (p *projectTally) row(name string, list SessionList, v versions, all ProjectTotals) ProjectRow {
 	return ProjectRow{
 		Path: p.path, Name: name,
 		Live: p.live, Sessions: len(p.sessions), Requests: p.requests, Worth: p.worth,
+		Share: shareOf(p.worth, all.amount()), Tokens: p.tokens,
 		ByFamily: v.byFamily(p.families), Last: p.last, Activity: p.doingIn(list),
 	}
 }

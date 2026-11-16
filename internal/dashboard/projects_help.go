@@ -24,7 +24,7 @@ func projectsHelp() []helpPart {
 					"Trends' BY MONTH splits a month's. Live counts its sessions running now, and last says when its last " +
 					"request came, now while one of them is busy. All projects totals them, a session counted once."),
 				said("`↑` and `↓` choose the project its page under the list shows; the list scrolls with the choice past " +
-					"a third of the view's rows."),
+					"the rows it shows, up to a third of the view's."),
 				said(periodsRun + " `<` and `>` step through " + prose.List(views.PeriodNames()) + ", the period Accounts and Sessions' List share."),
 			},
 		},
@@ -37,10 +37,11 @@ func projectsHelp() []helpPart {
 					"fits, else by two hours; this week by day; 30 days and 12 weeks by day where a column a day fits, " +
 					"else by week; and 12 months by week where a column a week fits, else by month, the peak under it. BY MODEL is each version's share of its worth, those " +
 					"under 1% left out, and ON ACCOUNTS each account's, the greatest first."),
-				said("Where rows run short, WORTH BY's columns squeeze from " + prose.Grouped(worthRows) + " rows to " +
-					prose.Grouped(worthRowsLeast) + ", then the list shrinks from its third to " + prose.Grouped(listBeforeLeaving) +
-					" rows; only then does ON ACCOUNTS leave, then BY MODEL, then WORTH BY, and with them gone the list " +
-					"takes up to its third again, shrinking to 2, so SESSIONS keeps three rows at least."),
+				said("Where rows run short, WORTH BY's columns squeeze from " + prose.Counted(worthRows, "row") + " to " +
+					prose.Grouped(worthRowsLeast) + ", then the list shrinks from its third to " + prose.Counted(listBeforeLeaving, "row") +
+					". Only then do the sections leave: ON ACCOUNTS, then BY MODEL, then WORTH BY. Once all three have " +
+					"left, the list takes up to its third again and shrinks to " + prose.Counted(listLeast, "row") +
+					", so SESSIONS keeps three rows at least."),
 			},
 		},
 		{

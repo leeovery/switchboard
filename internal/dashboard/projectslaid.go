@@ -11,14 +11,19 @@ import (
 // and three of its lines, which stay however short the rows run.
 const sessionsLeast = 1 + 1 + 1 + 3
 
-// listBeforeLeaving are the rows the list gives back to, from its third,
-// before any of the chosen project's sections leaves.
-const listBeforeLeaving = 5
+// The list's rows: those it gives back to, from its third, before any of
+// the chosen project's sections leaves; and the fewest it shows, where it
+// has as many projects.
+const (
+	listBeforeLeaving = 5
+	listLeast         = 2
+)
 
 // projectsLaid is Projects as a frame lays it out of a moment at now, from
 // the view's top: the list, across the width; and under it, a blank row
 // between, the chosen project, where there's one: its head, its numbers,
-// the sections kept, and SESSIONS to the row over the key line.
+// the sections kept, and SESSIONS to the row over the key line; and the
+// most rows any project of the page takes, which it gives way against.
 type projectsLaid struct {
 	f        Frame
 	top      int
@@ -26,7 +31,13 @@ type projectsLaid struct {
 	project  *projectDrawn
 	numbers  []line
 	sessions projectSessions
+	most     pageMost
 }
+
+// pageMost are the most rows any project of the page takes, of its parts
+// that differ from one to the next: its numbers' lines, and BY MODEL's
+// versions and ON ACCOUNTS' accounts.
+type pageMost struct{ numbers, versions, accounts int }
 
 // projectsGiving is how far Projects gives way with a project chosen: the
 // rows the list shows its projects in, the line saying how many more among
@@ -37,8 +48,10 @@ type projectsGiving struct{ list, kept, chart int }
 // projectsLaying is Projects of doc at now as the frame lays it out, as
 // projectsLaid has it: the list's projects in up to a third of the view's
 // rows, scrolling past them to show the one chosen; and under it, where a
-// project is chosen, its sections as given has them give way, SESSIONS
-// taking the rest.
+// project is chosen, its sections as given has them give way against the
+// page's most, so the list, WORTH BY's columns and the sections kept hold
+// still as the choice moves; the project draws them at its own heights,
+// SESSIONS taking the rest.
 func (f Frame) projectsLaying(doc status.Document, now time.Time) projectsLaid {
 	l := projectsLaid{f: f, top: f.top()}
 	lit := !f.Projects.InSessions
@@ -49,7 +62,8 @@ func (f Frame) projectsLaying(doc status.Document, now time.Time) projectsLaid {
 	}
 	m := f.Moment(doc, now)
 	d := projectDrawnOf(f, m, now, *p)
-	l.project, l.numbers = &d, d.numbers(f.Width)
+	l.project, l.numbers = &d, projectNumbers(p.ProjectRow, f.Width)
+	l.most = l.mostOf()
 	g := l.given()
 	l.list = projectsListOf(f, g.list, lit, now)
 	l.project.kept, l.project.chart = g.kept, g.chart
@@ -68,7 +82,7 @@ func (f Frame) projectsLaying(doc status.Document, now time.Time) projectsLaid {
 // fewest where there are two.
 func (l projectsLaid) listThird() int {
 	n := len(l.f.Projects.rows())
-	return max(min(n, l.f.viewRows()/3), min(n, 2))
+	return max(min(n, l.f.viewRows()/3), min(n, listLeast))
 }
 
 // listFitting are the rows the list shows its projects in, as flex lays
@@ -77,10 +91,25 @@ func (l projectsLaid) listThird() int {
 // two.
 func (l projectsLaid) listFitting(rows, under int) int {
 	spans, _ := flex.Lay(l.f.viewRows(),
-		flex.Part{Least: min(len(l.f.Projects.rows()), 2), Natural: rows},
+		flex.Part{Least: min(len(l.f.Projects.rows()), listLeast), Natural: rows},
 		flex.Part{Least: listTaken(0) + under, Natural: listTaken(0) + under},
 	)
 	return spans[0].Size
+}
+
+// mostOf are the most rows any project of the page takes, the chosen's
+// among them: the numbers' lines at the frame's width, as projectNumbers
+// wraps each row's; and the versions and accounts, as the page's Most has
+// them.
+func (l projectsLaid) mostOf() pageMost {
+	most := pageMost{numbers: len(l.numbers), versions: len(l.project.page.ByModel), accounts: len(l.project.page.OnAccounts)}
+	if page := l.f.Projects.Page; page != nil {
+		most.versions, most.accounts = max(most.versions, page.Most.Versions), max(most.accounts, page.Most.Accounts)
+	}
+	for _, r := range l.f.Projects.rows() {
+		most.numbers = max(most.numbers, len(projectNumbers(r, l.f.Width)))
+	}
+	return most
 }
 
 // given is how far Projects gives way as the view's rows run short: the
@@ -95,14 +124,14 @@ func (l projectsLaid) given() projectsGiving {
 			return l.roomiest(g)
 		}
 	}
-	return projectsGiving{list: l.listFitting(third, 1+1+len(l.numbers)+sessionsLeast), chart: worthRowsLeast}
+	return projectsGiving{list: l.listFitting(third, 1+1+l.most.numbers+sessionsLeast), chart: worthRowsLeast}
 }
 
 // projectsGivingWay are the ways Projects gives way, in their order, to
 // WORTH BY kept alone, the list showing third rows at the most and least
-// before any section leaves: WORTH BY's columns squeeze from
-// worthRows to worthRowsLeast; then the list gives rows back to least; then
-// the sections leave, the last first, so ON ACCOUNTS goes, then BY MODEL.
+// before any section leaves: WORTH BY's columns squeeze from worthRows to
+// worthRowsLeast; then the list gives rows back to least; then the sections
+// leave, the last first, so ON ACCOUNTS goes, then BY MODEL.
 func projectsGivingWay(third, least int) []projectsGiving {
 	var way []projectsGiving
 	for chart := worthRows; chart >= worthRowsLeast; chart-- {
@@ -117,36 +146,44 @@ func projectsGivingWay(third, least int) []projectsGiving {
 	return way
 }
 
-// fits reports whether Projects given way as g fits the view's rows, as
-// flex lays them down: what's above the sections, the sections kept, a blank
-// row before them, and SESSIONS at its least.
+// fits reports whether Projects given way as g fits the view's rows at the
+// page's most, as flex lays them down: what's above the sections, the
+// sections kept, a blank row before them, and SESSIONS at its least.
 func (l projectsLaid) fits(g projectsGiving) bool {
-	h := l.project.squeezed(g.chart).height(g.kept)
-	_, fits := flex.Lay(l.f.viewRows(), flex.Part{Least: l.aboveOf(g.list)}, flex.Part{Least: h, Gap: 1}, flex.Part{Least: sessionsLeast})
+	_, fits := flex.Lay(l.f.viewRows(),
+		flex.Part{Least: l.aboveOf(g.list, l.most.numbers)}, flex.Part{Least: l.mostHeight(g), Gap: 1}, flex.Part{Least: sessionsLeast})
 	return fits
+}
+
+// mostHeight is the rows the sections kept in g take at the page's most, as
+// the chosen project's lie.
+func (l projectsLaid) mostHeight(g projectsGiving) int {
+	d := l.project.squeezed(g.chart)
+	return d.lain(d.heightsOf(l.most.versions, l.most.accounts), g.kept)
 }
 
 // roomiest is g with WORTH BY's columns given back the rows that cost
 // nothing, as where, wide, BY MODEL and ON ACCOUNTS beside it are taller.
 func (l projectsLaid) roomiest(g projectsGiving) projectsGiving {
-	h := l.project.squeezed(g.chart).height(g.kept)
-	for g.chart < worthRows && l.project.squeezed(g.chart+1).height(g.kept) == h {
+	h := l.mostHeight(g)
+	for g.chart < worthRows && l.mostHeight(projectsGiving{list: g.list, kept: g.kept, chart: g.chart + 1}) == h {
 		g.chart++
 	}
 	return g
 }
 
 // above are the rows from the view's top to the row after the chosen
-// project's numbers, as aboveOf has them of the list's lines shown.
+// project's numbers, as aboveOf has them of the list's lines shown and the
+// numbers' own.
 func (l projectsLaid) above() int {
-	return l.aboveOf(l.list.linesShown())
+	return l.aboveOf(l.list.linesShown(), len(l.numbers))
 }
 
 // aboveOf are the rows from the view's top to the row after the chosen
-// project's numbers, the list showing as many lines as given: the list's,
-// a blank row, the head and the numbers.
-func (l projectsLaid) aboveOf(lines int) int {
-	return listTaken(lines) + 1 + 1 + len(l.numbers)
+// project's numbers, the list and the numbers showing as many lines as
+// given: the list's, a blank row, the head and the numbers.
+func (l projectsLaid) aboveOf(lines, numbers int) int {
+	return listTaken(lines) + 1 + 1 + numbers
 }
 
 // sessionsAt is the row SESSIONS' heading is on: a blank row under the

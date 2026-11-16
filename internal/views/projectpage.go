@@ -14,14 +14,12 @@ import (
 )
 
 // ProjectPage is the project chosen on Projects, as its page under the list
-// shows it over the period: its row; its share of every project's worth,
-// nil where either is none; its tokens; its worth in buckets, WORTH BY; each
+// shows it over the period: its row, its share of every project's worth and
+// its tokens among it; its worth in buckets, WORTH BY; each
 // model version's share of its worth, BY MODEL; each account's, ON
 // ACCOUNTS; and its sessions, SESSIONS.
 type ProjectPage struct {
 	ProjectRow
-	Share  *float64
-	Tokens Tokens
 	// WorthBy is its worth in each bucket the period charts it in, as
 	// worthCharts has them, for the drawing to take the finest that fits.
 	WorthBy WorthCharts
@@ -65,11 +63,10 @@ type PeriodSession struct {
 	EndedOn string
 }
 
-// page is the project's page, its row given, every project's totals given,
-// the page built of in.
-func (p *projectTally) page(row ProjectRow, all ProjectTotals, in PeriodInput) ProjectPage {
+// page is the project's page, its row given, the page built of in.
+func (p *projectTally) page(row ProjectRow, in PeriodInput) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
-	page := ProjectPage{ProjectRow: row, Share: shareOf(p.worth, all.amount()), Tokens: p.tokens, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
+	page := ProjectPage{ProjectRow: row, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
 	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, in.Began, p.days, &p.hours)
 	page.Sessions = periodRows(p.sessions, in)
 	return page

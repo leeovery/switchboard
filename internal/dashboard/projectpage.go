@@ -13,10 +13,10 @@ import (
 )
 
 // The chosen project's figures, in cells and rows: WORTH BY's columns' rows,
-// whole and squeezed to their fewest; the cells between the wide form's halves; a week's days' columns at
-// their least, the cells of each and between two, as the wide form's left
-// half holds them whatever the period; and ON ACCOUNTS' bar's least, as it's
-// laid beside another part.
+// whole and squeezed to their fewest; the cells between the wide form's
+// halves; a week's days' columns at their least, the cells of each and
+// between two, as the wide form's left half holds them whatever the period;
+// and ON ACCOUNTS' bar's least, as it's laid beside another part.
 const (
 	worthRows       = 6
 	worthRowsLeast  = 3
@@ -169,19 +169,31 @@ func (d projectDrawn) namesCells() int {
 	return accountsColumn(nameGap, namesOf(d.m)).Natural
 }
 
-// heights are the rows each section takes, in their order: WORTH BY's
-// heading, columns, axis and peak; BY MODEL's and ON ACCOUNTS' heading and a
-// row a version or an account.
+// heights are the rows each of the project's sections takes, as heightsOf
+// has them of its versions and accounts.
 func (d projectDrawn) heights() [projectSections]int {
-	return [projectSections]int{1 + d.chart + 2, 1 + len(d.page.ByModel), 1 + len(d.page.OnAccounts)}
+	return d.heightsOf(len(d.page.ByModel), len(d.page.OnAccounts))
 }
 
-// height is the rows the first kept of the sections take as they lie, a
-// blank row between two stacked: wide, WORTH BY's or the right column's,
-// whichever's taller; middling, WORTH BY's and the taller of the two beside
-// each other under it; stacked, each's.
+// heightsOf are the rows each section takes, in their order, of as many
+// versions and accounts as given: WORTH BY's heading, columns, axis and
+// peak; BY MODEL's and ON ACCOUNTS' heading and a row a version or an
+// account.
+func (d projectDrawn) heightsOf(versions, accounts int) [projectSections]int {
+	return [projectSections]int{1 + d.chart + 2, 1 + versions, 1 + accounts}
+}
+
+// height is the rows the first kept of the project's sections take as they
+// lie, as lain has them of its heights.
 func (d projectDrawn) height(kept int) int {
-	h := d.heights()
+	return d.lain(d.heights(), kept)
+}
+
+// lain is the rows the first kept of sections of the heights given take as
+// they lie, a blank row between two stacked: wide, WORTH BY's or the right
+// column's, whichever's taller; middling, WORTH BY's and the taller of the
+// two beside each other under it; stacked, each's.
+func (d projectDrawn) lain(h [projectSections]int, kept int) int {
 	stacked := func(parts ...int) int {
 		rows := 0
 		for _, n := range parts {
@@ -229,15 +241,15 @@ func (d projectDrawn) head(c *canvas, y int) {
 	}
 }
 
-// numbers are the project's numbers over the period, on as many lines width
-// cells wide as they take, each number bold text.primary and its word
-// text.muted, " · " between them: its sessions; its requests; its worth at
-// API prices, as Rounded says it; its share of every project's worth, where
-// it's known; and its tokens, as prose.Millions counts them.
-func (d projectDrawn) numbers(width int) []line {
-	p := d.page
+// projectNumbers are the numbers over the period of the project of the row
+// given, on as many lines width cells wide as they take, each number bold
+// text.primary and its word text.muted, " · " between them: its sessions;
+// its requests; its worth at API prices, as Rounded says it; its share of
+// every project's worth, where it's known; and its tokens, as prose.Millions
+// counts them.
+func projectNumbers(p views.ProjectRow, width int) []line {
 	parts := []line{
-		logCounted(p.ProjectTotals.Sessions, "session", titleInk),
+		logCounted(p.Sessions, "session", titleInk),
 		logCounted(p.Requests, "request", titleInk),
 		pricedWorth(p.Worth, titleInk),
 	}

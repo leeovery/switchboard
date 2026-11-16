@@ -293,6 +293,29 @@ func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 	}
 }
 
+// The page's Most are the most versions and accounts any of its projects'
+// pages has, each of another project; and each row carries its project's
+// share of every project's worth and its tokens, as its page does.
+func TestTheProjectsPageHasTheMostOfItsProjectsPages(t *testing.T) {
+	lines := []ledger.Held{
+		projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(7, 9, 0)),
+		projectAsk(repoSession, "/code/switchboard", "", "work", "claude-sonnet-5-5", october(7, 9, 10)),
+		projectAsk(clientSession, "/code/client/api", "", "work", opus, october(7, 9, 20)),
+		projectAsk(clientSession, "/code/client/api", "", "side", opus, october(7, 9, 30)),
+		projectAsk(clientSession, "/code/client/api", "", "personal", opus, october(7, 9, 40)),
+	}
+	page := heldDays(now, lines...).Projects(projectsIn(views.PeriodToday, now))
+	if want := (views.ProjectsMost{Versions: 2, Accounts: 3}); page.Most != want {
+		t.Errorf("the page's most are %+v, want %+v", page.Most, want)
+	}
+	for _, r := range page.Rows {
+		project, _ := page.Project(r.Path)
+		if r.Share == nil || project.Share != r.Share || r.Tokens != project.Tokens || r.Tokens.Total == 0 {
+			t.Errorf("%s's row has share %v and tokens %+v, its page %v and %+v", r.Path, r.Share, r.Tokens, project.Share, project.Tokens)
+		}
+	}
+}
+
 // Where the work began part-way through the period, as a young pool's did,
 // a project's WORTH BY charts it from the day it began, as Accounts charts
 // an account's, no bucket before it as a day of none.

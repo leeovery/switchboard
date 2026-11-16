@@ -69,8 +69,8 @@ func chosenSessions() []views.PeriodSession {
 // its sessions those given.
 func chosenPage(sessions []views.PeriodSession) views.ProjectPage {
 	half, third := 0.5, 1.0/3
-	page := views.ProjectPage{ProjectRow: projectRowOf("agentic-workflows", 12, 2059, 23900), Share: &half, Sessions: sessions}
-	page.Tokens.Total = 365_000_000
+	page := views.ProjectPage{ProjectRow: projectRowOf("agentic-workflows", 12, 2059, 23900), Sessions: sessions}
+	page.Share, page.Tokens.Total = &half, 365_000_000
 	byDay := views.WorthBy{Unit: views.ByDay, Peak: 3, ToCome: 3}
 	for i, day := range []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"} {
 		byDay.Buckets = append(byDay.Buckets, views.WorthBucket{Start: routedClock(1, 0, 0).AddDate(0, 0, i-3), Label: day, Axis: day, Worth: worthOf((i + 1) * 1000 % 5000)})
@@ -163,11 +163,13 @@ func TestTheProjectsListsColumnsGiveWayInTheirOrder(t *testing.T) {
 // As rows run short, Projects gives way in its order: WORTH BY's columns
 // squeeze from worthRows to worthRowsLeast; then the list gives rows back
 // from its third to listBeforeLeaving; only then do the sections leave, ON
-// ACCOUNTS first, then BY MODEL, then WORTH BY; and past that the list is as
-// it is with nothing between it and SESSIONS, up to its third, giving way to
-// two. SESSIONS keeps three of its lines while anything else can give way. Wide, BY MODEL and ON ACCOUNTS lie beside WORTH BY, which keeps the
-// rows squeezing wouldn't free, and BY MODEL never leaves without ON
-// ACCOUNTS, as that frees none.
+// ACCOUNTS first, then BY MODEL, then WORTH BY; and with them gone the list
+// takes up to its third again, giving way to two. Each step comes only where
+// it must, the height a row taller filling the view with SESSIONS at its
+// least. SESSIONS keeps three of its lines while anything else can give way.
+// Wide, BY MODEL and ON ACCOUNTS lie beside WORTH BY, which keeps the rows
+// squeezing wouldn't free, and BY MODEL never leaves without WORTH BY, as
+// that frees none.
 func TestProjectsGivesWayInItsOrder(t *testing.T) {
 	page := chosenPage(chosenSessions())
 	for _, n := range []int{35, 6, 3} {
@@ -175,6 +177,7 @@ func TestProjectsGivesWayInItsOrder(t *testing.T) {
 			t.Run(fmt.Sprintf("%d projects at %d", n, width), func(t *testing.T) {
 				doc := framedDoc(nil, nil)
 				before := projectsGiving{list: n, kept: projectSections, chart: worthRows}
+				beforeThird, beforeSpare := 0, 0
 				seen := map[string]bool{}
 				for height := 70; height >= 22; height-- {
 					f := projectsFrame(t, width, height, projectRows(n), 0, &page)
@@ -182,17 +185,23 @@ func TestProjectsGivesWayInItsOrder(t *testing.T) {
 					g := projectsGiving{list: l.list.linesShown(), kept: l.project.kept, chart: l.project.chart}
 					third := l.listThird()
 					least := min(third, listBeforeLeaving)
-					squeezes := l.project.squeezed(worthRowsLeast).height(g.kept) < l.project.height(g.kept)
+					squeezes := l.mostHeight(projectsGiving{kept: g.kept, chart: worthRowsLeast}) < l.mostHeight(g)
 					at := fmt.Sprintf("at %d rows, the list showing %d of its third's %d, WORTH BY's columns %d rows and %d sections kept,", height, g.list, third, g.chart, g.kept)
 					lastLeft := g.kept == 0 && before.kept > 0
 					if g.list > before.list && !lastLeft || g.kept > before.kept || g.chart > before.chart {
 						t.Errorf("%s more than a row taller's %+v", at, before)
+					}
+					if g != before && third == beforeThird && beforeSpare != 0 {
+						t.Errorf("%s a step from a row taller's %+v, which left %d rows spare at the page's most", at, before, beforeSpare)
 					}
 					if g.list < third && squeezes {
 						t.Errorf("%s the list gave rows back while WORTH BY could squeeze", at)
 					}
 					if g.kept < projectSections && (squeezes || g.kept > 0 && g.list > least) {
 						t.Errorf("%s a section left while WORTH BY could squeeze or the list give rows back to %d", at, least)
+					}
+					if g.kept > 0 && g.chart < worthRows && l.mostHeight(projectsGiving{kept: g.kept, chart: g.chart + 1}) == l.mostHeight(g) {
+						t.Errorf("%s WORTH BY's columns squeezed where a row more costs none", at)
 					}
 					if lines := l.sessions.rows - 2; g.kept == 0 && g.list < third && lines > 3 {
 						t.Errorf("%s every section gone, the list is short of its third with SESSIONS showing %d lines", at, lines)
@@ -204,7 +213,8 @@ func TestProjectsGivesWayInItsOrder(t *testing.T) {
 						t.Errorf("%s SESSIONS shows %d lines, want 3 at the fewest", at, lines)
 					}
 					checkProjectsDrawnAsLaid(t, at, textOf(f.page(doc, routedAt).rows(Look{})), l)
-					seen[givingStage(g, third, least)], before = true, g
+					seen[givingStage(g, third, least)] = true
+					before, beforeThird, beforeSpare = g, third, spareAtMost(l, g)
 				}
 				want := []string{"whole", "squeezed", "kept 2", "kept 1", "kept 0", "list under"}
 				if n > listBeforeLeaving+1 {
@@ -219,6 +229,50 @@ func TestProjectsGivesWayInItsOrder(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+}
+
+// spareAtMost are the rows l leaves spare given way as g at the page's
+// most: the view's, past what's above the sections, the sections kept and
+// a blank row before them, and SESSIONS at its least.
+func spareAtMost(l projectsLaid, g projectsGiving) int {
+	taken := l.aboveOf(g.list, l.most.numbers) + sessionsLeast
+	if g.kept > 0 {
+		taken += 1 + l.mostHeight(g)
+	}
+	return l.f.viewRows() - taken
+}
+
+// The list's lines, WORTH BY's columns' rows and the sections kept are the
+// page's, never the chosen project's: as the choice moves among projects of
+// more and fewer versions, accounts and numbers, they hold still at every
+// size.
+func TestProjectsHoldsStillAsTheChoiceMoves(t *testing.T) {
+	rows := projectRows(35)
+	half := 0.5
+	rows[0].Share, rows[0].Tokens.Total = &half, 1_365_000_000
+	pages := make([]views.ProjectPage, 4)
+	for i := range pages {
+		pages[i] = chosenPage(chosenSessions())
+		pages[i].ProjectRow = rows[i]
+		pages[i].ByModel, pages[i].OnAccounts = pages[i].ByModel[:i%3], pages[i].OnAccounts[:3-i%3]
+	}
+	doc := framedDoc(nil, nil)
+	for _, width := range []int{173, 114, 108, 73, 52} {
+		for height := 70; height >= 22; height-- {
+			laid := func(chosen int) projectsGiving {
+				f := projectsFrame(t, width, height, rows, chosen, &pages[chosen])
+				f.Projects.Page.Most = views.ProjectsMost{Versions: 2, Accounts: 3}
+				l := f.projectsLaying(doc, routedAt)
+				return projectsGiving{list: l.list.linesShown(), kept: l.project.kept, chart: l.project.chart}
+			}
+			first := laid(0)
+			for chosen := 1; chosen < len(pages); chosen++ {
+				if got := laid(chosen); got != first {
+					t.Errorf("at %dx%d, %d chosen gives way as %+v, the first chosen as %+v", width, height, chosen, got, first)
+				}
+			}
 		}
 	}
 }
@@ -291,10 +345,10 @@ func bucketedPage(unit views.BucketUnit, n, weeks int) views.ProjectPage {
 	return page
 }
 
-// The chosen project lies wide, on a MacBook, at every period, and
-// middling on an iPad; 12 weeks
-// are by day where a cell for each of their days fits the cells WORTH BY
-// takes as the sections lie, the left half's wide, else by week.
+// The chosen project lies wide, on a MacBook, at every period, and middling
+// on an iPad; 12 weeks are by day where a cell for each of their days fits
+// the cells WORTH BY takes as the sections lie, the left half's wide, else
+// by week.
 func TestTheChosenProjectLiesWideAtEveryPeriodOnAMacBook(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	drawn := func(width int, page views.ProjectPage) projectDrawn {
@@ -586,9 +640,9 @@ func TestProjectsHelpSaysTheOrderItGivesWayIn(t *testing.T) {
 		said = append(said, plainLines(p.says)...)
 	}
 	all := strings.Join(said, " ")
-	want := "Where rows run short, WORTH BY's columns squeeze from 6 rows to 3, then the list shrinks from its third to 5 rows; " +
-		"only then does ON ACCOUNTS leave, then BY MODEL, then WORTH BY, and with them gone the list takes up to its third again, shrinking to 2, " +
-		"so SESSIONS keeps three rows at least."
+	want := "Where rows run short, WORTH BY's columns squeeze from 6 rows to 3, then the list shrinks from its third to 5 rows. " +
+		"Only then do the sections leave: ON ACCOUNTS, then BY MODEL, then WORTH BY. Once all three have left, the list takes up to " +
+		"its third again and shrinks to 2 rows, so SESSIONS keeps three rows at least."
 	if !strings.Contains(all, want) {
 		t.Errorf("Projects' help reads\n%s\nwant %q", all, want)
 	}

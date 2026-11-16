@@ -1666,10 +1666,10 @@ built:
   than room that isn't there (the owner's call, 9 November 2026). The status document carries it
   at 1, 3, 6, 12, 24 and 48 hours, with `learning` while it's the default; between them it's read
   as straight lines, and past 48 hours it falls straight to none at 96. One curve serves every
-  account, whatever the age of the use on it. A hold by age, which kept use that had already
-  stayed `a` hours by the curve's own `S(a+h)/S(a)`, was scored against the owner's history and
-  not taken (the owner's call, 16 November 2026). It scored no better, 30.8 hours off on average
-  against the one curve's 30.6. It also missed what it was built for: a session that ran on one
+  account, whatever the age of the use on it. A hold by age was scored against the owner's
+  history and not taken (the owner's call, 16 November 2026). With S the hold curve, it kept use
+  that had already stayed `a` hours by `S(a+h)/S(a)`. It scored no better, 30.8 hours off on
+  average against the one curve's 30.6. It also missed what it was built for: a session that ran on one
   account for two days without the hour's pause that would place it afresh. Nothing in the
   history says beforehand that a session won't pause.
 - **An account that can't take requests,** its token refused, its read refused (see 401s and
@@ -5341,7 +5341,7 @@ Where the use went: each project the period's sessions ran in, and the one chose
 is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the redesign by entity
 draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
 `projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
-`projects-108x24` and `projects-12-months-173x53`.
+`projects-108x24`, `projects-12-months-173x53` and `projects-many-114x40`.
 
 - **A session's project** is `status.Projects`'. It starts from `status.ProjectOf`: the project
   its lines name, else, of a line from before they named one, its directory's, a Claude Code
@@ -5448,14 +5448,18 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   Projects gives way in one order, so SESSIONS keeps three rows (the owner's call, 16 November
   2026: a short screen keeps the sections longer): WORTH BY's columns squeeze from 6 rows to 3,
   its heading, axis and peak kept; then the list gives rows back from its third to 5; only then
-  do the sections leave, ON ACCOUNTS first, then BY MODEL, then WORTH BY; and with them gone the
-  list is as it is with nothing between it and SESSIONS, up to its third, giving way to 2. Where BY MODEL and ON ACCOUNTS lie beside WORTH BY and stand taller, it keeps
-  the rows squeezing wouldn't free. `projectsLaid` works the layout out once, and the drawing, the
-  mouse and the scrolling read it. The squeeze is Projects' alone: Accounts' Detail draws WORTH as
-  it did. WORTH BY
-  today is by the hour where a column a cell wide fits each hour in the cells it takes, the left
-  half where it lies wide, else by two hours; over 30 days and 12 weeks, by day where one fits
-  each day, else by week; over 12 months, by week where one fits each week, else by month. Its
+  do the sections leave, ON ACCOUNTS first, then BY MODEL, then WORTH BY; and once all three
+  have left, the list takes up to its third again, giving way to 2. Where BY MODEL and ON
+  ACCOUNTS lie beside WORTH BY and stand taller, it keeps the rows squeezing wouldn't free. Each
+  step is worked out against the most rows any project of the page takes, its numbers' lines,
+  BY MODEL's versions and ON ACCOUNTS' accounts (`views.ProjectsMost`), so the list, WORTH BY's
+  rows and the sections shown hold still as the choice moves; the chosen project draws its
+  sections at its own heights, and SESSIONS takes the rest. `projectsLaid` works the layout out
+  once, and the drawing, the mouse and the scrolling read it. The squeeze is Projects' alone:
+  Accounts' Detail draws WORTH as it did. WORTH BY today is by the hour where a column a cell
+  wide fits each hour in the cells it takes, the left half where it lies wide, else by two hours;
+  over 30 days and 12 weeks, by day where one fits each day, else by week; over 12 months, by
+  week where one fits each week, else by month. Its
   axis names buckets from the last back, the one now falls in bold, and weeks by the month of
   their first day in the period, where it's another than the week before's. WORTH BY spans the
   cells it takes, here and on Accounts' Detail (the owner's call, 15 November 2026: a chart is
