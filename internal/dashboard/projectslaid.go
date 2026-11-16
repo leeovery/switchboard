@@ -133,6 +133,13 @@ func (l projectsLaid) scrolls() (x, y, width, rows int) {
 	return 0, l.sessions.top + 2, l.f.Width, l.sessions.rows - 2
 }
 
+// chooses is what of Projects the wheel chooses a project through: the
+// list's projects shown and the line saying how many more, under its heads,
+// across the frame.
+func (l projectsLaid) chooses() (x, y, width, rows int) {
+	return 0, l.top + 1, l.f.Width, l.list.linesShown()
+}
+
 // targets are the zones of Projects a click acts on: the list's projects
 // shown, and SESSIONS' sessions in view.
 func (l projectsLaid) targets() []Target {

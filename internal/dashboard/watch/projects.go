@@ -287,6 +287,18 @@ func (m Model) showProjects(s dashboard.ProjectsShown) Model {
 	return m
 }
 
+// projectsWheeled is m with the wheel turned the way given over Projects'
+// list: the project before or after the one chosen, as Wheeled has it, shown
+// as showProjects has it, the page acting as acting has it; m as it is where
+// there's none that way.
+func (m Model) projectsWheeled(way int) Model {
+	next, changed := m.projects.shown.Wheeled(way)
+	if !changed {
+		return m
+	}
+	return m.acting().showProjects(next)
+}
+
 // projectsClick acts on a click on Projects, reporting false for one it
 // doesn't take, or on another tab, or under a session's page: on a
 // project's row, it chooses it, as ChosenOn has it; and on a session in

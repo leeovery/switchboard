@@ -8118,6 +8118,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `↑` `↓` | Projects | Choose a project in the list; or, in its SESSIONS, a session |
 | `→` `←` | Projects | Into the project's SESSIONS, and back to the list |
+| the wheel | Projects, over the list | Choose the project before or after, a project a turn, as `↑` `↓` do in the list, and back to the list from SESSIONS, as a click on it is (the owner's call, 16 November 2026) |
 | `←` `→` | Runway | Step back to this week, then a week at a time; step forward, to the live view (the owner's call, 12 November 2026) |
 | `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
 | `w` `o` `g` `h` | Trends | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |

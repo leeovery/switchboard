@@ -141,7 +141,7 @@ What scrolls on each page:
 |---|---|
 | Overview | USAGE, if its accounts don't fit. `↑` and `↓` scroll it too. |
 | Accounts | the view |
-| Projects | the SESSIONS of a project. The list follows the project chosen with `↑` and `↓`. |
+| Projects | the SESSIONS of a project. The list follows the project chosen with `↑` and `↓`. Over the list, the wheel chooses a project a turn. |
 | Sessions | the List, and the accounts on the Switchboard if they don't fit |
 | Runway | the lanes |
 | Trends | the whole page, if its sections don't fit. `?` always lists its scrolling keys. |

@@ -109,6 +109,19 @@ func (s ProjectsShown) Moved(by int) (ProjectsShown, bool) {
 	return s, true
 }
 
+// Wheeled is s with the wheel turned over the list, by -1 up or 1 down: the
+// project before or after the one chosen, as ↑ and ↓ choose it in the list,
+// ↑ and ↓ back in the list, as a click on its row has them. It reports false,
+// s as it is, where there's none that way.
+func (s ProjectsShown) Wheeled(by int) (ProjectsShown, bool) {
+	listed := s
+	listed.InSessions = false
+	if next, ok := listed.Choosing(by); ok {
+		return next, true
+	}
+	return s, false
+}
+
 // ChosenOn is s with the project with the given path chosen, as a click on
 // its row chooses it, ↑ and ↓ back in the list.
 func (s ProjectsShown) ChosenOn(path string) ProjectsShown {
