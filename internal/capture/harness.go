@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/swipe"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -170,6 +171,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		TraceScale: cmp.Or(f.scale, framesTraceScale),
 		LedgerKeep: framesKeep,
 		Pool:       f.pool,
+		Scrolling:  swipe.Natural,
 	}
 	if f.pool.Turns() {
 		cfg.Turn = turnNowhere

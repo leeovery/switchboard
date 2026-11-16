@@ -18,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/swipe"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -69,6 +70,7 @@ func (s Scenario) play(ctx context.Context, b *base, elapsed func() time.Duratio
 		Size:       s.Size,
 		Prices:     drawnPrices,
 		LedgerKeep: framesKeep,
+		Scrolling:  swipe.Natural,
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = t.readers()
 	dressed(&cfg, s.theme, s.colourless)

@@ -2225,12 +2225,12 @@ formats below; the screens as signed off in Paper (see The screens, below).
   primary's alone, marked with the account they came from: should the config configure it again,
   as when an edit by hand is caught half made, it takes them back, an account like any other
   again. While the primary has no usable token, they count no more than its own do.
-- The programs switchboard runs for itself, `claude --version`, `osascript`, its notifications'
-  app, `lsregister` and `launchctl`, get none of its environment but `PATH`, `HOME`, `TMPDIR` and
-  `LANG`. `claude --version` gets the
-  `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
-  npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
-  which holds the system's directories alone.
+- The programs switchboard runs for itself, `claude --version`, `osascript`, `open`, its
+  notifications' app, `lsregister`, `launchctl`, `plutil` and `defaults`, get none of its
+  environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the `claude`'s own
+  directory first on `PATH`, then the one its links lead to, so a script, such as npm's `claude`,
+  run by `env node`, finds a `node` installed beside it under launchd's `PATH`, which holds the
+  system's directories alone.
 - `accounts add <label>` registers an account, shown as the label, under the id its token's
   organization decides (see Account identity). It takes the label as it shows, and saves it so,
   by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
@@ -3710,10 +3710,32 @@ Overview's SESSIONS):
 - on the Overview and Trends, on a section's heading or its key, it hides the section;
 - on the Log's `▼ 214 new`, it follows again, and on a tick in its `f` panel, it ticks it;
 - the wheel scrolls what's under the pointer, where that scrolls; over Projects' list, it chooses
-  the project before or after, a project a turn, as the arrows do there.
+  the project before or after, a project a turn, the way the fingers move, as the arrows do there.
 
 Routing takes keys alone: no click opens the routing card or acts in it, so a stray click never
 moves a session.
+
+**The wheel follows the fingers over Projects' list.** Fingers down on the trackpad choose the
+next project down, and fingers up the one above, whichever way the Mac scrolls (the owner's call,
+16 November 2026). Everywhere else, the wheel moves content, and macOS already scrolls content as
+the setting says. Projects' list is the one place the wheel moves a choice instead. The dashboard
+reads the Mac's scroll setting once, as it opens, and handles each turn over the list to match:
+
+| The Mac scrolls | Fingers down reach the terminal as | Over the list, the dashboard |
+|---|---|---|
+| Naturally | The wheel turned up | Reverses each turn |
+| Traditionally | The wheel turned down | Takes each turn as it comes |
+
+The setting is `com.apple.swipescrolldirection` in the global domain, one setting for the trackpad
+and the mouse alike. `0` means traditional. `1`, no setting at all, or a read that fails means
+natural, macOS's default. Over SSH, for example from Blink on an iPad, the Mac's setting is still
+the one read. A touch drag acts as natural, so on a natural Mac the list follows the fingers there
+too. The accepted misses, which get the list's wheel backwards, include:
+
+- a Mac reached over SSH from a device that scrolls the other way, for example a traditional Mac
+  from an iPad or an iPhone in Blink, or a natural Mac from a traditional one or a PC;
+- a scroll-reversing tool, such as Scroll Reverser, Mos or LinearMouse, or a terminal that inverts
+  the wheel, which gives the wheel a direction the setting doesn't show.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
 shown, which the dashboard opens on; the Overview's sections shown and its `b`; Trends'
@@ -5468,9 +5490,11 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   leaves it stale, built as Projects next shows, never a frame at a time; and the chosen project's
   as the page or the choice does. The project shown is held as chosen once any key, click or turn
   of the wheel moves the choice, the top row's included, else the top row is chosen as the list
-  ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
-  where the session selected showed, it's kept in view; a project that leaves the list leaves the
-  top row chosen, the list with the choice, no session selected and SESSIONS from its top.
+  ranks afresh. The wheel moves the choice the way the fingers move, as the Mac's scroll setting
+  says: the one place the wheel moves a choice, not content (see Clicks). The choice is kept by
+  path, and the session selected by id, across a rebuild, and where the session selected showed,
+  it's kept in view; a project that leaves the list leaves the top row chosen, the list with the
+  choice, no session selected and SESSIONS from its top.
 
 ### History
 
@@ -8226,7 +8250,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `↑` `↓` | Projects | Choose a project in the list; or, in its SESSIONS, a session |
 | `→` `←` | Projects | Into the project's SESSIONS, and back to the list |
-| the wheel | Projects, over the list | Choose the project before or after, a project a turn, as `↑` `↓` do in the list, and back to the list from SESSIONS, as a click on it does (settled in the plan) |
+| the wheel | Projects, over the list | Choose the project before or after, a project a turn, as `↑` `↓` do in the list, and back to the list from SESSIONS, as a click on it does (settled in the plan); fingers down choose the next project down, whichever way the Mac scrolls (the owner's call, 16 November 2026; see Clicks) |
 | `←` `→` | Runway | Step back to this week, then a week at a time; step forward, to the live view (the owner's call, 12 November 2026) |
 | `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
 | `w` `o` `g` `h` | Trends | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |

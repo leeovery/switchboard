@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/setup/screen"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
+	"github.com/leeovery/switchboard/internal/swipe"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -53,6 +54,7 @@ func deps() cli.Deps {
 		Launchctl:     service.Launchctl,
 		Plutil:        service.Plutil,
 		LoginShell:    shell.Run,
+		Scrolling:     swipe.Defaults,
 		Browser:       setuptoken.Browser{Run: programs},
 		PrivateWindow: setuptoken.PrivateWindow{Run: programs},
 		Hidden:        cli.HiddenInput,

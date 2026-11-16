@@ -36,6 +36,7 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/swipe"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -247,6 +248,11 @@ type Config struct {
 	Home string
 	// Projects reads each session's project, as every view of it reads it.
 	Projects status.Projects
+	// Scrolling is which way the Mac scrolls, as the dashboard read it as it
+	// opened, which the wheel over Projects' list follows, moving the choice
+	// the way the fingers move: the zero Scrolling, swipe.Natural, macOS's
+	// default.
+	Scrolling swipe.Direction
 	// readsWhole has the Log read each past day whole, through no filter, as
 	// it read them before it read them through its filters. Only the
 	// package's tests set it, for a Log of the same history read whole that

@@ -88,9 +88,10 @@ stack.
 | Key | Does |
 |---|---|
 | `↑` `↓` | Chooses the project. |
-| the wheel, over the list | Chooses the project before or after, as `↑` `↓` do. |
+| the wheel, over the list | Chooses the next project as your fingers move down, whichever way your Mac scrolls. |
 | `→` `←` | Moves into the sessions of the chosen project, and back to the list. |
 | `↑` `↓`, then `enter` | In the sessions, chooses a session, and opens [its page](session-page.md). |
 | `<` `>` | Steps the period, shared with [Accounts](accounts.md) and the List on Sessions. |
 
-Keys on every page are on [Every page](every-page.md).
+Keys on every page are on [Every page](every-page.md). If the wheel chooses the project above as
+your fingers move down, see [The wheel on Projects runs against your fingers](../troubleshooting/wheel.md).

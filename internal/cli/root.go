@@ -36,6 +36,7 @@ import (
 	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/shell"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/swipe"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -112,6 +113,9 @@ type Deps struct {
 	// LoginShell runs the user's login shell, as shell.Run does: setup asks
 	// it which claude it runs.
 	LoginShell shell.Runner
+	// Scrolling reads which way the Mac scrolls, as swipe.Defaults does,
+	// once as the dashboard opens: nil reads it natural, macOS's default.
+	Scrolling swipe.Runner
 	// Browser and PrivateWindow open the sign-in address of a token setup
 	// makes, in the browser as it is, and in a private window, as
 	// setuptoken's Browser and PrivateWindow do.
