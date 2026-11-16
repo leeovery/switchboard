@@ -43,17 +43,20 @@ const (
 var now = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 
 // twoAccounts is a config of two accounts, work and personal.
-var twoAccounts = fmt.Sprintf("upstream = %q\n\n[[account]]\nid    = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid = \"personal\"\n", upstream)
+// idMark is the mark the config is written with beside an account's id.
+const idMark = "  # do not edit: links the account to its history"
+
+var twoAccounts = fmt.Sprintf("upstream = %q\n\n[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\n\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n", upstream)
 
 // withSide is twoAccounts with side, labelled Side, configured before
 // switchboard made ids.
-var withSide = twoAccounts + "\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+var withSide = twoAccounts + "\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n"
 
 // sideID is the id the organization side's tokens are in derives, and
 // sideAdded twoAccounts once side, labelled Side, is added under it.
 var (
 	sideID    = identity.Record{}.Derive(organization, nil)
-	sideAdded = twoAccounts + "\n[[account]]\nid    = \"" + sideID + "\"\nlabel = \"Side\"\n"
+	sideAdded = twoAccounts + "\n[[account]]\nid    = \"" + sideID + "\"" + idMark + "\nlabel = \"Side\"\n"
 )
 
 // users are the ways a user gives a token: typed at a terminal, or piped in.
@@ -114,7 +117,7 @@ func TestAddMakesTheFirstConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Add() error = %v", err)
 	}
-	w.checkConfig(t, "[[account]]\nid      = \""+sideID+"\"\nlabel   = \"Work\"\nprimary = true\n")
+	w.checkConfig(t, "[[account]]\nid      = \""+sideID+"\""+idMark+"\nlabel   = \"Work\"\nprimary = true\n")
 	w.checkToken(t, sideID, workToken)
 	if want := []string{"https://api.anthropic.com " + workToken}; !slices.Equal(api.asked, want) {
 		t.Errorf("the API was asked about %q, want %q: the config's default upstream", api.asked, want)
@@ -324,7 +327,7 @@ func TestCheckNew(t *testing.T) {
 // A config that already has two accounts showing one label, edited by hand,
 // still loads, and takes an edit that gives neither a label.
 func TestAConfigOfOneLabelTwiceTakesEditsOfAnythingButALabel(t *testing.T) {
-	twice := twoAccounts + "\n[[account]]\nid    = \"side\"\nlabel = \"WORK\"\n"
+	twice := twoAccounts + "\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"WORK\"\n"
 	w := newWorld(t, twice)
 
 	if _, err := w.registry(&user{}, &fakeAPI{}).Edit("side", accounts.Change{Plan: new("max")}); err != nil {
@@ -463,7 +466,7 @@ func TestATokenGivenIsComparedWithTheOtherAccounts(t *testing.T) {
 // record hasn't the account, as one from before ids were made, the token's
 // saved, and nothing recorded.
 func TestAReplacedTokenMustBeForTheAccountsOrganization(t *testing.T) {
-	sideAt := twoAccounts + "\n[[account]]\nid    = \"k3f9\"\nlabel = \"Side\"\n"
+	sideAt := twoAccounts + "\n[[account]]\nid    = \"k3f9\"  # do not edit: links the account to its history\nlabel = \"Side\"\n"
 	spare := identity.Entry{ID: "h7c2", Organization: organization, Label: "Spare", Added: now, Removed: now}
 	tests := []struct {
 		name   string
@@ -498,7 +501,7 @@ func TestAReplacedTokenMustBeForTheAccountsOrganization(t *testing.T) {
 			wantRecord: []identity.Entry{{ID: "k3f9", Added: now}, spare},
 		},
 		{
-			name: "one whose account's the record doesn't know, a configured account's, named by the config's label", config: sideAt + "\n[[account]]\nid    = \"m2x7\"\nlabel = \"Team\"\n",
+			name: "one whose account's the record doesn't know, a configured account's, named by the config's label", config: sideAt + "\n[[account]]\nid    = \"m2x7\"  # do not edit: links the account to its history\nlabel = \"Team\"\n",
 			id: "k3f9", organization: organization,
 			record:     []identity.Entry{{ID: "k3f9", Added: now}, {ID: "m2x7", Organization: organization, Added: now}},
 			wantErr:    `the token is for another subscription, that of "Team" (m2x7), so nothing is saved: add it as an account of its own`,
@@ -772,7 +775,7 @@ func TestRemoveRefuses(t *testing.T) {
 		wantIs  error
 	}{
 		{name: "an account not configured", config: twoAccounts, id: "side", wantErr: `account "side" is not configured`, wantIs: config.ErrNotConfigured},
-		{name: "the only account", config: "[[account]]\nid = \"side\"\n", id: "side", wantErr: `account "side" is the only one, and a config needs one at least`},
+		{name: "the only account", config: "[[account]]\nid = \"side\"  # do not edit: links the account to its history\n", id: "side", wantErr: `account "side" is the only one, and a config needs one at least`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

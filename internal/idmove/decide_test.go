@@ -55,8 +55,8 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 		wantTaken map[string]string
 	}{
 		{name: "every configured account with its token, the stray never asked about", configure: fixtureConfig, orgs: answering},
-		{name: "a configured account without one, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"side-1\"\n", orgs: silentForTheStray, wantAsked: 1},
-		{name: "a configured account without one, the stray's file unreadable", configure: fixtureConfig + "\n[[account]]\nid = \"side-1\"\n", orgs: answering, spoil: "spare"},
+		{name: "a configured account without one, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"side-1\"  # do not edit: links the account to its history\n", orgs: silentForTheStray, wantAsked: 1},
+		{name: "a configured account without one, the stray's file unreadable", configure: fixtureConfig + "\n[[account]]\nid = \"side-1\"  # do not edit: links the account to its history\n", orgs: answering, spoil: "spare"},
 		// Work's id is one switchboard could make, but the history here names
 		// it, so it's no account another Mac moved.
 		{name: "a configured account without one, by an id the history names, the API silent for the stray", configure: fixtureConfig, orgs: silentForTheStray, spoil: work, wantAsked: 1},
@@ -183,29 +183,29 @@ func TestARefusalCountsOnlyWhereItRepeats(t *testing.T) {
 func TestALabelMadeOfAnOldIDIsOneNoOtherAccountShows(t *testing.T) {
 	f := newFixture(t)
 	writeFile(t, f.config, `[[account]]
-id      = "work"
+id      = "work"  # do not edit: links the account to its history
 label   = "PERSONAL"
 primary = true
 
 [[account]]
-id = "personal"
+id = "personal"  # do not edit: links the account to its history
 
 [[account]]
-id    = "qgr3"
+id    = "qgr3"  # do not edit: links the account to its history
 label = "personal 2"
 `)
 	f.runBounded(t, answering())
 	want := `[[account]]
-id      = "b6s7"
+id      = "b6s7"  # do not edit: links the account to its history
 label   = "PERSONAL"
 primary = true
 
 [[account]]
-id = "qgr2"
+id = "qgr2"  # do not edit: links the account to its history
 label = "personal 3"
 
 [[account]]
-id    = "qgr3"
+id    = "qgr3"  # do not edit: links the account to its history
 label = "personal 2"
 `
 	if got := readFile(t, f.config); got != want {
@@ -249,8 +249,8 @@ func TestASecondMacStartingBeforeItsNetworkWaitsToJoinTheAccountsAnotherMoved(t 
 // spells, so the two Macs agree on it, and the config keeps it alone.
 func TestAConfigMergedBeforeTheMoveToNameAnAccountByBothItsIDsHasItTakeTheOtherMacs(t *testing.T) {
 	const (
-		old   = "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n"
-		other = "[[account]]\nid = \"personal\"\n\n"
+		old   = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n"
+		other = "[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n"
 		moved = "[[account]]\nid = \"" + workID + "\"\n\n"
 		// As the other Mac's move wrote it, the plan and the reserve changed
 		// there since.
@@ -309,8 +309,8 @@ const (
 // whichever the config names first.
 func TestAnAccountTakesTheLongestIDItsOrganizationSpellsOfThoseAnotherMacMoved(t *testing.T) {
 	const (
-		first  = "[[account]]\nid = \"first\"\n\n"
-		later  = "[[account]]\nid = \"later\"\n\n"
+		first  = "[[account]]\nid = \"first\"  # do not edit: links the account to its history\n\n"
+		later  = "[[account]]\nid = \"later\"  # do not edit: links the account to its history\n\n"
 		moved  = "[[account]]\nid = \"" + clashingID + "\"\n\n[[account]]\nid = \"" + clashingLaterID + "\"\n"
 		tokenA = "test-token-first"
 		tokenB = "test-token-later"

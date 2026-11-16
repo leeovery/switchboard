@@ -42,12 +42,12 @@ var tokenTaken = time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 // doneConfig is the config a first run of setup leaves: work and side, work
 // the primary, and priming over 08:00-23:00.
 const doneConfig = `[[account]]
-id    = "work"
+id    = "work"  # do not edit: links the account to its history
 label = "Work"
 primary = true
 
 [[account]]
-id    = "side"
+id    = "side"  # do not edit: links the account to its history
 label = "Side"
 
 [prime]

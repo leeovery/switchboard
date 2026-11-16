@@ -14,6 +14,9 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 )
 
+// accountMark is the mark Save writes beside an account's id.
+const accountMark = "  # do not edit: links the account to its history"
+
 // commented is a config laid out as the example is: a comment heading it,
 // comments on the keys, and a table left commented out at its end.
 const commented = `# One [[account]] per Claude subscription.
@@ -25,7 +28,7 @@ primary = true    # optional: the account the browser and the Claude apps use
 reserve = 0.1     # optional
 
 [[account]]
-id    = "personal"
+id    = "personal"  # do not edit: links the account to its history
 label = "Personal"
 
 # Optional: start the 5-hour windows on a staggered schedule.
@@ -53,11 +56,11 @@ primary = true    # optional: the account the browser and the Claude apps use
 reserve = 0.1     # optional
 
 [[account]]
-id    = "personal"
+id    = "personal"  # do not edit: links the account to its history
 label = "Personal"
 
 [[account]]
-id    = "side"
+id    = "side"  # do not edit: links the account to its history
 label = "Side"
 
 # Optional: start the 5-hour windows on a staggered schedule.
@@ -77,11 +80,11 @@ label   = "Work"  # optional; defaults to the id
 reserve = 0.1     # optional
 
 [[account]]
-id    = "personal"
+id    = "personal"  # do not edit: links the account to its history
 label = "Personal"
 
 [[account]]
-id      = "side"
+id      = "side"  # do not edit: links the account to its history
 label   = "Side"
 primary = true
 
@@ -92,89 +95,89 @@ primary = true
 		},
 		{
 			name:    "as the primary, where none is marked",
-			config:  "[[account]]\nid = \"work\"\nprimary = false\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nprimary = false\n",
 			account: config.NewAccount{ID: "side", Primary: true},
-			want:    "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid      = \"side\"\nprimary = true\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nprimary = false\n\n[[account]]\nid      = \"side\"  # do not edit: links the account to its history\nprimary = true\n",
 		},
 		{
 			name:    "without a label",
-			config:  "[[account]]\nid = \"work\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 			account: config.NewAccount{ID: "side"},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:    "the first, before the first table and the comments above it",
 			config:  "listen = \"127.0.0.1:4747\"\n\n# The day's windows.\n[prime]\nday = \"08:00-23:00\"\n",
 			account: config.NewAccount{ID: "work", Label: "Work"},
-			want:    "listen = \"127.0.0.1:4747\"\n\n[[account]]\nid    = \"work\"\nlabel = \"Work\"\n\n# The day's windows.\n[prime]\nday = \"08:00-23:00\"\n",
+			want:    "listen = \"127.0.0.1:4747\"\n\n[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\n\n# The day's windows.\n[prime]\nday = \"08:00-23:00\"\n",
 		},
 		{
 			name:    "with a plan, written as the plan key",
-			config:  "[[account]]\nid = \"work\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 			account: config.NewAccount{ID: "side", Label: "Side", Plan: "max", Primary: true},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid      = \"side\"\nlabel   = \"Side\"\nplan    = \"max\"\nprimary = true\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid      = \"side\"  # do not edit: links the account to its history\nlabel   = \"Side\"\nplan    = \"max\"\nprimary = true\n",
 		},
 		{
 			name:    "with a plan by its old name, written by its new",
-			config:  "[[account]]\nid = \"work\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 			account: config.NewAccount{ID: "side", Plan: "max20x"},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid   = \"side\"\nplan = \"ultra\"\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid   = \"side\"  # do not edit: links the account to its history\nplan = \"ultra\"\n",
 		},
 		{
 			name:    "without a plan, writing no plan key",
-			config:  "[[account]]\nid = \"work\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 			account: config.NewAccount{ID: "side", Label: "Side", Plan: ""},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n",
 		},
 		{
 			name:    "the first, into an empty file",
 			config:  "",
 			account: config.NewAccount{ID: "work", Label: "Work", Primary: true},
-			want:    "[[account]]\nid      = \"work\"\nlabel   = \"Work\"\nprimary = true\n",
+			want:    "[[account]]\nid      = \"work\"  # do not edit: links the account to its history\nlabel   = \"Work\"\nprimary = true\n",
 		},
 		{
 			name:    "the first, after a file's comments",
 			config:  "# Switchboard's config.\n",
 			account: config.NewAccount{ID: "work"},
-			want:    "# Switchboard's config.\n\n[[account]]\nid = \"work\"\n",
+			want:    "# Switchboard's config.\n\n[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:    "after the last account, with tables between the accounts and after them",
-			config:  "[[account]]\nid = \"work\"\n\n[prime]\nday = \"08:00-23:00\"\n\n[[account]]\nid = \"personal\"\n\n# Quieter.\n[notifications]\nmoves = false\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[prime]\nday = \"08:00-23:00\"\n\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n# Quieter.\n[notifications]\nmoves = false\n",
 			account: config.NewAccount{ID: "side"},
-			want:    "[[account]]\nid = \"work\"\n\n[prime]\nday = \"08:00-23:00\"\n\n[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"side\"\n\n# Quieter.\n[notifications]\nmoves = false\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[prime]\nday = \"08:00-23:00\"\n\n[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n# Quieter.\n[notifications]\nmoves = false\n",
 		},
 		{
 			name:    "set apart from tables with no blank line between them",
-			config:  "[[account]]\nid = \"work\"\n[prime]\nday = \"08:00-23:00\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n[prime]\nday = \"08:00-23:00\"\n",
 			account: config.NewAccount{ID: "side"},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n\n[prime]\nday = \"08:00-23:00\"\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n[prime]\nday = \"08:00-23:00\"\n",
 		},
 		{
 			name:    "after the comments directly below the last account's keys",
-			config:  "[[account]]\nid = \"work\"\n# reserve = 0.2\n\n# The end.\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n# reserve = 0.2\n\n# The end.\n",
 			account: config.NewAccount{ID: "side"},
-			want:    "[[account]]\nid = \"work\"\n# reserve = 0.2\n\n[[account]]\nid = \"side\"\n\n# The end.\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n# reserve = 0.2\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n# The end.\n",
 		},
 		{
 			name:    "a label TOML asks to be escaped",
-			config:  "[[account]]\nid = \"work\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 			account: config.NewAccount{ID: "side", Label: "Side \"B\" \\ two"},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side \\\"B\\\" \\\\ two\"\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side \\\"B\\\" \\\\ two\"\n",
 		},
 		{
 			name:    "a label as it shows: trimmed, each run of whitespace within it one space",
-			config:  "[[account]]\nid = \"work\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 			account: config.NewAccount{ID: "side", Label: "  Side \u00a0  team "},
-			want:    "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side team\"\n",
+			want:    "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side team\"\n",
 		},
 		{
 			name: "past a label that goes on over lines, whatever its lines look like",
-			config: "[[account]]\nid = \"work\"\nlabel = \"\"\"\n[[account]]\nprimary = true\n\"\"\"\nprimary = true\n\n" +
-				"[[account]]\nid = \"personal\"\nlabel = '''\n# Not a comment.\n\n[prime]\n'''\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nlabel = \"\"\"\n[[account]]\nprimary = true\n\"\"\"\nprimary = true\n\n" +
+				"[[account]]\nid = \"personal\"  # do not edit: links the account to its history\nlabel = '''\n# Not a comment.\n\n[prime]\n'''\n",
 			account: config.NewAccount{ID: "side", Primary: true},
-			want: "[[account]]\nid = \"work\"\nlabel = \"\"\"\n[[account]]\nprimary = true\n\"\"\"\n\n" +
-				"[[account]]\nid = \"personal\"\nlabel = '''\n# Not a comment.\n\n[prime]\n'''\n\n[[account]]\nid      = \"side\"\nprimary = true\n",
+			want: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nlabel = \"\"\"\n[[account]]\nprimary = true\n\"\"\"\n\n" +
+				"[[account]]\nid = \"personal\"  # do not edit: links the account to its history\nlabel = '''\n# Not a comment.\n\n[prime]\n'''\n\n[[account]]\nid      = \"side\"  # do not edit: links the account to its history\nprimary = true\n",
 		},
 	}
 	for _, tt := range tests {
@@ -234,7 +237,7 @@ reserve = 0.1     # optional
 			want: `# One [[account]] per Claude subscription.
 
 [[account]]
-id    = "personal"
+id    = "personal"  # do not edit: links the account to its history
 label = "Personal"
 
 # Optional: start the 5-hour windows on a staggered schedule.
@@ -244,45 +247,45 @@ label = "Personal"
 		},
 		{
 			name:   "one between others",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n\n[[account]]\nid = \"spare\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"spare\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:   "with the comments directly above it, but not those set apart from it",
-			config: "[[account]]\nid = \"work\"\n\n# Accounts for the weekend.\n\n# Side projects.\n# Mostly Sonnet.\n[[account]]\nid = \"side\"\n\n[[account]]\nid = \"spare\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n# Accounts for the weekend.\n\n# Side projects.\n# Mostly Sonnet.\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n\n# Accounts for the weekend.\n\n[[account]]\nid = \"spare\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n# Accounts for the weekend.\n\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:   "with the comments directly below its keys",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n\n[prime]\nday = \"08:00-23:00\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[prime]\nday = \"08:00-23:00\"\n",
 		},
 		{
 			name:   "at the start of the file",
-			config: "[[account]]\nid = \"work\"\n\n\n[[account]]\nid = \"side\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 			id:     "work",
-			want:   "[[account]]\nid = \"side\"\n",
+			want:   "[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:   "at the end of the file",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:   "between tables with no blank lines between them",
-			config: "[[account]]\nid = \"work\"\n[[account]]\nid = \"side\"\n[prime]\nday = \"08:00-23:00\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n[prime]\nday = \"08:00-23:00\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n[prime]\nday = \"08:00-23:00\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n[prime]\nday = \"08:00-23:00\"\n",
 		},
 		{
 			name:   "with a label that goes on over lines",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\nlabel = \"\"\"\nSide\n\n[[account]]\n\"\"\"\n\n[[account]]\nid = \"spare\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\nlabel = \"\"\"\nSide\n\n[[account]]\n\"\"\"\n\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"spare\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n",
 		},
 	}
 	for _, tt := range tests {
@@ -374,11 +377,11 @@ func TestEditsLoadAsMeant(t *testing.T) {
 const priced = `week_starts = "sunday"
 
 [[account]]
-id   = "work"
+id   = "work"  # do not edit: links the account to its history
 plan = "max20x"  # the work subscription
 
 [[account]]
-id   = "personal"
+id   = "personal"  # do not edit: links the account to its history
 plan = "pro"
 
 [usage]
@@ -475,9 +478,9 @@ func TestAddingAndRemovingAnAccountLeavesTheConfigAsItWas(t *testing.T) {
 		commented,
 		priced,
 		config.Example,
-		"listen = \"127.0.0.1:4747\"\n\n[[account]]\nid = \"work\"\n\n[notifications]\nmoves = true\n",
-		"[[account]]\nid = \"work\"\n\n[history]\nkeep = \"30d\"\n",
-		"[[account]]\nid = \"work\"\n\n[ledger]\nkeep = \"120d\"\n",
+		"listen = \"127.0.0.1:4747\"\n\n[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[notifications]\nmoves = true\n",
+		"[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[history]\nkeep = \"30d\"\n",
+		"[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[ledger]\nkeep = \"120d\"\n",
 	} {
 		path := writeConfig(t, before)
 		for _, change := range []func(*config.Draft) error{
@@ -588,7 +591,7 @@ func TestAddAccountRefuses(t *testing.T) {
 		},
 		{
 			name:    "the primary marked in a way the edit doesn't find",
-			config:  "[[account]]\nid = \"work\"\n\"pri\\u006Dary\" = true\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\"pri\\u006Dary\" = true\n",
 			account: config.NewAccount{ID: "side", Primary: true},
 			wantErr: `editing %s as text wouldn't make exactly the change meant, so it's left as it was: add account "side" by hand`,
 		},
@@ -618,7 +621,7 @@ func TestDraftUpstream(t *testing.T) {
 		// wantErr is the error, %s standing for the config file's path.
 		wantErr string
 	}{
-		{name: "the config's", config: "upstream = \"http://127.0.0.1:4700\"\n\n[[account]]\nid = \"work\"\n", want: "http://127.0.0.1:4700"},
+		{name: "the config's", config: "upstream = \"http://127.0.0.1:4700\"\n\n[[account]]\nid = \"work\"  # do not edit: links the account to its history\n", want: "http://127.0.0.1:4700"},
 		{name: "the config's, before any account", config: "upstream = \"http://127.0.0.1:4700\"\n", want: "http://127.0.0.1:4700"},
 		{name: "the default, the config giving none", config: "", want: "https://api.anthropic.com"},
 		{
@@ -675,7 +678,7 @@ func TestRemoveAccountRefuses(t *testing.T) {
 		},
 		{
 			name:    "the only account",
-			config:  "[[account]]\nid = \"work\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n",
 			id:      "work",
 			wantErr: `account "work" is the only one, and a config needs one at least`,
 		},
@@ -706,15 +709,15 @@ func TestSetPrimary(t *testing.T) {
 	}{
 		{
 			name:   "none marked: below the account's last key, above the comments directly below it",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\nprimary = true\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\nprimary = true\n# reserve = 0.2\n\n[prime]\nday = \"08:00-23:00\"\n",
 		},
 		{
 			name:   "the first, the primary only for want of a mark",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 			id:     "work",
-			want:   "[[account]]\nid = \"work\"\nprimary = true\n\n[[account]]\nid = \"side\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nprimary = true\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:   "taking primary off the account marked",
@@ -728,7 +731,7 @@ label   = "Work"  # optional; defaults to the id
 reserve = 0.1     # optional
 
 [[account]]
-id    = "personal"
+id    = "personal"  # do not edit: links the account to its history
 label = "Personal"
 primary = true
 
@@ -739,21 +742,21 @@ primary = true
 		},
 		{
 			name:   "in place of its own primary = false, keeping the comment beside it, and leaving another's",
-			config: "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = false  # not yet\nlabel = \"Side\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nprimary = false\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\nprimary = false  # not yet\nlabel = \"Side\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\nprimary = false\n\n[[account]]\nid = \"side\"\nprimary = true  # not yet\nlabel = \"Side\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nprimary = false\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\nprimary = true  # not yet\nlabel = \"Side\"\n",
 		},
 		{
 			name:   "indented as the table's keys are",
-			config: "[[account]]\n  id = \"work\"\n\n[[account]]\n  id = \"side\"\n",
+			config: "[[account]]\n  id = \"work\"  # do not edit: links the account to its history\n\n[[account]]\n  id = \"side\"  # do not edit: links the account to its history\n",
 			id:     "side",
-			want:   "[[account]]\n  id = \"work\"\n\n[[account]]\n  id = \"side\"\n  primary = true\n",
+			want:   "[[account]]\n  id = \"work\"  # do not edit: links the account to its history\n\n[[account]]\n  id = \"side\"  # do not edit: links the account to its history\n  primary = true\n",
 		},
 		{
 			name:   "below a label that goes on over lines",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\nlabel = \"\"\"\nSide\n[[account]]\n\"\"\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\nlabel = \"\"\"\nSide\n[[account]]\n\"\"\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\nlabel = \"\"\"\nSide\n[[account]]\n\"\"\"\nprimary = true\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\nlabel = \"\"\"\nSide\n[[account]]\n\"\"\"\nprimary = true\n",
 		},
 		{
 			name:   "the primary already, left as it is",
@@ -819,7 +822,7 @@ func TestSetPrimaryRefuses(t *testing.T) {
 		},
 		{
 			name:    "the primary marked in a way the edit doesn't find",
-			config:  "[[account]]\nid = \"work\"\n\"pri\\u006Dary\" = true\n\n[[account]]\nid = \"side\"\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\"pri\\u006Dary\" = true\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 			id:      "side",
 			wantErr: `editing %s as text wouldn't make exactly the change meant, so it's left as it was: make account "side" the primary by hand`,
 		},
@@ -844,9 +847,9 @@ func TestUnmarkPrimary(t *testing.T) {
 	}{
 		{
 			name:   "the account marked, its line taken out, the first the primary for want of a mark",
-			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nprimary = true  # for now\nlabel = \"Side\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nprimary = true  # for now\nlabel = \"Side\"\n",
 			id:     "side",
-			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n",
 		},
 		{
 			name:   "an account not marked, left as it is",
@@ -877,7 +880,7 @@ func TestUnmarkPrimary(t *testing.T) {
 }
 
 func TestMarksPrimaryOf(t *testing.T) {
-	const unmarked = "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n"
+	const unmarked = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n"
 	tests := []struct {
 		name   string
 		config string
@@ -899,7 +902,7 @@ func TestMarksPrimaryOf(t *testing.T) {
 }
 
 func TestSetPrimeDay(t *testing.T) {
-	const work = "[[account]]\nid = \"work\"\n"
+	const work = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n"
 	tests := []struct {
 		name   string
 		config string
@@ -958,7 +961,7 @@ func TestSetPrimeDay(t *testing.T) {
 }
 
 func TestSetPrimeDayClears(t *testing.T) {
-	const work = "[[account]]\nid = \"work\"\n"
+	const work = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n"
 	tests := []struct {
 		name   string
 		config string
@@ -1012,7 +1015,7 @@ func TestSetPrimeDayClears(t *testing.T) {
 }
 
 func TestSetPrimeDayRefusesToClearADottedDay(t *testing.T) {
-	const config = "prime.day = \"08:00-23:00\"\n\n[[account]]\nid = \"work\"\n"
+	const config = "prime.day = \"08:00-23:00\"\n\n[[account]]\nid = \"work\"  # do not edit: links the account to its history\n"
 	path := writeConfig(t, config)
 	draft := edit(t, path)
 
@@ -1021,7 +1024,7 @@ func TestSetPrimeDayRefusesToClearADottedDay(t *testing.T) {
 }
 
 func TestSetPrimeDayRefuses(t *testing.T) {
-	const work = "[[account]]\nid = \"work\"\n"
+	const work = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n"
 	tests := []struct {
 		name   string
 		config string
@@ -1094,7 +1097,7 @@ func TestEditRefusesAConfigItCantRead(t *testing.T) {
 			config:  tokenShaped + " = 1\n" + tokenShaped + " = 2\n",
 			wantErr: `parse config %s: toml: line 2 (last key "[redacted]"): Key '[redacted]' has already been defined.`,
 		},
-		{name: "invalid", config: "[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n", wantErr: "invalid config %s:\n" + `unknown key "account.token_env"`},
+		{name: "invalid", config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n", wantErr: "invalid config %s:\n" + `unknown key "account.token_env"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1103,6 +1106,74 @@ func TestEditRefusesAConfigItCantRead(t *testing.T) {
 			_, err := editConfig(path)
 			if want := strings.ReplaceAll(tt.wantErr, "%s", path); err == nil || !strings.HasPrefix(err.Error(), want) {
 				t.Errorf("Edit() error = %v, want one starting %q", err, want)
+			}
+		})
+	}
+}
+
+func TestSaveMarksTheIDs(t *testing.T) {
+	const poolMark = "  # do not edit: links the pool to its history"
+	tests := []struct {
+		name   string
+		config string
+		edit   func(*config.Draft) error
+		want   string
+	}{
+		{
+			name:   "an account's and a pool's, beside each",
+			config: "[[account]]\nid    = \"work\"\nlabel = \"Work\"\npool  = \"b2n8\"\n\n[[pool]]\nid    = \"b2n8\"\nlabel = \"Default\"\n",
+			edit:   func(d *config.Draft) error { return d.SetLabel("work", "Day job") },
+			want:   "[[account]]\nid    = \"work\"" + accountMark + "\nlabel = \"Day job\"\npool  = \"b2n8\"\n\n[[pool]]\nid    = \"b2n8\"" + poolMark + "\nlabel = \"Default\"\n",
+		},
+		{
+			name:   "but where a comment of the user's is beside it, which stays",
+			config: "[[account]]\nid = \"work\"  # mine\n\n[[account]]\nid = \"side\"\n",
+			edit:   func(d *config.Draft) error { return d.SetLabel("side", "Side") },
+			want:   "[[account]]\nid = \"work\"  # mine\n\n[[account]]\nid = \"side\"" + accountMark + "\nlabel = \"Side\"\n",
+		},
+		{
+			name:   "an id given anew",
+			config: "[[account]]\nid = \"work\"\n",
+			edit:   func(d *config.Draft) error { return d.SetID("work", "wk7q") },
+			want:   "[[account]]\nid = \"wk7q\"" + accountMark + "\n",
+		},
+		{
+			name:   "an id as a literal string, by a quoted key, indented",
+			config: "[[account]]\n  \"id\" = 'work'\n",
+			edit:   func(d *config.Draft) error { return d.SetLabel("work", "Work") },
+			want:   "[[account]]\n  \"id\" = 'work'" + accountMark + "\n  label = \"Work\"\n",
+		},
+		{
+			name:   "in a file whose lines end in \\r\\n, ending as they do",
+			config: "[[account]]\r\nid = \"work\"\r\n",
+			edit:   func(d *config.Draft) error { return d.SetLabel("work", "Work") },
+			want:   "[[account]]\r\nid = \"work\"" + accountMark + "\r\nlabel = \"Work\"\r\n",
+		},
+		{
+			name:   "in a file of mixed endings, each line keeping its own",
+			config: "[[account]]\r\nid = \"work\"\r\n\n[[account]]\nid = \"side\"\n",
+			edit:   func(d *config.Draft) error { return d.SetLabel("side", "Side") },
+			want:   "[[account]]\r\nid = \"work\"" + accountMark + "\r\n\n[[account]]\nid = \"side\"" + accountMark + "\nlabel = \"Side\"\n",
+		},
+		{
+			name:   "none, where no edit changed the draft",
+			config: "[[account]]\nid = \"work\"\n",
+			edit:   func(d *config.Draft) error { return d.SetLabel("work", "work") },
+			want:   "[[account]]\nid = \"work\"\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+			if err := tt.edit(draft); err != nil {
+				t.Fatalf("edit error = %v", err)
+			}
+
+			save(t, draft)
+
+			if got := readFile(t, path); got != tt.want {
+				t.Errorf("the config reads %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -1119,7 +1190,7 @@ func TestSaveMakesTheConfigWithItsDirectory(t *testing.T) {
 	}
 
 	save(t, draft)
-	if want := "[[account]]\nid    = \"work\"\nlabel = \"Work\"\n"; readFile(t, path) != want {
+	if want := "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\n"; readFile(t, path) != want {
 		t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 	}
 	checkMode(t, path, 0o644)
@@ -1202,7 +1273,7 @@ func TestSaveWritesThroughLinks(t *testing.T) {
 			mkdir(t, filepath.Dir(target))
 			before := ""
 			if !tt.missing {
-				before = "[[account]]\nid = \"work\"\n"
+				before = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n"
 				writeFile(t, target, before)
 			}
 			tt.link(t, path, dotfiles)
@@ -1219,7 +1290,7 @@ func TestSaveWritesThroughLinks(t *testing.T) {
 			if info.Mode()&fs.ModeSymlink == 0 {
 				t.Errorf("the config is %v, want it a link still", info.Mode())
 			}
-			want := strings.TrimPrefix(before+"\n", "\n") + "[[account]]\nid = \"side\"\n"
+			want := strings.TrimPrefix(before+"\n", "\n") + "[[account]]\nid = \"side\"  # do not edit: links the account to its history\n"
 			if got := readFile(t, target); got != want {
 				t.Errorf("where the link leads reads\n%s\nwant\n%s", got, want)
 			}
@@ -1268,7 +1339,7 @@ func TestSaveRefusesAConfigChangedMeanwhile(t *testing.T) {
 		meanwhile *string
 	}{
 		{name: "changed", before: new(commented), meanwhile: new(commented + "\n[prime]\nday = \"08:00-23:00\"\n")},
-		{name: "made", meanwhile: new("[[account]]\nid = \"personal\"\n")},
+		{name: "made", meanwhile: new("[[account]]\nid = \"personal\"  # do not edit: links the account to its history\n")},
 		{name: "removed", before: new(commented)},
 	}
 	for _, tt := range tests {

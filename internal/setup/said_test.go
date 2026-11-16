@@ -296,7 +296,7 @@ func TestPrimingIsSkippedWhereEveryAccountIsOnUltra(t *testing.T) {
 	account := func(id, plan string) string {
 		return "[[account]]\nid = \"" + id + "\"\nplan = \"" + plan + "\"\n\n"
 	}
-	unset := "[[account]]\nid = \"side\"\n\n"
+	unset := "[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n"
 	const day = "[prime]\nday = \"08:00-23:00\"\n"
 	tests := []struct {
 		name   string

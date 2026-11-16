@@ -1888,7 +1888,12 @@ formats below; the screens as signed off in Paper (see The screens, below).
   summaries, `state.json`, and the token file `tokens/<id>` and its record. Every command that names
   an account takes it, `accounts edit`, `accounts token`, `accounts remove`, `pin` and `run
   --account`, and `accounts` prints it beside each label, so it's found there, or by asking Claude.
-  The config holds it as `id`, written by switchboard, not the user.
+  The config holds it as `id`, written by switchboard, not the user. Whenever switchboard changes
+  the config, it writes `# do not edit: links the account to its history` beside each account's
+  `id` with nothing beside it, and `# do not edit: links the pool to its history` beside each
+  pool's, so neither reads as a setting (the owner's call, 16 November 2026). A comment of the
+  user's beside one stays, and a config switchboard reads but doesn't change is never written to
+  add them.
 - **The label:** what every screen shows, free text as today, given as the account is added and
   changed whenever with `accounts edit --label` or setup's edit card, changing nothing but what
   shows. A label never names an account to a command or in a record. Every account has one, and

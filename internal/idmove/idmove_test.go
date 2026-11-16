@@ -33,12 +33,12 @@ var movedTokens = []string{workID, workID + ".taken", personalID, personalID + "
 // organization derives, and personal, which had no label, labelled by the id
 // it had.
 const movedConfig = `[[account]]
-id      = "b6s7"
+id      = "b6s7"  # do not edit: links the account to its history
 label   = "Work"
 primary = true
 
 [[account]]
-id = "qgr2"
+id = "qgr2"  # do not edit: links the account to its history
 label = "personal"
 `
 
@@ -291,7 +291,7 @@ func TestAFreshInstallIsMarkedMovedChangingNothing(t *testing.T) {
 
 func TestAccountsWithoutATokenFile(t *testing.T) {
 	f := newFixture(t)
-	writeFile(t, f.config, fixtureConfig+"\n[[account]]\nid = \"spare\"\n\n[[account]]\nid = \"side-1\"\n")
+	writeFile(t, f.config, fixtureConfig+"\n[[account]]\nid = \"spare\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side-1\"  # do not edit: links the account to its history\n")
 	f.moved(t, answering())
 
 	record := f.record(t)

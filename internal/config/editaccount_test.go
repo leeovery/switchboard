@@ -12,7 +12,7 @@ import (
 
 // workThenSide is a config of two accounts, work's table followed by a
 // comment of its own, then side's, labelled, and a table after them.
-const workThenSide = "[[account]]\nid = \"work\"\n# reserve = 0.2\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n\n[prime]\nday = \"08:00-23:00\"\n"
+const workThenSide = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n# reserve = 0.2\n\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n\n[prime]\nday = \"08:00-23:00\"\n"
 
 func TestSetLabel(t *testing.T) {
 	tests := []struct {
@@ -34,7 +34,7 @@ func TestSetLabel(t *testing.T) {
 			config: workThenSide,
 			id:     "work",
 			label:  "Work",
-			want:   replaced(t, workThenSide, "id = \"work\"\n", "id = \"work\"\nlabel = \"Work\"\n"),
+			want:   replaced(t, workThenSide, "id = \"work\""+accountMark+"\n", "id = \"work\""+accountMark+"\nlabel = \"Work\"\n"),
 		},
 		{
 			name:   "none, taking its label out",
@@ -73,24 +73,24 @@ func TestSetLabel(t *testing.T) {
 		},
 		{
 			name:   "the label it has already but for the whitespace within it, left as it is",
-			config: "[[account]]\nid    = \"work\"\nlabel = \"Day job\"\n",
+			config: "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Day job\"\n",
 			id:     "work",
 			label:  "Day  job",
-			want:   "[[account]]\nid    = \"work\"\nlabel = \"Day job\"\n",
+			want:   "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Day job\"\n",
 		},
 		{
 			name:   "below the last key in a file of mixed endings, ending as the line it follows",
-			config: "[[account]]\r\nid = \"work\"\r\n\n[[account]]\nid = \"side\"\n",
+			config: "[[account]]\r\nid = \"work\"  # do not edit: links the account to its history\r\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 			id:     "work",
 			label:  "W",
-			want:   "[[account]]\r\nid = \"work\"\r\nlabel = \"W\"\r\n\n[[account]]\nid = \"side\"\n",
+			want:   "[[account]]\r\nid = \"work\"  # do not edit: links the account to its history\r\nlabel = \"W\"\r\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:   "below a last line without an ending in a file of mixed endings, as the nearest line with one ends",
-			config: "\n[[account]]\nid = \"side\"\n\n[[account]]\r\nid = \"work\"",
+			config: "\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n[[account]]\r\nid = \"work\"  # do not edit: links the account to its history",
 			id:     "work",
 			label:  "W",
-			want:   "\n[[account]]\nid = \"side\"\n\n[[account]]\r\nid = \"work\"\r\nlabel = \"W\"\r\n",
+			want:   "\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n\n[[account]]\r\nid = \"work\"  # do not edit: links the account to its history\r\nlabel = \"W\"\r\n",
 		},
 		{
 			name:   "the label it has already but for surrounding whitespace, left as it is",
@@ -108,45 +108,45 @@ func TestSetLabel(t *testing.T) {
 		},
 		{
 			name:   "none, for an account labelled with its id, left as it is",
-			config: "[[account]]\nid    = \"work\"\nlabel = \"work\"\n",
+			config: "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"work\"\n",
 			id:     "work",
 			label:  "",
-			want:   "[[account]]\nid    = \"work\"\nlabel = \"work\"\n",
+			want:   "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"work\"\n",
 		},
 		{
 			name:   "in place of a label in triple quotes on the one line, keeping the comment beside it",
-			config: "[[account]]\nid    = \"work\"\nlabel = \"\"\"Work\"\"\"  # keep me\n",
+			config: "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"\"\"Work\"\"\"  # keep me\n",
 			id:     "work",
 			label:  "Day job",
-			want:   "[[account]]\nid    = \"work\"\nlabel = \"Day job\"  # keep me\n",
+			want:   "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Day job\"  # keep me\n",
 		},
 		{
 			name:   "in place of a label in triple quotes holding quotes of its own",
-			config: "[[account]]\nid    = \"work\"\nlabel = \"\"\"the \"work\" one\"\"\"\"\"  # keep me\n",
+			config: "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"\"\"the \"work\" one\"\"\"\"\"  # keep me\n",
 			id:     "work",
 			label:  "Day job",
-			want:   "[[account]]\nid    = \"work\"\nlabel = \"Day job\"  # keep me\n",
+			want:   "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Day job\"  # keep me\n",
 		},
 		{
 			name:   "below the last key, indented as the table's keys are",
-			config: "[[account]]\n    id = \"work\"\n    # reserve = 0.1\n",
+			config: "[[account]]\n    id = \"work\"  # do not edit: links the account to its history\n    # reserve = 0.1\n",
 			id:     "work",
 			label:  "Work",
-			want:   "[[account]]\n    id = \"work\"\n    label = \"Work\"\n    # reserve = 0.1\n",
+			want:   "[[account]]\n    id = \"work\"  # do not edit: links the account to its history\n    label = \"Work\"\n    # reserve = 0.1\n",
 		},
 		{
 			name:   "below the last key in a file whose lines end in CRLF, ending so too",
-			config: "[[account]]\r\nid = \"work\"\r\n\r\n[[account]]\r\nid    = \"side\"\r\nlabel = \"Side\"\r\n",
+			config: "[[account]]\r\nid = \"work\"  # do not edit: links the account to its history\r\n\r\n[[account]]\r\nid    = \"side\"  # do not edit: links the account to its history\r\nlabel = \"Side\"\r\n",
 			id:     "work",
 			label:  "Work",
-			want:   "[[account]]\r\nid = \"work\"\r\nlabel = \"Work\"\r\n\r\n[[account]]\r\nid    = \"side\"\r\nlabel = \"Side\"\r\n",
+			want:   "[[account]]\r\nid = \"work\"  # do not edit: links the account to its history\r\nlabel = \"Work\"\r\n\r\n[[account]]\r\nid    = \"side\"  # do not edit: links the account to its history\r\nlabel = \"Side\"\r\n",
 		},
 		{
 			name:   "in a file that starts with a byte order mark, which it keeps",
 			config: "\uFEFF[[account]]\nid    = \"work\"\nlabel = \"Work\"\n",
 			id:     "work",
 			label:  "Day job",
-			want:   "\uFEFF[[account]]\nid    = \"work\"\nlabel = \"Day job\"\n",
+			want:   "\uFEFF[[account]]\nid    = \"work\"" + accountMark + "\nlabel = \"Day job\"\n",
 		},
 	}
 	for _, tt := range tests {
@@ -171,7 +171,7 @@ func TestSetLabel(t *testing.T) {
 const england = "\U0001f3f4\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f"
 
 func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
-	const side = "[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+	const side = "[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n"
 	tests := []struct {
 		name  string
 		given string
@@ -228,7 +228,7 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 			if err := draft.SetLabel("side", tt.given); err != nil {
 				t.Fatalf("SetLabel(%q) error = %v", tt.given, err)
 			}
-			want := "[[account]]\nid    = \"side\"\n"
+			want := "[[account]]\nid    = \"side\"  # do not edit: links the account to its history\n"
 			if tt.want != "" {
 				want += "label = \"" + tt.want + "\"\n"
 			}
@@ -241,7 +241,7 @@ func TestSetLabelTakesTheLabelAsItShows(t *testing.T) {
 }
 
 func TestSetLabelKeepsTheUnseenCharactersThatShow(t *testing.T) {
-	const side = "[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+	const side = "[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n"
 	for name, label := range config.ShownSequences {
 		t.Run(name, func(t *testing.T) {
 			path := writeConfig(t, side)
@@ -250,13 +250,13 @@ func TestSetLabelKeepsTheUnseenCharactersThatShow(t *testing.T) {
 			if err := draft.SetLabel("side", "Team "+label); err != nil {
 				t.Fatalf("SetLabel(%q) error = %v", label, err)
 			}
-			checkSaved(t, path, draft, "side", "[[account]]\nid    = \"side\"\nlabel = \"Team "+label+"\"\n")
+			checkSaved(t, path, draft, "side", "[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Team "+label+"\"\n")
 		})
 	}
 }
 
 // overLines is a config whose account's label goes on over lines.
-const overLines = "[[account]]\nid    = \"work\"\nlabel = \"\"\"\nWork\"\"\"\n"
+const overLines = "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"\"\"\nWork\"\"\"\n"
 
 func TestAnAccountWithALabelOverLinesTakesAPlanBelowIt(t *testing.T) {
 	path := writeConfig(t, overLines)
@@ -279,7 +279,7 @@ func TestAnAccountWithALabelOverLinesTakesAReserveBelowIt(t *testing.T) {
 }
 
 func TestAnAccountWithALabelOverLinesIsMadeThePrimaryBelowIt(t *testing.T) {
-	const side = "\n[[account]]\nid = \"side\"\n"
+	const side = "\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n"
 	path := writeConfig(t, overLines+side+"primary = true\n")
 	draft := edit(t, path)
 
@@ -291,7 +291,7 @@ func TestAnAccountWithALabelOverLinesIsMadeThePrimaryBelowIt(t *testing.T) {
 
 // keyInLabel is a config whose account's label, over lines, holds a line
 // that reads as a key.
-const keyInLabel = "[[account]]\nid    = \"work\"\nlabel = \"\"\"\nplan = \"max\"\nreserve = 0.1\n\"\"\"\n"
+const keyInLabel = "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"\"\"\nplan = \"max\"\nreserve = 0.1\n\"\"\"\n"
 
 func TestALabelOverLinesHoldingAKeyLineTakesThatKeyBelowIt(t *testing.T) {
 	tests := []struct {
@@ -324,14 +324,14 @@ func TestAnAccountWithALabelOverLinesRefusesALabel(t *testing.T) {
 }
 
 func TestAddAccountWritesNoLabelThatsItsID(t *testing.T) {
-	const work = "[[account]]\nid = \"work\"\n"
+	const work = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n"
 	path := writeConfig(t, work)
 	draft := edit(t, path)
 
 	if err := draft.AddAccount(config.NewAccount{ID: "side", Label: "side"}); err != nil {
 		t.Fatalf("AddAccount() error = %v", err)
 	}
-	checkSaved(t, path, draft, "side", work+"\n[[account]]\nid = \"side\"\n")
+	checkSaved(t, path, draft, "side", work+"\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n")
 }
 
 func TestSetPlan(t *testing.T) {
@@ -354,18 +354,18 @@ func TestSetPlan(t *testing.T) {
 		},
 		{
 			name:   "in place of its plan, keeping the comment beside it",
-			config: "[[account]]\nid   = \"work\"\nplan = \"pro\"   # for now\n",
+			config: "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"pro\"   # for now\n",
 			id:     "work",
 			plan:   "ultra",
-			want:   "[[account]]\nid   = \"work\"\nplan = \"ultra\"   # for now\n",
+			want:   "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"ultra\"   # for now\n",
 			loads:  "ultra",
 		},
 		{
 			name:   "in place of a plan in triple literal quotes on the one line, keeping the comment beside it",
-			config: "[[account]]\nid   = \"work\"\nplan = '''pro''' # c\n",
+			config: "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = '''pro''' # c\n",
 			id:     "work",
 			plan:   "max",
-			want:   "[[account]]\nid   = \"work\"\nplan = \"max\" # c\n",
+			want:   "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"max\" # c\n",
 			loads:  "max",
 		},
 		{
@@ -378,34 +378,34 @@ func TestSetPlan(t *testing.T) {
 		},
 		{
 			name:   "the plan the file gives by its old name, written by its new in its place",
-			config: "[[account]]\nid   = \"work\"\nplan = \"max20x\" # c\n",
+			config: "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"max20x\" # c\n",
 			id:     "work",
 			plan:   "ultra",
-			want:   "[[account]]\nid   = \"work\"\nplan = \"ultra\" # c\n",
+			want:   "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"ultra\" # c\n",
 			loads:  "ultra",
 		},
 		{
 			name:   "by its old name, as the file gives it, written by its new in its place",
-			config: "[[account]]\nid   = \"work\"\nplan = \"max5x\"\n",
+			config: "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"max5x\"\n",
 			id:     "work",
 			plan:   "max5x",
-			want:   "[[account]]\nid   = \"work\"\nplan = \"max\"\n",
+			want:   "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"max\"\n",
 			loads:  "max",
 		},
 		{
 			name:   "by its old name, the file giving its new, left as it is",
-			config: "[[account]]\nid   = \"work\"\nplan = \"ultra\"\n",
+			config: "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"ultra\"\n",
 			id:     "work",
 			plan:   "max20x",
-			want:   "[[account]]\nid   = \"work\"\nplan = \"ultra\"\n",
+			want:   "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"ultra\"\n",
 			loads:  "ultra",
 		},
 		{
 			name:   "none, taking its plan out",
-			config: "[[account]]\nid   = \"work\"\nplan = \"pro\"\n\n[[account]]\nid = \"side\"\n",
+			config: "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"pro\"\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 			id:     "work",
 			plan:   "",
-			want:   "[[account]]\nid   = \"work\"\n\n[[account]]\nid = \"side\"\n",
+			want:   "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\n\n[[account]]\nid = \"side\"  # do not edit: links the account to its history\n",
 		},
 		{
 			name:   "none for an account without one, left as it is",
@@ -433,7 +433,7 @@ func TestSetPlan(t *testing.T) {
 // A plan the file gives by its old name keeps it until an edit sets the
 // plan, an edit to another of the account's keys leaving it be.
 func TestAPlansOldNameStaysTillThePlanIsSet(t *testing.T) {
-	const old = "[[account]]\nid   = \"work\"\nplan = \"max20x\"\n"
+	const old = "[[account]]\nid   = \"work\"  # do not edit: links the account to its history\nplan = \"max20x\"\n"
 	path := writeConfig(t, old)
 	draft := edit(t, path)
 	if got := draft.PlanAlias("work"); got != "max20x" {
@@ -482,17 +482,17 @@ func TestSetReserve(t *testing.T) {
 		},
 		{
 			name:    "in place of a bare value in a file whose lines end in CRLF, keeping the ending",
-			config:  "[[account]]\r\nid      = \"work\"\r\nreserve = 0.1\r\n",
+			config:  "[[account]]\r\nid      = \"work\"  # do not edit: links the account to its history\r\nreserve = 0.1\r\n",
 			id:      "work",
 			reserve: 0.05,
-			want:    "[[account]]\r\nid      = \"work\"\r\nreserve = 0.05\r\n",
+			want:    "[[account]]\r\nid      = \"work\"  # do not edit: links the account to its history\r\nreserve = 0.05\r\n",
 		},
 		{
 			name:    "in place of a bare value ending in CR in a file of mixed endings, keeping it",
-			config:  "[[account]]\nid      = \"work\"\r\nreserve = 0.1\r\n",
+			config:  "[[account]]\nid      = \"work\"  # do not edit: links the account to its history\r\nreserve = 0.1\r\n",
 			id:      "work",
 			reserve: 0.05,
-			want:    "[[account]]\nid      = \"work\"\r\nreserve = 0.05\r\n",
+			want:    "[[account]]\nid      = \"work\"  # do not edit: links the account to its history\r\nreserve = 0.05\r\n",
 		},
 		{
 			name:    "none, taking its reserve out",
@@ -742,7 +742,7 @@ func TestSetReserveRefuses(t *testing.T) {
 		},
 		{
 			name:    "taking out a reserve written so the edit doesn't find it",
-			config:  "[[account]]\nid = \"work\"\n\"res\\u0065rve\" = 0.1\n",
+			config:  "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\"res\\u0065rve\" = 0.1\n",
 			id:      "work",
 			reserve: 0,
 			wantErr: cantMakeIt + `take reserve out of account "work" by hand`,
@@ -801,22 +801,23 @@ func TestLabelTakenComparesLabelsAsShownIgnoringCase(t *testing.T) {
 }
 
 func TestAddAccountTrimsTheLabelsSurroundingWhitespace(t *testing.T) {
-	const work = "[[account]]\nid = \"work\"\n"
+	const work = "[[account]]\nid = \"work\"  # do not edit: links the account to its history\n"
 	path := writeConfig(t, work)
 	draft := edit(t, path)
 
 	if err := draft.AddAccount(config.NewAccount{ID: "side", Label: " Side  "}); err != nil {
 		t.Fatalf("AddAccount() error = %v", err)
 	}
-	if got := checkSaved(t, path, draft, "side", work+"\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"); got.Label != "Side" {
+	if got := checkSaved(t, path, draft, "side", work+"\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n"); got.Label != "Side" {
 		t.Errorf("the label loads as %q, want %q", got.Label, "Side")
 	}
 }
 
 func TestAddingAndRemovingKeepAByteOrderMark(t *testing.T) {
 	const (
-		work     = "\uFEFF[[account]]\nid = \"work\"\n"
-		withSide = work + "\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n"
+		work       = "\uFEFF[[account]]\nid = \"work\"\n"
+		workMarked = "\uFEFF[[account]]\nid = \"work\"" + accountMark + "\n"
+		withSide   = workMarked + "\n[[account]]\nid    = \"side\"  # do not edit: links the account to its history\nlabel = \"Side\"\n"
 	)
 	path := writeConfig(t, work)
 	draft := edit(t, path)
@@ -829,7 +830,7 @@ func TestAddingAndRemovingKeepAByteOrderMark(t *testing.T) {
 	if err := draft.RemoveAccount("side"); err != nil {
 		t.Fatalf("RemoveAccount() error = %v", err)
 	}
-	checkSaved(t, path, draft, "work", work)
+	checkSaved(t, path, draft, "work", workMarked)
 }
 
 // replaced returns text with old replaced by with, once, failing the test

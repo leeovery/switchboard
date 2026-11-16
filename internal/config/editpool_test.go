@@ -21,29 +21,29 @@ pool    = "b2n8"
 primary = true
 
 [[account]]
-id    = "acme"
+id    = "acme"  # do not edit: links the account to its history
 label = "Acme 1"
 pool  = "q7mt"  # the client's
 
 [[account]]
-id      = "acme2"
+id      = "acme2"  # do not edit: links the account to its history
 label   = "Acme 2"
 pool    = "q7mt"
 primary = true    # the client's browser
 
 [[pool]]
-id    = "b2n8"
+id    = "b2n8"  # do not edit: links the pool to its history
 label = "Default"
 
 # The client's.
 [[pool]]
-id    = "q7mt"
+id    = "q7mt"  # do not edit: links the pool to its history
 label = "Acme"  # as the client calls it
 dirs  = ["~/Code/acme"]
 
 # Handed back.
 [[pool]]
-id   = "h4w2"
+id   = "h4w2"  # do not edit: links the pool to its history
 dirs = ["/Volumes/Client"]
 
 # Optional: start the 5-hour windows on a staggered schedule.
@@ -78,7 +78,7 @@ func TestPoolEdits(t *testing.T) {
 			edit: func(d *config.Draft) error {
 				return d.AddPool(config.NewPool{ID: "m5r1", Label: "Side", Dirs: []string{"~/Code/side", "/Volumes/Side"}})
 			},
-			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid    = \"m5r1\"\nlabel = \"Side\"\ndirs  = [\"~/Code/side\", \"/Volumes/Side\"]\n"),
+			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid    = \"m5r1\"  # do not edit: links the pool to its history\nlabel = \"Side\"\ndirs  = [\"~/Code/side\", \"/Volumes/Side\"]\n"),
 		},
 		{
 			name:   "adding a pool labelled by its id, writing no label",
@@ -86,7 +86,7 @@ func TestPoolEdits(t *testing.T) {
 			edit: func(d *config.Draft) error {
 				return d.AddPool(config.NewPool{ID: "m5r1", Label: "m5r1", Dirs: []string{"/Volumes/Side"}})
 			},
-			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid   = \"m5r1\"\ndirs = [\"/Volumes/Side\"]\n"),
+			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid   = \"m5r1\"  # do not edit: links the pool to its history\ndirs = [\"/Volumes/Side\"]\n"),
 		},
 		{
 			name:   "adding the first pool to a config from before pools, putting every account in it",
@@ -102,12 +102,12 @@ reserve = 0.1     # optional
 pool    = "b2n8"
 
 [[account]]
-id    = "personal"
+id    = "personal"  # do not edit: links the account to its history
 label = "Personal"
 pool  = "b2n8"
 
 [[pool]]
-id    = "b2n8"
+id    = "b2n8"  # do not edit: links the pool to its history
 label = "Default"
 
 # Optional: start the 5-hour windows on a staggered schedule.
@@ -159,9 +159,9 @@ label = "Default"
 		},
 		{
 			name:   "adding the first pool to a config from before pools whose keys aren't lined up, putting every account in it",
-			config: "[[account]]\nid = \"work\"\nlabel = \"Work\"\n",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\n",
 			edit:   func(d *config.Draft) error { return d.AddPool(config.NewPool{ID: "b2n8", Label: "Default"}) },
-			want:   "[[account]]\nid = \"work\"\nlabel = \"Work\"\npool = \"b2n8\"\n\n[[pool]]\nid    = \"b2n8\"\nlabel = \"Default\"\n",
+			want:   "[[account]]\nid = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\"\npool = \"b2n8\"\n\n[[pool]]\nid    = \"b2n8\"  # do not edit: links the pool to its history\nlabel = \"Default\"\n",
 		},
 		{
 			name:   "fencing the unfenced pool, below its last key",
@@ -182,7 +182,7 @@ label = "Default"
 			name:   "removing a pool with no accounts, with the comments above it",
 			config: pooled,
 			edit:   func(d *config.Draft) error { return d.RemovePool("H4W2") },
-			want:   pooledWith(t, "# Handed back.\n[[pool]]\nid   = \"h4w2\"\ndirs = [\"/Volumes/Client\"]\n\n", ""),
+			want:   pooledWith(t, "# Handed back.\n[[pool]]\nid   = \"h4w2\"  # do not edit: links the pool to its history\ndirs = [\"/Volumes/Client\"]\n\n", ""),
 		},
 		{
 			name:   "moving an account to another pool, keeping the comment beside its pool",
@@ -210,7 +210,7 @@ label = "Default"
 			},
 			want: pooledWith(t,
 				"pool    = \"q7mt\"\nprimary = true    # the client's browser\n",
-				"pool    = \"q7mt\"\n\n[[account]]\nid      = \"acme3\"\nlabel   = \"Acme 3\"\npool    = \"q7mt\"\nplan    = \"max\"\nprimary = true\n",
+				"pool    = \"q7mt\"\n\n[[account]]\nid      = \"acme3\"  # do not edit: links the account to its history\nlabel   = \"Acme 3\"\npool    = \"q7mt\"\nplan    = \"max\"\nprimary = true\n",
 			),
 		},
 		{
@@ -385,7 +385,7 @@ func TestPoolEditsRefuse(t *testing.T) {
 		},
 		{
 			name:    "removing the only pool",
-			config:  "[[pool]]\nid = \"b2n8\"\n",
+			config:  "[[pool]]\nid = \"b2n8\"  # do not edit: links the pool to its history\n",
 			edit:    func(d *config.Draft) error { return d.RemovePool("b2n8") },
 			wantErr: `pool "b2n8" is the only one, and a config with pools needs one at least, for an account added to go into`,
 			wantIs:  config.ErrOnlyPool,
