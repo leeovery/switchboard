@@ -13,14 +13,13 @@ import (
 )
 
 // The chosen project's figures, in cells and rows: WORTH BY's columns' rows,
-// and the rows the section takes, its heading, its columns, its axis and its
-// peak; the cells between the wide form's halves; a week's days' columns at
-// their least, the cells of each and between two, as the wide form's left
-// half holds them whatever the period; and ON ACCOUNTS' bar's least, as it's
-// laid beside another part.
+// whole and squeezed to their fewest; the cells between the wide form's
+// halves; a week's days' columns at their least, the cells of each and
+// between two, as the wide form's left half holds them whatever the period;
+// and ON ACCOUNTS' bar's least, as it's laid beside another part.
 const (
 	worthRows       = 6
-	worthTaken      = 1 + worthRows + 2
+	worthRowsLeast  = 3
 	halvesApart     = 4
 	weekDays        = 7
 	dayColumnLeast  = 8
@@ -53,8 +52,9 @@ const (
 // projectDrawn is the chosen project as a frame draws it under the list, of
 // the moment m at now: its page; WORTH BY in the bucket that fits it as it
 // lies, as worthFitting has it; how its sections lie, and where: the left
-// half's cells, wide, or the column ON ACCOUNTS starts at, middling; and how
-// many of its sections show, from the first, as projectsLaid keeps them.
+// half's cells, wide, or the column ON ACCOUNTS starts at, middling; how
+// many of its sections show, from the first; and WORTH BY's columns' rows,
+// as projectsLaid gives them way.
 type projectDrawn struct {
 	f     Frame
 	m     status.Moment
@@ -64,14 +64,15 @@ type projectDrawn struct {
 	form  projectForm
 	split int
 	kept  int
+	chart int
 }
 
 // projectDrawnOf is the chosen project of the frame f, of the moment m at
 // now, laid out across its width, as formOf lays its sections out, WORTH BY
 // in the finest bucket that fits the cells it takes as they lie, all of
-// them kept.
+// them kept, its columns whole.
 func projectDrawnOf(f Frame, m status.Moment, now time.Time, page views.ProjectPage) projectDrawn {
-	d := projectDrawn{f: f, m: m, now: now, page: page, kept: projectSections}
+	d := projectDrawn{f: f, m: m, now: now, page: page, kept: projectSections, chart: worthRows}
 	d.form, d.split = d.formOf()
 	d.worth = d.worthFitting()
 	return d
@@ -118,12 +119,13 @@ func (d projectDrawn) halfLeast() int {
 
 // formOf is how the sections lie across the frame, as flex lays two halves
 // out: wide where WORTH BY at its least, as halfLeast has it, fits the left
-// half, halvesApart from the right, and BY MODEL and ON ACCOUNTS whole fit
-// the right, the left half's cells given; else middling where BY MODEL and
-// ON ACCOUNTS whole fit a half each, the column the right half starts at
-// given; else stacked.
+// half, halvesApart from the right, and BY MODEL, at the page's most, and ON
+// ACCOUNTS whole fit the right, the left half's cells given; else middling
+// where they fit a half each, the column the right half starts at given;
+// else stacked. The page's most, not the project's own, so the form holds
+// as the choice moves.
 func (d projectDrawn) formOf() (projectForm, int) {
-	right := max(d.modelsWhole(), d.accountsWhole())
+	right := max(d.modelsMost(), d.accountsWhole())
 	if left, _, ok := halves(d.f.Width, halvesApart, max(d.halfLeast(), right)); ok {
 		return projectWide, left.Size
 	}
@@ -141,10 +143,15 @@ func halves(width, apart, least int) (left, right flex.Span, ok bool) {
 	return spans[0], spans[1], ok
 }
 
-// modelsWhole are the cells BY MODEL takes whole: its versions' rows, as
-// versionRow lays them out.
-func (d projectDrawn) modelsWhole() int {
-	return versionAt + d.versionCells() + 1 + percentCells
+// modelsMost are the cells BY MODEL takes whole at the page's most: its
+// versions' rows, as byModel lays them out, of the widest name of the
+// project's versions or the page's Most.
+func (d projectDrawn) modelsMost() int {
+	cells := d.versionCells()
+	if page := d.f.Projects.Page; page != nil {
+		cells = max(cells, page.Most.VersionCells)
+	}
+	return versionAt + cells + 1 + percentCells
 }
 
 // versionCells are the cells of the widest name of BY MODEL's versions.
@@ -168,19 +175,31 @@ func (d projectDrawn) namesCells() int {
 	return accountsColumn(nameGap, namesOf(d.m)).Natural
 }
 
-// heights are the rows each section takes, in their order: WORTH BY's
-// worthTaken; BY MODEL's and ON ACCOUNTS' heading and a row a version or an
-// account.
+// heights are the rows each of the project's sections takes, as heightsOf
+// has them of its versions and accounts.
 func (d projectDrawn) heights() [projectSections]int {
-	return [projectSections]int{worthTaken, 1 + len(d.page.ByModel), 1 + len(d.page.OnAccounts)}
+	return d.heightsOf(len(d.page.ByModel), len(d.page.OnAccounts))
 }
 
-// height is the rows the first kept of the sections take as they lie, a
-// blank row between two stacked: wide, WORTH BY's or the right column's,
-// whichever's taller; middling, WORTH BY's and the taller of the two beside
-// each other under it; stacked, each's.
+// heightsOf are the rows each section takes, in their order, of as many
+// versions and accounts as given: WORTH BY's heading, columns, axis and
+// peak; BY MODEL's and ON ACCOUNTS' heading and a row a version or an
+// account.
+func (d projectDrawn) heightsOf(versions, accounts int) [projectSections]int {
+	return [projectSections]int{1 + d.chart + 2, 1 + versions, 1 + accounts}
+}
+
+// height is the rows the first kept of the project's sections take as they
+// lie, as lain has them of its heights.
 func (d projectDrawn) height(kept int) int {
-	h := d.heights()
+	return d.lain(d.heights(), kept)
+}
+
+// lain is the rows the first kept of sections of the heights given take as
+// they lie, a blank row between two stacked: wide, WORTH BY's or the right
+// column's, whichever's taller; middling, WORTH BY's and the taller of the
+// two beside each other under it; stacked, each's.
+func (d projectDrawn) lain(h [projectSections]int, kept int) int {
 	stacked := func(parts ...int) int {
 		rows := 0
 		for _, n := range parts {
@@ -205,6 +224,12 @@ func (d projectDrawn) height(kept int) int {
 	return stacked(shown(sectionWorth), shown(sectionModels), shown(sectionAccounts))
 }
 
+// squeezed is the project with WORTH BY's columns the rows given.
+func (d projectDrawn) squeezed(chart int) projectDrawn {
+	d.chart = chart
+	return d
+}
+
 // head draws the project's head along row y: its name, as the list names
 // it; two cells on, its path, where it has one, in text.muted, cut from its
 // start as status.DirPath cuts it; and at the right, ● and its sessions running, as
@@ -222,15 +247,15 @@ func (d projectDrawn) head(c *canvas, y int) {
 	}
 }
 
-// numbers are the project's numbers over the period, on as many lines width
-// cells wide as they take, each number bold text.primary and its word
-// text.muted, " · " between them: its sessions; its requests; its worth at
-// API prices, as Rounded says it; its share of every project's worth, where
-// it's known; and its tokens, as prose.Millions counts them.
-func (d projectDrawn) numbers(width int) []line {
-	p := d.page
+// projectNumbers are the numbers over the period of the project of the row
+// given, on as many lines width cells wide as they take, each number bold
+// text.primary and its word text.muted, " · " between them: its sessions;
+// its requests; its worth at API prices, as Rounded says it; its share of
+// every project's worth, where it's known; and its tokens, as prose.Millions
+// counts them.
+func projectNumbers(p views.ProjectRow, width int) []line {
 	parts := []line{
-		logCounted(p.ProjectTotals.Sessions, "session", titleInk),
+		logCounted(p.Sessions, "session", titleInk),
 		logCounted(p.Requests, "request", titleInk),
 		pricedWorth(p.Worth, titleInk),
 	}
@@ -297,9 +322,9 @@ func (d projectDrawn) section(c *canvas, section, x, y, width int) int {
 // row after it.
 func (d projectDrawn) worthBy(c *canvas, x, y, width int) int {
 	c.line(x, y, line{{"WORTH BY " + strings.ToUpper(bucketWord[d.worth.Unit]), headingInk}})
-	worthChart(c, d.f.Look, x, y+1, width, worthRows, namedSlots, d.worth, peakWorth(d.worth))
-	c.line(x, y+1+worthRows+1, worthPeak(d.worth))
-	return y + worthTaken
+	worthChart(c, d.f.Look, x, y+1, width, d.chart, namedSlots, d.worth, peakWorth(d.worth))
+	c.line(x, y+1+d.chart+1, worthPeak(d.worth))
+	return y + d.heights()[sectionWorth]
 }
 
 // byModel draws BY MODEL from x along row y, width cells wide: its heading;

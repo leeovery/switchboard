@@ -233,6 +233,16 @@ var knownBreaks = []known{
 		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"73x36"}, fixtures: []string{"overview-six-accounts-160"},
 	},
+	// Projects' list never hangs its form on the chosen project's data, so it
+	// keeps its rows whatever the project's sessions leave blank at the foot.
+	{
+		byDesign: "the project list at its third, or at 5 rows while the sections stay, whatever the chosen project's sessions leave at the foot",
+		rule:     foldWithRowsSpare, sizes: []string{"73x36"}, fixtures: []string{"long-names-projects", "long-names-project-sessions"},
+	},
+	{
+		byDesign: "the project list at its third, or at 5 rows while the sections stay, whatever the chosen project's sessions leave at the foot",
+		rule:     foldWithRowsSpare, sizes: []string{"73x61", "73x36", "138x30", "173x53", "109x53"}, fixtures: []string{"projects-many-114x40"},
+	},
 }
 
 // Every fixture's view, and the long-names world's, at the owner's sizes,

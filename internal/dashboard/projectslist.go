@@ -167,11 +167,11 @@ func (l projectsList) end() int {
 	return last.x + last.width
 }
 
-// rowsTaken are the rows the list takes: its heads, its projects shown, the
-// line saying how many more there are, where any are out of view, its rule
-// and every project's row.
-func (l projectsList) rowsTaken() int {
-	return 1 + l.linesShown() + 2
+// listTaken are the rows the list takes, showing as many lines as given,
+// its projects shown and the line saying how many more there are, where any
+// are out of view: its heads, the lines, its rule and every project's row.
+func listTaken(lines int) int {
+	return 1 + lines + 2
 }
 
 // linesShown are the rows its projects and the line of how many more take.
