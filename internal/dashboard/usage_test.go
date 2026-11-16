@@ -1589,6 +1589,9 @@ func checkGaugeAgrees(t *testing.T, a status.AccountNow, w status.WindowNow, g g
 	if said, ink := kindSaid(full); said != w.Kind || len(g.words.full) > 0 && g.words.full[0].ink != ink {
 		t.Errorf("%s's %s reads %q, as of kind %d in %+v, want kind %d", a.ID, w.Key, full, said, g.words.full[0].ink, w.Kind)
 	}
+	if said := staleSaid(full); w.Kind == status.WindowStale && said != w.Stale {
+		t.Errorf("%s's %s reads %q, as stale as %d, want stale as %d", a.ID, w.Key, full, said, w.Stale)
+	}
 	if at := timeSaid(w, now); at != "" && !strings.HasSuffix(full, at) {
 		t.Errorf("%s's %s reads %q, want it to end at %q, its At", a.ID, w.Key, full, at)
 	}
@@ -1616,6 +1619,8 @@ func kindSaid(full string) (status.WindowKind, ink) {
 		{"no ", status.WindowNone, dimInk},
 		{"not read yet", status.WindowUnread, dimInk},
 		{"not read since ", status.WindowStale, dimInk},
+		{"subscription lapsed", status.WindowStale, errorInk},
+		{"token refused", status.WindowStale, errorInk},
 		{"limit", status.WindowLimited, errorInk},
 		{"at cap", status.WindowCapped, warningInk},
 		{"out ~", status.WindowRunsOut, warningInk},
@@ -1628,14 +1633,30 @@ func kindSaid(full string) (status.WindowKind, ink) {
 	return status.WindowOpen, mutedInk
 }
 
+// staleSaid is why USAGE's words, in full, say a window's reading is stale:
+// zero where they don't.
+func staleSaid(full string) status.StaleCause {
+	switch {
+	case full == "subscription lapsed":
+		return status.StaleLapsed
+	case full == "token refused":
+		return status.StaleRefused
+	case strings.HasPrefix(full, "not read since "):
+		return status.StaleFailed
+	}
+	return 0
+}
+
 // timeSaid is when USAGE's words, in full, say what w's Kind says comes, or
 // came, as of now: "" where they say no time.
 func timeSaid(w status.WindowNow, now time.Time) string {
 	switch {
 	case w.At.IsZero(), w.Kind == status.WindowOpen && w.Allowance == (quota.Allowance{}):
 		return ""
+	case w.Kind == status.WindowStale && w.Stale != status.StaleFailed:
+		return ""
 	case w.Kind == status.WindowStale:
-		full, _ := lastRead(now, w.At)
+		full, _ := prose.NotReadSince(now, w.At)
 		return full
 	case w.Kind == status.WindowRunsOut:
 		return prose.RunOut(now, w.At)

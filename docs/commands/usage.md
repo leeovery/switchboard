@@ -104,7 +104,9 @@ A week runs out by its forecast, and the 5-hour window by its recent rate. See
 | Has no usable token | `no token`, with empty bars. |
 | Has a token the router found to be for another subscription | `wrong token`, with empty bars. |
 | Has never been read | `not read yet`, with empty bars. |
-| Has a refused token, or its last read failed | Its last reading, faded, such as `not read since 14:20`. |
+| Has a lapsed subscription: the API refuses its login | Its last reading, faded, and `subscription lapsed` in red. Renew the subscription, or remove the account. |
+| Has a refused token | Its last reading, faded, and `token refused` in red. Give it a new token with `switchboard accounts token <id>`. |
+| Couldn't be read for another reason | Its last reading, faded, such as `not read since 14:20`. |
 
 ### The Σ pool row
 

@@ -220,6 +220,9 @@ type WindowNow struct {
 	// account holds is another subscription's, as the account's TokenForeign
 	// says.
 	TokenForeign bool
+	// Stale is why its reading is stale, where its Kind is WindowStale: zero
+	// otherwise.
+	Stale StaleCause
 	// Used is how much of it is used as it stands at Now, as WindowAt has it:
 	// none once it has reset since it was read, or of one not started. Pace
 	// is its even pace, and Allowance what can be spent of it and still last
@@ -728,6 +731,9 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	wn.Used, wn.Pace, wn.Allowance, wn.Next, wn.Room = w.stands.Utilization, w.pace, w.allowance, w.stands.ResetsAt, w.room
 	wn.Start, wn.Length, _ = w.stands.Span()
 	wn.ResetSinceRead, wn.Lapsed = w.window.ResetBy(m.Now), w.lapsed
+	if wn.Kind == WindowStale {
+		wn.Stale = s.stale
+	}
 	wn.Held = wn.Kind == WindowLimited
 	if wn.Held {
 		wn.Back, wn.Since = wn.At, m.doc.reachedIn(a, w.window, m.Now)

@@ -219,9 +219,10 @@ func (ln laidLane) useLine(window string, now time.Time, cells int) line {
 }
 
 // useWords are what's said of the lane's use, as useLine has it: where it's
-// stale, as its token's refused or its last read failed, when it was last
-// read, not read yet, or no token, or wrong token where the one it holds is
-// another subscription's, as USAGE says each of a window; else after
+// stale, why, as staleWords says it, its subscription lapsed, its token
+// refused, or when it was last read; not read yet; or no token, or wrong
+// token where the one it holds is another subscription's, as USAGE says each
+// of a window; else after
 // the window's name in text.subtle, its share used, bold in its level's
 // colour, as usage colours it, stepped back the highest the days shown read,
 // numbered as its window's use, which brightens as it changes, as today's
@@ -231,7 +232,7 @@ func (ln laidLane) useWords(window string, now time.Time) usageWords {
 	u := ln.Use
 	switch {
 	case u.Stale:
-		return wordsOf(status.WindowNow{Kind: status.WindowStale, At: u.ReadAt}, now)
+		return staleWords(u.StaleCause, u.ReadAt, now)
 	case u.Tokenless:
 		return wordsOf(status.WindowNow{Kind: status.WindowTokenless, TokenForeign: u.TokenForeign}, now)
 	case u.Unread:

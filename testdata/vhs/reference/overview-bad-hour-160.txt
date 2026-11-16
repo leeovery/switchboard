@@ -6,7 +6,7 @@ USAGE  ────────────────────────�
 
               WEEK                                                                      5-HOUR
 
-work                        ▎       ┃                 ╎   34%  not read since 14:20                          ┃                 ▉╎   95%  not read since 14:20
+work                        ▎       ┃                 ╎   34%  token refused                                 ┃                 ▉╎   95%  token refused
 
 personal    ◆                            ┃                66%  out ~Fri                                                 ┃          100%  limit · back 15:54
 

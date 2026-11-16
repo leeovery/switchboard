@@ -88,6 +88,17 @@ func Tokenless(foreign bool) string {
 	return "no token"
 }
 
+// Why an account's reading is stale, where the API refuses it, in full and
+// short: SubscriptionLapsed, "subscription lapsed", where its organization's
+// login is refused, as a lapsed subscription is answered, and short,
+// "lapsed"; TokenRefused, "token refused", and short, "refused".
+const (
+	SubscriptionLapsed      = "subscription lapsed"
+	SubscriptionLapsedShort = "lapsed"
+	TokenRefused            = "token refused"
+	TokenRefusedShort       = "refused"
+)
+
 // AddAsOwn is the other way to put right an account whose token is another
 // subscription's, said after giving it its own: that subscription added as
 // an account of its own.

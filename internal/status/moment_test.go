@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -169,15 +170,15 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 
 // checkWindowAgainstStatus checks each fact of doc's account a's window w,
 // read, standing at now as got, against the function it takes the place of:
-// all but its kind, when what that says comes, its even pace and its
-// allowance, which the window tests hold through the moment, and each fact
-// here is read against.
+// all but its kind, why it's stale, when what that says comes, its even pace
+// and its allowance, which the window tests hold through the moment, and each
+// fact here is read against.
 func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Account, w quota.Window, got status.WindowNow, now time.Time) {
 	t.Helper()
 	want := status.WindowNow{
 		WindowName: got.WindowName,
 		Shared:     policy.IsShared(w.Key), Started: w.Key == policy.Started, Pressure: w.Key == policy.Pressure,
-		Kind: got.Kind, Unheld: got.Kind, At: got.At,
+		Kind: got.Kind, Unheld: got.Kind, At: got.At, Stale: got.Stale,
 		Read: status.AsRead{Used: w.Utilization, ResetsAt: w.ResetsAt, At: a.FetchedAt},
 	}
 	if want.Kind != status.WindowTokenless && want.Kind != status.WindowUnread {
@@ -211,11 +212,12 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 
 // unheldKindOf is the kind of account a's window, standing at now as w has
 // it, running out where runsOut says it does, once the limit holding it
-// lifts: stale where its token is refused, not started where it has lapsed,
-// stale where its last read failed, at its cap, running out, else open.
+// lifts: stale where its token is refused, by the router or its last read,
+// or its subscription has lapsed, not started where it has lapsed, stale
+// where its last read failed otherwise, at its cap, running out, else open.
 func unheldKindOf(a status.Account, w status.WindowNow, runsOut bool, now time.Time) status.WindowKind {
 	switch {
-	case a.TokenRefused(now):
+	case a.TokenRefused(now), claude.TokenRefusedRead(a.Error), claude.LoginBarredRead(a.Error):
 		return status.WindowStale
 	case w.Lapsed:
 		return status.WindowNotStarted

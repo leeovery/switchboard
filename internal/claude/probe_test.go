@@ -818,6 +818,49 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 	})
 }
 
+// lapsedMessage is how the API answers a lapsed subscription's probe, 403.
+const lapsedMessage = "OAuth authentication is currently not allowed for this organization."
+
+// The text of a probe's error, as the probe gives it, read back, says
+// whether the API refused the token, answering 401, or the organization's
+// OAuth login, answering 403 with the message a lapsed subscription is
+// answered with, in any case: never another 403, nor a 401 without a message.
+func TestAProbesErrorSaysWhetherItsTokenOrItsLoginWasRefused(t *testing.T) {
+	tests := []struct {
+		name                    string
+		reply                   reply
+		wantRefused, wantLapsed bool
+	}{
+		{name: "401", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), wantRefused: true},
+		{name: "401 without a message", reply: reply{status: http.StatusUnauthorized}, wantRefused: true},
+		{name: "403, the login barred", reply: apiError(http.StatusForbidden, lapsedMessage), wantLapsed: true},
+		{name: "403, the login barred, in another case", reply: apiError(http.StatusForbidden, strings.ToUpper(lapsedMessage)), wantLapsed: true},
+		{name: "403, the login barred, in lower case", reply: apiError(http.StatusForbidden, strings.ToLower(lapsedMessage)), wantLapsed: true},
+		{name: "403 with another message", reply: apiError(http.StatusForbidden, "Not allowed")},
+		{name: "403 without a message", reply: reply{status: http.StatusForbidden}},
+		{name: "another status with the login's message", reply: apiError(http.StatusBadRequest, lapsedMessage)},
+		{name: "529", reply: apiError(529, "Overloaded")},
+		{name: "no answer in time", reply: reply{hang: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api := newFakeAPI(t, map[string]reply{haiku: tt.reply, fable: tt.reply, fableOlder: tt.reply})
+			prober := &claude.Prober{Upstream: api.URL, Version: version, Timeout: 250 * time.Millisecond}
+
+			_, err := prober.Probe(t.Context(), token)
+			if err == nil {
+				t.Fatal("Probe() succeeded, want an error")
+			}
+			if got := claude.TokenRefusedRead(err.Error()); got != tt.wantRefused {
+				t.Errorf("TokenRefusedRead(%q) = %v, want %v", err, got, tt.wantRefused)
+			}
+			if got := claude.LoginBarredRead(err.Error()); got != tt.wantLapsed {
+				t.Errorf("LoginBarredRead(%q) = %v, want %v", err, got, tt.wantLapsed)
+			}
+		})
+	}
+}
+
 // statusOf is the status a probe's error says the API answered with: 0 for
 // none.
 func statusOf(err error) int {

@@ -345,7 +345,8 @@ The routed line in the log gives the reason for each request's account, one of:
 | `…, <id> under pressure` | Any reason of a choice made afresh, or of a move by pin, when setting the accounts under pressure aside changed it (step 3 of Choosing an account): `<id>` is the account it would have chosen, or, when that one isn't under pressure, the highest scoring of those that are, whose score kept the account chosen out of reach. The log's `passed over under pressure` line, one a choice, gives `<id>`'s rate and when it runs out at it |
 
 These words are fixed, as are the whys a ledger line's `tried` gives (`hit its limit`, `was
-refused` and `has a new token`): the ledger, the events, `state.json` and `/sessions` keep them,
+refused`, `has a new token` and `has no usable token`, a status constant like the rest, the
+owner's call of 16 November 2026): the ledger, the events, `state.json` and `/sessions` keep them,
 and the dashboard reads them back, so none is ever reworded, and a new one is only added. So is
 `back where it was before its request`, which the request stream gives a session's move back
 where every account refused its request (see Control API). The reference lists them all, and a
@@ -3854,7 +3855,9 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | The token the account holds is another subscription's (see Account identity) | `wrong token` | `wrong token` | `state.destructive` |
   | The account has no usable token (settled in the plan) | `no token` | `no token` | `state.destructive` |
   | Nothing has been read of the account (settled in the plan) | `not read yet` | `not read` | `text.subtle` |
-  | Its token is refused, or its last read failed: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
+  | Its subscription has lapsed: its last read was answered 403, the message saying OAuth authentication is currently not allowed for its organization, in any case, which is how a lapsed subscription is answered; the last reading, faded (below) | `subscription lapsed` | `lapsed` | `state.destructive` |
+  | Its token is refused: the router saw it refused, or its last read was answered 401; the last reading, faded (below) | `token refused` | `refused` | `state.destructive` |
+  | Its last read failed otherwise, a 403 with another message among them: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
   | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54`, `back 12 Nov` a week on | `state.destructive` |
   | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10`, `back 12 Nov` a week on | `accent.attention` |
   | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
@@ -3869,10 +3872,16 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   `back 12 Nov`. An allowance's reset keeps its day alone, `19%/day · Thu`: its 14 cells can't
   hold a date beside the rate, and a rate a day can't be read as running out today. `back` is when
   room returns: when a limit lifts, or the capped window resets. Red is for Claude's own limit; a
-  cap is movable, so it's amber.
-- **A reading that's stale,** of an account whose token is refused or whose last read failed, shows
-  as it was last read, faded: its bar, fill, track and marks keep 35% of their colour, which is 65%
-  toward the canvas, nothing bold; its percentage and words in `text.subtle`.
+  cap is movable, so it's amber. A stale reading says why where the API refused it, a lapsed
+  subscription or a refused token, so the words say what's wrong, and when it was last read only
+  where the read failed otherwise; `status` works the cause out once, from the router's refusal and
+  the last read's error, and the words leave the rest of the message out. A refusal of the
+  subscription's login or of the token is tried before a 5-hour window not started, as the router's
+  refusal of the token was (the owner's call, 16 November 2026).
+- **A reading that's stale,** of an account whose subscription has lapsed, whose token is refused
+  or whose last read failed, shows as it was last read, faded, whatever its words say: its bar,
+  fill, track and marks keep 35% of their colour, which is 65% toward the canvas, nothing bold;
+  its percentage in `text.subtle`, and its words coloured as the table has them.
 - **An account with no usable token, or nothing read,** has its bars empty, no marks, and its
   percentages `—` in `text.faint`.
 
@@ -5982,7 +5991,8 @@ request ledger).
   it, from column 2, `week ` in `text.subtle`, and the account's use of its week, `66%`, bold in
   its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else green. Where
   there's no use, the words are always `usage`'s short forms, as the column is never widened for
-  the full: `read 14:20` where its last read failed, `not read` before its first, and
+  the full: `lapsed` where its subscription has lapsed, `refused` where its token is refused,
+  `read 14:20` where its last read failed otherwise, `not read` before its first, and
   `no token`, or `wrong token` where the token it holds is another subscription's.
 - **The axis:** on row 5, the row under the heading row, with no blank row between them (see The
   page), `now`, bold `text.primary`, starting a cell left of now's column; on row 6, the labels; on
@@ -8183,7 +8193,8 @@ distracts most. What matters reads when still: nothing is said by motion alone.
 - **Nothing travels across a page** but Sessions' Switchboard, where requests travel the cords, by
   its own steps and timings (see Sessions).
 - **Stale data says so, and only then:** a reading not refreshed is faded, keeping 35% of its
-  colour, which is 65% toward the canvas, its words `not read since 14:20`, and a router that
+  colour, which is 65% toward the canvas, its words `not read since 14:20`, or why the API
+  refused it, `subscription lapsed` or `token refused`, and a router that
   doesn't answer is named in the status line (see The page).
 
 Each page's own motion is in its section, within this budget: the Log's table moving up a line as

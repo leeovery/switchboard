@@ -39,7 +39,7 @@ const (
 	whyThrottled = "was throttled"
 	whyNewToken  = status.WhyNewToken
 	whyReset     = "was reset by hand"
-	whyTokenless = "has no usable token"
+	whyTokenless = status.WhyTokenless
 	whyLeftPool  = status.WhyLeftPool
 	whyNoRoom    = status.WhyNoRoom
 )

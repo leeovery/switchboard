@@ -30,7 +30,7 @@ func (from LanesFrom) useOf(a status.AccountNow) Use {
 		use.Used, use.Read = w.Used, true
 		use.Stale = w.Kind == status.WindowStale
 		if use.Stale {
-			use.ReadAt = w.At
+			use.StaleCause, use.ReadAt = w.Stale, w.At
 		}
 	}
 	return use

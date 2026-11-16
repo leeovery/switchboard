@@ -136,8 +136,8 @@ func idledIn(count int, unit string, rest int, restUnit string) string {
 
 // Why an account can't take a request, as the reasons for leaving it, after
 // ReasonMovedOff or ReasonPinYields and the account, give it, and those of
-// them a ledger line's tried gives too: WhyLimit, WhyRefused, WhyNewToken and
-// WhyLeftPool; and WhyNoRoom, of an account that left the config with one
+// them a ledger line's tried gives too: WhyLimit, WhyRefused, WhyNewToken,
+// WhyTokenless and WhyLeftPool; and WhyNoRoom, of an account that left the config with one
 // pool configured, where WhyLeftPool would name a pool nothing names. They're
 // never reworded, as the reasons aren't.
 const (
@@ -152,6 +152,9 @@ const (
 	// WhyNewToken is an account that refused the request's token, as it had
 	// taken up a new one.
 	WhyNewToken = "has a new token"
+	// WhyTokenless is an account whose token file stopped holding a usable
+	// token while the request was out.
+	WhyTokenless = "has no usable token"
 	// WhyLeftPool is an account that has left the request's pool, moved to
 	// another or out of the config.
 	WhyLeftPool = "left the pool"

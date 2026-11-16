@@ -13,6 +13,9 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 	state := func(kind status.WindowKind, at time.Time) status.WindowNow {
 		return status.WindowNow{Kind: kind, At: at}
 	}
+	stale := func(cause status.StaleCause, at time.Time) status.WindowNow {
+		return status.WindowNow{Kind: status.WindowStale, Stale: cause, At: at}
+	}
 	tests := []struct {
 		name        string
 		state       status.WindowNow
@@ -23,11 +26,13 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{name: "no token", state: state(status.WindowTokenless, time.Time{}), full: "no token", short: "no token", ink: errorInk},
 		{name: "its token another subscription's", state: status.WindowNow{Kind: status.WindowTokenless, TokenForeign: true}, full: "wrong token", short: "wrong token", ink: errorInk},
 		{name: "nothing read", state: state(status.WindowUnread, time.Time{}), full: "not read yet", short: "not read", ink: dimInk},
-		{name: "stale since today", state: state(status.WindowStale, on(1, 14, 20)), full: "not read since 14:20", short: "read 14:20", ink: dimInk},
-		{name: "stale since another day", state: state(status.WindowStale, on(30, 22, 10).AddDate(0, -1, 0)), full: "not read since Wed 22:10", short: "read Wed", ink: dimInk},
-		{name: "stale since six days back", state: state(status.WindowStale, on(1, 9, 5).AddDate(0, 0, -6)), full: "not read since Fri 09:05", short: "read Fri", ink: dimInk},
-		{name: "stale since this day last week, by its date", state: state(status.WindowStale, on(1, 9, 5).AddDate(0, 0, -7)), full: "not read since 24 Sep 09:05", short: "read 24 Sep", ink: dimInk},
-		{name: "stale since 9 days back, by its date", state: state(status.WindowStale, on(1, 14, 20).AddDate(0, 0, -9)), full: "not read since 22 Sep 14:20", short: "read 22 Sep", ink: dimInk},
+		{name: "its subscription lapsed", state: stale(status.StaleLapsed, on(1, 12, 1)), full: "subscription lapsed", short: "lapsed", ink: errorInk},
+		{name: "its token refused", state: stale(status.StaleRefused, on(1, 14, 20)), full: "token refused", short: "refused", ink: errorInk},
+		{name: "stale since today", state: stale(status.StaleFailed, on(1, 14, 20)), full: "not read since 14:20", short: "read 14:20", ink: dimInk},
+		{name: "stale since another day", state: stale(status.StaleFailed, on(30, 22, 10).AddDate(0, -1, 0)), full: "not read since Wed 22:10", short: "read Wed", ink: dimInk},
+		{name: "stale since six days back", state: stale(status.StaleFailed, on(1, 9, 5).AddDate(0, 0, -6)), full: "not read since Fri 09:05", short: "read Fri", ink: dimInk},
+		{name: "stale since this day last week, by its date", state: stale(status.StaleFailed, on(1, 9, 5).AddDate(0, 0, -7)), full: "not read since 24 Sep 09:05", short: "read 24 Sep", ink: dimInk},
+		{name: "stale since 9 days back, by its date", state: stale(status.StaleFailed, on(1, 14, 20).AddDate(0, 0, -9)), full: "not read since 22 Sep 14:20", short: "read 22 Sep", ink: dimInk},
 		{name: "at Claude's limit", state: state(status.WindowLimited, on(1, 15, 54)), full: "limit · back 15:54", short: "back 15:54", ink: errorInk},
 		{name: "at Claude's limit, back none knows when", state: state(status.WindowLimited, time.Time{}), full: "limit", short: "limit", ink: errorInk},
 		{name: "at its cap, back tomorrow", state: state(status.WindowCapped, on(2, 2, 0)), full: "at cap · back Fri 02:00", short: "back Fri", ink: warningInk},
@@ -86,7 +91,7 @@ func lacking(name string) status.WindowNow {
 }
 
 func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
-	w := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(30, 12, 42).AddDate(0, -1, 0)}, printNow)
+	w := wordsOf(status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, At: on(30, 12, 42).AddDate(0, -1, 0)}, printNow)
 	tests := []struct {
 		name        string
 		width, room int
@@ -113,11 +118,11 @@ func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
 // short form there, which says the date still. Short, a block draws its
 // words in shortCells.
 func TestTheWidestWordsHoldEveryFullForm(t *testing.T) {
-	widest := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(30, 22, 10).AddDate(0, -1, 0)}, printNow).full
+	widest := wordsOf(status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, At: on(30, 22, 10).AddDate(0, -1, 0)}, printNow).full
 	if got := fullWidest(); got != 24 || got != widest.width() {
 		t.Errorf("the widest words in full are %d cells, want 24, of %q", got, widest.plain())
 	}
-	weekOld := wordsOf(status.WindowNow{Kind: status.WindowStale, At: on(1, 14, 20).AddDate(0, 0, -9)}, printNow)
+	weekOld := wordsOf(status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, At: on(1, 14, 20).AddDate(0, 0, -9)}, printNow)
 	if got := weekOld.pick(fullWords, fullWidest()).plain(); got != "read 22 Sep" {
 		t.Errorf("a reading over a week back reads %q in the widest words' cells, want its short form, read 22 Sep", got)
 	}
@@ -125,7 +130,7 @@ func TestTheWidestWordsHoldEveryFullForm(t *testing.T) {
 		{Kind: status.WindowCapped, At: on(4, 21, 0)},
 		{Kind: status.WindowLimited, At: on(4, 21, 0)},
 		{Kind: status.WindowRunsOut, At: on(4, 21, 0)},
-		{Kind: status.WindowStale, At: on(30, 22, 10).AddDate(0, -1, 0)},
+		{Kind: status.WindowStale, Stale: status.StaleFailed, At: on(30, 22, 10).AddDate(0, -1, 0)},
 		{Kind: status.WindowOpen, At: on(4, 21, 0), Allowance: quota.Allowance{Share: 1, Per: quota.PerDay}},
 	} {
 		if full := wordsOf(w, printNow).full; full.width() > fullWidest() {
