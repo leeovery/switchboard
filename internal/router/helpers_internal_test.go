@@ -88,9 +88,9 @@ func (s *state) record(id string, windows []quota.Window, sent moment) []LimitLi
 	return s.recordAnswer(id, windows, sent, false)
 }
 
-// stillHeld reports of every account that it holds the token the state file
-// kept it holding.
-func stillHeld(string) bool { return true }
+// stillHeld tells of every account that it holds the token the state file
+// kept it holding, usable.
+func stillHeld(string) tokenKept { return tokenKept{same: true, usable: true} }
 
 // unkept hears of a change for the state file, and keeps nothing of it.
 func unkept() {}

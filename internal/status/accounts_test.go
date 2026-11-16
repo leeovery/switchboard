@@ -39,8 +39,8 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
 		"its subscription ended, its 5-hour reset since it was read": {
-			"work": {state: "● open", head: "○ idle · window starts with its next request"},
-			"side": {state: "● open", head: "● open"},
+			"work": {state: "■ lapsed", head: "■ subscription lapsed · its subscription needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
 		"a stale document, built three hours before now": {
 			"work": {state: "● open", head: "○ idle · window starts with its next request"},
@@ -98,12 +98,28 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
+		"its subscription ended, a limit naming no window holding": {
+			"work": {state: "■ lapsed", head: "■ subscription lapsed · its subscription needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
 		"one account without a token, another not read yet": {
 			"work": {state: "○ not read", head: "✕ no token · switchboard accounts token work"},
 			"side": {state: "○ not read", head: "○ not read yet"},
 		},
 		"its first read failed, nothing read before": {
 			"work": {state: "○ not read", head: "! can't read it · HTTP 529 · Overloaded"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"its first read refused, its subscription ended, nothing read before": {
+			"work": {state: "■ lapsed", head: "■ subscription lapsed · its subscription needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"its token refused before anything was read": {
+			"work": {state: "■ refused", head: "■ refused (401) · its token needs renewing"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"its read refused its token": {
+			"work": {state: "■ refused", head: "■ token refused · its token needs renewing"},
 			"side": {state: "● open", head: "● open · new sessions come here"},
 		},
 		"probed, of several accounts": {

@@ -189,9 +189,18 @@ type sessionPinRequest struct {
 }
 
 // refreshRequest is what POST /refresh takes: how old an account's usage can
-// be, as a duration such as "30m", before it's probed.
+// be, as a duration such as "30m", before it's probed; and whether one held
+// back by a read refused is left to its backoff, as the dashboard's look
+// after a reset asks, rather than probed however lately it was, as R asks.
 type refreshRequest struct {
 	MaxAge string `json:"max_age"`
+	Spaced bool   `json:"spaced,omitempty"`
+}
+
+// refreshAsk is what a POST /refresh asks, as its refreshRequest has it, read.
+type refreshAsk struct {
+	maxAge time.Duration
+	spaced bool
 }
 
 // refreshWait bounds how long POST /refresh waits for the probes it starts,
@@ -349,12 +358,12 @@ func (r *Router) Control() http.Handler {
 		writeJSON(w, r.statusOf(rd))
 	}))
 	mux.HandleFunc("POST /refresh", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
-		age, err := maxAge(w, req)
+		ask, err := refreshAsked(w, req)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		r.refresh(req.Context(), age, rd)
+		r.refresh(req.Context(), ask, rd)
 		writeJSON(w, r.statusOf(rd))
 	}))
 	mux.HandleFunc("GET /history", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
@@ -459,23 +468,23 @@ func onlyIn(pool string) func(pool string) bool {
 	return func(p string) bool { return p == pool }
 }
 
-// maxAge reads how old an account's usage can be before POST /refresh probes
-// it, from the request's body.
-func maxAge(w http.ResponseWriter, req *http.Request) (time.Duration, error) {
+// refreshAsked reads what POST /refresh asks from the request's body: how old
+// an account's usage can be before it probes it, and whether it's spaced.
+func refreshAsked(w http.ResponseWriter, req *http.Request) (refreshAsk, error) {
 	var refresh refreshRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&refresh); err != nil {
-		return 0, errors.New(`give how old usage can be as JSON, such as {"max_age": "30m"}`)
+		return refreshAsk{}, errors.New(`give how old usage can be as JSON, such as {"max_age": "30m"}`)
 	}
 	age, err := time.ParseDuration(refresh.MaxAge)
 	switch {
 	case refresh.MaxAge == "":
-		return 0, errors.New(`give how old usage can be, such as {"max_age": "30m"}`)
+		return refreshAsk{}, errors.New(`give how old usage can be, such as {"max_age": "30m"}`)
 	case err != nil:
-		return 0, fmt.Errorf("max_age %q isn't a duration, such as 30m", refresh.MaxAge)
+		return refreshAsk{}, fmt.Errorf("max_age %q isn't a duration, such as 30m", refresh.MaxAge)
 	case age < 0:
-		return 0, fmt.Errorf("max_age %s is less than nothing", refresh.MaxAge)
+		return refreshAsk{}, fmt.Errorf("max_age %s is less than nothing", refresh.MaxAge)
 	}
-	return age, nil
+	return refreshAsk{maxAge: age, spaced: refresh.Spaced}, nil
 }
 
 // historyAsked reads what GET /history asks for from its query: a window
@@ -508,21 +517,21 @@ func historyAsked(req *http.Request) (historyAsk, error) {
 }
 
 // refresh probes the accounts of the pool rd reads it can send on that
-// nothing has been read of for longer than age, and those that can take no
-// request anyway, as refreshing says, sharing any probe of them already
-// under way, and waits for those probes: for refreshWait at most, or until
-// ctx ends, after which they go on without it. One holding the token a probe
-// found another subscription's isn't probed again till it takes up another,
-// as on its rounds.
-func (r *Router) refresh(ctx context.Context, age time.Duration, rd poolRead) {
-	underway := r.probes.start(r.accounts.sendable().held(rd.holds), r.state.refreshing(age))
+// nothing has been read of for longer than ask's max age, and those that can
+// take no request anyway, as refreshing says, sharing any probe of them
+// already under way, and waits for those probes: for refreshWait at most, or
+// until ctx ends, after which they go on without it. One holding the token a
+// probe found another subscription's isn't probed again till it takes up
+// another, as on its rounds.
+func (r *Router) refresh(ctx context.Context, ask refreshAsk, rd poolRead) {
+	underway := r.probes.start(r.accounts.sendable().held(rd.holds), r.state.refreshing(ask))
 	if len(underway) == 0 {
 		return
 	}
 	started := time.Now()
 	switch settle(ctx, underway, refreshWait) {
 	case settled:
-		logger.Debug("refreshed", "accounts", accountsOf(underway), "max_age", age, "duration", time.Since(started).Round(time.Millisecond))
+		logger.Debug("refreshed", "accounts", accountsOf(underway), "max_age", ask.maxAge, "duration", time.Since(started).Round(time.Millisecond))
 	case timedOut:
 		logger.Debug("stopped waiting for probes to refresh", "accounts", accountsOf(underway), "after", refreshWait)
 	}

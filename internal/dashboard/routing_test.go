@@ -504,6 +504,7 @@ func TestAStatesGlyphAndFirstWordsAreInItsColourTheRestMuted(t *testing.T) {
 		{kind: status.RoutingTokenless, want: line{{"✕ says", errorInk}, rest}},
 		{kind: status.RoutingLimited, want: line{{"■ says", errorInk}, rest}},
 		{kind: status.RoutingRefused, want: line{{"■ says", errorInk}, rest}},
+		{kind: status.RoutingLapsed, want: line{{"■ says", errorInk}, rest}},
 		{kind: status.RoutingUnreadable, want: line{{"! says", errorInk}, rest}},
 		{kind: status.RoutingModelLimited, want: line{{"■ says", warningInk}, rest}},
 		{kind: status.RoutingModelRefused, want: line{{"■ says", warningInk}, rest}},

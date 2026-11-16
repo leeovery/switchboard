@@ -93,6 +93,7 @@ func TestAccountsHelpKeysEachStateAsCompareSaysIt(t *testing.T) {
 		{{"● at cap", attention}},
 		{{"■ limit", destructive}},
 		{{"■ refused", destructive}},
+		{{"■ lapsed", destructive}},
 		{{"○ not read", ink{token: theme.TextSubtle}}},
 	}
 	if got := accountsHelpGlyphs(Look{}, "COMPARE"); !slices.EqualFunc(got, want, func(a, b line) bool { return slices.Equal(a, b) }) {

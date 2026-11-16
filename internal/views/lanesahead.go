@@ -36,16 +36,19 @@ func (s stood) holdsAt(t time.Time) bool {
 }
 
 // ahead is how an account stands from now on, as the moment has it: without
-// a usable token, or nothing known of it, all along; each hold at now, a
-// part of its own, in the precedence Then judges by, from when the router's
-// event of it tells till it lifts: a limit holding back every request, till
-// its hold's until; its token refused, till the refusal's; and its cap, till
-// it lets go; and each window every model shares that runs out ahead, as its
-// RunsOutAhead has it.
+// a usable token all along; each hold at now, a part of its own, in the
+// precedence Then judges by, from when the router's event of it tells till
+// it lifts: a limit holding back every request, till its hold's until; its
+// token refused, till the refusal's; and its cap, till it lets go; nothing
+// read of it, unknown where none of those holds, as in place of room; and
+// each window every model shares that runs out ahead, as its RunsOutAhead
+// has it. Where its read is refused, as its RefusedRead has it, it's drawn
+// as last read all the same, but nothing says when it next has room, as
+// roomFrom says.
 type ahead struct {
-	tokenless, unknown bool
-	holds              []stood
-	outs               []runOut
+	tokenless, unknown, refusedRead bool
+	holds                           []stood
+	outs                            []runOut
 }
 
 // runOut is a window running out ahead: from when, at its pace, till it
@@ -58,13 +61,7 @@ type runOut struct {
 
 // aheadOf is how the account a stands from now on, as ahead has it.
 func aheadOf(a status.AccountNow) ahead {
-	var h ahead
-	switch a.Routing.Kind {
-	case status.RoutingTokenless:
-		h.tokenless = true
-	case status.RoutingUnreadable, status.RoutingUnread:
-		h.unknown = true
-	}
+	h := ahead{tokenless: !a.TokenSet, unknown: a.TokenSet && !a.Read, refusedRead: a.RefusedRead != 0}
 	if a.Held && a.Hold.Every {
 		h.holds = append(h.holds, stood{cell: CellLimited, since: a.LimitSince, until: a.Hold.Until})
 	}
@@ -87,23 +84,24 @@ func aheadOf(a status.AccountNow) ahead {
 	return h
 }
 
-// at is how the account stands at t, from now on: without a usable token, or
-// nothing known of it, all along, as neither has a hold or a run-out; else
-// by the precedence Then judges by, held at a limit, by its hold at now or a
-// run-out to it, its token refused, or held at its cap, by its hold at now
-// or a run-out to it; with room, running out ahead, where the view draws
-// that; else with room.
+// at is how the account stands at t, from now on: without a usable token
+// all along, as that has no hold or run-out; else by the precedence Then
+// judges by, held at a limit, by its hold at now or a run-out to it, its
+// token refused, or held at its cap, by its hold at now or a run-out to it;
+// nothing known of it, where nothing was read of it, as its holds alone are
+// known, and none of them can be its cap; with room, running out ahead,
+// where the view draws that; else with room.
 func (h ahead) at(t time.Time) stood {
-	switch {
-	case h.tokenless:
+	if h.tokenless {
 		return stood{cell: CellTokenless}
-	case h.unknown:
-		return stood{}
 	}
 	for _, cell := range []Cell{CellLimited, CellRefused, CellCapped} {
 		if s, ok := h.heldAt(cell, t); ok {
 			return s
 		}
+	}
+	if h.unknown {
+		return stood{}
 	}
 	if slices.ContainsFunc(h.outs, func(o runOut) bool { return t.Before(o.at) }) {
 		return stood{cell: CellRunsOut}
@@ -161,8 +159,12 @@ func (h ahead) turns(from, to time.Time) []time.Time {
 
 // roomFrom is when the account next has room from t, as a hold lifts: once
 // no part of what holds it back, as partsAt has them, holds it then, each
-// holding on till it lifts; zero where one never does.
+// holding on till it lifts; zero where one never does, and where its read is
+// refused, which no hold lifting lifts, as ROUTING's back says.
 func (h ahead) roomFrom(t time.Time) time.Time {
+	if h.refusedRead {
+		return time.Time{}
+	}
 	for !t.IsZero() {
 		lift, held := asOne(h.partsAt(t, Cell.held))
 		if !held {

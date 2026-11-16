@@ -331,7 +331,7 @@ func TestClientRefresh(t *testing.T) {
 	cfg.Prober = prober
 	client := router.NewClient(serveControl(t, newRouterFrom(t, cfg)))
 
-	got, err := client.Refresh(t.Context(), 30*time.Minute)
+	got, err := client.Refresh(t.Context(), status.Read{Refresh: 30 * time.Minute})
 	if err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
@@ -352,6 +352,35 @@ func TestClientRefresh(t *testing.T) {
 	}
 	if probed, want := prober.probed(), []string{sideToken, workToken}; !reflect.DeepEqual(probed, want) {
 		t.Errorf("probed %q, want %q", probed, want)
+	}
+}
+
+func TestClientRefreshAsksASpacedRefreshOnlyForTheLookAfterAReset(t *testing.T) {
+	tests := []struct {
+		name string
+		read status.Read
+		want string
+	}{
+		{name: "R's", read: status.Fresh(), want: `{"max_age":"1m0s"}`},
+		{name: "the look's after a reset", read: status.AfterReset(), want: `{"max_age":"1m0s","spaced":true}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(shortTempDir(t), "control.sock")
+			bodies := make(chan string, 1)
+			serveOn(t, path, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				body, _ := io.ReadAll(req.Body)
+				bodies <- strings.TrimSpace(string(body))
+				_, _ = io.WriteString(w, `{}`)
+			}))
+
+			if _, err := router.NewClient(path).Refresh(t.Context(), tt.read); err != nil {
+				t.Fatalf("Refresh() error = %v", err)
+			}
+			if got := <-bodies; got != tt.want {
+				t.Errorf("Refresh(%+v) asked %s, want %s", tt.read, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -392,7 +421,7 @@ func TestTheRoutersDocumentIsWorkedOutOnceItsPinIsSet(t *testing.T) {
 	cfg := testConfig("http://127.0.0.1:1")
 	cfg.Prober = readingEvery(session, week)
 	client := router.NewClient(serveControl(t, newRouterFrom(t, cfg)))
-	if _, err := client.Refresh(t.Context(), time.Minute); err != nil {
+	if _, err := client.Refresh(t.Context(), status.Read{Refresh: time.Minute}); err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
 
@@ -917,7 +946,7 @@ func TestClientWithoutARouter(t *testing.T) {
 			if _, err := client.Unpin(t.Context(), false, ""); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Unpin() error = %v, want ErrNotRunning", err)
 			}
-			if _, err := client.Refresh(t.Context(), time.Minute); !errors.Is(err, router.ErrNotRunning) {
+			if _, err := client.Refresh(t.Context(), status.Read{Refresh: time.Minute}); !errors.Is(err, router.ErrNotRunning) {
 				t.Errorf("Refresh() error = %v, want ErrNotRunning", err)
 			}
 			if _, err := client.History(t.Context(), "5h", 5*time.Minute); !errors.Is(err, router.ErrNotRunning) || errors.Is(err, router.ErrNoHistory) {

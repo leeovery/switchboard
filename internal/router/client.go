@@ -303,11 +303,13 @@ func unpinQuery(by By, force bool) url.Values {
 }
 
 // Refresh has the router probe the accounts it hasn't read for longer than
-// maxAge, and those that can take no request anyway, waiting a few seconds at
-// most for those probes, and returns the status document as they leave it.
-func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Document, error) {
+// r's Refresh, and those that can take no request anyway, leaving one held
+// back by a read refused to its backoff where r is Spaced, waiting a few
+// seconds at most for those probes, and returns the status document as they
+// leave it.
+func (c *Client) Refresh(ctx context.Context, r status.Read) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, refreshTimeout, http.MethodPost, c.inPool("/refresh", nil), refreshRequest{MaxAge: maxAge.String()}, &doc)
+	err := c.call(ctx, refreshTimeout, http.MethodPost, c.inPool("/refresh", nil), refreshRequest{MaxAge: r.Refresh.String(), Spaced: r.Spaced}, &doc)
 	return doc, err
 }
 

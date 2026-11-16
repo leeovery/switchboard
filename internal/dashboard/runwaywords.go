@@ -95,16 +95,17 @@ type laneSays struct {
 }
 
 // said is what's said under the lane ln at now: of an account whose first
-// read failed, where the view holds now, that it can't be read, and why, in
-// text.subtle; on a week gone that read nothing of it, that, in
-// text.faint; else what phrasesOf says, and where none of that is said, of a
-// lane with room throughout, that it has, in text.subtle, from the cell after
-// now's column, or stepped back, the first.
+// read failed, its use unread, where the view holds now, what ROUTING says
+// of it, as unreadable has it, in text.subtle, as that it can't be read, and
+// why, or that the API refused the read; on a week gone that read nothing of
+// it, that, in text.faint; else what phrasesOf says, and where none of that
+// is said, of a lane with room throughout, that it has, in text.subtle, from
+// the cell after now's column, or stepped back, the first.
 func (v laneView) said(ln laidLane, now time.Time) laneSays {
 	tl := v.timeline
 	_, _, named := tl.Named()
 	switch {
-	case ln.account.Routing.Kind == status.RoutingUnreadable && tl.NowColumn() >= 0:
+	case ln.Use.Unread && ln.account.Error != "" && tl.NowColumn() >= 0:
 		return laneSays{phrases: []phrase{{parts: []line{{{unreadable(ln.account.Routing), dimInk}}}}}}
 	case named && tl.Now.IsZero() && !slices.ContainsFunc(ln.Cells, func(c views.Cell) bool { return c != views.CellUnknown }):
 		return laneSays{phrases: []phrase{{parts: []line{{{"nothing read that " + runwayWeek, faintInk}}}}}}
@@ -122,7 +123,8 @@ func (v laneView) said(ln laidLane, now time.Time) laneSays {
 
 // unreadable is what's said of an account whose first read failed, as its
 // routing r says it: that it can't be read, and why, as in
-// "can't read it: HTTP 529 · Overloaded".
+// "can't read it: HTTP 529 · Overloaded", or why the API refused it, as in
+// "subscription lapsed: its subscription needs renewing".
 func unreadable(r status.Routing) string {
 	if len(r.Clauses) == 0 {
 		return r.Says

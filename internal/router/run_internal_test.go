@@ -194,7 +194,7 @@ func TestTheControlAPIHoldsTheStopUpNoLongerThanItsWait(t *testing.T) {
 			open: func(t *testing.T, ln *pipes) <-chan struct{} {
 				ended := make(chan struct{})
 				go func() {
-					_, _ = ln.client().Refresh(t.Context(), time.Minute)
+					_, _ = ln.client().Refresh(t.Context(), status.Read{Refresh: time.Minute})
 					close(ended)
 				}()
 				return ended

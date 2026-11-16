@@ -181,7 +181,7 @@ func TestAnOlderLimitLiftsWhileALaterOneHolds(t *testing.T) {
 	// Its Fable week starts again, as a probe reads it, its session still spent.
 	r.clock.advance(time.Minute)
 	r.readsAs(workToken, sessionSpent, weekOf(0.5, 24*time.Hour), quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.01, ResetsAt: now.Add(7 * 24 * time.Hour), Status: quota.StatusAllowed})
-	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), status.Read{Refresh: time.Minute}); err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
 	checkLiftedAt(t, r, "work", 1, now.Add(2*time.Minute))
@@ -209,7 +209,7 @@ func TestAResetMadeByHandIsSeenOnceTheRouterRefreshes(t *testing.T) {
 			fresh := quota.Window{Key: "5h", Label: "Session", Utilization: 0.01, ResetsAt: now.Add(10 * time.Hour), Status: quota.StatusAllowed}
 			r.readsAs(workToken, fresh, tt.week)
 
-			if _, err := client.Refresh(t.Context(), time.Minute); err != nil {
+			if _, err := client.Refresh(t.Context(), status.Read{Refresh: time.Minute}); err != nil {
 				t.Fatalf("Refresh() error = %v", err)
 			}
 			checkLimit(t, r.rt, "work", status.Limit{})
@@ -240,7 +240,7 @@ func TestAResetMadeByHandJustAfterTheLimitIsSeenOnceTheRouterRefreshes(t *testin
 	r.clock.advance(30 * time.Second)
 	r.readsAs(workToken, session, weekOf(0.01, 7*24*time.Hour))
 
-	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), status.Read{Refresh: time.Minute}); err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
 	checkLimit(t, r.rt, "work", status.Limit{})
@@ -346,7 +346,7 @@ func TestALimitReachedInNoWindowNamedLiftsOnceAProbeSinceIsTaken(t *testing.T) {
 			r.clock.advance(2 * time.Minute)
 			r.prober.answer(workToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, weekOf(0.5, 24*time.Hour)}}, admitted: tt.admitted})
 			probes := r.prober.probes(workToken)
-			if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+			if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), status.Read{Refresh: time.Minute}); err != nil {
 				t.Fatalf("Refresh() error = %v", err)
 			}
 			if r.prober.probes(workToken) == probes {
@@ -407,7 +407,7 @@ func TestALimitLiftedEarlyWhileItsCapHoldsEndsItsEventThen(t *testing.T) {
 	r.clock.advance(31 * time.Minute)
 	capped := quota.Window{Key: "5h", Label: "Session", Utilization: 0.95, ResetsAt: now.Add(5*time.Hour + 30*time.Minute), Status: quota.StatusAllowed}
 	r.readsAs(workToken, capped, weekOf(0.5, 24*time.Hour))
-	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute); err != nil {
+	if _, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), status.Read{Refresh: time.Minute}); err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
 	if work, _ := r.rt.Status().Account("work"); !slices.Equal(work.AtReserve, []string{"5h"}) {
@@ -425,7 +425,7 @@ func TestAProbeAnsweredWithTheLimitKeepsItsBar(t *testing.T) {
 	r.readsAs(workToken, fresh, spentWeek())
 	probes := r.prober.probes(workToken)
 
-	if _, err := client.Refresh(t.Context(), time.Minute); err != nil {
+	if _, err := client.Refresh(t.Context(), status.Read{Refresh: time.Minute}); err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}
 	if r.prober.probes(workToken) == probes {

@@ -85,6 +85,7 @@ router has taken it up.
 | Words | When they show |
 |---|---|
 | `limit · back 15:54` | Claude's limit holds the window. |
+| `limit` | Claude's limit holds the window, and Anthropic refused the account's last read, so no time brings the account back. Only a clean read does. |
 | `at cap · back 17:10` | The window has reached the cap, so the router holds the account back. |
 | `out ~16:05` | The window runs out before it resets. Within a day, the time shows. |
 | `out ~Sat` | It runs out more than a day ahead, so the day shows only, because a forecast days out can miss by a day. |
@@ -104,8 +105,9 @@ A week runs out by its forecast, and the 5-hour window by its recent rate. See
 | Has no usable token | `no token`, with empty bars. |
 | Has a token the router found to be for another subscription | `wrong token`, with empty bars. |
 | Has never been read | `not read yet`, with empty bars. |
-| Has an ended subscription: the API refuses its login | Its last reading, faded, and `subscription lapsed` in red. Renew the subscription, or remove the account. |
-| Has a refused token | Its last reading, faded, and `token refused` in red. Give it a new token with `switchboard accounts token <id>`. |
+| Has an ended subscription: the API refuses its login | Its last reading, faded, and `subscription lapsed` in red. The router sends it nothing until you renew the subscription. |
+| Has a token refused when the router last read it | Its last reading, faded, and `token refused` in red. The router sends it nothing until you give it a new token with `switchboard accounts token <id>`. |
+| Has a token refused on a request | Its last reading, faded, and `token refused` in red. The router sends it nothing for ten minutes, then tries it again. |
 | Couldn't be read for another reason | Its last reading, faded, such as `not read since 14:20`. |
 
 ### The Σ pool row
@@ -113,11 +115,11 @@ A week runs out by its forecast, and the 5-hour window by its recent rate. See
 The `Σ pool` row sums the room of the pool's accounts: every account in the pool, or only the
 pinned ones while the pool's pin holds. It shows if there's more than one account.
 
-- **Its percentage** is the mean use of those accounts, each as its own row shows it. An account
-  without a usable token, never read, or whose token the router refused, is left out. A token
-  refused only by a probe leaves the account in.
-- **Its words** say the room left before the caps, in accounts, such as `1.5 of 3 left`. While a pin
-  holds, they add ` · pinned`.
+- **Its percentage** is the mean use of those accounts, each as its own row shows it. An account is
+  left out if it has no usable token, was never read, has a refused token, or has an ended
+  subscription.
+- **Its words** say the room left before the caps, in accounts, such as `1.5 of 3 left`. An account
+  left out of the percentage adds no room. While a pin holds, the words add ` · pinned`.
 - **A window held by fewer than two of the accounts,** but not all of them, has no Σ pool figure.
   Side by side, that part of the row is blank. Stacked, the section has no Σ pool row.
 - **An account that a pin leaves out** has its label and `◆` drawn faintly.

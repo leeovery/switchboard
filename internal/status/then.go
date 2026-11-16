@@ -249,14 +249,15 @@ func stoodAt(a AccountNow, windows map[string]windowRead, told []Span, t time.Ti
 // with the given key, in accounts' worth, as the pool counts it, as Then
 // judges how it stood then, of the readings given and the holds told, as
 // Then takes them: none without a usable token, or its token refused, though
-// a limit held it back too; none in the window a request starts, as the
-// policy names it, while a limit or its cap held it back from every request;
-// else the window's room to where the account runs out, its Floor, as its
-// last reading by t has it, as score.Room has it, none where it was read
-// spent, or not read by then. It reports false where nothing was read of the
-// account by then, so how it stood isn't known. How far back the readings
-// reach dates a hold's start alone, not whether it holds, so it's asked of
-// none.
+// a limit held it back too, and none from Now on where its read is refused,
+// as its RefusedRead has it, which is known as of Now alone; none in the
+// window a request starts, as the policy names it, while a limit or its cap
+// held it back from every request; else the window's room to where the
+// account runs out, its Floor, as its last reading by t has it, as
+// score.Room has it, none where it was read spent, or not read by then. It
+// reports false where nothing was read of the account by then, so how it
+// stood isn't known. How far back the readings reach dates a hold's start
+// alone, not whether it holds, so it's asked of none.
 func (m Moment) RoomThen(a AccountNow, read Readings, told []Span, key string, t time.Time) (float64, bool) {
 	if !a.TokenSet {
 		return 0, true
@@ -265,7 +266,7 @@ func (m Moment) RoomThen(a AccountNow, read Readings, told []Span, key string, t
 	switch was := stoodAt(a, windows, told, t); {
 	case was.Kind == WasUnread:
 		return 0, false
-	case len(toldAt(told, WasRefused, t)) > 0, was.Kind != WasRoom && key == m.policy.Started:
+	case len(toldAt(told, WasRefused, t)) > 0, a.RefusedRead != 0 && !t.Before(m.Now), was.Kind != WasRoom && key == m.policy.Started:
 		return 0, true
 	}
 	w, ok := m.readOf(windows, a, read, key, t)

@@ -14,7 +14,8 @@ const stillComeHere = "new sessions still come here"
 // sessions go elsewhere"; where it marks this one, the one account there is,
 // or none, as where no account has room, it says nothing of them, as there's
 // nowhere else they go. Its cap the pool's pin spends, a model's limit, cap
-// or refusal, and its token refused say what ROUTING says but its back time,
+// or refusal, its token refused and its subscription ended say what ROUTING
+// says but its back time,
 // as in "Fable wk limit · other models still come here". Under pressure, new
 // sessions still come here, and open, they come here, where ▲ marks it.
 // Without a usable token, not read, unreadable or idle, it says all ROUTING
@@ -24,7 +25,7 @@ func (a AccountNow) Headed() Routing {
 	switch r.Kind {
 	case RoutingLimited, RoutingCapped:
 		return r.headed(onlyIf(a.Elsewhere, goElsewhere))
-	case RoutingCappedPinned, RoutingModelLimited, RoutingModelCapped, RoutingRefused, RoutingModelRefused:
+	case RoutingCappedPinned, RoutingModelLimited, RoutingModelCapped, RoutingLapsed, RoutingRefused, RoutingModelRefused:
 		return r.headed(r.unbacked())
 	case RoutingPressed:
 		return r.headed(onlyIf(a.Next, stillComeHere))

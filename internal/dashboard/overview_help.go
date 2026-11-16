@@ -61,7 +61,7 @@ func overviewHelp() []helpPart {
 			},
 			glyphs: []glyph{
 				stateGlyph(status.RoutingTokenless, "no usable token"),
-				stateGlyph(status.RoutingLimited, "held back from every request, by a limit or its token refused"),
+				stateGlyph(status.RoutingLimited, "held back from every request, by a limit, its token refused or its subscription ended"),
 				stateGlyph(status.RoutingModelLimited, "held back from some models' requests alone, by a limit or a refusal"),
 				stateGlyph(status.RoutingUnreadable, "its usage can't be read"),
 				stateGlyph(status.RoutingPressed, "at its cap, or under pressure"),

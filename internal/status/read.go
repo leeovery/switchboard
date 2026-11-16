@@ -28,6 +28,10 @@ type Read struct {
 	// Refresh, when the router answers, has it first probe the accounts it
 	// hasn't read for this long; zero takes its document as it stands.
 	Refresh time.Duration
+	// Spaced has a Refresh leave an account held back by a read refused to
+	// its backoff, as the router's rounds do, rather than probe it however
+	// lately it was.
+	Spaced bool
 	// Probe, when the router doesn't answer, builds the document by probing
 	// every account instead. Without it, such a read fails with ErrNoRouter.
 	Probe bool
@@ -40,6 +44,15 @@ type Read struct {
 // probed.
 func Fresh() Read {
 	return Read{Refresh: FreshFor, Probe: true}
+}
+
+// AfterReset is the read the dashboard's look asks for once a window on
+// screen has reset: the router first refreshes every account it hasn't read
+// in the last minute, and every one that can take no request anyway, as
+// Fresh has it, but leaves one held back by a read refused to its backoff, as
+// only Fresh, which R and the verbs' --refresh ask for, reads that at once.
+func AfterReset() Read {
+	return Read{Refresh: FreshFor, Spaced: true}
 }
 
 // resetGrace is how long after a window resets to read it again, giving the

@@ -27,9 +27,11 @@ import (
 //     reset, where that heads on pace there: what Projected fills to, which
 //     the moment gives no window a limit holds.
 //   - One at its cap keeps the room its cap leaves till its reset.
-//   - One a limit holds has none till it lifts, at Back; then its unheld
-//     kind's course, or, where that kind has none, as stale, not started or
-//     heading nowhere said, the room Used leaves till its reset.
+//   - One a limit holds has none till it has room again, at Back: as the
+//     limit lifts, or the refusal of its token ends, where that's later, and
+//     never, Back zero, where its read was refused; then its unheld kind's
+//     course, or, where that kind has none, as stale, not started or heading
+//     nowhere said, the room Used leaves till its reset.
 //   - Past its reset it has all of it, as nothing is known of its next
 //     window. Where its reset, or when a limit lifts, isn't known, it keeps
 //     the room it has.
@@ -74,9 +76,9 @@ func (a AccountNow) courseFrom(kind WindowKind, from point, w WindowNow) (course
 }
 
 // heldFrom is the course of window w, which a limit holds, from Now on: none
-// till it lifts, at its Back, where that's known; then from the room its use
-// leaves, as the course of the kind it's Unheld goes, else keeping that room
-// till its reset.
+// till it has room again, at its Back, where that's known; then from the room
+// its use leaves, as the course of the kind it's Unheld goes, else keeping
+// that room till its reset.
 func (a AccountNow) heldFrom(w WindowNow) course {
 	held := course{{a.now, 0}, {w.Back, 0}}
 	if w.Back.IsZero() {

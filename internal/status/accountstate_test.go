@@ -20,6 +20,7 @@ func TestEachKindIsInOneStateInAWord(t *testing.T) {
 		{name: "a limit holding back every request", kind: status.RoutingLimited, want: status.StateLimit},
 		{name: "a limit holding back some models", kind: status.RoutingModelLimited, want: status.StateOpen},
 		{name: "its token refused", kind: status.RoutingRefused, want: status.StateRefused},
+		{name: "its subscription ended", kind: status.RoutingLapsed, want: status.StateLapsed},
 		{name: "one model refused", kind: status.RoutingModelRefused, want: status.StateOpen},
 		{name: "unreadable", kind: status.RoutingUnreadable, want: status.StateNotRead},
 		{name: "not read yet", kind: status.RoutingUnread, want: status.StateNotRead},
@@ -52,6 +53,7 @@ func TestEachStateInAWordLeadsWithItsGlyph(t *testing.T) {
 		{state: status.StateAtCap, word: "at cap", glyph: "●"},
 		{state: status.StateLimit, word: "limit", glyph: "■"},
 		{state: status.StateRefused, word: "refused", glyph: "■"},
+		{state: status.StateLapsed, word: "lapsed", glyph: "■"},
 		{state: status.StateNotRead, word: "not read", glyph: "○"},
 	}
 	for _, tt := range tests {
@@ -80,6 +82,7 @@ func TestEachStateInAWordMeansWhatItsKindsAre(t *testing.T) {
 		{state: status.StateAtCap, means: "at its cap, where its reserve starts: the router passes it over, unless a pin spends it"},
 		{state: status.StateLimit, means: "a limit holds it back from every request"},
 		{state: status.StateRefused, means: "its token was refused"},
+		{state: status.StateLapsed, means: "its subscription has ended: the API refuses its login"},
 		{state: status.StateNotRead, means: "its usage isn't read: it has no usable token, or its usage couldn't be read or hasn't been yet"},
 		{state: 0},
 	}
@@ -93,8 +96,8 @@ func TestEachStateInAWordMeansWhatItsKindsAre(t *testing.T) {
 }
 
 // Accounts' states are counted in their order, open, pressure, at cap,
-// limit, refused and not read, whatever the accounts' own, those none is in
-// left out; and too wide, how many are open, pressure counting as open.
+// limit, refused, lapsed and not read, whatever the accounts' own, those none
+// is in left out; and too wide, how many are open, pressure counting as open.
 func TestAccountsStatesAreCountedInTheirOrder(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -111,13 +114,14 @@ func TestAccountsStatesAreCountedInTheirOrder(t *testing.T) {
 		{
 			name: "each in its order",
 			kinds: []status.RoutingKind{
-				status.RoutingUnread, status.RoutingRefused, status.RoutingLimited, status.RoutingCappedPinned, status.RoutingPressed, status.RoutingIdle,
+				status.RoutingUnread, status.RoutingLapsed, status.RoutingRefused, status.RoutingLimited, status.RoutingCappedPinned, status.RoutingPressed,
+				status.RoutingIdle,
 			},
 			want: status.StateCounts{
 				{State: status.StateOpen, N: 1}, {State: status.StatePressure, N: 1}, {State: status.StateAtCap, N: 1},
-				{State: status.StateLimit, N: 1}, {State: status.StateRefused, N: 1}, {State: status.StateNotRead, N: 1},
+				{State: status.StateLimit, N: 1}, {State: status.StateRefused, N: 1}, {State: status.StateLapsed, N: 1}, {State: status.StateNotRead, N: 1},
 			},
-			open: 2, of: 6,
+			open: 2, of: 7,
 		},
 		{
 			name:  "held back from some models' requests alone: open to the rest",

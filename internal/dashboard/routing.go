@@ -516,7 +516,7 @@ func standingLead(kind status.RoutingKind, says string) line {
 // text.subtle; and open in text.secondary.
 func routingInk(kind status.RoutingKind) ink {
 	switch kind {
-	case status.RoutingTokenless, status.RoutingLimited, status.RoutingRefused, status.RoutingUnreadable:
+	case status.RoutingTokenless, status.RoutingLimited, status.RoutingLapsed, status.RoutingRefused, status.RoutingUnreadable:
 		return errorInk
 	case status.RoutingModelLimited, status.RoutingModelRefused, status.RoutingCapped, status.RoutingCappedPinned, status.RoutingModelCapped, status.RoutingPressed:
 		return warningInk
@@ -721,13 +721,13 @@ func countedStates(counts status.StateCounts, kind NumberKind, width int) line {
 }
 
 // stateInk is the colour an account's state in a word is counted in: open in
-// text.secondary; pressure and at cap in accent.attention; limit and refused
-// in state.destructive; and not read in text.subtle.
+// text.secondary; pressure and at cap in accent.attention; limit, refused and
+// lapsed in state.destructive; and not read in text.subtle.
 func stateInk(s status.AccountState) ink {
 	switch s {
 	case status.StatePressure, status.StateAtCap:
 		return warningInk
-	case status.StateLimit, status.StateRefused:
+	case status.StateLimit, status.StateRefused, status.StateLapsed:
 		return errorInk
 	case status.StateNotRead:
 		return dimInk

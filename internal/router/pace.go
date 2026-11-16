@@ -53,7 +53,8 @@ func (u *usage) forgetRates(key string) {
 // order they were read, into the trails and fast rates of the accounts
 // configured, and the day rate of the pool each is in now, as readings keep
 // no pool, as though they'd come in as read then, the pools judged for room
-// at each, and at each moment a pin kept was set where the history read
+// at each, and at each moment a pin kept was set or an account's read
+// refused began to hold it, as judgedAlso has them, where the history read
 // anything before it, as judgeSeeded says: the readings history holds each
 // change of a window's use, so its trail, baseline included, is as it was,
 // and its rates outlast a restart. A window the account doesn't hold, as one
@@ -67,11 +68,11 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	defer s.mu.Unlock()
 	s.regroup()
 	taking := newSeeding(read, s.policy.Perishable)
-	pinned := s.pinsSet()
+	also := s.judgedAlso()
 	for i, r := range read {
-		for ; len(pinned) > 0 && !r.At.Before(pinned[0]); pinned = pinned[1:] {
+		for ; len(also) > 0 && !r.At.Before(also[0]); also = also[1:] {
 			if i > 0 {
-				s.judgeSeeded(taking, pinned[0])
+				s.judgeSeeded(taking, also[0])
 			}
 		}
 		if u, configured := s.usage[r.Account]; configured {
@@ -79,7 +80,7 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 		}
 	}
 	if len(read) > 0 {
-		for _, at := range pinned {
+		for _, at := range also {
 			s.judgeSeeded(taking, at)
 		}
 	}
@@ -94,13 +95,21 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	return kept
 }
 
-// pinsSet returns when each of the pins kept was set, in order, once each.
-// s.mu must be held.
-func (s *state) pinsSet() []time.Time {
+// judgedAlso returns the moments seed judges the pools' room at besides the
+// readings', in order, once each: when each of the pins kept was set, and
+// when each account's read refused began to hold it, as heldByReadAt has
+// it, as the pools' room changed then with no reading to show it. s.mu must
+// be held.
+func (s *state) judgedAlso() []time.Time {
 	var set []time.Time
 	for _, pin := range s.pins {
 		if !pin.IsZero() {
 			set = append(set, pin.Since)
+		}
+	}
+	for _, u := range s.usage {
+		if u.readRefused() {
+			set = append(set, u.refusedSince)
 		}
 	}
 	slices.SortFunc(set, time.Time.Compare)
@@ -122,10 +131,14 @@ func (s *state) takeUpReading(taking seeding, u *usage, r readings.Reading) {
 
 // judgeSeeded judges the pools' room at at as the history has been taken up
 // by then, as judgeRooms does: by each account's week as seeding's weekAt
-// has it then, and each pool's pin as pinnedAt has it. s.mu must be held, the
-// pools regrouped.
+// has it then, each pool's pin as pinnedAt has it, and each account shut
+// then as shutThen says. s.mu must be held, the pools regrouped.
 func (s *state) judgeSeeded(taking seeding, at time.Time) {
-	s.judgeRooms(func(id string) (quota.Window, bool) { return taking.weekAt(id, s.weekHeld, at) }, s.pinnedAt(at), at)
+	s.judgeRooms(rooms{
+		week:   func(id string) (quota.Window, bool) { return taking.weekAt(id, s.weekHeld, at) },
+		pinned: s.pinnedAt(at),
+		shut:   (*usage).shutThen,
+	}, at)
 }
 
 // seeding is the readings history as seed takes it up: the reading of each

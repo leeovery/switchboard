@@ -993,15 +993,24 @@ func (a Account) readPace(policy score.Policy, now time.Time) float64 {
 }
 
 // Shut reports whether the account can take no request of any model at
-// now, whatever its windows read: its token refused, or a limit holding back
-// every request, as policy says which windows every model shares.
+// now, whatever its windows read: it's turned away, as turnedAway says, or a
+// limit holds back every request, as policy says which windows every model
+// shares.
 func (a Account) Shut(now time.Time, policy score.Policy) bool {
 	limited := a.Limit.holds(now) && (len(a.Limit.Windows) == 0 || slices.ContainsFunc(a.Limit.Windows, policy.IsShared))
-	return limited || a.tokenRefused(now)
+	return limited || a.turnedAway(now)
 }
 
 // tokenRefused reports whether the upstream refuses the account's token at
 // now, holding back every request, rather than a model family's alone.
 func (a Account) tokenRefused(now time.Time) bool {
 	return a.Refused.holds(now) && a.Refused.Family == ""
+}
+
+// turnedAway reports whether the account can take no request at now,
+// whatever its windows read, as its token is refused: the router saw the
+// upstream refuse it, as tokenRefused says, or the API refused its last
+// read, as refusedRead says, which holds till a read comes back clean.
+func (a Account) turnedAway(now time.Time) bool {
+	return a.tokenRefused(now) || a.refusedRead() != 0
 }

@@ -78,7 +78,7 @@ func (p plan) at(now time.Time, routed bool) (status.Read, bool) {
 // window on screen has reset since it last did.
 func (p plan) look(now time.Time) status.Read {
 	if !p.reset.IsZero() && !now.Before(p.reset) {
-		return status.Read{Refresh: status.FreshFor}
+		return status.AfterReset()
 	}
 	return status.Read{}
 }

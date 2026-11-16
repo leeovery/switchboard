@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestExtraUsageIsReadOffAnswers(t *testing.T) {
@@ -67,7 +68,7 @@ func TestExtraUsageIsReadOffProbes(t *testing.T) {
 	r.prober.answer(sideToken, probeResult{usage: quota.Usage{Windows: []quota.Window{session, week}, Extra: on}})
 	want := map[string]quota.ExtraUsage{"work": {}, "personal": {}, "side": on}
 
-	probed, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), time.Minute)
+	probed, err := router.NewClient(serveControl(t, r.rt)).Refresh(t.Context(), status.Read{Refresh: time.Minute})
 	if err != nil {
 		t.Fatalf("Refresh() error = %v", err)
 	}

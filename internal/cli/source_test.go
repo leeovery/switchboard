@@ -49,7 +49,8 @@ func workWhere(weekHeads string) string {
 }
 
 // othersAtStatus is how status prints personal and side from fakeClaudeAPI's
-// probes, commands run with deps finding personal's token file missing.
+// probes, commands run with deps finding personal's token file missing, and
+// side held back, as the API refused its read.
 func othersAtStatus(t *testing.T, deps cli.Deps) string {
 	t.Helper()
 	return `personal · Personal
@@ -57,9 +58,13 @@ func othersAtStatus(t *testing.T, deps cli.Deps) string {
 
 side · Side
   HTTP 401 · Invalid bearer token
+  token refused · its token needs renewing
 `
 }
 
+// Status reads the router's document while it runs, end to end: its pin to
+// side yields, best next work, as the API refused side's read, which holds
+// side back.
 func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := routingSetup(t)
 
@@ -68,7 +73,7 @@ func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 sessions
   0b5c6f2e  haiku on Work  ·  seen just now
 
-best next: side · Side
+best next: work · Work
 from the router: healthy  ·  1 session  ·  pinned to side · Side
 `}
 	if got != want {
@@ -313,6 +318,9 @@ probed directly
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	api := newClaudeAPI(t)
+	// Side read, as work is, so the router's pin to it holds, and ▲ on it
+	// can only be the router's.
+	api.readsToo("test-token-side")
 	srv := newServeSetup(t, api.URL, nil)
 	onATerminal.on(&srv.deps)
 	// A token for personal, as goldenDeps gives it.
@@ -599,17 +607,18 @@ func TestTheRoutingCardsOrdersReachTheRouter(t *testing.T) {
 	run(t, srv.deps, "dashboard")
 	m := watching(t, *cfg)
 
-	// Personal, the second, has no token, so space on it picks nothing.
-	m = pressed(m, "p", "down", "down", "space", "down", "space", "m", "enter")
-	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"side"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
-		t.Errorf("once side was ticked on the card, personal tried, and m and enter were pressed, the router's pin = %+v, want %+v", got, want)
+	// Personal, the second, has no token, and the API refused side's read,
+	// so space on either picks nothing.
+	m = pressed(m, "p", "down", "space", "down", "space", "down", "space", "m", "enter")
+	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"work"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
+		t.Errorf("once work was ticked on the card, personal and side tried, and m and enter were pressed, the router's pin = %+v, want %+v", got, want)
 	}
 	if e := srv.told(t); e.Kind != status.EventPin || !e.Move || e.By != "dashboard" {
 		t.Errorf("once pinned, the router told of %+v, want a pin moving the sessions running, by the dashboard", e)
 	}
 
-	// The card opens on side, the account picked, three rows under auto.
-	pressed(m, "p", "up", "up", "up", "space", "enter")
+	// The card opens on work, the account picked, the row under auto.
+	pressed(m, "p", "up", "space", "enter")
 	if got := srv.status(t).Pin; !got.IsZero() {
 		t.Errorf("once auto was picked on the card and enter pressed, the router's pin = %+v, want none", got)
 	}
@@ -637,12 +646,12 @@ func TestASessionsPageOpenedByAClickPinsItAlone(t *testing.T) {
 		t.Fatalf("the screen is\n%s\nwant SESSIONS showing %s", ansi.Strip(m.View().Content), sessionOne[:4])
 	}
 	m = delivered(m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
-	// The card opens on auto, the session pinned to none: side is three rows
-	// under it.
-	pressed(m, "p", "down", "down", "down", "space", "enter")
+	// The card opens on auto, the session pinned to none: work is the row
+	// under it, side, whose read the API refused, not to be picked.
+	pressed(m, "p", "down", "space", "enter")
 
-	if got := srv.session(t, sessionOne).Pin; got != "side" {
-		t.Errorf("once side was picked on its page's card and enter pressed, the session's own pin = %q, want side", got)
+	if got := srv.session(t, sessionOne).Pin; got != "work" {
+		t.Errorf("once work was picked on its page's card and enter pressed, the session's own pin = %q, want work", got)
 	}
 	if e := srv.told(t); e.Kind != status.EventPin || e.Session != sessionOne || e.By != "dashboard" {
 		t.Errorf("once pinned, the router told of %+v, want the session's pin by the dashboard", e)

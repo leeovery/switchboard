@@ -38,6 +38,12 @@ func with(a status.Account, change func(*status.Account)) status.Account {
 	return a
 }
 
+// failedWith has the account's last read fail with the error given, as a
+// probe's error gives it.
+func failedWith(err string) func(*status.Account) {
+	return func(a *status.Account) { a.Error = err }
+}
+
 // pressing has the account's session run out at 16:05 at its last half
 // hour's rate, before it resets at 17:10: under pressure.
 func pressing(a *status.Account) {

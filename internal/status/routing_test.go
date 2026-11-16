@@ -113,6 +113,36 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 			want:    status.Routing{Kind: status.RoutingRefused, Says: "refused (401)", Clauses: []string{"its token needs renewing"}, Short: []string{"refused (401)"}},
 		},
 		{
+			name:    "its subscription ended: why, with no time it's back, as it's back once a read comes back clean",
+			account: with(readNow(0.2, 0.3, 0), failedWith(endedSubscription)),
+			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
+		},
+		{
+			name:    "its subscription ended, nothing read before: why, not the error cut short",
+			account: status.Account{ID: "work", TokenSet: true, Error: endedSubscription},
+			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
+		},
+		{
+			name:    "its subscription ended, the router refusing its token too: the ended subscription, which no time lifts",
+			account: with(with(readNow(0.2, 0.3, 0), refusing(401, "")), failedWith(endedSubscription)),
+			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
+		},
+		{
+			name:    "its last read refusing its token: why, as the router's refusal of it is said",
+			account: with(readNow(0.2, 0.3, 0), failedWith("HTTP 401 · Invalid bearer token")),
+			want:    status.Routing{Kind: status.RoutingRefused, Says: "token refused", Clauses: []string{"its token needs renewing"}, Short: []string{"refused"}},
+		},
+		{
+			name:    "its week at its limit before its subscription ended: the ended subscription, which the limit lifting doesn't",
+			account: with(with(readNow(0.2, 1, 0), limited("7d")), failedWith(endedSubscription)),
+			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
+		},
+		{
+			name:    "its last read answered 403 for another reason: its windows as last read saying how it stands",
+			account: with(readNow(0.2, 0.3, 0), failedWith("HTTP 403 · Request not allowed")),
+			want:    status.Routing{Kind: status.RoutingOpen, Says: "open", Short: []string{"open"}},
+		},
+		{
 			name:    "its token refused before a model's limit, as no model comes here",
 			account: with(with(readNow(0.2, 0.3, 1), refusing(401, "")), fableLimited),
 			want:    status.Routing{Kind: status.RoutingRefused, Says: "refused (401)", Clauses: []string{"its token needs renewing"}, Short: []string{"refused (401)"}},
@@ -427,6 +457,7 @@ func TestEachKindLeadsWithItsGlyph(t *testing.T) {
 		status.RoutingTokenless:    "✕",
 		status.RoutingLimited:      "■",
 		status.RoutingModelLimited: "■",
+		status.RoutingLapsed:       "■",
 		status.RoutingRefused:      "■",
 		status.RoutingModelRefused: "■",
 		status.RoutingUnreadable:   "!",

@@ -490,11 +490,12 @@ func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
 // whyClosed says why no account in the pool with the given id, as pools has
 // it, takes a request closed answers, account by account: of each the router
 // has, in the order configured, the problem of one without a usable token,
-// as unsendable names one, which says how to fix it, else that the upstream
-// refused it lately, as that alone leaves it nothing to fall back to; then
-// of each the config added since the router started, that it's taken up
-// when the router restarts. Where the pool has none, it says so, and where
-// the pools are closed, why, as poolTable's closed says.
+// as unsendable names one, which says how to fix it, else why its last read
+// was refused, as readRefusedSaid says, else that the upstream refused it
+// lately, as those alone leave it nothing to fall back to; then of each the
+// config added since the router started, that it's taken up when the router
+// restarts. Where the pool has none, it says so, and where the pools are
+// closed, why, as poolTable's closed says.
 func (p *proxy) whyClosed(pools *poolTable, pool string) string {
 	if pools.closed != "" {
 		return pools.closed
@@ -506,7 +507,7 @@ func (p *proxy) whyClosed(pools *poolTable, pool string) string {
 	whys := make([]string, 0, len(members))
 	for _, a := range p.accounts {
 		if pools.holds(pool, a.ID) {
-			whys = append(whys, "account "+a.ID+": "+cmp.Or(a.problem(), "the upstream refused it lately"))
+			whys = append(whys, "account "+a.ID+": "+cmp.Or(a.problem(), p.state.readRefusedSaid(a.ID), "the upstream refused it lately"))
 		}
 	}
 	for _, id := range members {

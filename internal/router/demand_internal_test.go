@@ -380,7 +380,7 @@ func roomIn(s *state, pool string, at time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.regroup()
-	return s.roomy(s.weekHeld, pool, s.pinnedIn(pool), at)
+	return s.roomy(s.roomsNow(), pool, at)
 }
 
 func TestThePoolHasRoomWhereTheRouterWouldSendANewSession(t *testing.T) {

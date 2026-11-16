@@ -194,6 +194,12 @@ func HardMoments(policy score.Policy) []HardMoment {
 	tokenRefused := func(a *status.Account) {
 		a.Refused = status.Refusal{Until: Built.Add(time.Hour), Status: 401}
 	}
+	// subscriptionEnded has the account's last read refused its
+	// organization's login, 403, as an ended subscription's is, its message
+	// cut to the 60 characters kept.
+	subscriptionEnded := func(a *status.Account) {
+		a.Error = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+	}
 	workUnnamed := AccountFacts{
 		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, Back: Built.Add(40 * time.Minute),
 		Windows: map[string]WindowFacts{
@@ -424,7 +430,9 @@ func HardMoments(policy score.Policy) []HardMoment {
 		},
 		{
 			// An ended subscription's probe is refused its organization's
-			// login, 403, its message cut to the 60 characters kept.
+			// login, 403, its message cut to the 60 characters kept: the
+			// router sends it nothing till a read comes back clean, so new
+			// sessions go to side.
 			Name: "its subscription ended, its 5-hour reset since it was read",
 			Doc: Router(policy, nil,
 				Routed{Account: with(readAt("work", windowIn("5h", 0.7, 2*time.Minute), windowIn("7d", 0.4, 3*day)), func(a *status.Account) {
@@ -433,12 +441,12 @@ func HardMoments(policy score.Policy) []HardMoment {
 				Routed{Account: side},
 			),
 			Now: Built.Add(5 * time.Minute),
-			Want: Facts{Next: "work", Accounts: map[string]AccountFacts{
-				"work": {Routing: status.RoutingIdle, Idle: true, CanRise: true, Windows: map[string]WindowFacts{
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingLapsed, Idle: true, Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowNotStarted, ResetSinceRead: true, Lapsed: true},
 					"7d": {Kind: status.WindowStale, Stale: status.StaleLapsed, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(3 * day)},
 				}},
-				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
+				"side": sideOpen,
 			}},
 		},
 		{
@@ -578,6 +586,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 			}},
 		},
 		{
+			// The limit lifts 40 minutes after Built, the refusal of work's
+			// token an hour after: its windows are back as the later ends.
 			Name: "its token refused, a limit naming no window holding",
 			Doc:  unnamed(nil, tokenRefused, side),
 			Now:  Built.Add(10 * time.Minute),
@@ -586,13 +596,31 @@ func HardMoments(policy score.Policy) []HardMoment {
 					Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, Back: Built.Add(time.Hour),
 					Windows: map[string]WindowFacts{
 						"5h": {
-							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.5, Next: Built.Add(3 * time.Hour),
+							Kind: status.WindowLimited, At: Built.Add(time.Hour), Used: 0.5, Next: Built.Add(3 * time.Hour),
 							Held: true, Out: Built.Add(2 * time.Hour),
 						},
 						"7d": {
-							Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.6, Next: Built.Add(3 * day),
+							Kind: status.WindowLimited, At: Built.Add(time.Hour), Used: 0.6, Next: Built.Add(3 * day),
 							Held: true, Out: Built.Add(64 * time.Hour),
 						},
+					},
+				},
+				"side": sideOpen,
+			}},
+		},
+		{
+			// Work's subscription ended as a limit naming no window held it:
+			// the limit lifts 40 minutes after Built, but only a read that
+			// comes back clean lifts the hold, so when it's back isn't known.
+			Name: "its subscription ended, a limit naming no window holding",
+			Doc:  unnamed(nil, subscriptionEnded, side),
+			Now:  Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {
+					Routing: status.RoutingLapsed, Held: true, OutOfQuota: true, LimitHolds: true,
+					Windows: map[string]WindowFacts{
+						"5h": {Kind: status.WindowLimited, Used: 0.5, Next: Built.Add(3 * time.Hour), Held: true, Out: Built.Add(2 * time.Hour)},
+						"7d": {Kind: status.WindowLimited, Used: 0.6, Next: Built.Add(3 * day), Held: true, Out: Built.Add(64 * time.Hour)},
 					},
 				},
 				"side": sideOpen,
@@ -619,6 +647,54 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Now: Built.Add(time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
 				"work": {Routing: status.RoutingUnreadable, Windows: map[string]WindowFacts{}},
+				"side": sideOpen,
+			}},
+		},
+		{
+			// Work was added with its subscription already ended: its first
+			// read was refused, so ROUTING says why, though nothing of it
+			// has ever been read.
+			Name: "its first read refused, its subscription ended, nothing read before",
+			Doc: Router(policy, nil,
+				Routed{ID: "work", Label: "work", TokenSet: true, Error: "HTTP 403 · OAuth authentication is currently not allowed for this organ"},
+				Routed{Account: side},
+			),
+			Now: Built.Add(time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingLapsed, Windows: map[string]WindowFacts{}},
+				"side": sideOpen,
+			}},
+		},
+		{
+			// Work's first request was answered 401 before anything of it
+			// was read: the router's own refusal holds it till it ends.
+			Name: "its token refused before anything was read",
+			Doc: Router(policy, nil,
+				Routed{ID: "work", Label: "work", TokenSet: true, Refused: status.Refusal{Until: Built.Add(time.Hour), Status: 401}},
+				Routed{Account: side},
+			),
+			Now: Built.Add(10 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingRefused, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{}},
+				"side": sideOpen,
+			}},
+		},
+		{
+			// Work's last read was answered 401, its token refused, which
+			// holds it till a read comes back clean.
+			Name: "its read refused its token",
+			Doc: Router(policy, nil,
+				Routed{Account: with(readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.5, 2*day)), func(a *status.Account) {
+					a.FetchedAt, a.Error = Built.Add(-20*time.Minute), "HTTP 401 · Invalid bearer token"
+				})},
+				Routed{Account: side},
+			),
+			Now: Built.Add(5 * time.Minute),
+			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingRefused, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(2 * time.Hour)},
+					"7d": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built.Add(-20 * time.Minute), Used: 0.5, Next: Built.Add(2 * day)},
+				}},
 				"side": sideOpen,
 			}},
 		},

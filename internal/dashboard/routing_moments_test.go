@@ -32,14 +32,14 @@ func TestROUTINGTheCardAndCOMINGUPAgreeWithTheMomentAtEachHardMoment(t *testing.
 // heldFromEvery are the kinds ROUTING says in red of an account held back
 // from every request by Anthropic, or without a token, which the card closes
 // in red, and won't pick.
-var heldFromEvery = []status.RoutingKind{status.RoutingTokenless, status.RoutingLimited, status.RoutingRefused}
+var heldFromEvery = []status.RoutingKind{status.RoutingTokenless, status.RoutingLimited, status.RoutingLapsed, status.RoutingRefused}
 
 // checkROUTINGAgrees checks ROUTING's table t against the moment m: each
 // account's state is the moment's, in red where it can take no request for
-// want of a token, a limit, a refused token or a first read; new sessions
-// said to come to the account ▲ marks alone; its pin, its fade and its place
-// in the pool as the moment has them; and the pool's states counted, its
-// accounts' alone, as status.CountStates counts them.
+// want of a token, a limit, a refused token or read, or a first read; new
+// sessions said to come to the account ▲ marks alone; its pin, its fade and
+// its place in the pool as the moment has them; and the pool's states
+// counted, its accounts' alone, as status.CountStates counts them.
 func checkROUTINGAgrees(t *testing.T, m status.Moment, table routingTable) {
 	t.Helper()
 	if len(table.accounts) != len(m.Accounts) {
@@ -55,7 +55,7 @@ func checkROUTINGAgrees(t *testing.T, m status.Moment, table routingTable) {
 			t.Errorf("%s: ROUTING says %q, want the moment's %q", a.ID, r.standing, a.Routing)
 		}
 		words := standingWords(r.standing, false, 200)
-		red, wantRed := words[0].ink == errorInk, !a.TokenSet || limited(a) || a.TokenRefused || !a.Read && a.Error != ""
+		red, wantRed := words[0].ink == errorInk, !a.TokenSet || limited(a) || a.TokenRefused || a.RefusedRead != 0 || !a.Read && a.Error != ""
 		if red != wantRed {
 			t.Errorf("%s: ROUTING says %q in red: %v; want %v", a.ID, words.plain(), red, wantRed)
 		}

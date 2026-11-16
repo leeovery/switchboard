@@ -26,11 +26,13 @@ type view struct {
 	// applies reports whether the window named key counts the request.
 	applies func(key string) bool
 	// barred are the accounts that have no room whatever their windows say,
-	// by id: they refused the request lately, a limit they reached holds the
-	// request back, or the request has been tried on them.
+	// by id: they refused the request lately, or their last read was refused,
+	// a limit they reached holds the request back, or the request has been
+	// tried on them.
 	barred []string
 	// refused are the accounts, of those barred, that refused the request
-	// lately, by id: they'd only refuse it again.
+	// lately, or whose last read was refused, by id: they'd only refuse it
+	// again.
 	refused []string
 	// limited holds, by id, the identity of the limit that holds the request
 	// back on each account, of those barred, where a limit does.

@@ -390,7 +390,7 @@ func TestATokenFoundAnothersIsProbedAgainOnlyOnceTheAccountTakesUpAnother(t *tes
 		probe func(context.Context, *Router)
 	}{
 		{name: "on its rounds", probe: func(ctx context.Context, r *Router) { r.rounds.look(ctx) }},
-		{name: "on a refresh", probe: func(ctx context.Context, r *Router) { r.refresh(ctx, 0, r.state.everyAccount()) }},
+		{name: "on a refresh", probe: func(ctx context.Context, r *Router) { r.refresh(ctx, refreshAsk{}, r.state.everyAccount()) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -834,7 +834,7 @@ func TestATokenTakenUpWhileTheRouterWasAwayIsProbedOnItsFirstRound(t *testing.T)
 		// or another taken up meanwhile.
 		clock.now = start.Add(roundEvery)
 		after := newTestRouter(t, clock.read, &stubProber{})
-		after.state.recall(kept, func(string) bool { return held })
+		after.state.recall(kept, func(string) tokenKept { return tokenKept{same: held, usable: true} })
 		if due := after.state.rounding(after.rounds.clears)("side", clock.now); due == held {
 			t.Errorf("side, read a minute before, holding the token it held then: %v, due on its first round = %v; want %v", held, due, !held)
 		}

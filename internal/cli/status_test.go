@@ -40,6 +40,7 @@ personal · Personal
 
 side · Side
   HTTP 401 · Invalid bearer token
+  token refused · its token needs renewing
 
 probed directly: the router isn't running
 `,
@@ -494,9 +495,10 @@ label = "Side"
 `
 
 // fakeClaudeAPI serves a probe of the work account from Claude Code
-// testClaudeVersion with its usage headers, and rejects anything else. The
-// account has used up its Fable week, which only Fable requests count, so it's
-// still the account to use next. It returns the API's URL.
+// testClaudeVersion with its usage headers, and rejects anything else, as a
+// token refused, unless a test has it read another account too, as readsToo
+// does. The account has used up its Fable week, which only Fable requests
+// count, so it's still the account to use next. It returns the API's URL.
 func fakeClaudeAPI(t *testing.T) string {
 	t.Helper()
 	return newClaudeAPI(t).URL
@@ -513,6 +515,9 @@ type claudeAPI struct {
 	// limited is set while work is at the limit of its week.
 	session string
 	limited bool
+	// reads are the tokens whose requests it answers with work's usage:
+	// work's, and those readsToo adds.
+	reads []string
 }
 
 // readSessionAs has the API read work's session as used as given, such as
@@ -521,6 +526,15 @@ func (a *claudeAPI) readSessionAs(used string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.session = used
+}
+
+// readsToo has the API answer requests on the token given with work's usage
+// from now on, as it does work's, rather than refuse them: so a test has a
+// second account a request can go to, as one refused is held back.
+func (a *claudeAPI) readsToo(token string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.reads = append(a.reads, token)
 }
 
 // limitWeek has the API answer every request on work's token at the limit of
@@ -543,7 +557,7 @@ func (a *claudeAPI) questions() []string {
 // newClaudeAPI starts the API fakeClaudeAPI describes.
 func newClaudeAPI(t *testing.T) *claudeAPI {
 	t.Helper()
-	api := &claudeAPI{session: "0.23"}
+	api := &claudeAPI{session: "0.23", reads: []string{"test-token-work"}}
 	accountWide := map[string]string{
 		"anthropic-ratelimit-unified-5h-utilization": "0.23",
 		"anthropic-ratelimit-unified-5h-reset":       "1790619000", // Mon 28 Sep 2026 18:10 UTC
@@ -569,10 +583,10 @@ func newClaudeAPI(t *testing.T) *claudeAPI {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Errorf("decode request body: %v", err)
 		}
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		token, bearer := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		api.mu.Lock()
 		api.asked = append(api.asked, token+" "+req.Model)
-		session, limited := api.session, api.limited
+		session, limited, reads := api.session, api.limited, bearer && slices.Contains(api.reads, token)
 		api.mu.Unlock()
 		if limited && token == "test-token-work" {
 			w.Header().Set("anthropic-ratelimit-unified-status", "rejected")
@@ -584,7 +598,7 @@ func newClaudeAPI(t *testing.T) *claudeAPI {
 			return
 		}
 		headers, ok := usage[req.Model]
-		if !ok || r.Header.Get("Authorization") != "Bearer test-token-work" || r.Header.Get("User-Agent") != "claude-code/"+testClaudeVersion {
+		if !ok || !reads || r.Header.Get("User-Agent") != "claude-code/"+testClaudeVersion {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`)
 			return

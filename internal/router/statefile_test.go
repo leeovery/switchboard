@@ -344,14 +344,17 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 	saved.load(path)
 	saved.state.record("work", []quota.Window{session, week}, saved.state.mark())
 	// Work's probes have read nothing three times in a row since, the last
-	// three minutes ago; side, never read, was refused half a minute ago.
+	// three minutes ago; side, never read, was refused two minutes ago, and
+	// its probe half a minute ago read nothing, the upstream overloaded.
 	for _, ago := range []time.Duration{20 * time.Minute, 10 * time.Minute, 3 * time.Minute} {
 		clock.now = start.Add(-ago)
 		saved.state.recordProbe("work", quota.Probe{}, errUnreadable, saved.state.mark(), readings.FromProbe)
 	}
-	clock.now = start.Add(-30 * time.Second)
+	clock.now = start.Add(-2 * time.Minute)
 	refused := "HTTP 401 · Invalid bearer token"
 	saved.state.recordProbe("side", quota.Probe{}, errors.New(refused), saved.state.mark(), readings.FromProbe)
+	clock.now = start.Add(-30 * time.Second)
+	saved.state.recordProbe("side", quota.Probe{}, errUnreadable, saved.state.mark(), readings.FromProbe)
 	saved.save()
 
 	data, err := os.ReadFile(path)
@@ -363,9 +366,9 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 			t.Errorf("state file holds\n%s\nwant work's probes kept, %s among them", data, want)
 		}
 	}
-	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, Misses: 1}
+	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute)}
 	if got := readState(t, path).Readings["side"]; !reflect.DeepEqual(got, wantSide) {
-		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept", got, wantSide)
+		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept, its read refused since it was first", got, wantSide)
 	}
 	checkAsARouterFromBeforeReadsIt(t, data, saved.state)
 
@@ -380,9 +383,9 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 	}
 	for id, u := range saved.state.usage {
 		got := loaded.state.usage[id]
-		if !got.probed.Equal(u.probed) || got.probeErr != u.probeErr || got.misses != u.misses {
-			t.Errorf("%s's probes loaded as ended %v, %q, %d in a row; want what was saved: %v, %q, %d",
-				id, got.probed, got.probeErr, got.misses, u.probed, u.probeErr, u.misses)
+		if !got.probed.Equal(u.probed) || got.probeErr != u.probeErr || got.misses != u.misses || !got.refusedSince.Equal(u.refusedSince) {
+			t.Errorf("%s's probes loaded as ended %v, %q, %d in a row, refused since %v; want what was saved: %v, %q, %d, %v",
+				id, got.probed, got.probeErr, got.misses, got.refusedSince, u.probed, u.probeErr, u.misses, u.refusedSince)
 		}
 	}
 	if side, _ := loaded.state.document().Account("side"); side.Error != refused {
@@ -439,7 +442,7 @@ func checkAsARouterFromBeforeReadsIt(t *testing.T, data []byte, saved *state) {
 		kept.Readings[id] = savedReading{ReadAt: r.ReadAt, Windows: r.Windows, WindowsReadAt: r.WindowsReadAt, Extra: r.Extra}
 	}
 	before := newTestState(&testClock{now: start})
-	before.recall(kept, func(string) bool { return false })
+	before.recall(kept, func(string) tokenKept { return tokenKept{} })
 	for id, u := range saved.usage {
 		got := before.usage[id]
 		if !got.updated.Equal(u.updated) || !maps.Equal(got.windows, u.windows) {
@@ -557,7 +560,7 @@ func TestAnAccountWithoutItsTokenAsTheRouterStartsStartsAfreshOnceItsBack(t *tes
 	first := newTestFile(at(start), testAccounts())
 	first.load(path)
 	for range 4 {
-		first.state.recordProbe("side", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"), first.state.mark(), readings.FromProbe)
+		first.state.recordProbe("side", quota.Probe{}, errUnreadable, first.state.mark(), readings.FromProbe)
 	}
 	first.save()
 

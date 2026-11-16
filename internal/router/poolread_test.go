@@ -57,7 +57,7 @@ func askEveryRead(t *testing.T, client *router.Client) {
 		func() error { _, err := client.Sessions(ctx); return err },
 		func() error { _, err := client.Session(ctx, "one"); return err },
 		func() error { _, err := client.History(ctx, "7d", time.Hour); return err },
-		func() error { _, err := client.Refresh(ctx, time.Minute); return err },
+		func() error { _, err := client.Refresh(ctx, status.Read{Refresh: time.Minute}); return err },
 		func() error { _, err := client.Pin(ctx, router.PinRequest{Accounts: []string{"work"}}); return err },
 		func() error { _, err := client.Unpin(ctx, true, router.ByCLI); return err },
 		func() error { _, err := client.PinSession(ctx, "one", "work", router.ByCLI); return err },
