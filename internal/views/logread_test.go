@@ -162,11 +162,18 @@ func shownOf(table views.LogTable) []views.LogLine {
 // the same order, each day's lines counting alike, and the same days
 // awaiting a line.
 func sameTable(a, b views.LogTable) bool {
-	if !reflect.DeepEqual(shownOf(a), shownOf(b)) || !reflect.DeepEqual(a.Awaited(views.LedgerDay{Start: farOff}), b.Awaited(views.LedgerDay{Start: farOff})) {
+	shown := shownOf(a)
+	if !reflect.DeepEqual(shown, shownOf(b)) || !reflect.DeepEqual(a.Awaited(views.LedgerDay{Start: farOff}), b.Awaited(views.LedgerDay{Start: farOff})) {
 		return false
 	}
-	for _, l := range slices.Concat(shownOf(a), shownOf(b)) {
-		if date := views.Today(l.Row.At).Date; l.IsRow() && !reflect.DeepEqual(a.Count(date), b.Count(date)) {
+	counted := make(map[string]bool)
+	for _, l := range shown {
+		date := views.Today(l.Row.At).Date
+		if !l.IsRow() || counted[date] {
+			continue
+		}
+		counted[date] = true
+		if !reflect.DeepEqual(a.Count(date), b.Count(date)) {
 			return false
 		}
 	}

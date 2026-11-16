@@ -80,16 +80,15 @@ var spreadMoments = slices.Concat([]string{
 // spreadMoments.
 func TestEveryViewOverDigestsIsTheViewReadRaw(t *testing.T) {
 	t.Parallel()
-	met := make(map[string]bool)
 	prices := digestPrices(t, changingPricesFrom(spreadRepriced))
-	for _, seed := range spreadSeeds {
+	met := metOfEachSeed(t, spreadSeeds, func(t *testing.T, seed uint64, met map[string]bool) {
 		w := newSpread(t, seed, prices[seed%uint64(len(prices))], met)
 		for i, at := range w.moments() {
 			w.by(at)
 			w.upset(at)
 			w.check(i, at)
 		}
-	}
+	})
 	for _, moment := range slices.Concat(spreadMoments, costedEither(prices), pagePricedEither(prices), loggedPricedEither(prices)) {
 		if !met[moment] {
 			t.Errorf("no spread world meets %s", moment)

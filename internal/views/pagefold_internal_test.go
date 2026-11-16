@@ -580,8 +580,7 @@ func sentAlike(b BuiltPage) BuiltPage {
 func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 	t.Parallel()
 	prices := changingPrices()
-	met := make(map[string]bool)
-	for seed := range uint64(120) {
+	met := metOfSeeds(t, 120, func(t *testing.T, seed uint64, met map[string]bool) {
 		lines, late := pagedRun(seed)
 		r := rand.New(rand.NewPCG(seed, 9))
 		first := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Session == "s" })
@@ -605,7 +604,7 @@ func TestThePageFedLookByLookIsThePageBuiltWhole(t *testing.T) {
 			at = now
 		}
 		p.look(ended(&lines[len(lines)-1]).Add(3*time.Hour), false)
-	}
+	})
 	for _, moment := range []string{
 		"a request in flight", "a subagent's request naming another turn's prompt", "an idle gap folded",
 		"stretches told by its own conversation after others", "midnight", "midnight, its page held across a change of its prices",
