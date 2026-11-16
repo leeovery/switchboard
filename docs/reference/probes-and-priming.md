@@ -52,7 +52,7 @@ answer, a probe or a prime:
 |---|---|
 | Its 5-hour window has lapsed, and it can take a request | Probes it only if its next prime is more than 5 hours off, so the window resets first. Without priming, probes it. |
 | It can take no request anyway | Probes it at any hour, so a reset you make by hand shows within 5 minutes. |
-| Anthropic refused its last read: its subscription ended, or its token was refused | Probes it at any hour, on the backoff for a probe that reads nothing. A renewal shows within 30 minutes. A new session's choice doesn't probe it any sooner, nor does the dashboard after a window resets. Pressing `R` on the dashboard does. |
+| Anthropic refused its last read: its subscription ended, or its token was refused | Probes it at any hour, on the backoff for a probe that reads nothing. A renewal shows within 30 minutes. A new session's choice doesn't probe it any sooner, nor does the dashboard after a window resets. `R` on the dashboard does, and so do `status --refresh` and `usage --refresh`. |
 | Anything else | Probes it. |
 
 The router also probes each account once in the 5 minutes before a week resets. That way the last

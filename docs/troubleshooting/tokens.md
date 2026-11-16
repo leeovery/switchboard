@@ -28,7 +28,7 @@ Renew one account, or give one a new token, to carry on.
 
 To bring the account back, renew the subscription. The router reads the account again within half
 an hour, and sends it sessions once that read is clean. Press `R` on the dashboard to read it
-sooner. If you no longer use the account, remove it. Switchboard keeps the history.
+sooner. If you no longer use the account, remove it. Switchboard keeps the account's history.
 
 ```bash
 # Removes the account; its history stays

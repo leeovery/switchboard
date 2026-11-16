@@ -50,7 +50,7 @@ func Fresh() Read {
 // screen has reset: the router first refreshes every account it hasn't read
 // in the last minute, and every one that can take no request anyway, as
 // Fresh has it, but leaves one held back by a read refused to its backoff, as
-// only R asks to see that at once.
+// only Fresh, which R and the verbs' --refresh ask for, reads that at once.
 func AfterReset() Read {
 	return Read{Refresh: FreshFor, Spaced: true}
 }

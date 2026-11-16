@@ -62,6 +62,9 @@ side · Side
 `
 }
 
+// Status reads the router's document while it runs, end to end: its pin to
+// side yields, best next work, as the API refused side's read, which holds
+// side back.
 func TestStatusReadsTheRouterWhileItRuns(t *testing.T) {
 	srv := routingSetup(t)
 
@@ -315,6 +318,9 @@ probed directly
 
 func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 	api := newClaudeAPI(t)
+	// Side read, as work is, so the router's pin to it holds, and ▲ on it
+	// can only be the router's.
+	api.readsToo("test-token-side")
 	srv := newServeSetup(t, api.URL, nil)
 	onATerminal.on(&srv.deps)
 	// A token for personal, as goldenDeps gives it.
@@ -326,11 +332,10 @@ func TestUsageReadsTheRouterWhileItRuns(t *testing.T) {
 		probes bool
 		// status is the printout's status line, and next the account new
 		// sessions go to, which carries ▲: none probed, as where they go is
-		// the router's to say, and its pin to Side yields, as the API refused
-		// Side's read.
+		// the router's to say, and it's pinned to Side.
 		status, next string
 	}{
-		{status: "● healthy  ·  pinned to Side  ·  1 session  ·  new sessions → ▲ Work", next: "Work"},
+		{status: "● healthy  ·  pinned to Side  ·  1 session  ·  new sessions → ▲ Side", next: "Side"},
 		{args: []string{"--probe"}, probes: true, status: "○ probed, as asked"},
 	}
 	for _, tt := range tests {

@@ -64,7 +64,7 @@ With more than one account, a lane for the pool sits under the others, labelled
 - Each column shows how many accounts have room.
 - A low red bar along its foot, `▂`, marks where none has.
 - An account with an ended subscription counts as having none from now on. So does one whose token
-  Anthropic refused as the router read it.
+  Anthropic refused when the router read it.
 - An account whose token Anthropic refused on a request counts as having none for the 10 minutes
   it sits out the refusal.
 - Under the label is the room left in the week, such as `week 1.2 of 3 left`. It counts the

@@ -39,8 +39,8 @@ curl -s --unix-socket control.sock \
 
 - **The pin endpoints** answer with what they leave: a session, or the status document of the pool.
 - **`POST /refresh`** also probes the accounts that can take no request anyway. It answers with the
-  status document. With `"spaced": true`, it waits out the backoff of an account whose last read
-  Anthropic refused.
+  status document. With `"spaced": true`, it leaves out an account whose last read Anthropic
+  refused, until that account's backoff ends.
 - **`GET /stream`** names the `pool` of each request, by id, if the config has pools.
 - **`POST /restart`** refuses with a 409, saying why, if the router can't restart. It can't if it
   was run by hand, or if its binary refuses to start. Nor can it if the upgrade can't be copied in,

@@ -484,15 +484,15 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   says it's back as the limit lifts, its windows' words reading `limit` with no `back`, and Runway's
   stretch through now no `back` either. An account whose first read is refused, as one added with
   its subscription already ended, says the refusal too, while every view draws it as not read yet,
-  as nothing of it has been, unless a limit holds it too. The hold begins at the first refusal of a
-  run, kept through the refusals and failures after it, which the state file keeps beside the last
-  probe; the pools' room, which the forecast's day rate counts, holds the account back only from
-  then, never before, so a restart replaying the readings history counts its room till then, however
-  long it's been probed since. A state file from before keeps no start, and the hold runs from its
-  last probe; a router from before reads the file all the same, passing over the start. The router
-  judges the hold from its own state, through the readers of Claude's answers, and the status
-  document states it once, as the account's `RefusedRead`: no view reads the error again. An account
-  removed goes as any other, its history kept.
+  as nothing of it has been, unless a limit or the router's own refusal of its token holds it too.
+  The hold begins at the first refusal of a run, kept through the refusals and failures after it,
+  which the state file keeps beside the last probe; the pools' room, which the forecast's day rate
+  counts, holds the account back only from then, never before, so a restart replaying the readings
+  history counts its room till then, however long it's been probed since. A state file from before
+  keeps no start, and the hold runs from its last probe; a router from before reads the file all the
+  same, passing over the start. The router judges the hold from its own state, through the readers
+  of Claude's answers, and the status document states it once, as the account's `RefusedRead`: no
+  view reads the error again. An account removed goes as any other, its history kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
