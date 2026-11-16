@@ -147,6 +147,12 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			shows: []shows{{at: 6, says: []string{"7 sessions"}}},
 		},
 		{
+			tape: "notifications", scenario: "repatch", theme: "tokyo-night", size: wide(37),
+			shows: []shows{{at: 28, says: []string{
+				"■ personal reached its 5-hour limit: 2 sessions moved to side", "personal back from its limit",
+			}, tab: "Overview"}},
+		},
+		{
 			tape: "help", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys:  []press{{3, keysOf("?")}},
 			shows: []shows{{at: 4.7, says: []string{"HELP · OVERVIEW"}}},

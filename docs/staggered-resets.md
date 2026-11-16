@@ -5,6 +5,10 @@ after another. Once all are spent, the next one is back within 5 hours divided b
 accounts. You'd want this if two or more of your accounts have a 5-hour window, as Pro and Max
 plans do.
 
+<p align="center"><img src="../art/staggered-resets.webp" alt="The Log's Events: work, side and personal primed in turn through the day, each 5-hour window starting, and resetting, at a time of its own" width="840"></p>
+
+*The Log through a day: each account primed in turn, so its 5-hour window resets at a time of its own.*
+
 Ultra plans no longer have a 5-hour window, so there is nothing to stagger on them.
 
 ## Try it

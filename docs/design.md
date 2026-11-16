@@ -790,6 +790,16 @@ within, where it's started within one, and the session keeps that pool for its w
     under another fence. Accepted, as it fails as before: a process the session's tooling started
     that has left its tree, as a daemon outliving the shell that started it, starts `claude` within
     no session, placed by its directory alone.
+  - **A `claude` started within a session with `HOME` cleared stays in the session's routing,**
+    accepted (the owner, 15 November 2026): without a home, `run` can't locate the config or the
+    router's state directory, so it starts Claude Code unaided, and unaided within a session whose
+    base URL is still the one `run` gave it, it passes on the session's environment as it is: the
+    base URL, the token and the mark of what `run` set (see Launching). The session's router routes
+    it in the session's pool and records it, as it does the session. The session's mark travels
+    with the process's environment, not with `HOME`. Only a `claude` started with the environment
+    emptied, `env -i`, and so by the full path of switchboard's `claude` link, as `PATH` goes with
+    the rest, escapes: nothing of the session's reaches it, no config names a fence, and it starts
+    on Claude Code's own login, as without switchboard.
 
 ### Launching in a pool
 
@@ -12396,3 +12406,4 @@ was dropped binds a later choice, the design proper says so.
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Pausing an account whose subscription is cancelled: kept whole and out of routing until it's resumed | after Account identity and Pools: the owner, 11 November 2026 | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
 | The dashboard's `--pool` for a pool the config no longer has, its recorded work read by its id, as the verbs read it | later: found with Pools' second phase, 13 November 2026 | [dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md) |
+| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, in place of a move that says `has no room` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |

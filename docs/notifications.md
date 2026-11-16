@@ -4,6 +4,10 @@ Switchboard posts a desktop notification when an account hits a limit, has room 
 a share of a window you set. It also warns you a month before an account's token runs out. You'd
 want them if you run sessions you aren't watching.
 
+<p align="center"><img src="../art/notifications.webp" alt="The Overview once personal reached its 5-hour limit: LATELY tells of the limit and the sessions that moved to side, and COMING UP says when personal is back" width="840"></p>
+
+*A limit on the Overview: the same news a notification brings, with the sessions that moved.*
+
 ## Try it
 
 Notifications for limits, room again and the warning at 90% are on from the start. To tune them,
