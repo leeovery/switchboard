@@ -5,7 +5,7 @@ reaches its cap or runs out. Look at it before a long piece of work, or to see w
 that's out comes back.
 
 <div align="center">
-<img src="../../art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the room of the open accounts under them" width="840">
+<img src="../../art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the room of the pool under them" width="840">
 </div>
 
 *Runway at 160 columns: work is at its cap till 17:10, and personal and side run out before they
@@ -58,7 +58,7 @@ Words under a lane say when a stretch without room starts, and when the account 
 
 ## The `Σ pool` lane
 
-With more than one account, a lane for the open accounts sits under the others, labelled
+With more than one account, a lane for the pool sits under the others, labelled
 `Σ pool`.
 
 - Each column shows how many accounts have room.
@@ -86,8 +86,8 @@ collapse them and give the lanes the width:
 
 - The lanes start at the left edge, with no names and no marks. The status line still says where
   new sessions go.
-- Under the start of each lane is its use, such as `66%`. It's faint for an account outside the
-  open accounts.
+- Under the start of each lane is its use, such as `66%`. It's faint for an account that a pin
+  leaves out of the pool.
 - Under the `Σ pool` lane is its room, short, such as `1.2/3`.
 - The words under a lane still start under their stretch. If they would run into the use, they
   start two cells after it, as in `100%  out Tue 17:54  ·  back Sun 01:00`.

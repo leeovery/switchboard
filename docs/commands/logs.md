@@ -5,7 +5,7 @@ request failed. The router keeps one log, and every other command shares the sec
 
 ```console
 $ switchboard logs -n 1
-time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=4242 id=5f3a9c2e session=18bb978f model=claude-opus-5-5 account=q4tx reason="moved: b6s7 hit its limit" status=200 attempts=2 duration=9.412s
+time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=4242 id=5f3a9c2e session=18bb978f model=claude-opus-5-5 account=q4tx pool=h4w2 reason="moved: b6s7 hit its limit" status=200 attempts=2 duration=9.412s
 ```
 
 ```bash

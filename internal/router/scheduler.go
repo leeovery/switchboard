@@ -71,8 +71,8 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 		noteCompaction(req, d)
 	}
 	if on.unpooled != "" {
-		logger.Debug("pin ignored: account isn't in the request's pool", "id", req.ID, "pin", on.unpooled,
-			"session", status.ShortID(req.Session), "pool", on.req.Pool)
+		attrs := []any{"id", req.ID, "pin", on.unpooled, "session", status.ShortID(req.Session)}
+		logger.Debug("pin ignored: account isn't in the request's pool", append(attrs, poolSaid(on.req.Pool)...)...)
 	}
 	c := Choice{Account: d.account, Reason: d.reason, Pool: on.req.Pool, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back, Closed: d.closed}
 	if req.remembered(d.account) {
@@ -268,8 +268,9 @@ func (s *scheduler) remember(on situation, d decision) (first bool, from string)
 		logger.Info("session moved meanwhile; its newer assignment stands", "session", status.ShortID(req.Session), "model", req.Model,
 			"account", found.Account, "chosen", d.account)
 	case found.Account != "" && found.Account != d.account:
-		logger.Info("moved", "session", status.ShortID(req.Session), "model", req.Model,
-			"from", found.Account, "to", d.account, "reason", d.reason)
+		attrs := append([]any{"session", status.ShortID(req.Session), "model", req.Model,
+			"from", found.Account, "to", d.account}, poolSaid(on.accounts.pool)...)
+		logger.Info("moved", append(attrs, "reason", d.reason)...)
 		s.emit(Moved{
 			Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason, Held: d.held, Limit: d.limit,
 			Pool: on.accounts.pool, Dir: found.dirAfter(req), Project: found.projectAfter(req),

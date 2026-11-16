@@ -477,7 +477,8 @@ func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
 	ex.reason, ex.status = choice.Reason, http.StatusTooManyRequests
 	pools := p.pools.current()
 	why := p.whyClosed(pools, ex.pool)
-	logger.Warn("no account in the request's pool can take it; answering 429", "id", ex.id, "pool", ex.pool, "why", why)
+	attrs := append([]any{"id", ex.id}, poolSaid(ex.pool)...)
+	logger.Warn("no account in the request's pool can take it; answering 429", append(attrs, "why", why)...)
 	p.provider.MarkLimited(w.Header(), time.Time{})
 	message := "switchboard: no account can take the request"
 	if pool := pools.shown(ex.pool); pool != "" {
@@ -864,9 +865,9 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 		"session", status.ShortID(ex.req.Session),
 		"model", ex.req.Model,
 		"account", ex.account.ID,
-		"reason", ex.reason,
-		"status", ex.status,
 	}
+	attrs = append(attrs, poolSaid(ex.pool)...)
+	attrs = append(attrs, "reason", ex.reason, "status", ex.status)
 	if ex.attempts > 1 {
 		attrs = append(attrs, "attempts", ex.attempts)
 	}
