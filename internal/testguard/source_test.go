@@ -52,8 +52,9 @@ var processStarters = []string{
 	// the CLI, and tests pass a fake that answers as they need.
 	"internal/shell/run_unix.go:Run",
 	// /usr/bin/defaults, by its path, reading the Mac's scroll setting as the
-	// dashboard opens: main passes it to the CLI, and tests pass a fake.
-	"internal/swipe/defaults.go:Defaults",
+	// dashboard opens, as swipe.Defaults has it: main passes that to the CLI,
+	// and tests pass a fake, or run this on a stand-in of their own.
+	"internal/swipe/defaults.go:readSetting",
 }
 
 const (

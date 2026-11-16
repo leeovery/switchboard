@@ -93,7 +93,7 @@ func TestFingersAreTheWheelReversedOnlyUnderNatural(t *testing.T) {
 		{d: swipe.Traditional, wheel: 1, got: 1},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%v/%d", tt.d, tt.wheel), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%v wheel %d", tt.d, tt.wheel), func(t *testing.T) {
 			if got := tt.d.Fingers(tt.wheel); got != tt.got {
 				t.Errorf("%v: Fingers(%d) = %d, want %d", tt.d, tt.wheel, got, tt.got)
 			}

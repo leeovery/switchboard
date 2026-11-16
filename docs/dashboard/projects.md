@@ -94,4 +94,4 @@ stack.
 | `<` `>` | Steps the period, shared with [Accounts](accounts.md) and the List on Sessions. |
 
 Keys on every page are on [Every page](every-page.md). If the wheel chooses the project above as
-your fingers move down, see [the wheel on Projects](../troubleshooting/wheel.md).
+your fingers move down, see [The wheel on Projects runs against your fingers](../troubleshooting/wheel.md).

@@ -2225,12 +2225,12 @@ formats below; the screens as signed off in Paper (see The screens, below).
   primary's alone, marked with the account they came from: should the config configure it again,
   as when an edit by hand is caught half made, it takes them back, an account like any other
   again. While the primary has no usable token, they count no more than its own do.
-- The programs switchboard runs for itself, `claude --version`, `osascript`, its notifications'
-  app, `lsregister`, `launchctl`, `plutil` and `defaults`, get none of its environment but `PATH`, `HOME`, `TMPDIR` and
-  `LANG`. `claude --version` gets the
-  `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
-  npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
-  which holds the system's directories alone.
+- The programs switchboard runs for itself, `claude --version`, `osascript`, `open`, its
+  notifications' app, `lsregister`, `launchctl`, `plutil` and `defaults`, get none of its
+  environment but `PATH`, `HOME`, `TMPDIR` and `LANG`. `claude --version` gets the `claude`'s own
+  directory first on `PATH`, then the one its links lead to, so a script, such as npm's `claude`,
+  run by `env node`, finds a `node` installed beside it under launchd's `PATH`, which holds the
+  system's directories alone.
 - `accounts add <label>` registers an account, shown as the label, under the id its token's
   organization decides (see Account identity). It takes the label as it shows, and saves it so,
   by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
@@ -3729,10 +3729,11 @@ reads the Mac's scroll setting once, as it opens, and handles each turn over the
 The setting is `com.apple.swipescrolldirection` in the global domain, one setting for the trackpad
 and the mouse alike. `0` means traditional. `1`, no setting at all, or a read that fails means
 natural, macOS's default. Over SSH, for example from Blink on an iPad, the Mac's setting is still
-the one read. A touch drag acts as natural, so the list follows the fingers there too. Two
-accepted misses get the list's wheel backwards:
+the one read. A touch drag acts as natural, so on a natural Mac the list follows the fingers there
+too. The accepted misses, which get the list's wheel backwards, include:
 
-- a traditional Mac reached from an iPad;
+- a Mac reached over SSH from a device that scrolls the other way, for example a traditional Mac
+  from an iPad or an iPhone in Blink, or a natural Mac from a traditional one or a PC;
 - a scroll-reversing tool, such as Scroll Reverser, Mos or LinearMouse, or a terminal that inverts
   the wheel, which gives the wheel a direction the setting doesn't show.
 
