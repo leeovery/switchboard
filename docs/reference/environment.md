@@ -35,9 +35,10 @@ gets these:
 - **`SWITCHBOARD_SET`** lets a `claude` started inside the session start from your own
   environment. It also names the `claude` it was set for.
 - **`SWITCHBOARD_STARTED`** is what the [session hook](session-hook.md) reads.
-- **A `claude` started inside the session** joins the session through all four `SWITCHBOARD_`
-  variables above, as the session's `claude` started with them. See
-  [`switchboard run`](../commands/run.md).
+- **A `claude` started inside the session** joins the session through `SWITCHBOARD_STARTED` and
+  `SWITCHBOARD_SET`, as the session's `claude` started with them. Its pool and project are the ones
+  `SWITCHBOARD_SET` records, even if `SWITCHBOARD_POOL` or `SWITCHBOARD_PROJECT` has changed since.
+  See [`switchboard run`](../commands/run.md).
 - **`CLAUDE_CODE_GATEWAY_HINT_HEADERS`** makes Claude Code send the headers that fill most of the
   hint fields of the [request ledger](ledger.md).
 

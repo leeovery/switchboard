@@ -279,21 +279,12 @@ func (e environ) routedByRun() bool {
 	return ok && e.holdsWhatRunSet(claude.BaseURLEnv, mark)
 }
 
-// setByRun returns key's value where it's the one the environment's mark says
-// run gave it (see setEnv): "" where it isn't, as where it's been changed
-// since, or the mark can't be read.
-func (e environ) setByRun(key string) string {
-	if mark, ok := e.mark(); ok && e.holdsWhatRunSet(key, mark) {
-		return e.get(key)
-	}
-	return ""
-}
-
-// runSet reports whether the environment's mark says run gave key a value
-// (see setEnv), whatever key holds now.
-func (e environ) runSet(key string) bool {
-	mark, ok := e.mark()
-	return ok && mark.Has(setKey+key)
+// runGave returns the value the environment's mark says run gave key (see
+// setEnv), whatever key holds now: "" where it says none, or the mark can't
+// be read.
+func (e environ) runGave(key string) string {
+	mark, _ := e.mark()
+	return mark.Get(setKey + key)
 }
 
 // holdsWhatRunSet reports whether key holds the value mark says run gave it.

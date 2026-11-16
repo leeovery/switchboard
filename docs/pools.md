@@ -33,13 +33,14 @@ looking at.
 - A `claude` that an Acme session starts, such as a test running `claude -p` in the session's
   scratchpad, uses Acme too.
 - Inside a pool, a session keeps its account while the cache is warm, and moves when a limit hits.
-  If every account in the pool is out, work waits for a reset rather than spill into another pool.
 - Each pool has a primary: the account whose token Claude Code holds there. Artifacts and uploads
   go out on it.
 - The dashboard shows one pool at a time, and every request is recorded under the pool it ran in.
 
 ## Good to know
 
+- When every account in a pool is out, work there waits for a reset rather than spill into another
+  pool.
 - A session keeps the pool it started in. If you fence a folder while a session runs there, exit
   and resume the session to bring it in. If you resume a session in another pool's folder, it runs
   in that pool from then on, and a copy still running elsewhere keeps its old pool.

@@ -566,7 +566,7 @@ func (l Launcher) unaided(path string, args []string, cant cantTakePart, foundDo
 // within a session pointed at a gateway of its own since, it's the user's
 // own, so Claude Code isn't sent to a router that can't take it. Where a
 // pool of pools is fenced, the session's is passed on only where it's in the
-// pool a session started in Dir is in, as its PoolEnv names it: else that
+// pool a session started in Dir is in, as its mark records it: else that
 // router would route this claude in the session's pool. And where it isn't
 // passed on, Claude Code's token goes too, as a session's, run's or the
 // user's, can't be told apart, and would go out on an account of another
@@ -585,11 +585,13 @@ func (l Launcher) unaidedEnv(foundDown bool, pools config.Pools) environ {
 	return env.unmarked().without(claude.TokenEnv)
 }
 
-// inSessionsPool reports whether env, a session's, names, in PoolEnv, the
-// pool of pools a session started in Dir is in, as sessionPool finds it.
+// inSessionsPool reports whether env, a session's, is in the pool of pools a
+// session started in Dir is in, as sessionPool finds it: the pool its mark
+// says run gave it (see runGave), whatever PoolEnv holds now, as the router
+// routes it by the header run added beside it.
 func (l Launcher) inSessionsPool(env environ, pools config.Pools) bool {
 	p, why := l.sessionPool(pools)
-	return why == "" && config.SamePool(env.get(PoolEnv), p.pool.ID)
+	return why == "" && config.SamePool(env.runGave(PoolEnv), p.pool.ID)
 }
 
 // own returns the environment Claude Code starts from as the user set it:

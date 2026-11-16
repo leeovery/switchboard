@@ -333,19 +333,13 @@ func TestASessionsPoolChangedSinceInTheEnvironmentInheritedIsStillItsPool(t *tes
 
 // Where the environment the session's claude started in can't be read, or
 // what's read of it holds no session, as where a process title was written
-// over it, the one the launch inherits says what the session is, as run set
-// it, judged alike: a pool or project changed since there is none
-// of the session's, and a session naming no pool places no launch among
-// pools.
+// over it, the one the launch inherits says what the session is, judged
+// alike: its pool and project are what its mark says run gave them, so a
+// pool changed or unset since there changes nothing.
 func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(t *testing.T) {
 	cfg := pooledConfig()
 	sessionEnv := session(t, cfg, acmeDir)
-	without := func(names ...string) []string {
-		return slices.DeleteFunc(slices.Clone(sessionEnv), func(v string) bool {
-			name, _, _ := strings.Cut(v, "=")
-			return slices.Contains(names, name)
-		})
-	}
+	without := func(names ...string) []string { return withoutVars(sessionEnv, names...) }
 	started := launched.Add(-time.Second)
 	reads := []struct {
 		name string
@@ -373,8 +367,10 @@ func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(
 	}{
 		{name: "the session's environment inherited", environ: sessionEnv, inSession: true},
 		{name: "an environment cleaned", environ: []string{"HOME=/home/tester"}},
-		{name: "the session's environment, its pool changed since", environ: append(without("SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+defaultPool.ID)},
-		{name: "the session's environment, its pool unset since", environ: without("SWITCHBOARD_POOL")},
+		{name: "the session's environment, its pool changed since", environ: append(without("SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+defaultPool.ID), inSession: true},
+		{name: "the session's environment, its pool unset since", environ: without("SWITCHBOARD_POOL"), inSession: true},
+		{name: "the session's environment, its project unset since", environ: without("SWITCHBOARD_PROJECT"), inSession: true},
+		{name: "the session's environment, its mark of what run set unset since", environ: without(setEnv)},
 	}
 	for _, read := range reads {
 		for _, tt := range tests {
@@ -851,54 +847,86 @@ func TestASessionNamingNoPoolPlacesNoLaunchAmongPools(t *testing.T) {
 	})
 }
 
-// A session whose mark says run set it a pool that no read of it gives, as
-// where its claude's title took SWITCHBOARD_POOL and the launch's
-// environment was cleaned, places a launch within it by the launch's folder:
-// never through a session further out, which may be in another pool.
-func TestASessionWhosePoolIsLostPlacesALaunchWithinItByItsFolder(t *testing.T) {
+// withoutVars is env without the variables named.
+func withoutVars(env []string, names ...string) []string {
+	return slices.DeleteFunc(slices.Clone(env), func(v string) bool {
+		name, _, _ := strings.Cut(v, "=")
+		return slices.Contains(names, name)
+	})
+}
+
+// A session's pool and project are what run gave its claude, as the mark of
+// what run set says, made for that claude, in what's read of the
+// environment it started in, else in the one the launch inherits: never what
+// the variables hold, so one gone or changed since moves no launch within
+// the session out of its pool, nor lets claude start there on its own login.
+func TestASessionsPoolAndProjectAreWhatItsMarkSays(t *testing.T) {
 	const notes = "/Volumes/Client/notes"
 	cfg := configOf(config.Pools{defaultPool, acmePool, clientPool})
 	first := session(t, cfg, acmeDir)
-	started := newHarness(t, "HOME=/home/tester")
-	started.launcher.Dir, started.launcher.Project, started.launcher.PID = notes, repositories, withinPID
-	runs(t, started, cfg)
-	second := started.only(t).inherited()
-	without := func(names ...string) []string {
-		return slices.DeleteFunc(slices.Clone(second), func(v string) bool {
-			name, _, _ := strings.Cut(v, "=")
-			return slices.Contains(names, name)
-		})
-	}
+	nested := within(t, first, first, scratchpad)
+	runs(t, nested, cfg)
+	inAcme := nested.only(t).inherited()
+	alone := newHarness(t, "HOME=/home/tester")
+	alone.launcher.Dir, alone.launcher.Project, alone.launcher.PID = notes, repositories, withinPID
+	runs(t, alone, cfg)
+	inClient := alone.only(t).inherited()
 	cleaned := []string{"HOME=/home/tester"}
 	tests := []struct {
 		name string
-		// read is what's read of the environment the second session's claude
-		// started in, and environ the one the launch inherits.
-		read, environ                    []string
-		wantPool, wantToken, wantProject string
+		// read is what's read of the environment the claude of the session
+		// within first started in, as chain has them, unread where it can't
+		// be; environ is the one the launch inherits.
+		read, environ          []string
+		unread                 bool
+		wantPool               config.Pool
+		wantToken, wantProject string
 	}{
-		{name: "its pool read: its pool and project", read: second, environ: cleaned, wantPool: clientPool.ID, wantToken: sideToken, wantProject: notes},
 		{
-			name: "its pool taken from what's read, the environment inherited naming it: its pool and project", read: without("SWITCHBOARD_POOL"), environ: second,
-			wantPool: clientPool.ID, wantToken: sideToken, wantProject: notes,
+			name: "a session started in a scratchpad within a fenced pool's session, its pool gone from what's read, the launch's environment cleaned: its pool",
+			read: withoutVars(inAcme, "SWITCHBOARD_POOL"), environ: cleaned, wantPool: acmePool, wantToken: acme1Token, wantProject: acmeDir,
 		},
 		{
-			name: "its pool taken from what's read, the environment cleaned: placed by its folder", read: without("SWITCHBOARD_POOL"), environ: cleaned,
-			wantPool: defaultPool.ID, wantToken: workToken, wantProject: innerScratchpad,
+			name: "a session of another fenced pool, its pool gone from what's read, the launch's environment cleaned: its pool, not the one around it",
+			read: withoutVars(inClient, "SWITCHBOARD_POOL"), environ: cleaned, wantPool: clientPool, wantToken: sideToken, wantProject: notes,
 		},
 		{
-			name: "its pool and project taken from what's read, the environment cleaned: placed by its folder", read: without("SWITCHBOARD_POOL", "SWITCHBOARD_PROJECT"),
-			environ: cleaned, wantPool: defaultPool.ID, wantToken: workToken, wantProject: innerScratchpad,
+			name: "a session whose claude's environment is unread, its pool changed since in the one inherited: its pool",
+			read: inAcme, unread: true, environ: append(withoutVars(inAcme, "SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+defaultPool.ID),
+			wantPool: acmePool, wantToken: acme1Token, wantProject: acmeDir,
+		},
+		{
+			name: "a session, its project gone from what's read, the launch's environment cleaned: its project",
+			read: withoutVars(inAcme, "SWITCHBOARD_PROJECT"), environ: cleaned, wantPool: acmePool, wantToken: acme1Token, wantProject: acmeDir,
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		launching := func(t *testing.T) *harness {
+			t.Helper()
 			h := newHarness(t, tt.environ...)
 			h.launcher.Dir, h.launcher.Project, h.launcher.PID = innerScratchpad, repositories, innerWithinPID
-			h.launcher.Processes = chain(first, tt.read)
-
+			table := chain(first, tt.read)
+			second := table[withinPID]
+			second.unread = tt.unread
+			table[withinPID] = second
+			h.launcher.Processes = table
+			return h
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			h := launching(t)
 			runs(t, h, cfg)
-			placedIn(t, h.environment(t), tt.wantPool, tt.wantToken, tt.wantProject)
+			placedIn(t, h.environment(t), tt.wantPool.ID, tt.wantToken, tt.wantProject)
+		})
+		t.Run(tt.name+", on its own login", func(t *testing.T) {
+			h := launching(t)
+			if err := h.launcher.Direct(nil, cfg.Pools); !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
+				t.Errorf("Direct() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
+			}
+			want := "switchboard: " + innerScratchpad + " is in pool " + tt.wantPool.Label +
+				", through the session it's started within, where claude never starts on its own login — not starting claude\n"
+			if said := h.stderr.String(); said != want {
+				t.Errorf("said %q on stderr, want %q", said, want)
+			}
 		})
 	}
 }

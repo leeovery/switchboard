@@ -42,13 +42,13 @@ signed into the primary.
 **Priming.** Starting an account's 5-hour window at a time switchboard chooses, so your
 accounts reset one after another rather than together.
 
-**Project.** The repository a session runs in, its worktrees folded in. A session in a worktree
-or subfolder of the repository counts in that repository. A session started outside any
-repository runs in a project of its own: the folder it started in. A session in a Claude Code
-scratchpad counts as the project the scratchpad was made for. A session in any other temporary
-folder counts under `temporary folders`. A `claude` another session starts outside any repository
-joins that session's project instead, if both run in one pool. `run` records the project as the
-session starts. See [the ledger](reference/ledger.md).
+**Project.** The repository a session runs in, with its worktrees folded in. A session in a
+worktree or subfolder of the repository counts in that repository. A session started outside any
+repository counts as its own folder. A session in a Claude Code scratchpad counts as the project
+the scratchpad was made for. A session in any other temporary folder has no project: it counts
+under `temporary folders`. A `claude` another session starts outside any repository joins that
+session's project instead, if both run in one pool. `run` records the project as the session
+starts. See [the ledger](reference/ledger.md).
 
 **Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
 

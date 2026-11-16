@@ -26,8 +26,8 @@ func (p laidOutProcesses) Environ(pid int) ([]string, bool) {
 // A claude started in a scratchpad within a session whose claude Node runs,
 // its title written over what's read of that claude, starts in the session's
 // pool and project, through a whole launch. Where the title took the
-// variables ahead of the session's project, its pool among them, the
-// environment the launch inherits gives the pool.
+// variables ahead of the session's project, its pool among them, the mark of
+// what run set gives the pool all the same.
 func TestALaunchWithinASessionWhoseClaudeNodeRunsIsInItsPool(t *testing.T) {
 	const node = "/usr/local/bin/node"
 	argv := []string{node, "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js", "--resume"}
@@ -40,12 +40,11 @@ func TestALaunchWithinASessionWhoseClaudeNodeRunsIsInItsPool(t *testing.T) {
 		name string
 		// args is the session's claude's, as kern.procargs2 gives them, and
 		// environ the environment the launch within it starts from.
-		args      []byte
-		environ   []string
-		inSession bool
+		args    []byte
+		environ []string
 	}{
-		{name: "its title written over its arguments, the launch's environment cleaned", args: launch.Titled(laid(), node, argv, "claude"), environ: cleaned, inSession: true},
-		{name: "its title written over all ahead of its project, the launch inheriting the session's environment", args: aheadOfProject, environ: sessionEnv, inSession: true},
+		{name: "its title written over its arguments, the launch's environment cleaned", args: launch.Titled(laid(), node, argv, "claude"), environ: cleaned},
+		{name: "its title written over all ahead of its project, the launch inheriting the session's environment", args: aheadOfProject, environ: sessionEnv},
 		{name: "its title written over all ahead of its project, the launch's environment cleaned", args: aheadOfProject, environ: cleaned},
 	}
 	for _, tt := range tests {
@@ -54,11 +53,7 @@ func TestALaunchWithinASessionWhoseClaudeNodeRunsIsInItsPool(t *testing.T) {
 			h.launcher.Processes = laidOutProcesses{processes: sessionTable(sessionEnv), args: map[int][]byte{pid: tt.args}}
 
 			runs(t, h, cfg)
-			if tt.inSession {
-				placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
-				return
-			}
-			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
+			placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
 		})
 	}
 }

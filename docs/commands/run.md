@@ -72,19 +72,18 @@ The project follows the pool:
 | If the folder it starts in is | Then its project is |
 |---|---|
 | In a repository, or a worktree of one | That repository |
-| In the folder of a bare repository, or beside one named `.bare`, outside every worktree | The folder itself |
+| In the folder of a bare repository, or in a folder holding one named `.bare` or beside it, outside every worktree | The folder itself |
 | In no repository, and in the same pool as the session | The same project as the session |
 | In no repository, and a fence takes it into another pool | The folder itself |
 
 The session is the one whose `claude` started this `claude`, directly or through other programs.
 `run` looks for that `claude` among the programs that started this one, nearest first. It reads
-the environment that `claude` started with, which the programs the session runs can't change.
+the environment the session's `claude` started with, which the programs the session runs can't
+change. If `run` finds no session there, it reads the environment this `claude` inherits instead.
 
-Claude Code under Node writes its title over the memory `run` reads, though. If `run` finds no
-session in what it reads there, it reads the environment this `claude` inherits instead. It reads
-the inherited environment too if the one the session started with names no pool or no project. If
-neither environment names the pool that `run` gave the session, this `claude` is placed by its
-folder.
+`run` takes the pool and project of the session from `SWITCHBOARD_SET`, which records what `run`
+gave the session's `claude`. It never reads them from `SWITCHBOARD_POOL` and `SWITCHBOARD_PROJECT`.
+So a variable changed or unset since doesn't move this `claude` out of the session's pool.
 
 No session is found if:
 

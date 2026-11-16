@@ -587,6 +587,9 @@ func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
 		// and dir the one it starts in.
 		from string
 		dir  string
+		// edited is what the session's SWITCHBOARD_POOL is set to since,
+		// where it isn't "".
+		edited string
 		// launch starts it unaided, with pools.
 		launch func(ctx context.Context, l launch.Launcher) error
 		// wantRouted is whether it goes through the session's router, on the
@@ -594,7 +597,15 @@ func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
 		wantRouted bool
 	}{
 		{name: "within a session of its own pool", from: elsewhere, dir: homeDir + "/Code/site", launch: unreadable, wantRouted: true},
+		{
+			name: "within a session of its own pool, its SWITCHBOARD_POOL changed since to another's", from: elsewhere, dir: homeDir + "/Code/site",
+			edited: acmePool.ID, launch: unreadable, wantRouted: true,
+		},
 		{name: "within a session of a fenced pool, outside its fence", from: acmeDir, dir: elsewhere, launch: unreadable},
+		{
+			name: "within a session of a fenced pool, outside its fence, its SWITCHBOARD_POOL changed since to the pool there", from: acmeDir, dir: elsewhere,
+			edited: defaultPool.ID, launch: unreadable,
+		},
 		{
 			name: "within a session of a pool fenced by a directory in the home directory, read without one, outside its fence",
 			from: acmeDir,
@@ -633,7 +644,11 @@ func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
 			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
-			within := newHarness(t, h.only(t).session()...)
+			session := h.only(t).session()
+			if tt.edited != "" {
+				session = append(withoutVars(session, "SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+tt.edited)
+			}
+			within := newHarness(t, session...)
 			within.launcher.Dir = tt.dir
 
 			if err := tt.launch(t.Context(), within.launcher); err != nil {
@@ -642,8 +657,10 @@ func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
 			env := within.environment(t)
 			_, routed := env["ANTHROPIC_BASE_URL"]
 			_, token := env["CLAUDE_CODE_OAUTH_TOKEN"]
+			// A SWITCHBOARD_POOL changed since stays as it is where what run
+			// set goes.
 			pool, named := env["SWITCHBOARD_POOL"]
-			if routed != tt.wantRouted || token != tt.wantRouted || named != tt.wantRouted {
+			if routed != tt.wantRouted || token != tt.wantRouted || tt.edited == "" && named != tt.wantRouted {
 				t.Errorf("started routed: %v, with a token: %v, in pool %q; want each %v", routed, token, pool, tt.wantRouted)
 			}
 		})
