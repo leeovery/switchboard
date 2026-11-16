@@ -32,6 +32,7 @@ order, then find your symptom in the table below.
 | An export fails, or shows `running` for long | [An export that fails](troubleshooting/exports.md) |
 | Notifications don't show, or show as Script Editor | [Notifications that don't show](troubleshooting/notifications.md) |
 | The Log, or the session page, is slow to open | [The dashboard is slow to look back](troubleshooting/slow-pages.md) |
+| The wheel on Projects chooses the project above as your fingers move down | [The wheel on Projects](troubleshooting/wheel.md) |
 | You want to read the logs, or change how much they hold | [The logs](troubleshooting/logs.md) |
 
 Every command and flag is in [Commands](commands.md), and every file switchboard keeps is in

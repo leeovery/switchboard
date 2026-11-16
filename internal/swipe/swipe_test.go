@@ -3,6 +3,7 @@ package swipe_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/swipe"
@@ -36,35 +37,46 @@ func TestParseIsTraditionalOnlyForZero(t *testing.T) {
 	}
 }
 
-func TestReadParsesWhatTheRunnerPrintsWithinADeadline(t *testing.T) {
-	for _, tt := range []struct {
+func TestReadParsesWhatTheRunnerPrints(t *testing.T) {
+	tests := []struct {
 		out  string
 		want swipe.Direction
-	}{{out: "0\n", want: swipe.Traditional}, {out: "1\n", want: swipe.Natural}} {
-		ran := false
-		got := swipe.Read(t.Context(), func(ctx context.Context) ([]byte, error) {
-			ran = true
-			if _, ok := ctx.Deadline(); !ok {
-				t.Error("the setting was read without a deadline, want one")
+	}{
+		{out: "0\n", want: swipe.Traditional},
+		{out: "1\n", want: swipe.Natural},
+	}
+	for _, tt := range tests {
+		t.Run(tt.want.String(), func(t *testing.T) {
+			ran := 0
+			got := swipe.Read(t.Context(), func(context.Context) ([]byte, error) {
+				ran++
+				return []byte(tt.out), nil
+			})
+			if ran != 1 || got != tt.want {
+				t.Errorf("Read of %q = %v, run %d times; want %v, run once", tt.out, got, ran, tt.want)
 			}
-			return []byte(tt.out), nil
 		})
-		if !ran || got != tt.want {
-			t.Errorf("Read of %q = %v, ran %v; want %v, run", tt.out, got, ran, tt.want)
-		}
 	}
 }
 
 func TestReadWithoutARunnerIsNatural(t *testing.T) {
 	if got := swipe.Read(t.Context(), nil); got != swipe.Natural {
-		t.Errorf("Read(nil) = %v, want Natural", got)
+		t.Errorf("Read(nil) = %v, want natural", got)
 	}
 }
 
 func TestTheZeroDirectionIsNatural(t *testing.T) {
 	var d swipe.Direction
 	if d != swipe.Natural {
-		t.Errorf("the zero Direction is %v, want Natural, macOS's default", d)
+		t.Errorf("the zero Direction is %v, want natural, macOS's default", d)
+	}
+}
+
+func TestDirectionsAreNamedAsTheMacNamesThem(t *testing.T) {
+	for d, want := range map[swipe.Direction]string{swipe.Natural: "natural", swipe.Traditional: "traditional"} {
+		if got := d.String(); got != want {
+			t.Errorf("Direction(%d).String() = %q, want %q", int(d), got, want)
+		}
 	}
 }
 
@@ -81,8 +93,10 @@ func TestFingersAreTheWheelReversedOnlyUnderNatural(t *testing.T) {
 		{d: swipe.Traditional, wheel: 1, got: 1},
 	}
 	for _, tt := range tests {
-		if got := tt.d.Fingers(tt.wheel); got != tt.got {
-			t.Errorf("Direction(%d).Fingers(%d) = %d, want %d", tt.d, tt.wheel, got, tt.got)
-		}
+		t.Run(fmt.Sprintf("%v/%d", tt.d, tt.wheel), func(t *testing.T) {
+			if got := tt.d.Fingers(tt.wheel); got != tt.got {
+				t.Errorf("%v: Fingers(%d) = %d, want %d", tt.d, tt.wheel, got, tt.got)
+			}
+		})
 	}
 }

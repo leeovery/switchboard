@@ -2226,7 +2226,7 @@ formats below; the screens as signed off in Paper (see The screens, below).
   as when an edit by hand is caught half made, it takes them back, an account like any other
   again. While the primary has no usable token, they count no more than its own do.
 - The programs switchboard runs for itself, `claude --version`, `osascript`, its notifications'
-  app, `lsregister` and `launchctl`, get none of its environment but `PATH`, `HOME`, `TMPDIR` and
+  app, `lsregister`, `launchctl`, `plutil` and `defaults`, get none of its environment but `PATH`, `HOME`, `TMPDIR` and
   `LANG`. `claude --version` gets the
   `claude`'s own directory first on `PATH`, then the one its links lead to, so a script, such as
   npm's `claude`, run by `env node`, finds a `node` installed beside it under launchd's `PATH`,
@@ -3712,10 +3712,13 @@ Overview's SESSIONS):
 - the wheel scrolls what's under the pointer, where that scrolls; over Projects' list, it chooses
   the project before or after, a project a turn, the way the fingers move, as the arrows do there.
 
+Routing takes keys alone: no click opens the routing card or acts in it, so a stray click never
+moves a session.
+
 **The wheel follows the fingers over Projects' list.** Fingers down on the trackpad choose the
 next project down, and fingers up the one above, whichever way the Mac scrolls (the owner's call,
-16 November 2026). Everywhere else, the wheel moves content, and macOS already makes content follow
-the fingers. Projects' list is the one place the wheel moves a choice instead. The dashboard
+16 November 2026). Everywhere else, the wheel moves content, and macOS already scrolls content as
+the setting says. Projects' list is the one place the wheel moves a choice instead. The dashboard
 reads the Mac's scroll setting once, as it opens, and handles each turn over the list to match:
 
 | The Mac scrolls | Fingers down reach the terminal as | Over the list, the dashboard |
@@ -3726,11 +3729,12 @@ reads the Mac's scroll setting once, as it opens, and handles each turn over the
 The setting is `com.apple.swipescrolldirection` in the global domain, one setting for the trackpad
 and the mouse alike. `0` means traditional. `1`, no setting at all, or a read that fails means
 natural, macOS's default. Over SSH, for example from Blink on an iPad, the Mac's setting is still
-the one read. A touch drag acts as natural, so the list follows the fingers there too. A
-traditional Mac reached from an iPad gets the list's wheel backwards: an accepted miss.
+the one read. A touch drag acts as natural, so the list follows the fingers there too. Two
+accepted misses get the list's wheel backwards:
 
-Routing takes keys alone: no click opens the routing card or acts in it, so a stray click never
-moves a session.
+- a traditional Mac reached from an iPad;
+- a scroll-reversing tool, such as Scroll Reverser, Mos or LinearMouse, or a terminal that inverts
+  the wheel, which gives the wheel a direction the setting doesn't show.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
 shown, which the dashboard opens on; the Overview's sections shown and its `b`; Trends'
@@ -5486,9 +5490,10 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   as the page or the choice does. The project shown is held as chosen once any key, click or turn
   of the wheel moves the choice, the top row's included, else the top row is chosen as the list
   ranks afresh. The wheel moves the choice the way the fingers move, as the Mac's scroll setting
-  says: the one place the wheel moves a choice, not content (see Clicks). The choice is kept by path, and the session selected by id, across a rebuild, and
-  where the session selected showed, it's kept in view; a project that leaves the list leaves the
-  top row chosen, the list with the choice, no session selected and SESSIONS from its top.
+  says: the one place the wheel moves a choice, not content (see Clicks). The choice is kept by
+  path, and the session selected by id, across a rebuild, and where the session selected showed,
+  it's kept in view; a project that leaves the list leaves the top row chosen, the list with the
+  choice, no session selected and SESSIONS from its top.
 
 ### History
 

@@ -27,6 +27,14 @@ func TestTheDepsMainHandsRunFindTheProjectASessionRunsIn(t *testing.T) {
 	}
 }
 
+// main hands the dashboard what reads the Mac's scroll setting, never run
+// here.
+func TestTheDepsMainHandsTheDashboardReadTheMacsScrolling(t *testing.T) {
+	if deps().Scrolling == nil {
+		t.Fatal("main hands the dashboard no Scrolling: the wheel over Projects' list reads every Mac as natural")
+	}
+}
+
 func TestTheDepsMainHandsRunTellOfTheProcessesASessionRunsIn(t *testing.T) {
 	processes := deps().Processes
 	if processes == nil {

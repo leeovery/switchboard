@@ -21,20 +21,28 @@ const (
 	Traditional
 )
 
-// readTimeout bounds the read of the setting, which normally takes a
-// moment, so the dashboard never waits long on it to open.
-const readTimeout = 2 * time.Second
+const (
+	// readTimeout bounds the read of the setting, output and all, which
+	// normally takes a moment, so the dashboard never waits long on it to
+	// open.
+	readTimeout = 2 * time.Second
+	// waitDelay is how long, of readTimeout, what defaults printed is waited
+	// for once it has exited or been killed: a program it leaves running can
+	// hold its output open for as long as it runs.
+	waitDelay = 500 * time.Millisecond
+)
 
 // Runner reads the setting, returning what it printed, as Defaults does.
 type Runner func(ctx context.Context) ([]byte, error)
 
-// Read is the way the Mac scrolls, as run reads it within readTimeout and
-// Parse reads its answer: Natural where run is nil.
+// Read is the way the Mac scrolls, as run reads it, and Parse reads its
+// answer: Natural where run is nil. run has readTimeout less waitDelay, so
+// the read, its output waited for as Defaults waits, ends within readTimeout.
 func Read(ctx context.Context, run Runner) Direction {
 	if run == nil {
 		return Natural
 	}
-	ctx, cancel := context.WithTimeout(ctx, readTimeout)
+	ctx, cancel := context.WithTimeout(ctx, readTimeout-waitDelay)
 	defer cancel()
 	return Parse(run(ctx))
 }
@@ -48,6 +56,14 @@ func Parse(out []byte, err error) Direction {
 		return Traditional
 	}
 	return Natural
+}
+
+// String names d as the Mac's settings do: natural or traditional.
+func (d Direction) String() string {
+	if d == Traditional {
+		return "traditional"
+	}
+	return "natural"
 }
 
 // Fingers is the way the fingers moved, -1 up or 1 down, for a turn of the
