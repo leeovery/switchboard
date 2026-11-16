@@ -88,6 +88,7 @@ stack.
 | Key | Does |
 |---|---|
 | `↑` `↓` | Chooses the project. |
+| the wheel, over the list | Chooses the project before or after, as `↑` `↓` do. |
 | `→` `←` | Moves into the sessions of the chosen project, and back to the list. |
 | `↑` `↓`, then `enter` | In the sessions, chooses a session, and opens [its page](session-page.md). |
 | `<` `>` | Steps the period, shared with [Accounts](accounts.md) and the List on Sessions. |
