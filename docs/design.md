@@ -6450,17 +6450,17 @@ so one look compares every account (the owner's call, 24 October 2026):
   the words move onto the label's row, ending at the card's last column, two cells clear of the label
   at the least, and the blank row goes.
 - **Its words:** the room left, its figure bold in its use's level's colour, as `usage` colours a
-  use, `66%`, and ` left` in `text.muted`; then `  ·  ` in `text.muted`, and the words under the
-  account's lane on Runway in that window's view, inked as Runway inks them: `capped 14:31  ·
-  back 17:10`, `out ~Sat 06:00`, `resets Sun 21:00`, `room all day`. Where its reading is stale,
-  why comes first, after the room, as `usage` words it in full: `subscription lapsed` or
-  `token refused` in `state.destructive`, or `not read since 14:20` in `text.subtle`; but not where
-  the router refused the token, which the words from Runway say, `token refused (401) 14:20`
-  (the owner's call, 16 November 2026). Where the
-  window runs out or reaches its cap at its pace past the view's end, before it resets, the words
-  say that too, as Runway would were its lane drawn on, after what it says, never `room all week`
-  over a chart that runs out. Where they don't fit the card, whole parts go from the end, as Runway
-  drops them.
+  use, `66%`, and ` left` in `text.muted`; then, each after `  ·  ` in `text.muted`, why its reading
+  is stale where it is, as `usage` words it in full, `subscription lapsed` or `token refused` in
+  `state.destructive`, or `not read since 14:20` in `text.subtle`; and the words under the account's
+  lane on Runway in that window's view, inked as Runway inks them: `capped 14:31  ·  back 17:10`,
+  `out ~Sat 06:00`, `resets Sun 21:00`, `room all day`. Where the router refused the token, `token
+  refused` is left out, because the words from Runway say it, `token refused (401) 14:20`;
+  `subscription lapsed` still shows under a 401 from the router (the owner's call, 16 November
+  2026). Where the window runs out or reaches its cap at its pace past the view's end, before it
+  resets, the words say that too, as Runway would were its lane drawn on, after what it says, never
+  `room all week` over a chart that runs out. Where they don't fit the card, whole parts go from the
+  end, as Runway drops them.
 - **The chart,** `h` rows, a column a cell over the window's length, now's column
   `min(round(pace × width), width − 1)`:
   - **The room left:** each column before now's filled to the room its middle had, `1 − use`,
@@ -6502,8 +6502,7 @@ so one look compares every account (the owner's call, 24 October 2026):
 - **An account with nothing to draw,** not read yet or whose first read failed, has its words as
   Runway's lane has them and its chart empty but for now's `│`; one without a usable token has no
   room all along; a stale one is faded, as a stale reading is everywhere (see What moves), its words
-  saying why; one out of
-  the pool is faint, as the Overview draws it.
+  saying why; one out of the pool is faint, as the Overview draws it.
 - **An account the router's document doesn't hold yet,** as one just added to the config, has its
   label alone and its chart empty but for now's `│`, after the document's last, in the config's
   order among those it lacks, as Runway will place it once the router has it.

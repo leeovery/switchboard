@@ -626,7 +626,7 @@ func (a accountWorlds) lapsed() accountWorld {
 			history:  t.history(accounts),
 			refused:  map[string]status.Refusal{"work": refused},
 			stale:    map[string]time.Time{"work": dayAt(a.now, today, 14, 20, 0), "personal": dayAt(a.now, today, 13, 35, 0)},
-			failed:   map[string]string{"personal": lapsedError},
+			failed:   map[string]string{"personal": endedSubscription},
 			sessions: map[string]int{"side": 6},
 			best:     "side",
 			events:   ofTheRun(happenings{a.now}.lapsed(refused)),
@@ -634,9 +634,10 @@ func (a accountWorlds) lapsed() accountWorld {
 	})
 }
 
-// lapsedError is the error of an ended subscription's probe, as the probe
-// gives it: answered 403, the API's message cut to the 60 characters kept.
-const lapsedError = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+// endedSubscription is the error of an ended subscription's probe, as the
+// probe gives it: answered 403, the API's message cut to the 60 characters
+// kept.
+const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 
 // many is the world of the frames of six or ten accounts: the auto world's
 // three and the first n−3 of the seven more (dash3.EXTRA): client, its

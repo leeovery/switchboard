@@ -17,7 +17,7 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	failing := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
 	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: at(1, 21, 40).UTC(), Status: 401} }
 	readRefused := func(a *status.Account) { a.Error = "HTTP 401 · Invalid bearer token" }
-	ended := func(a *status.Account) { a.Error = endedError }
+	ended := func(a *status.Account) { a.Error = endedSubscription }
 	read := stateNow.Add(-4 * time.Second).UTC()
 	tests := []struct {
 		name    string
@@ -209,9 +209,9 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	}
 }
 
-// endedError is the error of an ended subscription's probe, as the probe
-// gives it, the API's message cut to the 60 characters it keeps.
-const endedError = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+// endedSubscription is the error of an ended subscription's probe, as the
+// probe gives it, the API's message cut to the 60 characters it keeps.
+const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 
 // A stale reading says why it's stale, the first that holds of: its
 // subscription ended, as its last read was answered 403 refusing its
@@ -228,12 +228,12 @@ func TestAStaleReadingSaysWhyItsStale(t *testing.T) {
 		wantKind  status.WindowKind
 		wantStale status.StaleCause
 	}{
-		{name: "its organization's login refused: subscription lapsed", error: endedError, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{name: "its organization's login refused: subscription lapsed", error: endedSubscription, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
 		{
 			name: "its organization's login refused, in another case: subscription lapsed", error: "HTTP 403 · oauth AUTHENTICATION is Currently NOT allowed",
 			wantKind: status.WindowStale, wantStale: status.StaleLapsed,
 		},
-		{name: "its organization's login refused, its token too: subscription lapsed", error: endedError, refused: refused, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{name: "its organization's login refused, its token too: subscription lapsed", error: endedSubscription, refused: refused, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
 		{name: "a 403 saying anything else: failed", error: "HTTP 403 · Not allowed", wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{name: "a 403 without a message: failed", error: "HTTP 403", wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{

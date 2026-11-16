@@ -1,8 +1,8 @@
 # Pausing an account
 
-A subscription that's cancelled goes on until the end of its billing period, then lapses, and may
-be taken up again later. Switchboard has no word for that today: the account is either configured
-and routed, failing once its subscription lapses, or removed, its token deleted and its place in the
+A subscription that's cancelled stays live until its billing period is over, then ends, and may be
+taken up again later. Switchboard has no word for that today: the account is either configured
+and routed, failing once its subscription ends, or removed, its token deleted and its place in the
 config gone. Account identity softens removing, as adding the same organization back restores its
 id and its history, but the label, plan, pool and reserve are set up again by hand, and a new token
 made.
@@ -22,7 +22,7 @@ it was live as one, so pausing isn't a plan, and setup's `not set` isn't a way t
 
 - A pool's primary paused: refused until another account is made primary, or the pool's next
   account taking its parts, as when a primary moves pool.
-- Whether a lapse noticed by the router, from the answers a lapsed subscription gets, offers to
+- Whether an end noticed by the router, from the answers an ended subscription gets, offers to
   pause the account, or pauses it.
 
 Raised by the owner on 11 November 2026, for after Account identity and Pools are built.

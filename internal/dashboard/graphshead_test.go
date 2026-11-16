@@ -51,12 +51,12 @@ func spanInks(parts []line) []ink {
 
 // A card's words are its room, 66% left, the figure in its use's level's
 // colour, as usage colours a use, faded as a stale reading's; then why it's
-// stale, as USAGE words it, but where its stretch says the router refused
-// its token; then the words Runway says under its lane in its week's view,
-// after prose.Separator,
-// each phrase after the one before alike, inked as Runway inks them. Where
-// its use isn't read, the lane's words alone, or what Runway's label says of
-// it. Out of the pool, every word is faint, the figure bold.
+// stale, as USAGE words it; then the words Runway says under its lane in its
+// week's view, each phrase after prose.Separator, inked as Runway inks them.
+// Where the router refused its token, its stretch says so, and "token
+// refused" goes; an ended subscription still says so under it. Where its
+// use isn't read, the lane's words alone, or what Runway's label says of it.
+// Out of the pool, every word is faint, the figure bold.
 func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	week := runwayLive()
 	tl := week.Timeline

@@ -329,10 +329,11 @@ func justAfterAFiveHourReset() []RunwayMoment {
 
 // failedReads has work's first read fail, nothing read of it before, so its
 // lane is blank, counted without room; its read fail after one at 14:20,
-// its lane drawn as read, its use stale; its 5-hour not reported, its week
-// alone read, so it lacks a 5-hour window, as a verified Ultra account does,
-// and has no lane, side's alone, with no pool's lane; and its windows
-// listed, nothing read of them yet.
+// its lane drawn as read, its use stale; its subscription end after a read
+// at 14:20, drawn alike, its use stale as lapsed; its 5-hour not reported,
+// its week alone read, so it lacks a 5-hour window, as a verified Ultra
+// account does, and has no lane, side's alone, with no pool's lane; and its
+// windows listed, nothing read of them yet.
 func failedReads() []RunwayMoment {
 	unread := status.Account{ID: work, Label: work, TokenSet: true, Error: "HTTP 529 · Overloaded"}
 	stale := readAccount(work, onThu(14, 20, 0), window(fiveHour, 0.4, onThu(16, 30, 0)), window(week, 0.3, mondayTen))

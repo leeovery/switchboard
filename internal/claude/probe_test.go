@@ -818,8 +818,8 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 	})
 }
 
-// lapsedMessage is how the API answers an ended subscription's probe, 403.
-const lapsedMessage = "OAuth authentication is currently not allowed for this organization."
+// endedSubscription is how the API answers an ended subscription's probe, 403.
+const endedSubscription = "OAuth authentication is currently not allowed for this organization."
 
 // The text of a probe's error, as the probe gives it, read back, says
 // whether the API refused the token, answering 401, or the organization's
@@ -827,18 +827,18 @@ const lapsedMessage = "OAuth authentication is currently not allowed for this or
 // answered with, in any case: never another 403, nor a 401 without a message.
 func TestAProbesErrorSaysWhetherItsTokenOrItsLoginWasRefused(t *testing.T) {
 	tests := []struct {
-		name                    string
-		reply                   reply
-		wantRefused, wantLapsed bool
+		name                   string
+		reply                  reply
+		wantRefused, wantEnded bool
 	}{
 		{name: "401", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), wantRefused: true},
 		{name: "401 without a message", reply: reply{status: http.StatusUnauthorized}, wantRefused: true},
-		{name: "403, the login barred", reply: apiError(http.StatusForbidden, lapsedMessage), wantLapsed: true},
-		{name: "403, the login barred, in another case", reply: apiError(http.StatusForbidden, strings.ToUpper(lapsedMessage)), wantLapsed: true},
-		{name: "403, the login barred, in lower case", reply: apiError(http.StatusForbidden, strings.ToLower(lapsedMessage)), wantLapsed: true},
+		{name: "403, the login barred", reply: apiError(http.StatusForbidden, endedSubscription), wantEnded: true},
+		{name: "403, the login barred, in another case", reply: apiError(http.StatusForbidden, strings.ToUpper(endedSubscription)), wantEnded: true},
+		{name: "403, the login barred, in lower case", reply: apiError(http.StatusForbidden, strings.ToLower(endedSubscription)), wantEnded: true},
 		{name: "403 with another message", reply: apiError(http.StatusForbidden, "Not allowed")},
 		{name: "403 without a message", reply: reply{status: http.StatusForbidden}},
-		{name: "another status with the login's message", reply: apiError(http.StatusBadRequest, lapsedMessage)},
+		{name: "another status with the login's message", reply: apiError(http.StatusBadRequest, endedSubscription)},
 		{name: "529", reply: apiError(529, "Overloaded")},
 		{name: "no answer in time", reply: reply{hang: true}},
 	}
@@ -854,8 +854,8 @@ func TestAProbesErrorSaysWhetherItsTokenOrItsLoginWasRefused(t *testing.T) {
 			if got := claude.TokenRefusedRead(err.Error()); got != tt.wantRefused {
 				t.Errorf("TokenRefusedRead(%q) = %v, want %v", err, got, tt.wantRefused)
 			}
-			if got := claude.LoginBarredRead(err.Error()); got != tt.wantLapsed {
-				t.Errorf("LoginBarredRead(%q) = %v, want %v", err, got, tt.wantLapsed)
+			if got := claude.LoginBarredRead(err.Error()); got != tt.wantEnded {
+				t.Errorf("LoginBarredRead(%q) = %v, want %v", err, got, tt.wantEnded)
 			}
 		})
 	}

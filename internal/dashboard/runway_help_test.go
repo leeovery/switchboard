@@ -164,7 +164,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"a collapsed use out of the pool", "faint where the pool leaves its account out"},
 		{"the words after a collapsed use", "The words under a lane start two cells after its use where they'd otherwise meet it"},
 		{"the pool's room collapsed", "without Σ pool, under the lane's start, of how many of the pool's accounts have the week, as 1.2/3"},
-		{"a lapsed or refused account", "lapsed where its subscription has ended, and refused where its token is refused, both in red"},
+		{"an ended subscription or a refused token", "lapsed where its subscription has ended, and refused where its token is refused, both in red"},
 		{"a stale account", "read 14:20 where its last read failed otherwise; and not read before its first"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
 		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},

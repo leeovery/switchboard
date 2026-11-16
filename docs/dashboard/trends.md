@@ -40,8 +40,9 @@ the chart are the account's name, its marks and its words, such as
 
 The room left comes first. If the reading is stale, why comes next, as `usage` says it:
 `subscription lapsed` or `token refused` in red, or `not read since 14:20`. The rest are the words
-[Runway](runway.md) gives the account at the same width. A hold shorter than one column of Runway can go unsaid, on a card as on Runway. A
-wider terminal can bring it out, and so can collapsing the labels on Runway with `a`.
+[Runway](runway.md) gives the account at the same width. A hold shorter than one column of Runway
+can go unsaid, on a card as on Runway. A wider terminal can bring it out, and so can collapsing the
+labels on Runway with `a`.
 
 | Mark | Means |
 |---|---|
