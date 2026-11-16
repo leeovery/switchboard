@@ -78,8 +78,9 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("Two cards a row at the most, each as wide as the other, so the same burn draws the same slope on every " +
 				"card; an odd one last sits under the first, as wide. Where two don't fit side by side, a card a row."),
 			said("Over the card, the account's name and marks, and its words: the room it has left, as 66% left, its " +
-				"figure coloured as switchboard usage colours a use, then what Runway says under its lane in its week's " +
-				"view, as capped 14:31  ·  back 17:10 or out ~Sat, inked as Runway inks them, " +
+				"figure coloured as switchboard usage colours a use; where its reading is stale, why, as switchboard usage " +
+				"says it, subscription lapsed or token refused in red, or not read since 14:20; then what Runway says " +
+				"under its lane in its week's view, as capped 14:31  ·  back 17:10 or out ~Sat, inked as Runway inks them, " +
 				"whole parts going from the end where they don't fit. They're read from Runway's live view as Runway would " +
 				"draw it at this width, so a hold shorter than one of its columns can go unsaid; a wider terminal, or " +
 				"Runway's labels collapsed, gives finer columns, which can bring it out."),
@@ -91,8 +92,8 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("Where the account's reserve holds, so not while a pin spends it, a faint dotted line marks the room its cap " +
 				"leaves. The week's ink is its state's, as Runway's lanes colour one."),
 			said("An account not read yet, or whose first read failed, has Runway's words for it and its chart empty but for " +
-				"now's │; one the router doesn't hold yet has its label alone, no words, its chart empty but for now's │. One without a usable token has no room all along; a stale one is faded, and one out of the pool " +
-				"faint."),
+				"now's │; one the router doesn't hold yet has its label alone, no words, its chart empty but for now's │. One without a usable token has no room all along; a stale one is faded, its words saying why, and one " +
+				"out of the pool faint."),
 			said("Under the cards, Σ pool: the pool's room in the week, as Runway's pool lane words it, as week 1.2 of 3 " +
 				"left, and pinned after it while a pin holds the pool. With one account there's no pool, and no line."),
 		},

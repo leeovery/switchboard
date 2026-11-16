@@ -38,9 +38,11 @@ Each card charts one account's room over its week, from the week's start to its 
 the chart are the account's name, its marks and its words, such as
 `66% left  ·  capped 14:31  ·  back 17:10`.
 
-The room left comes first. The rest are the words [Runway](runway.md) gives the account at the
-same width. A hold shorter than one column of Runway can go unsaid, on a card as on Runway. A
-wider terminal can bring it out, and so can collapsing the labels on Runway with `a`.
+The room left comes first. If the reading is stale, why comes next, as `usage` says it:
+`subscription lapsed` or `token refused` in red, or `not read since 14:20`. The rest are the words
+[Runway](runway.md) gives the account at the same width. A hold shorter than one column of Runway
+can go unsaid, on a card as on Runway. A wider terminal can bring it out, and so can collapsing the
+labels on Runway with `a`.
 
 | Mark | Means |
 |---|---|
@@ -66,7 +68,7 @@ A card takes its colour from its week's state, as a lane on Runway does:
 
 - An account not read yet shows its words from Runway and an empty chart, with only now drawn.
 - An account the router doesn't have yet, just added to the config, shows its label only.
-- A stale account is faded, and one that a pin leaves out of the pool is faint.
+- A stale account is faded, and its words say why. One that a pin leaves out of the pool is faint.
 
 The cards follow the config's order, two side by side if both fit at 35 cells or more. Every
 card is as wide as the others, so the same burn draws the same slope on each. With three accounts,

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -157,7 +158,8 @@ func (v laneView) cardWords(ln laidLane, now time.Time) []line {
 }
 
 // cardPhrases are the parts of each phrase a card of the lane ln, in the
-// view v of its window, says at now after its room: what's said under the
+// view v of its window, says at now after its room: why its use is stale,
+// as staleSaid has it, where it says; then what's said under the
 // lane on Runway, as said has it, its phrases, in Runway's order, and those
 // sharing a column in the order of when what each says of begins, as a
 // reset there before a stretch starting after it, which Runway drops, as
@@ -177,6 +179,9 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 		said = says.instead
 	}
 	var phrases [][]line
+	if stale, ok := ln.staleSaid(now); ok {
+		phrases = append(phrases, []line{stale})
+	}
 	for _, p := range said {
 		phrases = append(phrases, p.parts)
 	}
@@ -184,6 +189,19 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 		phrases = append(phrases, []line{ln.useWords(runwayWeek, now).short})
 	}
 	return phrases
+}
+
+// staleSaid is why the lane's use is stale, as a card says it after its
+// room, in full, as USAGE says it of a window: its subscription ended, its
+// token refused, or when it was last read; reporting false where it isn't
+// stale, or where its token's refused and the router refused it, which its
+// stretch says, as "token refused (401) 14:20".
+func (ln laidLane) staleSaid(now time.Time) (line, bool) {
+	u := ln.Use
+	if !u.Stale || u.StaleCause == status.StaleRefused && ln.account.TokenRefused {
+		return nil, false
+	}
+	return staleWords(u.StaleCause, u.ReadAt, now).full, true
 }
 
 // beyond are the phrases of each stretch the lane ln would have past the

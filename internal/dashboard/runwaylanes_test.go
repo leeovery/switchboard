@@ -227,10 +227,13 @@ func TestALaneMarksEachResetOfTheViewsWindowItHas(t *testing.T) {
 // second column: live, its share, bold in its level's colour and numbered;
 // stepped back, the highest the days read, so too, or —; not read, why,
 // always short, so the column holds still as an account goes stale, at its
-// most too; and out of the pool, the whole label faint.
+// most too, its subscription ended and its token refused in red; and out of
+// the pool, the whole label faint.
 func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 	work := accountName{label: "work"}
-	stale := views.Use{Key: "5h", Used: 0.95, Read: true, Stale: true, ReadAt: routedClock(1, 14, 20)}
+	stale := views.Use{Key: "5h", Used: 0.95, Read: true, Stale: true, StaleCause: status.StaleFailed, ReadAt: routedClock(1, 14, 20)}
+	lapsed, refused := stale, stale
+	lapsed.StaleCause, refused.StaleCause = status.StaleLapsed, status.StaleRefused
 	staleBefore := stale
 	staleBefore.ReadAt = time.Date(2026, 9, 30, 14, 20, 0, 0, time.UTC)
 	tests := []struct {
@@ -259,6 +262,8 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 		},
 		{name: "stale, short", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "work", use: "read 14:20", useInks: []ink{dimInk}},
 		{name: "stale since a day before, short", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: staleBefore}}, head: "work", use: "read Wed", useInks: []ink{dimInk}},
+		{name: "its subscription ended, short, red", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: lapsed}}, head: "work", use: "lapsed", useInks: []ink{errorInk}},
+		{name: "its token refused, short, red", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: refused}}, head: "work", use: "refused", useInks: []ink{errorInk}},
 		{name: "not read yet, short", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Unread: true}}}, head: "work", use: "not read", useInks: []ink{dimInk}},
 		{name: "without a token", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "work", use: "no token", useInks: []ink{errorInk}},
 		{

@@ -50,11 +50,13 @@ func spanInks(parts []line) []ink {
 }
 
 // A card's words are its room, 66% left, the figure in its use's level's
-// colour, as usage colours a use, faded as a stale reading's; then the words
-// Runway says under its lane in its week's view, after prose.Separator,
-// each phrase after the one before alike, inked as Runway inks them. Where
-// its use isn't read, the lane's words alone, or what Runway's label says of
-// it. Out of the pool, every word is faint, the figure bold.
+// colour, as usage colours a use, faded as a stale reading's; then why it's
+// stale, as USAGE words it; then the words Runway says under its lane in its
+// week's view, each phrase after prose.Separator, inked as Runway inks them.
+// Where the router refused its token, its stretch says so, and "token
+// refused" goes; an ended subscription still says so under it. Where its
+// use isn't read, the lane's words alone, or what Runway's label says of it.
+// Out of the pool, every word is faint, the figure bold.
 func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	week := runwayLive()
 	tl := week.Timeline
@@ -67,10 +69,14 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	out.Projected, out.AsItResets = true, true
 	limited := weekStretch(tl, views.CellLimited, routedClock(1, 13, 58), routedClock(2, 15, 30))
 	refused := cardLane(0.34, weekStretch(tl, views.CellRefused, routedClock(1, 14, 12), routedClock(1, 15, 0)))
-	refused.Use.Stale, refused.account.TokenRefused = true, true
+	refused.Use.Stale, refused.Use.StaleCause, refused.account.TokenRefused = true, status.StaleRefused, true
 	refused.account.Refusal = status.Refusal{Until: routedClock(1, 15, 0), Status: 401}
+	lapsedRefused := refused
+	lapsedRefused.Use.StaleCause = status.StaleLapsed
 	stale := cardLane(0.34)
-	stale.Use.Stale = true
+	stale.Use.Stale, stale.Use.StaleCause, stale.Use.ReadAt = true, status.StaleFailed, routedClock(1, 14, 20)
+	lapsed, readRefused := stale, stale
+	lapsed.Use.StaleCause, readRefused.Use.StaleCause = status.StaleLapsed, status.StaleRefused
 	out2 := cardLane(0.34)
 	out2.account.OutOfPool = true
 	unreadable := unusedLane(views.Use{Key: "7d", Unread: true})
@@ -119,7 +125,23 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 			name: "its token refused", lane: refused,
 			want: "66% left  ·  token refused (401) 14:12  ·  back 15:00", inks: []ink{dimInk, mutedInk, mutedInk, exhaustedInk, mutedInk},
 		},
-		{name: "stale", lane: stale, want: "66% left  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, dimInk}},
+		{
+			name: "stale, its last read failed", lane: stale,
+			want: "66% left  ·  not read since 14:20  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, dimInk, mutedInk, dimInk},
+		},
+		{
+			name: "stale, its subscription ended", lane: lapsed,
+			want: "66% left  ·  subscription lapsed  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, errorInk, mutedInk, dimInk},
+		},
+		{
+			name: "stale, its last read refusing its token", lane: readRefused,
+			want: "66% left  ·  token refused  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, errorInk, mutedInk, dimInk},
+		},
+		{
+			name: "its subscription ended, the router refusing its token too", lane: lapsedRefused,
+			want: "66% left  ·  subscription lapsed  ·  token refused (401) 14:12  ·  back 15:00",
+			inks: []ink{dimInk, mutedInk, mutedInk, errorInk, mutedInk, exhaustedInk, mutedInk},
+		},
 		{
 			name: "out of the pool", lane: out2,
 			want: "66% left  ·  room all week", inks: []ink{{token: theme.TextFaint, bold: true}, faintInk, faintInk, faintInk},

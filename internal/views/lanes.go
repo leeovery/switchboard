@@ -222,9 +222,10 @@ type Use struct {
 	// or nothing read of it yet. TokenForeign is set where it's tokenless as
 	// the token its account holds is another subscription's, as the moment
 	// has its window. Stale is set where its token is refused or its last
-	// read failed, as the moment has its window stale, ReadAt when it was
-	// last read.
+	// read failed, as the moment has its window stale, StaleCause why, as
+	// the window's Stale says, and ReadAt when it was last read.
 	Tokenless, TokenForeign, Unread, Stale bool
+	StaleCause                             status.StaleCause
 	ReadAt                                 time.Time
 }
 

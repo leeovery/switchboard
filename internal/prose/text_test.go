@@ -60,6 +60,20 @@ func TestAnAccountWithoutATokenOfItsOwnIsSaidShortByWhy(t *testing.T) {
 	}
 }
 
+// A reading the API refuses says why in full and short: its subscription
+// lapsed, or its token refused.
+func TestARefusedReadingIsSaidByWhyInFullAndShort(t *testing.T) {
+	tests := []struct{ full, short, wantFull, wantShort string }{
+		{prose.SubscriptionLapsed, prose.SubscriptionLapsedShort, "subscription lapsed", "lapsed"},
+		{prose.TokenRefused, prose.TokenRefusedShort, "token refused", "refused"},
+	}
+	for _, tt := range tests {
+		if tt.full != tt.wantFull || tt.short != tt.wantShort {
+			t.Errorf("said %q, short %q; want %q, short %q", tt.full, tt.short, tt.wantFull, tt.wantShort)
+		}
+	}
+}
+
 func TestList(t *testing.T) {
 	tests := []struct {
 		items []string

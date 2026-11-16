@@ -51,8 +51,7 @@ is then `false`, and `error` says what puts it right. See [Tokens](tokens.md).
 | `extra_usage` | object | The extra usage of the account, as `{status, utilization, resets_at}`. |
 | `failures` | list of objects | Each window that couldn't be read, as `{label, window, error}`. |
 
-A lapsed window has passed its reset with nothing read since. It reads empty, because it isn't
-running until a request starts it.
+Each key in `lapsed` names a [lapsed](../glossary.md) window.
 
 Each window holds these:
 

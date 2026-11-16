@@ -338,7 +338,7 @@ func (d drawn) figure(a status.AccountNow, w status.WindowNow) (Figure, bool) {
 func (d drawn) stale(a status.AccountNow, w status.WindowNow) []viewSays {
 	var says []viewSays
 	if g, ok := d.gauge(a, w); ok {
-		says = append(says, viewSays{"USAGE", staleness(strings.HasPrefix(g.words.full.plain(), "not read since "))})
+		says = append(says, viewSays{"USAGE", staleness(staleSaid(g.words.full.plain()) != 0)})
 	}
 	if f, ok := d.figure(a, w); ok {
 		says = append(says, viewSays{"the routing card", staleness(f.Stale)})

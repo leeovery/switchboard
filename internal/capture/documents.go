@@ -23,7 +23,8 @@ import (
 // readings history read them, which its document and its records are both
 // made from; and as the router stands with them then, which the readings
 // don't hold: its pin, the limits and refusals in force, when it
-// last read an account it couldn't read since, how many sessions it sent
+// last read an account it couldn't read since, and why, where its probe's
+// error says, how many sessions it sent
 // each in the last hour, and where it sends new sessions, where the frames
 // say so; the sessions it lists at a moment, as GET /sessions gives them,
 // where the world has them; what it has told of since it started, its events,
@@ -45,6 +46,7 @@ type accountWorld struct {
 	limits     map[string]status.Limit
 	refused    map[string]status.Refusal
 	stale      map[string]time.Time
+	failed     map[string]string
 	sessions   map[string]int
 	best       string
 	routed     func(now time.Time) []status.Session
@@ -160,7 +162,7 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) (status
 	latest := held.windows(claude.WindowLabel)
 	st.Windows, st.Extra = latest, extraOff
 	st = st.AsOf(claude.Policy(), at)
-	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
+	st.Limit, st.Refused, st.Sessions, st.Error = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID], w.failed[a.ID]
 	took := held.takenUp()
 	st.Rates = status.RatesOf(latest, took.trails, took.fastAt(at), at)
 	st.Pressure = pressureOf(st, latest, took.trails, w.pin.Has(a.ID), at)
@@ -600,6 +602,42 @@ func (a accountWorlds) badHour() accountWorld {
 		}
 	})
 }
+
+// lapsed is the world of an ended subscription and a refused token:
+// personal's subscription ended, its last read at 13:35 and every probe
+// since refused its organization's login, as an ended subscription's is;
+// work's token refused, with a 401, since 14:20, as in the bad hour, nothing
+// read of it since; and side open, every session on it. The router tells of
+// it as happenings' lapsed has it.
+func (a accountWorlds) lapsed() accountWorld {
+	return a.kept("lapsed", func() accountWorld {
+		accounts := firstAccounts(3)
+		t := a.today()
+		t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
+		t.session("work", t.at(12, 10, 0), true, level{t.at(14, 15, 0), .82})
+		t.week("work", .12, level{t.at(14, 15, 0), .34})
+		t.session("personal", t.at(6, 30, 0), false, level{t.at(11, 10, 0), .18})
+		t.session("personal", t.at(11, 30, 0), true, level{t.at(13, 32, 41), .31})
+		t.week("personal", 0, level{t.at(13, 32, 41), .65})
+		t.side(sidesFable)
+		refused := status.Refusal{Until: dayAt(a.now, today, 14, 51, 0).UTC(), Status: 401}
+		return accountWorld{
+			accounts: accounts,
+			history:  t.history(accounts),
+			refused:  map[string]status.Refusal{"work": refused},
+			stale:    map[string]time.Time{"work": dayAt(a.now, today, 14, 20, 0), "personal": dayAt(a.now, today, 13, 35, 0)},
+			failed:   map[string]string{"personal": endedSubscription},
+			sessions: map[string]int{"side": 6},
+			best:     "side",
+			events:   ofTheRun(happenings{a.now}.lapsed(refused)),
+		}
+	})
+}
+
+// endedSubscription is the error of an ended subscription's probe, as the
+// probe gives it: answered 403, the API's message cut to the 60 characters
+// kept.
+const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 
 // many is the world of the frames of six or ten accounts: the auto world's
 // three and the first n−3 of the seven more (dash3.EXTRA): client, its

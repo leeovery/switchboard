@@ -419,6 +419,32 @@ func TestWeeksToCountsTheWeeksThenNamesTheDay(t *testing.T) {
 	}
 }
 
+// A reading of an account whose last read failed says when it was taken,
+// in full and short: by its time today, its weekday within the week, and
+// its date from this day last week, short its date alone.
+func TestNotReadSinceSaysWhenTheLastReadingWasTaken(t *testing.T) {
+	// Thursday 1 October, 14:42, an hour ahead of UTC.
+	zone := time.FixedZone("UTC+1", 60*60)
+	now := time.Date(2026, 10, 1, 14, 42, 0, 0, zone)
+	tests := []struct {
+		name        string
+		t           time.Time
+		full, short string
+	}{
+		{name: "today", t: time.Date(2026, 10, 1, 14, 20, 0, 0, zone), full: "not read since 14:20", short: "read 14:20"},
+		{name: "another day", t: time.Date(2026, 9, 30, 22, 10, 0, 0, zone), full: "not read since Wed 22:10", short: "read Wed"},
+		{name: "six days back", t: time.Date(2026, 9, 25, 9, 5, 0, 0, zone), full: "not read since Fri 09:05", short: "read Fri"},
+		{name: "this day last week, by its date", t: time.Date(2026, 9, 24, 9, 5, 0, 0, zone), full: "not read since 24 Sep 09:05", short: "read 24 Sep"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if full, short := prose.NotReadSince(now, tt.t); full != tt.full || short != tt.short {
+				t.Errorf("NotReadSince() = %q, %q; want %q, %q", full, short, tt.full, tt.short)
+			}
+		})
+	}
+}
+
 func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 	// Wednesday 7 October, 01:30, an hour ahead of UTC.
 	now := time.Date(2026, 10, 7, 1, 30, 0, 0, time.FixedZone("UTC+1", 60*60))

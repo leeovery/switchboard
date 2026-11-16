@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
@@ -30,8 +31,9 @@ const (
 	// where that's unknown.
 	WindowLimited
 	// WindowStale is a window of an account whose token is refused, or whose
-	// last read failed, last read At. A refused token is tried before
-	// WindowNotStarted, and a failed read after it.
+	// last read failed, last read At, as its StaleCause says. The router's
+	// refusal of its token is tried before WindowNotStarted, and a failed
+	// read, whatever it says, after it.
 	WindowStale
 	// WindowNotStarted is the window a request starts, lapsed, as hasLapsed
 	// judges it: it isn't running, and reads empty, until a request starts it.
@@ -46,6 +48,41 @@ const (
 	// WindowOpen is any other window: its allowance runs to its reset, At.
 	WindowOpen
 )
+
+// StaleCause is why an account's reading is stale, as a WindowStale window's
+// Stale says: zero where it isn't.
+type StaleCause int
+
+// The causes, in the order staleCause tries them: the first that holds is
+// the one said.
+const (
+	// StaleLapsed is an account whose subscription has ended: its last read
+	// was refused its organization's login, as claude.LoginBarredRead finds
+	// it, which is how an ended subscription is answered.
+	StaleLapsed StaleCause = iota + 1
+	// StaleRefused is an account whose token is refused: the router saw the
+	// upstream refuse it, or its last read was answered 401, as
+	// claude.TokenRefusedRead finds it.
+	StaleRefused
+	// StaleFailed is an account whose last read failed otherwise.
+	StaleFailed
+)
+
+// staleCause is why the account's reading is stale at now, as StaleCause
+// orders the causes: zero where it isn't, its token not refused at now and
+// its last read not failed.
+func (a Account) staleCause(now time.Time) StaleCause {
+	failed := a.Error != ""
+	switch {
+	case failed && claude.LoginBarredRead(a.Error):
+		return StaleLapsed
+	case a.tokenRefused(now), failed && claude.TokenRefusedRead(a.Error):
+		return StaleRefused
+	case failed:
+		return StaleFailed
+	}
+	return 0
+}
 
 // windowStates are how the windows of an account of a document stand at a
 // moment, as a policy judges them, and how the account stands then: what
@@ -78,6 +115,9 @@ type windowStates struct {
 	// lacks are the keys of the windows every model shares that the account
 	// lacks, as lacking has them.
 	lacks []string
+	// stale is why its reading is stale at now, as staleCause has it: zero
+	// where it isn't.
+	stale StaleCause
 }
 
 // windowStatesOf are how doc's account a's windows stand at now, as policy
@@ -88,7 +128,7 @@ func (d Document) windowStatesOf(a Account, now time.Time, policy score.Policy) 
 	s := windowStates{
 		doc: d, account: a, now: now, policy: policy, reached: a.reachedReserve(now),
 		refusing: a.Refused.holds(now), idle: a.idleAt(now, policy), pressed: a.underPressure(now),
-		lacks: a.lacking(policy),
+		lacks: a.lacking(policy), stale: a.staleCause(now),
 	}
 	s.stood = standing{lapsed: a.lapsedAt(now, policy), refused: a.tokenRefused(now)}
 	s.stood.held, s.stood.limited = a.held(now, policy)
@@ -201,7 +241,7 @@ func (s windowStates) unheld(w quota.Window, j judged) (WindowKind, time.Time) {
 		return WindowStale, a.FetchedAt
 	case j.lapsed:
 		return WindowNotStarted, time.Time{}
-	case a.Error != "":
+	case s.stale != 0:
 		return WindowStale, a.FetchedAt
 	case s.capped(w.Key):
 		return WindowCapped, j.stands.ResetsAt

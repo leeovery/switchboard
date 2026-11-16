@@ -303,6 +303,19 @@ func WithinWeek(now, t time.Time) bool {
 	return daysBetween(t, now) < 7
 }
 
+// NotReadSince says when an account whose last read failed was last read, at
+// t, before now, in full and short: within the week, as Dated and Brief show
+// a time, "not read since 14:20" and "read 14:20"; else by its date, as Past
+// shows a day over a week back, "not read since 22 Sep 14:20", and short,
+// "read 22 Sep", as a weekday alone would read as this week's.
+func NotReadSince(now, t time.Time) (full, short string) {
+	when, brief := Past(now, t), DayMonth(t.In(now.Location()))
+	if WithinWeek(now, t) {
+		when, brief = Dated(now, t), Brief(now, t)
+	}
+	return "not read since " + when, "read " + brief
+}
+
 // daysBetween counts the days from the one t falls on to the one now does,
 // in now's time zone, however long the days between ran.
 func daysBetween(t, now time.Time) int {

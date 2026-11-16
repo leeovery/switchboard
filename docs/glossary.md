@@ -18,6 +18,11 @@ those folders, in a folder beneath one, or in a git worktree of a repository ins
 **Label.** The name you give an account or a pool, shown on every screen. You can change it
 whenever you like.
 
+**Lapsed.** A 5-hour window that has passed its reset with nothing read since. It reads empty,
+because it isn't running until a request starts it. Only the 5-hour window lapses: a week past its
+reset keeps its last reading until the next one. An account whose subscription has ended shows
+`subscription lapsed`, which is not this.
+
 **Ledger.** Every request the router handles, kept without its content in a file a day. The ledger is
 part of the record, kept for 400 days unless you set another length.
 

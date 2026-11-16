@@ -451,6 +451,23 @@ func (h happenings) atPersonalsLimit() []status.Event {
 	)
 }
 
+// lapsed are the lapsed world's events: the auto world's to side's prime at
+// 13:50; work's token refused at 14:20, as refusal says, moving d28c and db8a
+// to side; and c61b started on side, the router's best. Personal's lapse
+// tells none, as only its probes found it.
+func (h happenings) lapsed(refusal status.Refusal) []status.Event {
+	refused := h.today(14, 20, 0)
+	return slices.Concat(
+		h.yesterday(), h.morning(h.personalPrimed()),
+		[]status.Event{
+			{Kind: status.EventRefused, At: refused, Account: "work", Until: refusal.Until, Status: refusal.Status, Count: 2, To: "side"},
+			h.forcedOff(refused, idD28C, "work", "side", reasonRefused),
+			h.forcedOff(h.today(14, 20, 41), idDB8A, "work", "side", reasonRefused),
+			h.started(h.today(14, 41, 11), idC61B, "side", status.ReasonNew),
+		},
+	)
+}
+
 // badHour are the bad hour's events: the auto world's to side's prime at
 // 13:50, personal primed at 10:54; new sessions pinned to personal and side
 // at 13:40; 7f3a started on side at 13:55:30, as pinned, before personal's

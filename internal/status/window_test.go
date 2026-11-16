@@ -16,6 +16,8 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	capped := func(a *status.Account) { a.Reserve = 0.05 }
 	failing := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
 	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: at(1, 21, 40).UTC(), Status: 401} }
+	readRefused := func(a *status.Account) { a.Error = "HTTP 401 · Invalid bearer token" }
+	ended := func(a *status.Account) { a.Error = endedSubscription }
 	read := stateNow.Add(-4 * time.Second).UTC()
 	tests := []struct {
 		name    string
@@ -46,13 +48,13 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			name:    "its last read failed: as last read",
 			account: with(readNow(0.97, 0.3, 0), failing),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowStale, Used: 0.97, At: read},
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, Used: 0.97, At: read},
 		},
 		{
 			name:    "its last read failed, at its cap: as last read, before the cap",
 			account: with(with(readNow(0.95, 0.3, 0), capped), failing),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowStale, Used: 0.95, At: read},
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, Used: 0.95, At: read},
 		},
 		{
 			name:    "its last read failed, a limit holding the window: the limit, said even where its last read failed",
@@ -64,13 +66,13 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			name:    "its token refused: as last read",
 			account: with(readNow(0.97, 0.3, 0), refused),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowStale, Used: 0.97, At: read},
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, Used: 0.97, At: read},
 		},
 		{
 			name:    "a stale week that has reset since it was read: stale, and empty, as it runs",
 			account: with(readNow(0.2, 0.6, 0), func(a *status.Account) { failing(a); a.Windows[1].ResetsAt = at(1, 9, 0).UTC() }),
 			key:     "7d",
-			want:    status.WindowNow{Kind: status.WindowStale, At: read},
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, At: read},
 		},
 		{
 			name:    "read spent, at its cap too: the limit, back at its reset",
@@ -174,7 +176,19 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			name:    "the session reset since it was read, its token refused: stale, before not started, and empty",
 			account: with(with(readNow(0.97, 0.3, 0), resetSince), refused),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowStale, At: read},
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, At: read},
+		},
+		{
+			name:    "the session reset since it was read, its last read refusing its token: lapsed, not started, before the failed read",
+			account: with(with(readNow(0.97, 0.3, 0), resetSince), readRefused),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowNotStarted},
+		},
+		{
+			name:    "the session reset since it was read, its subscription ended: lapsed, not started, before the failed read",
+			account: with(with(readNow(0.97, 0.3, 0), resetSince), ended),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
 			name:    "its token refused, the router's limit naming the window: the limit, before the refusal",
@@ -187,8 +201,60 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}, Pin: status.Pin{Accounts: tt.pin}}
 			got := windowAt(doc, tt.account.ID, tt.key, stateNow, policy)
-			if got.Kind != tt.want.Kind || !near(got.Used, tt.want.Used) || !got.At.Equal(tt.want.At) {
-				t.Errorf("the window stands as kind %d, %v used, at %v; want kind %d, %v used, at %v", got.Kind, got.Used, got.At, tt.want.Kind, tt.want.Used, tt.want.At)
+			if got.Kind != tt.want.Kind || got.Stale != tt.want.Stale || !near(got.Used, tt.want.Used) || !got.At.Equal(tt.want.At) {
+				t.Errorf("the window stands as kind %d, stale as %d, %v used, at %v; want kind %d, stale as %d, %v used, at %v",
+					got.Kind, got.Stale, got.Used, got.At, tt.want.Kind, tt.want.Stale, tt.want.Used, tt.want.At)
+			}
+		})
+	}
+}
+
+// endedSubscription is the error of an ended subscription's probe, as the
+// probe gives it, the API's message cut to the 60 characters it keeps.
+const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+
+// A stale reading says why it's stale, the first that holds of: its
+// subscription ended, as its last read was answered 403 refusing its
+// organization's login, in any case; its token refused, by the router or by
+// its last read's 401; and its last read failed otherwise, a 403 saying
+// anything else among them. A refusal that has lifted, the account read
+// clean since, leaves none.
+func TestAStaleReadingSaysWhyItsStale(t *testing.T) {
+	refused := status.Refusal{Until: at(1, 21, 40).UTC(), Status: 401}
+	tests := []struct {
+		name      string
+		error     string
+		refused   status.Refusal
+		wantKind  status.WindowKind
+		wantStale status.StaleCause
+	}{
+		{name: "its organization's login refused: subscription lapsed", error: endedSubscription, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{
+			name: "its organization's login refused, in another case: subscription lapsed", error: "HTTP 403 · oauth AUTHENTICATION is Currently NOT allowed",
+			wantKind: status.WindowStale, wantStale: status.StaleLapsed,
+		},
+		{name: "its organization's login refused, its token too: subscription lapsed", error: endedSubscription, refused: refused, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{name: "a 403 saying anything else: failed", error: "HTTP 403 · Not allowed", wantKind: status.WindowStale, wantStale: status.StaleFailed},
+		{name: "a 403 without a message: failed", error: "HTTP 403", wantKind: status.WindowStale, wantStale: status.StaleFailed},
+		{
+			name: "the login's message on another status: failed", error: "HTTP 400 · OAuth authentication is currently not allowed",
+			wantKind: status.WindowStale, wantStale: status.StaleFailed,
+		},
+		{name: "its last read answered 401: its token refused", error: "HTTP 401 · Invalid bearer token", wantKind: status.WindowStale, wantStale: status.StaleRefused},
+		{name: "the router seeing its token refused: its token refused", refused: refused, wantKind: status.WindowStale, wantStale: status.StaleRefused},
+		{name: "a read answered otherwise: failed", error: "HTTP 529 · Overloaded", wantKind: status.WindowStale, wantStale: status.StaleFailed},
+		{name: "a read not answered: failed", error: "timed out after 5s", wantKind: status.WindowStale, wantStale: status.StaleFailed},
+		{
+			name: "its token refused, the refusal lifted and read clean since: open, not stale", refused: status.Refusal{Until: stateNow.Add(-time.Minute).UTC(), Status: 401},
+			wantKind: status.WindowOpen,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := with(readNow(0.2, 0.3, 0), func(a *status.Account) { a.Error, a.Refused = tt.error, tt.refused })
+			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{a}}
+			if got := windowAt(doc, a.ID, "5h", stateNow, policy); got.Kind != tt.wantKind || got.Stale != tt.wantStale {
+				t.Errorf("the window stands as kind %d, stale as %d; want kind %d, stale as %d", got.Kind, got.Stale, tt.wantKind, tt.wantStale)
 			}
 		})
 	}

@@ -15,6 +15,8 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -272,16 +274,62 @@ func (p *Prober) newRequest(ctx context.Context, token, model string) (*http.Req
 	return req, nil
 }
 
+// The text of a probe's error, where the API answered it without usage, as
+// noUsageReason gives it: the status answered after answeredWith, and the
+// answer's message, where it has one, after messageAfter, as in "HTTP 403 ·
+// OAuth authentication is currently not allowed for this organization".
+const (
+	answeredWith = "HTTP "
+	messageAfter = " · "
+)
+
 // noUsageReason says why a response carried no usage: its status, and the API's
 // error message when the body has one.
 func noUsageReason(resp *http.Response, token string) string {
-	reason := fmt.Sprintf("HTTP %d", resp.StatusCode)
+	reason := answeredWith + strconv.Itoa(resp.StatusCode)
 	message := errorMessage(resp.Body, token)
 	if message == "" {
 		return reason
 	}
 	// Redacted before it's cut short, so the cut can't leave part of the token.
-	return reason + " · " + prose.Truncate(message, maxErrorMessage)
+	return reason + messageAfter + prose.Truncate(message, maxErrorMessage)
+}
+
+// loginBarred opens the message the API answers a probe with, answering
+// 403, where it refuses the organization's OAuth login, as it answers an
+// ended subscription: "OAuth authentication is currently not allowed for
+// this organization", in lower case, as far as maxErrorMessage keeps it
+// whole.
+const loginBarred = "oauth authentication is currently not allowed"
+
+// TokenRefusedRead reports whether text, the text of a probe's error, as
+// ProbeModel's gives it, says the API refused the probe's token: it answered
+// 401.
+func TokenRefusedRead(text string) bool {
+	status, _, ok := answerIn(text)
+	return ok && status == http.StatusUnauthorized
+}
+
+// LoginBarredRead reports whether text, the text of a probe's error, as
+// ProbeModel's gives it, says the API refused the organization's OAuth login,
+// as it answers an ended subscription: it answered 403, its message opening
+// as loginBarred does, in any case.
+func LoginBarredRead(text string) bool {
+	status, message, ok := answerIn(text)
+	return ok && status == http.StatusForbidden && strings.HasPrefix(strings.ToLower(message), loginBarred)
+}
+
+// answerIn is the status and the message of the answer that text, the text
+// of a probe's error, gives, as noUsageReason gives them: reporting false
+// where it gives none, as of a probe that timed out, or wasn't answered.
+func answerIn(text string) (status int, message string, ok bool) {
+	rest, ok := strings.CutPrefix(text, answeredWith)
+	if !ok {
+		return 0, "", false
+	}
+	code, message, _ := strings.Cut(rest, messageAfter)
+	status, err := strconv.Atoi(code)
+	return status, message, err == nil
 }
 
 // errorMessage returns the message of the API error body holds, reading no

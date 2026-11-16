@@ -70,13 +70,10 @@ pass over one you don't know. In the forms below, `<id>` is the id of an account
 | `hit its limit` | It answered the request with its limit reached. |
 | `was refused` | It refused the request. |
 | `has a new token` | It refused the token, because it had taken up a new one. |
+| `has no usable token` | Its token file stopped holding a usable token while the request was in flight. |
 | `left the pool` | It left the request's pool, for another pool or out of the config. |
 | `is at its reserve` | It has reached its reserve. |
 | `has no room` | It has no room for the request otherwise. |
-
-The router can record one more why, `has no usable token`, in `tried` and in a `moved:` reason.
-It means the token file of the account stopped holding a usable token while the request was in
-flight, so the request went on elsewhere.
 
 ## Where each why appears
 

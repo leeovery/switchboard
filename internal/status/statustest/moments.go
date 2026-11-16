@@ -63,6 +63,7 @@ func (a AccountFacts) String() string {
 // WindowFacts are how a window stands at a moment, as its WindowNow has it.
 type WindowFacts struct {
 	Kind                   status.WindowKind
+	Stale                  status.StaleCause
 	At                     time.Time
 	Used                   float64
 	Next                   time.Time
@@ -76,8 +77,8 @@ type WindowFacts struct {
 
 // String says how the window stands, its times as sinceBuilt has them.
 func (w WindowFacts) String() string {
-	return fmt.Sprintf("{Kind:%d At:%s Used:%v Next:%s ResetSinceRead:%v Lapsed:%v Held:%v Since:%s Capped:%v CappedAsRead:%v RunsOut:%v RunsOutAhead:%v Out:%s}",
-		w.Kind, sinceBuilt(w.At), w.Used, sinceBuilt(w.Next), w.ResetSinceRead, w.Lapsed, w.Held, sinceBuilt(w.Since),
+	return fmt.Sprintf("{Kind:%d Stale:%d At:%s Used:%v Next:%s ResetSinceRead:%v Lapsed:%v Held:%v Since:%s Capped:%v CappedAsRead:%v RunsOut:%v RunsOutAhead:%v Out:%s}",
+		w.Kind, w.Stale, sinceBuilt(w.At), w.Used, sinceBuilt(w.Next), w.ResetSinceRead, w.Lapsed, w.Held, sinceBuilt(w.Since),
 		w.Capped, w.CappedAsRead, w.RunsOut, w.RunsOutAhead, sinceBuilt(w.Out))
 }
 
@@ -107,7 +108,7 @@ func FactsOf(m status.Moment) Facts {
 		}
 		for _, w := range a.Windows {
 			af.Windows[w.Key] = WindowFacts{
-				Kind: w.Kind, At: w.At, Used: w.Used, Next: w.Next, ResetSinceRead: w.ResetSinceRead, Lapsed: w.Lapsed,
+				Kind: w.Kind, Stale: w.Stale, At: w.At, Used: w.Used, Next: w.Next, ResetSinceRead: w.ResetSinceRead, Lapsed: w.Lapsed,
 				Held: w.Held, Since: w.Since, Capped: w.Capped, CappedAsRead: w.CappedAsRead,
 				RunsOut: w.RunsOut, RunsOutAhead: w.RunsOutAhead, Out: w.Out.At,
 			}
@@ -398,8 +399,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Now: Built.Add(5 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
 				"work": {Routing: status.RoutingPressed, CanRise: true, Pressed: true, Windows: map[string]WindowFacts{
-					"5h": {Kind: status.WindowStale, At: Built.Add(-20 * time.Minute), Used: 0.7, Next: Built.Add(2 * time.Hour), Out: Built.Add(time.Hour)},
-					"7d": {Kind: status.WindowStale, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(3 * day)},
+					"5h": {Kind: status.WindowStale, Stale: status.StaleFailed, At: Built.Add(-20 * time.Minute), Used: 0.7, Next: Built.Add(2 * time.Hour), Out: Built.Add(time.Hour)},
+					"7d": {Kind: status.WindowStale, Stale: status.StaleFailed, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(3 * day)},
 				}},
 				"side": sideOpen,
 			}},
@@ -415,10 +416,29 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Now: Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
 				"work": {Routing: status.RoutingRefused, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{
-					"5h": {Kind: status.WindowStale, At: Built, Used: 0.4, Next: Built.Add(2 * time.Hour), Out: Built.Add(90 * time.Minute)},
-					"7d": {Kind: status.WindowStale, At: Built, Used: 0.5, Next: Built.Add(2 * day)},
+					"5h": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built, Used: 0.4, Next: Built.Add(2 * time.Hour), Out: Built.Add(90 * time.Minute)},
+					"7d": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built, Used: 0.5, Next: Built.Add(2 * day)},
 				}},
 				"side": sideOpen,
+			}},
+		},
+		{
+			// An ended subscription's probe is refused its organization's
+			// login, 403, its message cut to the 60 characters kept.
+			Name: "its subscription ended, its 5-hour reset since it was read",
+			Doc: Router(policy, nil,
+				Routed{Account: with(readAt("work", windowIn("5h", 0.7, 2*time.Minute), windowIn("7d", 0.4, 3*day)), func(a *status.Account) {
+					a.FetchedAt, a.Error = Built.Add(-20*time.Minute), "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+				})},
+				Routed{Account: side},
+			),
+			Now: Built.Add(5 * time.Minute),
+			Want: Facts{Next: "work", Accounts: map[string]AccountFacts{
+				"work": {Routing: status.RoutingIdle, Idle: true, CanRise: true, Windows: map[string]WindowFacts{
+					"5h": {Kind: status.WindowNotStarted, ResetSinceRead: true, Lapsed: true},
+					"7d": {Kind: status.WindowStale, Stale: status.StaleLapsed, At: Built.Add(-20 * time.Minute), Used: 0.4, Next: Built.Add(3 * day)},
+				}},
+				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
 			}},
 		},
 		{
@@ -552,8 +572,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Want: Facts{Accounts: map[string]AccountFacts{
 				"work": workUnnamed,
 				"side": {Routing: status.RoutingRefused, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{
-					"5h": {Kind: status.WindowStale, At: Built, Used: 0.1, Next: Built.Add(4 * time.Hour)},
-					"7d": {Kind: status.WindowStale, At: Built, Used: 0.2, Next: Built.Add(5 * day)},
+					"5h": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built, Used: 0.1, Next: Built.Add(4 * time.Hour)},
+					"7d": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built, Used: 0.2, Next: Built.Add(5 * day)},
 				}},
 			}},
 		},
@@ -684,8 +704,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Name: "its token refused again, after a refusal lifted early", Doc: refusedAgain, Now: Built.Add(10 * time.Minute),
 			Want: Facts{Next: "side", Accounts: map[string]AccountFacts{
 				"work": {Routing: status.RoutingRefused, RefusedSince: Built.Add(-20 * time.Minute), Back: Built.Add(40 * time.Minute), Windows: map[string]WindowFacts{
-					"5h": {Kind: status.WindowStale, At: Built, Used: 0.3, Next: Built.Add(3 * time.Hour)},
-					"7d": {Kind: status.WindowStale, At: Built, Used: 0.5, Next: Built.Add(2 * day)},
+					"5h": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built, Used: 0.3, Next: Built.Add(3 * time.Hour)},
+					"7d": {Kind: status.WindowStale, Stale: status.StaleRefused, At: Built, Used: 0.5, Next: Built.Add(2 * day)},
 				}},
 				"side": sideOpen,
 			}},

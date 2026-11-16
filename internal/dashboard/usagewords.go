@@ -85,8 +85,7 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 	case status.WindowNone:
 		return lacked(status.InProse(w.Name))
 	case status.WindowStale:
-		full, short := lastRead(now, w.At)
-		return usageWords{full: line{{"not read since " + full, dimInk}}, short: line{{"read " + short, dimInk}}}
+		return staleWords(w.Stale, w.At, now)
 	case status.WindowLimited:
 		return heldBack("limit", w.At, now, errorInk)
 	case status.WindowCapped:
@@ -107,15 +106,19 @@ func lacked(window string) usageWords {
 	return usageWords{full: line{{"no " + window + " limit", dimInk}}, short: line{{"no limit", dimInk}}}
 }
 
-// lastRead shows when a reading was taken, at t, before now, in full and
-// short: within the week, as Dated and Brief show a time; else by its date,
-// as Past shows a day over a week back, "22 Sep 14:20", and short, "22 Sep",
-// as a weekday alone would read as this week's.
-func lastRead(now, t time.Time) (full, short string) {
-	if prose.WithinWeek(now, t) {
-		return prose.Dated(now, t), prose.Brief(now, t)
+// staleWords are the words of a window whose reading is stale, as cause says
+// why, last read at: in state.destructive, its subscription ended or its
+// token refused; else when it was last read, as prose.NotReadSince says it,
+// in text.subtle.
+func staleWords(cause status.StaleCause, at, now time.Time) usageWords {
+	switch cause {
+	case status.StaleLapsed:
+		return usageWords{full: line{{prose.SubscriptionLapsed, errorInk}}, short: line{{prose.SubscriptionLapsedShort, errorInk}}}
+	case status.StaleRefused:
+		return usageWords{full: line{{prose.TokenRefused, errorInk}}, short: line{{prose.TokenRefusedShort, errorInk}}}
 	}
-	return prose.Past(now, t), prose.DayMonth(t.In(now.Location()))
+	full, short := prose.NotReadSince(now, at)
+	return usageWords{full: line{{full, dimInk}}, short: line{{short, dimInk}}}
 }
 
 // heldBack is the words of a window held back as what says, until back, zero

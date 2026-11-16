@@ -152,6 +152,9 @@ func resetsSaid(resets []views.Reset, now time.Time) string {
 	return strings.Join(said, ", ")
 }
 
+// staleCauses are why a use is stale, as the figures write it.
+var staleCauses = map[status.StaleCause]string{status.StaleLapsed: "lapsed", status.StaleRefused: "refused", status.StaleFailed: "failed"}
+
 // useSaid is the use as the figures write it.
 func useSaid(u views.Use, now time.Time) string {
 	share := fmt.Sprintf("%.0f%%", u.Used*100)
@@ -161,7 +164,7 @@ func useSaid(u views.Use, now time.Time) string {
 	case u.Highest:
 		return u.Key + " highest —"
 	case u.Read && u.Stale:
-		return u.Key + " " + share + " stale, read " + timeSaid(u.ReadAt, now)
+		return u.Key + " " + share + " stale (" + staleCauses[u.StaleCause] + "), read " + timeSaid(u.ReadAt, now)
 	case u.Read:
 		return u.Key + " " + share
 	case u.Tokenless:

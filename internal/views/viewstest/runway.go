@@ -99,8 +99,9 @@ func (rm RunwayMoment) From() views.LanesFrom {
 //   - resets are ", " between, each its column and time, then " back" where
 //     a stretch ends at it, as "21 17:10 back".
 //   - room is "yes" or "no".
-//   - use is its window's key and its share, as "5h 34%", "stale, read 14:20"
-//     after where it's stale; "5h highest 62%" stepped back, "5h highest —"
+//   - use is its window's key and its share, as "5h 34%", "stale (failed),
+//     read 14:20" after where it's stale, its cause "lapsed", "refused" or
+//     "failed"; "5h highest 62%" stepped back, "5h highest —"
 //     where none was read; else "not read yet", "no token" or "—".
 //   - drawn are the cells, ", " between, then "│" where any lane marks a
 //     reset.
@@ -328,14 +329,17 @@ func justAfterAFiveHourReset() []RunwayMoment {
 
 // failedReads has work's first read fail, nothing read of it before, so its
 // lane is blank, counted without room; its read fail after one at 14:20,
-// its lane drawn as read, its use stale; its 5-hour not reported, its week
-// alone read, so it lacks a 5-hour window, as a verified Ultra account does,
-// and has no lane, side's alone, with no pool's lane; and its windows
-// listed, nothing read of them yet.
+// its lane drawn as read, its use stale; its subscription end after a read
+// at 14:20, drawn alike, its use stale as lapsed; its 5-hour not reported,
+// its week alone read, so it lacks a 5-hour window, as a verified Ultra
+// account does, and has no lane, side's alone, with no pool's lane; and its
+// windows listed, nothing read of them yet.
 func failedReads() []RunwayMoment {
 	unread := status.Account{ID: work, Label: work, TokenSet: true, Error: "HTTP 529 · Overloaded"}
 	stale := readAccount(work, onThu(14, 20, 0), window(fiveHour, 0.4, onThu(16, 30, 0)), window(week, 0.3, mondayTen))
 	stale.Error = "HTTP 529 · Overloaded"
+	lapsed := stale
+	lapsed.Error = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 	weekOnly := readAccount(work, onThu(14, 41, 0), window(week, 0.3, mondayTen))
 	listed := readAccount(work, time.Time{}, window(fiveHour, 0, onThu(16, 30, 0)), window(week, 0, mondayTen))
 	sideAt := sideOn(onThu(14, 41, 0))
@@ -350,7 +354,15 @@ func failedReads() []RunwayMoment {
 			sideRead(),
 		), map[string]Figures{
 			"":   {FigurePool: "2 0-135"},
-			work: {FigureCells: "room 0-135", FigureResets: "17 16:30", FigureRoom: "yes", FigureUse: "5h 40% stale, read 14:20"},
+			work: {FigureCells: "room 0-135", FigureResets: "17 16:30", FigureRoom: "yes", FigureUse: "5h 40% stale (failed), read 14:20"},
+		}),
+		fiveHourAt("its subscription ended after an earlier read", routed(onThu(14, 41, 0), nil, lapsed, sideAt), sorted(
+			readEach(work, onThu(13, 0, 0), window(fiveHour, 0.3, onThu(16, 30, 0)), window(week, 0.3, mondayTen)),
+			readEach(work, onThu(14, 20, 0), lapsed.Windows...),
+			sideRead(),
+		), map[string]Figures{
+			"":   {FigurePool: "2 0-135"},
+			work: {FigureCells: "room 0-135", FigureResets: "17 16:30", FigureRoom: "yes", FigureUse: "5h 40% stale (lapsed), read 14:20"},
 		}),
 		fiveHourAt("a 5-hour window its account lacks", routed(onThu(14, 41, 0), nil, weekOnly, sideAt), sorted(
 			readEach(work, onThu(13, 0, 0), weekOnly.Windows...),
@@ -399,7 +411,7 @@ func refusals() []RunwayMoment {
 			"": {FigurePool: "2 0-2, 1 3-7, 2 8-135", FigureDrawn: "room, refused, │"},
 			work: {
 				FigureCells: "room 0-2, refused 3-7, room 8-135", FigureStretches: "refused 14:12 – 15:00 @3 3-7",
-				FigureRoom: "no", FigureUse: "5h 30% stale, read 14:12",
+				FigureRoom: "no", FigureUse: "5h 30% stale (refused), read 14:12",
 			},
 		}),
 		fiveHourAt("its token's refusal lifted early", routed(onThu(14, 41, 0), []status.Event{lifted}, workAt(status.Refusal{}), sideAt), read, map[string]Figures{

@@ -169,15 +169,15 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 
 // checkWindowAgainstStatus checks each fact of doc's account a's window w,
 // read, standing at now as got, against the function it takes the place of:
-// all but its kind, when what that says comes, its even pace and its
-// allowance, which the window tests hold through the moment, and each fact
-// here is read against.
+// all but its kind, why it's stale, when what that says comes, its even pace
+// and its allowance, which the window tests hold through the moment, and each
+// fact here is read against.
 func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Account, w quota.Window, got status.WindowNow, now time.Time) {
 	t.Helper()
 	want := status.WindowNow{
 		WindowName: got.WindowName,
 		Shared:     policy.IsShared(w.Key), Started: w.Key == policy.Started, Pressure: w.Key == policy.Pressure,
-		Kind: got.Kind, Unheld: got.Kind, At: got.At,
+		Kind: got.Kind, Unheld: got.Kind, At: got.At, Stale: got.Stale,
 		Read: status.AsRead{Used: w.Utilization, ResetsAt: w.ResetsAt, At: a.FetchedAt},
 	}
 	if want.Kind != status.WindowTokenless && want.Kind != status.WindowUnread {
