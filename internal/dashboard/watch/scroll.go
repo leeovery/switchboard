@@ -46,7 +46,8 @@ func (by scrollStep) from(at int, s dashboard.Scrolling) int {
 // wheeled scrolls what the wheel turns under the pointer, as the screen
 // draws it: help, or the Log's details, over the Log or a session's page,
 // over its card; the view, over what of it scrolls, while no card is open,
-// as far as notch says, as scrollView scrolls it, as on j and k; and nothing
+// as far as notch says, as scrollView scrolls it, as on j and k; Projects'
+// list, over it, a project at a time, as projectsWheeled has it; and nothing
 // else, the routing card among it, nor anything while the theme picker is
 // open. A turn scrolls a card wheelRows rows. What's under the pointer with
 // no card open is found from the page on screen alone, as onScreen has it,
@@ -64,8 +65,12 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 	case turnCardOpen:
 		return m.turnCardScrolled(m.wheeledCard(m.session.card.scroll, way, msg))
 	case nothingOpen:
-		if f, at := m.onScreen(); f.Under(m.doc, at, msg.X, msg.Y) == dashboard.UnderView {
+		f, at := m.onScreen()
+		switch f.Under(m.doc, at, msg.X, msg.Y) {
+		case dashboard.UnderView:
 			return m.scrollView(notch(f, m.doc, at, way))
+		case dashboard.UnderProjectsList:
+			return m.projectsWheeled(way)
 		}
 	}
 	return m

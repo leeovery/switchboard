@@ -141,7 +141,7 @@ What scrolls on each page:
 |---|---|
 | Overview | USAGE, if its accounts don't fit. `↑` and `↓` scroll it too. |
 | Accounts | the view |
-| Projects | the SESSIONS of a project. The list follows the project chosen with `↑` and `↓`. |
+| Projects | the SESSIONS of a project. The list follows the project chosen with `↑` and `↓`. Over the list, the wheel chooses a project a turn. |
 | Sessions | the List, and the accounts on the Switchboard if they don't fit |
 | Runway | the lanes |
 | Trends | the whole page, if its sections don't fit. `?` always lists its scrolling keys. |
@@ -221,5 +221,7 @@ The wheel scrolls what's under the pointer. Some rows act differently:
 - A click on an account in the list on Detail, or a project in the list on Projects, opens nothing.
 - With a turn open, a click on a turn closes the open turn. If the turn clicked is another, the
   click then chooses it.
+
+Over the list on Projects, the wheel chooses a project a turn instead of scrolling.
 
 No click opens the routing card or acts in it, so a stray click never moves a session.
