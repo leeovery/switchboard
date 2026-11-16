@@ -224,8 +224,8 @@ func bucketedPage(unit views.BucketUnit, n, weeks int) views.ProjectPage {
 	return page
 }
 
-// The chosen project lies wide, on a MacBook, at every period, WORTH BY's
-// columns narrowing to fit the left half, and middling on an iPad; 12 weeks
+// The chosen project lies wide, on a MacBook, at every period, and
+// middling on an iPad; 12 weeks
 // are by day where a cell for each of their days fits the cells WORTH BY
 // takes as the sections lie, the left half's wide, else by week.
 func TestTheChosenProjectLiesWideAtEveryPeriodOnAMacBook(t *testing.T) {

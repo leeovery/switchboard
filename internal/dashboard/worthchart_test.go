@@ -173,8 +173,8 @@ type namedChart struct {
 // namedCharts are WORTH BY's charts at 12 weeks by day, a date named each
 // week, and at 12 months by week, a month named in three cells where it
 // starts, as bucketedPage buckets them; each with its last bucket named, as
-// its axis names it, and not. The first bucket is the peak, the rest under
-// it, so every other column's top shows in the chart's top row.
+// its axis names it, and not. The first bucket is the peak, so the last
+// column reaches the chart's top row.
 func namedCharts() []namedChart {
 	var charts []namedChart
 	for _, period := range []struct {
@@ -213,17 +213,42 @@ func namedCharts() []namedChart {
 	return charts
 }
 
-// Projects' WORTH BY and Detail's WORTH fill their width, at every width
-// from 100 to 260: where the last bucket has a name, the chart is the
-// widest, down to a cell a column, whose last name, from its own column,
-// ends within the width, else the whole width; where it has none, the
-// whole width. Every name the axis holds starts at its own column's first
-// cell, the names from the last back giving way where they'd meet.
+// namedSlots lays the widest chart, from the whole width down to a cell a
+// column, whose last name, from its own column, ends within the width; else
+// the whole width: as roomFor finds it, for every count of buckets to 100,
+// width from a cell a column to 400, and last name's width to 6. Read off
+// the last slot's end, as chartSlots ends a chart at its width.
+func TestNamedSlotsAreTheWidestThatHoldTheLastName(t *testing.T) {
+	const most = 400
+	for buckets := 1; buckets <= 100; buckets++ {
+		names, lastAt := make([]line, buckets), lastColumns(buckets, most)
+		for named := 0; named <= 6; named++ {
+			names[buckets-1] = nil
+			if named > 0 {
+				names[buckets-1] = line{{strings.Repeat("x", named), dimInk}}
+			}
+			for width := buckets; width <= most; width++ {
+				slots := namedSlots(width, names)
+				if last, want := slots[buckets-1], roomFor(width, named, lastAt); last.x+last.width != want {
+					t.Fatalf("%d buckets in %d, the last name %d cells: the chart takes %d cells, want %d", buckets, width, named, last.x+last.width, want)
+				}
+			}
+		}
+	}
+}
+
+// Projects' WORTH BY and Detail's WORTH fill their width, drawn at a
+// handful of widths: the chart takes the cells roomFor has, and every name
+// the axis holds starts at its own column's first cell, the names from the
+// last back giving way where they'd meet. Widths where the chart's buckets
+// don't fit a cell each are passed over: there the real page falls back to
+// a coarser chart, as chartFits chooses.
 func TestWorthChartsFillTheirWidthRoomForTheLastName(t *testing.T) {
-	doc := framedDoc(nil, nil)
+	doc, used := framedDoc(nil, nil), usageWorld(extraOff)
+	widths := []int{100, 127, 160, 166, 167, 168, 169, 170, 173, 206, 260}
 	for _, chart := range namedCharts() {
 		t.Run("Projects, "+chart.name, func(t *testing.T) {
-			for width := 100; width <= 260; width++ {
+			for _, width := range widths {
 				page := bucketedPage(chart.by.Unit, len(chart.by.Buckets), 0)
 				page.WorthBy = views.WorthCharts{chart.by}
 				f := projectsFrame(t, width, 53, projectRows(3), 0, &page)
@@ -241,12 +266,11 @@ func TestWorthChartsFillTheirWidthRoomForTheLastName(t *testing.T) {
 			}
 		})
 		t.Run("Detail, "+chart.name, func(t *testing.T) {
-			for width := 100; width <= 260; width++ {
+			for _, width := range widths {
 				page := detailsPage(t)
 				page.Rows[0].WorthBy = views.WorthCharts{chart.by}
 				f := detailFrame(Look{}, framedAccounts, "work", "", page, nil)
 				f.Width = width
-				used := usageWorld(extraOff)
 				if _, wide := f.detailIn(f.Moment(used, routedAt)); !wide {
 					rows := textOf(f.stackedOf(used, routedAt).whole().c.rows(Look{}))
 					y := slices.Index(rows, "WORTH")
@@ -264,15 +288,30 @@ func TestWorthChartsFillTheirWidthRoomForTheLastName(t *testing.T) {
 	}
 }
 
+// lastColumns are where a chart's last column starts, as chartSlots lays a
+// chart of buckets columns across each count of cells, from a cell a column
+// to most, by that count: -1 where there are fewer cells than columns.
+func lastColumns(buckets, most int) []int {
+	at := make([]int, most+1)
+	for cells := range at {
+		at[cells] = -1
+		if cells >= buckets {
+			at[cells] = chartSlots(cells, buckets)[buckets-1].x
+		}
+	}
+	return at
+}
+
 // roomFor is the cells of the widest chart, from width down to a cell a
-// column, whose last column's name, last, from its first cell, ends within
-// width: width itself where there's no name, or no such chart.
-func roomFor(width, buckets int, last string) int {
-	if last == "" {
+// column, its last column starting as lastAt has it, whose last column's
+// name, last cells wide, from its first cell, ends within width: width
+// itself where there's no name, or no such chart.
+func roomFor(width, last int, lastAt []int) int {
+	if last == 0 {
 		return width
 	}
-	for cells := width; cells >= buckets; cells-- {
-		if slots := chartSlots(cells, buckets); slots[buckets-1].x+len(last) <= width {
+	for cells := width; cells >= 0 && lastAt[cells] >= 0; cells-- {
+		if lastAt[cells]+last <= width {
 			return cells
 		}
 	}
@@ -282,15 +321,16 @@ func roomFor(width, buckets int, last string) int {
 // checkNamedChart fails where the chart drawn from x, width cells wide, its
 // top and axis rows given, the frame's width the one named, doesn't take
 // the cells roomFor has, or its axis doesn't hold the names a pick from the
-// last back would, each at its own column's first cell.
+// last back would, each at its own column's first cell. It passes over a
+// chart whose buckets don't fit, which the real page never draws.
 func checkNamedChart(t *testing.T, frame int, top, axis string, x, width int, by views.WorthBy) {
 	t.Helper()
 	buckets := len(by.Buckets)
-	if width < buckets {
+	if !chartFits(width)(buckets) {
 		return
 	}
 	names := bucketNames(by)
-	cells := roomFor(width, buckets, names[buckets-1].plain())
+	cells := roomFor(width, len(names[buckets-1].plain()), lastColumns(buckets, width))
 	slots := chartSlots(cells, buckets)
 	placed, next := []rune(strings.Repeat(" ", width)), width+1
 	for i := buckets - 1; i >= 0; i-- {
