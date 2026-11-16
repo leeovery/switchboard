@@ -29,8 +29,8 @@ func In(text string) iter.Seq2[string, int] {
 
 // first is text's first character and the cells it takes. Most of what the
 // dashboard draws is plain: a printable ASCII character, a line or a block
-// of a bar, each a cell, which nothing but a character past them can join,
-// as an accent or a joiner does. Such a one followed by another, or by
+// of a bar where it's a cell, which nothing but a character past them can
+// join, as an accent or a joiner does. Such a one followed by another, or by
 // nothing, is a character alone, told without the cluster rules, which take
 // many times longer.
 func first(text string) (string, int) {
@@ -53,7 +53,27 @@ func plainNext(text string) bool {
 
 // plain reports whether r is a character of one cell that joins nothing
 // after it: a printable ASCII one, a space to a tilde, or one of the box
-// drawing characters or block elements, U+2500 to U+259F.
+// drawing characters or block elements, U+2500 to U+259F, that the cluster
+// rules give a cell, as boxOneCell has them.
 func plain(r rune) bool {
-	return ' ' <= r && r <= '~' || '─' <= r && r <= '▟'
+	return ' ' <= r && r <= '~' || boxFirst <= r && r <= boxLast && boxOneCell[r-boxFirst]
 }
+
+// boxFirst and boxLast are the first and last of the box drawing characters
+// and block elements.
+const (
+	boxFirst = '─'
+	boxLast  = '▟'
+)
+
+// boxOneCell are the box drawing characters and block elements, from
+// boxFirst, that the cluster rules give a cell. Most are East Asian
+// Ambiguous, two cells where ansi is set so, by RUNEWIDTH_EASTASIAN as it
+// starts, so they're asked of it rather than assumed.
+var boxOneCell = func() (one [boxLast - boxFirst + 1]bool) {
+	for r := boxFirst; r <= boxLast; r++ {
+		_, width := ansi.FirstGraphemeCluster(string(r), ansi.GraphemeWidth)
+		one[r-boxFirst] = width == 1
+	}
+	return one
+}()

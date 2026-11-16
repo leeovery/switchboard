@@ -9,7 +9,8 @@ import (
 // USAGE's rows are worked out from its layout, never by drawing it: in
 // every form the Overview lays it out in, as it gives way and with its big
 // bars, grouped either way, at every width, they're the rows it draws, its
-// key line after a blank row among them.
+// key line after a blank row among them; and the block ends where its
+// drawing does.
 func TestUSAGEsRowsWorkedOutAreTheRowsItDraws(t *testing.T) {
 	t.Parallel()
 	docs := map[string]status.Document{
@@ -30,13 +31,13 @@ func TestUSAGEsRowsWorkedOutAreTheRowsItDraws(t *testing.T) {
 					f.By = by
 					v := f.overviewBlock(doc, now).views()
 					for _, form := range append([]usageViews{v}, v.leaner...) {
-						if got, want := form.all, usageDrawnRows(form.block); got != want {
+						if got, want := form.all, usageDrawnRows(t, form.block); got != want {
 							t.Errorf("at %d columns, given way %d, USAGE takes %d rows, want the %d it draws", width, form.block.given, got, want)
 						}
 						if !form.block.enlarges() {
 							continue
 						}
-						if got, want := form.big, usageDrawnRows(form.block.enlarged()); got != want {
+						if got, want := form.big, usageDrawnRows(t, form.block.enlarged()); got != want {
 							t.Errorf("at %d columns, given way %d, USAGE takes %d rows at its most, want the %d it draws", width, form.block.given, got, want)
 						}
 					}
@@ -47,10 +48,19 @@ func TestUSAGEsRowsWorkedOutAreTheRowsItDraws(t *testing.T) {
 }
 
 // usageDrawnRows are the rows b takes drawn whole on a canvas that grows,
-// its key line after a blank row.
-func usageDrawnRows(b usageBlock) int {
+// its key line after a blank row. The rows drawn before the key line are
+// held to the row after the block's last, as it says: never past it, and
+// reaching it wherever the block draws a row with a cell to draw it in. With
+// no rows it ends on headings' blank rows, and a column wide its last row's
+// words start past its edge, so there the drawing stops short.
+func usageDrawnRows(t *testing.T, b usageBlock) int {
+	t.Helper()
 	c := growing(b.width)
-	end := b.draw(c, 0)
+	l := b.lay(c, 0)
+	end := l.end
+	if drawn, rowed := c.height(), len(l.placed) > 0 && b.width > 1; drawn > end || rowed && drawn != end {
+		t.Errorf("at %d columns, given way %d, USAGE's block ends at row %d, but draws %d", b.width, b.given, end, drawn)
+	}
 	b.key(c, end+1)
 	return max(c.height(), end)
 }

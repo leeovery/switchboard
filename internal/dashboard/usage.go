@@ -1024,8 +1024,14 @@ const (
 // after a blank row, where it keeps one: worked out as layout and keyRows
 // have them, without drawing it.
 func (b usageBlock) height() int {
+	return b.heightLaid(b.layout(0))
+}
+
+// heightLaid is how many rows the block takes laid out as l, from row 0, as
+// height has them.
+func (b usageBlock) heightLaid(l laid) int {
 	if keyed := b.keyRows(); keyed > 0 {
-		return b.layout(0).end + 1 + keyed
+		return l.end + 1 + keyed
 	}
-	return b.layout(0).end
+	return l.end
 }

@@ -278,13 +278,14 @@ func (b usageBlock) views() usageViews {
 // so, and once more with its big bars where it has them, as enlarges says;
 // else its big bars' rows are its own.
 func (b usageBlock) viewsAsLaid() usageViews {
-	all := b.height()
+	l := b.layout(0)
+	all := b.heightLaid(l)
 	big := all
 	if b.enlarges() {
 		big = b.enlarged().height()
 	}
 	return usageViews{
-		block: b, big: big, all: all, laid: b.layout(0),
+		block: b, big: big, all: all, laid: l,
 		whole: sync.OnceValue(func() *canvas {
 			c := growing(b.width)
 			b.draw(c, 0)
