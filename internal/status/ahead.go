@@ -27,9 +27,11 @@ import (
 //     reset, where that heads on pace there: what Projected fills to, which
 //     the moment gives no window a limit holds.
 //   - One at its cap keeps the room its cap leaves till its reset.
-//   - One a limit holds has none till it lifts, at Back; then its unheld
-//     kind's course, or, where that kind has none, as stale, not started or
-//     heading nowhere said, the room Used leaves till its reset.
+//   - One a limit holds has none till it lifts, at Back, or the refusal of
+//     its token ends, where that's later, and for ever where its read was
+//     refused, as liftsAt says; then its unheld kind's course, or, where that
+//     kind has none, as stale, not started or heading nowhere said, the room
+//     Used leaves till its reset.
 //   - Past its reset it has all of it, as nothing is known of its next
 //     window. Where its reset, or when a limit lifts, isn't known, it keeps
 //     the room it has.
@@ -74,19 +76,34 @@ func (a AccountNow) courseFrom(kind WindowKind, from point, w WindowNow) (course
 }
 
 // heldFrom is the course of window w, which a limit holds, from Now on: none
-// till it lifts, at its Back, where that's known; then from the room its use
-// leaves, as the course of the kind it's Unheld goes, else keeping that room
-// till its reset.
+// till it's back, as liftsAt says, where that's known; then from the room its
+// use leaves, as the course of the kind it's Unheld goes, else keeping that
+// room till its reset.
 func (a AccountNow) heldFrom(w WindowNow) course {
-	held := course{{a.now, 0}, {w.Back, 0}}
-	if w.Back.IsZero() {
+	back := a.liftsAt(w)
+	held := course{{a.now, 0}, {back, 0}}
+	if back.IsZero() {
 		return held
 	}
-	lifted := point{w.Back, 1 - w.Used}
+	lifted := point{back, 1 - w.Used}
 	if unheld, ok := a.courseFrom(w.Unheld, lifted, w); ok {
 		return append(held, unheld...)
 	}
 	return append(held, lifted, point{w.Next, lifted.room})
+}
+
+// liftsAt is when window w, which a limit holds, has room again, zero where
+// that isn't known: where the account's read was refused, never known, as
+// only a read that comes back clean lifts that; where its token is refused,
+// at the later of the limit's Back and the refusal's end; else at Back.
+func (a AccountNow) liftsAt(w WindowNow) time.Time {
+	switch {
+	case a.RefusedRead != 0, w.Back.IsZero():
+		return time.Time{}
+	case a.TokenRefused:
+		return score.Later(w.Back, a.Refusal.Until)
+	}
+	return w.Back
 }
 
 // course is where a window's room goes from a moment on: straight from each

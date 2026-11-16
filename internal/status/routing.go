@@ -166,26 +166,34 @@ func tokenlessRouting(a Account) Routing {
 	return Routing{Kind: RoutingTokenless, Says: prose.Tokenless(false), Clauses: []string{give}, Short: short}
 }
 
-// What's said of an account turned away, after why: its token refused, or
-// its subscription ended.
-const (
-	renewToken        = "its token needs renewing"
-	renewSubscription = "its subscription needs renewing"
-)
+// renewToken is what's said of an account whose token is refused, after why.
+const renewToken = "its token needs renewing"
+
+// renewing is what's said of an account whose read was refused, as the cause
+// says why, after why: "its subscription needs renewing" of an ended
+// subscription, and "its token needs renewing" of a refused token.
+func (c StaleCause) renewing() string {
+	if c == StaleLapsed {
+		return "its subscription needs renewing"
+	}
+	return renewToken
+}
 
 // heldRouting is how the account stands, held back at now by a limit or the
 // upstream's refusal, reporting false where neither holds it back: from every
-// request, a limit, till it's back from every hold, as back has it, then its
-// read refused, as refusedReadRouting says, then its token refused; else,
-// where its cap holds it back from every request, as cappedRouting says
-// that; else from some models' alone, a limit, then their family refused.
+// request, its read refused, as refusedReadRouting says, first, as nothing
+// but a read that comes back clean lifts it, though a limit holds it too;
+// then a limit, till it's back from every hold, as back has it; then its
+// token refused; else, where its cap holds it back from every request, as
+// cappedRouting says that; else from some models' alone, a limit, then their
+// family refused.
 func (s windowStates) heldRouting() (Routing, bool) {
 	a, now, held, limited := s.account, s.now, s.stood.held, s.stood.limited
 	switch {
-	case limited && held.Every:
-		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, s.back), Short: shortBack("limit reached", now, s.back), Back: s.back}, true
 	case s.stood.refusedRead != 0:
 		return refusedReadRouting(s.stood.refusedRead), true
+	case limited && held.Every:
+		return Routing{Kind: RoutingLimited, Says: "limit reached", Clauses: backAt(now, s.back), Short: shortBack("limit reached", now, s.back), Back: s.back}, true
 	case s.stood.refused:
 		answer := a.Refused.Answer()
 		return Routing{Kind: RoutingRefused, Says: answer, Clauses: []string{renewToken}, Short: []string{answer}}, true
@@ -208,10 +216,11 @@ func (s windowStates) heldRouting() (Routing, bool) {
 // refused · its token needs renewing", short "refused".
 func refusedReadRouting(cause StaleCause) Routing {
 	says, short := cause.Said()
+	kind := RoutingRefused
 	if cause == StaleLapsed {
-		return Routing{Kind: RoutingLapsed, Says: says, Clauses: []string{renewSubscription}, Short: []string{short}}
+		kind = RoutingLapsed
 	}
-	return Routing{Kind: RoutingRefused, Says: says, Clauses: []string{renewToken}, Short: []string{short}}
+	return Routing{Kind: kind, Says: says, Clauses: []string{cause.renewing()}, Short: []string{short}}
 }
 
 // cappedRouting is how the account stands at its cap at now, as policy says

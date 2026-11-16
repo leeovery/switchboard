@@ -183,6 +183,22 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 		{name: "its token refused", account: statustest.Routed{Account: with(runningOut, func(a *status.Account) {
 			a.Refused = status.Refusal{Until: built.Add(time.Hour), Status: 401}
 		})}, key: "7d", want: nothing},
+		{name: "held by a limit for an hour, its token refused for two: none till the refusal ends", account: statustest.Routed{Account: with(with(lasting, holding), func(a *status.Account) {
+			a.Refused = status.Refusal{Until: built.Add(2 * time.Hour), Status: 401}
+		})}, key: "7d", want: []roomAt{
+			{room: 0, known: true},
+			{after: time.Hour, room: 0, known: true},
+			{after: 2 * time.Hour, room: 0, known: true},
+			{after: 2*time.Hour + time.Second, room: 0.7, known: true},
+			{after: 4 * day, room: 0.7, known: true},
+			{after: 4*day + time.Second, room: 1, known: true},
+		}},
+		{name: "held by a limit for an hour, its subscription ended: none for ever, as only a clean read lifts that", account: statustest.Routed{Account: with(with(lasting, holding), failedWith(endedSubscription))}, key: "7d", want: []roomAt{
+			{room: 0, known: true},
+			{after: 2 * time.Hour, room: 0, known: true},
+			{after: 4 * day, room: 0, known: true},
+			{after: 5 * day, room: 0, known: true},
+		}},
 		{name: "without a usable token", account: statustest.Routed{Account: with(runningOut, func(a *status.Account) { a.TokenSet = false })}, key: "7d", want: nothing},
 		{name: "nothing read", account: statustest.Routed{Account: with(runningOut, func(a *status.Account) { a.FetchedAt = time.Time{} })}, key: "7d", want: nothing},
 		{name: "not reported", account: statustest.Routed{Account: runningOut}, key: "7d_oi", want: nothing},

@@ -193,11 +193,16 @@ func (a Account) Window(key string) (quota.Window, bool) {
 }
 
 // heldBy says what holds the account back as it stands at now, a line each:
-// its limit, as its Hold has it, as limitLine says it, till it's back, of
-// one holding back its every request, else till the limit lifts; then the
-// upstream's refusal; each while it holds.
+// its read refused, as ROUTING words it, as in "subscription lapsed · its
+// subscription needs renewing", till a read comes back clean; its limit, as
+// its Hold has it, as limitLine says it, till it's back, of one holding back
+// its every request, else till the limit lifts; then the upstream's refusal;
+// each while it holds.
 func (a AccountNow) heldBy(now time.Time) []string {
 	var held []string
+	if a.RefusedRead != 0 {
+		held = append(held, refusedReadRouting(a.RefusedRead).String())
+	}
 	if a.Held {
 		until := a.Hold.Until
 		if a.Hold.Every {

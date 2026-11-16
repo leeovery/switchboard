@@ -121,26 +121,53 @@ func TestAPrimeMissedWhileTheMacSleptGoesOutAsItWakes(t *testing.T) {
 	}
 }
 
-func TestAPrimeThatFailsIsSentAgainFiveMinutesOn(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		log := logstest.Capture(t)
-		clock := newBubbleClock(onDay(1, 6, 0))
-		upstream := newWindowsUpstream(clock)
-		upstream.refuse(sideToken)
-		r := newPrimingRouter(t, clock.read, upstream, daytime)
-		stop := startPriming(r)
-		defer stop()
+func TestAPrimeThatFailsIsSentAgainFiveMinutesOnOrOnItsRoundsBackoffWhereItsReadWasRefused(t *testing.T) {
+	tests := []struct {
+		name string
+		// fail has the upstream fail side's probes.
+		fail func(u *windowsUpstream)
+		err  string
+		// want are the minutes past 06:00 side is primed at, after its
+		// session's reset.
+		want []int
+	}{
+		{
+			name: "the upstream overloaded: every five minutes",
+			fail: func(u *windowsUpstream) { u.overload(sideToken) }, err: "HTTP 529 · Overloaded",
+			want: []int{40, 45, 50, 55},
+		},
+		{
+			name: "its token refused: on its rounds' backoff where that's longer, 8 minutes after the third",
+			fail: func(u *windowsUpstream) { u.refuse(sideToken) }, err: "HTTP 401 · Invalid bearer token",
+			want: []int{40, 45, 50, 58},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
+				clock := newBubbleClock(onDay(1, 6, 0))
+				upstream := newWindowsUpstream(clock)
+				tt.fail(upstream)
+				r := newPrimingRouter(t, clock.read, upstream, daytime)
+				stop := startPriming(r)
+				defer stop()
 
-		time.Sleep(time.Hour)
-		synctest.Wait()
-		want := []time.Time{afterResets(onDay(1, 6, 40), 1), afterResets(onDay(1, 6, 45), 1), afterResets(onDay(1, 6, 50), 1), afterResets(onDay(1, 6, 55), 1)}
-		if got := upstream.probes()[sideToken]; !reflect.DeepEqual(got, want) {
-			t.Errorf("side, whose token is refused, was primed at %v, want %v: once at its slot, then every five minutes", got, want)
-		}
-		if !log.Has("level=WARN", `msg="prime failed"`, "account=side", `error="HTTP 401 · Invalid bearer token"`) {
-			t.Errorf("log reads\n%s\nwant the prime's failure", log)
-		}
-	})
+				time.Sleep(time.Hour)
+				synctest.Wait()
+				var want []time.Time
+				for _, minute := range tt.want {
+					want = append(want, afterResets(onDay(1, 6, minute), 1))
+				}
+				if got := upstream.probes()[sideToken]; !reflect.DeepEqual(got, want) {
+					t.Errorf("side was primed at %v, want %v: once at its slot, then again as its failures allow", got, want)
+				}
+				if !log.Has("level=WARN", `msg="prime failed"`, "account=side", `error="`+tt.err+`"`) {
+					t.Errorf("log reads\n%s\nwant the prime's failure", log)
+				}
+			})
+		})
+	}
 }
 
 func TestAPrimeThatDoesntStartTheWindowIsSentAgainFiveMinutesOn(t *testing.T) {
@@ -869,16 +896,16 @@ func (c *bubbleClock) sleep(d time.Duration) {
 // account, by clock's time: a request starts the account's session when it
 // isn't running, at the ten-minute mark it falls in, and it resets five hours
 // after that mark. It notes when each token was
-// probed, refuses the tokens it's told to, starts no session on those it's
-// told to leave idle, and answers those it's told have no session with
-// success, reporting their week alone. Every account's week reads as week
-// does, unless it's told otherwise.
+// probed, refuses or overloads on the tokens it's told to, starts no session
+// on those it's told to leave idle, and answers those it's told have no
+// session with success, reporting their week alone. Every account's week
+// reads as week does, unless it's told otherwise.
 type windowsUpstream struct {
 	clock *bubbleClock
 
 	mu          sync.Mutex
 	sessions    map[string]time.Time
-	refused     map[string]bool
+	failing     map[string]error
 	idle        map[string]bool
 	sessionless map[string]bool
 	probed      map[string][]time.Time
@@ -889,7 +916,7 @@ func newWindowsUpstream(clock *bubbleClock) *windowsUpstream {
 	return &windowsUpstream{
 		clock:       clock,
 		sessions:    make(map[string]time.Time),
-		refused:     make(map[string]bool),
+		failing:     make(map[string]error),
 		idle:        make(map[string]bool),
 		sessionless: make(map[string]bool),
 		probed:      make(map[string][]time.Time),
@@ -902,8 +929,8 @@ func (u *windowsUpstream) Probe(_ context.Context, token string, _ http.RoundTri
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	u.probed[token] = append(u.probed[token], now)
-	if u.refused[token] {
-		return quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token")
+	if err := u.failing[token]; err != nil {
+		return quota.Probe{}, err
 	}
 	if u.sessionless[token] {
 		return quota.Probe{Windows: []quota.Window{u.week}, Admitted: true}, nil
@@ -924,9 +951,19 @@ func (u *windowsUpstream) readWeek(w quota.Window) {
 
 // refuse has the upstream refuse token from now on.
 func (u *windowsUpstream) refuse(token string) {
+	u.fail(token, errors.New("HTTP 401 · Invalid bearer token"))
+}
+
+// overload has the upstream answer token as overloaded from now on.
+func (u *windowsUpstream) overload(token string) {
+	u.fail(token, errUnreadable)
+}
+
+// fail has every probe on token fail with err from now on.
+func (u *windowsUpstream) fail(token string, err error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	u.refused[token] = true
+	u.failing[token] = err
 }
 
 // startElsewhere has the session of the account whose token is token run

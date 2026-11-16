@@ -105,10 +105,11 @@ func (s *state) judgeRooms(week func(id string) (quota.Window, bool), pinned fun
 // session at at: the router would find one of its accounts for one, choosing
 // as score.Policy.Choose does by the accounts' shared weeks alone, week
 // giving each, of those with a usable token whose week has been read, but
-// those it couldn't go out on, their token refused or a limit holding back
-// their week, as shut says. So an account has room within its reserve, or
-// within its limit where pin, the accounts the pool's pin names, names it,
-// which spends the reserve. s.mu must be held, the pools regrouped.
+// those it couldn't go out on, their token or their read refused then, or a
+// limit holding back their week, as shut says. So an account has room within
+// its reserve, or within its limit where pin, the accounts the pool's pin
+// names, names it, which spends the reserve. s.mu must be held, the pools
+// regrouped.
 func (s *state) roomy(week func(id string) (quota.Window, bool), pool string, pin []string, at time.Time) bool {
 	isWeek := func(key string) bool { return key == s.policy.Perishable }
 	var candidates []score.Candidate

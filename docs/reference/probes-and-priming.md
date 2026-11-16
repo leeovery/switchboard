@@ -18,7 +18,7 @@ priming 08:00-23:00: work at 04:10 and side at 06:40
 | The retries end | Once a probe reads the account, or the account goes out on another token |
 | A probe due while the Mac slept | Sent within a minute of waking |
 | A prime after a reset | Sent 5 seconds after the reset |
-| A prime that fails | Sent again 5 minutes later |
+| A prime that fails | Sent again 5 minutes later, or after the probes' wait if that's longer and Anthropic refused the read |
 
 ## Probes
 
@@ -52,7 +52,7 @@ answer, a probe or a prime:
 |---|---|
 | Its 5-hour window has lapsed, and it can take a request | Probes it only if its next prime is more than 5 hours off, so the window resets first. Without priming, probes it. |
 | It can take no request anyway | Probes it at any hour, so a reset you make by hand shows within 5 minutes. |
-| Anthropic refused its last read, as for an ended subscription | Probes it at any hour, on the backoff for a probe that reads nothing. A renewal shows within 30 minutes. |
+| Anthropic refused its last read: its subscription ended, or its token was refused | Probes it at any hour, on the backoff for a probe that reads nothing. A renewal shows within 30 minutes. A new session's choice doesn't probe it any sooner. |
 | Anything else | Probes it. |
 
 The router also probes each account once in the 5 minutes before a week resets. That way the last
@@ -108,7 +108,7 @@ doesn't answer, the Fable request falls back to the one before.
 | The window is already running, for example after a late night | No prime. The slot shifts for the day. |
 | A prime reads nothing, or doesn't start the window | It's logged as a warning, and sent again 5 minutes later. |
 | A limit or a spent week holds the account back from every request, or the router refused its token | It isn't primed while it stays that way. |
-| Anthropic refused its last read, as for an ended subscription | It's primed as usual. A prime that reads it brings the account back. |
+| Anthropic refused its last read: its subscription ended, or its token was refused | It's primed as usual, but a failed prime waits as long as the probes do. A prime that reads it brings the account back. |
 | A window resets during your day, in use or not | The router primes it 5 seconds later, so the windows run back to back. |
 | Your day has ended | Priming stops, and the windows lapse overnight. A window a round starts still runs, if it resets before the account's slot. |
 | A prime was missed while the Mac slept or the router was away | It goes out as soon as it can, unless your day has ended. |

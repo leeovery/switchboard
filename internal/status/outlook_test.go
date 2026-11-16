@@ -677,6 +677,13 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), reset("fable", "7d", 3*day), back("fable", "7d_oi", 4*day, false)},
 		},
 		{
+			name: "a limit of a model's own week, its subscription ended: never back, as only a clean read lifts that",
+			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.1, 2*time.Hour), windowIn("7d", 0.2, 3*day), spentIn("7d_oi", 1, 4*day)), func(a *status.Account) {
+				a.Limit, a.Error = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(4 * day)}, endedSubscription
+			})),
+			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), reset("fable", "7d", 3*day), reset("fable", "7d_oi", 4*day)},
+		},
+		{
 			name: "a limit of a model's own week lifting as the week resets, which is still told",
 			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.1, 2*time.Hour), windowIn("7d", 0.2, 3*day), spentIn("7d_oi", 1, 3*day)), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(3 * day)}

@@ -84,6 +84,7 @@ personal · Personal
 
 spare · Spare
   HTTP 401 · Invalid bearer token
+  token refused · its token needs renewing
 
 probed directly
 `,
@@ -99,6 +100,7 @@ probed directly
 
 spare · Spare
   HTTP 401 · Invalid bearer token
+  token refused · its token needs renewing
 
 from the router: healthy  ·  no sessions  ·  routing automatically
 `,
@@ -281,6 +283,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 			},
 			want: `side · Side
   HTTP 401 · Invalid bearer token
+  token refused · its token needs renewing
 
 best next: side · Side
 from the router: unhealthy, 6 of the 8 requests in the last 5 minutes failed  ·  no sessions  ·  routing automatically
@@ -1459,6 +1462,49 @@ func TestTextSaysALimitTillTheAccountsBack(t *testing.T) {
 			}
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("the text says %q of what holds work back, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The text says an account's read refused in ROUTING's words, before a limit
+// holding it too, and nothing of a read that failed otherwise, beyond its
+// error.
+func TestTextSaysAReadRefusedInItsCausesWords(t *testing.T) {
+	weekLimit := func(a *status.Account) { a.Limit = status.Limit{Windows: []string{"7d"}, Until: built.Add(2 * day)} }
+	tests := []struct {
+		name    string
+		account status.Account
+		// want are the lines the text gives work after its windows.
+		want []string
+	}{
+		{
+			name:    "its subscription ended",
+			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.3, 3*day)), failedWith(endedSubscription)),
+			want:    []string{endedSubscription, "subscription lapsed · its subscription needs renewing"},
+		},
+		{
+			name:    "its subscription ended, its week at its limit before: both, back at no time known",
+			account: with(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 3*day)), weekLimit), failedWith(endedSubscription)),
+			want:    []string{endedSubscription, "subscription lapsed · its subscription needs renewing", "limit reached"},
+		},
+		{
+			name:    "its token refused as it was read",
+			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.3, 3*day)), failedWith("HTTP 401 · Invalid bearer token")),
+			want:    []string{"HTTP 401 · Invalid bearer token", "token refused · its token needs renewing"},
+		},
+		{
+			name:    "its read timed out",
+			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.3, 3*day)), failedWith("timed out")),
+			want:    []string{"timed out"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := textOf(routerDocOf(tt.account).At(built, policy))["work"]
+			got := slices.DeleteFunc(slices.Clone(lines), func(l string) bool { return strings.HasPrefix(l, "5-hour") || strings.HasPrefix(l, "Week") })
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the text says %q of work beyond its windows, want %q", got, tt.want)
 			}
 		})
 	}

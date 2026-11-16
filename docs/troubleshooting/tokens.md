@@ -15,8 +15,10 @@ The router sends nothing on that account until a read of it comes back clean:
 - The account's sessions move to the other accounts.
 - A pin to the account yields.
 - `Σ pool` leaves out the account's room.
-- If every account in a pool reads so, work in that pool waits, the same as when every account is
-  out.
+
+If every account in a pool reads so, no account there can take a request. A request in that pool
+goes out on one of its accounts, and Anthropic refuses it. Claude Code then shows an API error with
+the reason, and doesn't retry. Renew one account, or give one a new token, to carry on.
 
 To bring the account back, renew the subscription. The router reads the account again within half
 an hour, and sends it sessions once that read is clean. Press `R` on the dashboard to read it
@@ -43,7 +45,8 @@ switchboard accounts token b6s7
 ```
 
 A read that fails for another reason, such as a timeout or an overloaded API, holds nothing back. The
-account keeps taking sessions on its last reading.
+account keeps taking sessions on its last reading. Such a read doesn't lift a hold either: only a
+clean read does.
 
 ## An account reads `wrong token`
 

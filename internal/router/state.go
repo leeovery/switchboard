@@ -50,8 +50,9 @@ type usage struct {
 	// verdict is judged at, as primeFailed says. A probe on the token before
 	// that read the account moves ended alone, as recordProbe says.
 	probed, ended time.Time
-	// probeErr says why the last probe read nothing, and misses counts the
-	// probes in a row that read nothing, until a reading comes in, to
+	// probeErr says why the last probe read nothing, but a refused read's
+	// error outlasts the failures after it, as failed says; and misses counts
+	// the probes in a row that read nothing, until a reading comes in, to
 	// backingOff.
 	probeErr string
 	misses   int
@@ -549,7 +550,8 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	}
 	if err != nil {
 		if !taken.tokenGone {
-			u.probed, u.ended, u.probeErr = at, at, redact.Text(err.Error())
+			u.probed, u.ended = at, at
+			u.failed(redact.Text(err.Error()))
 			u.misses = min(u.misses+1, backingOff)
 			s.routine()
 		}
@@ -861,13 +863,14 @@ func (s *state) startDue(id string, now time.Time) bool {
 }
 
 // due reports whether an account's usage wants probing at now, before a
-// choice: nothing has been read of it for staleAfter, and it can be probed,
-// as probeable says.
+// choice: nothing has been read of it for staleAfter, it can be probed, as
+// probeable says, and its read refused doesn't space it off, as spacedOff
+// says.
 func (s *state) due(id string, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	return now.Sub(u.updated) > staleAfter && s.probeable(u, now)
+	return now.Sub(u.updated) > staleAfter && s.probeable(u, now) && !u.spacedOff(now)
 }
 
 // refreshing returns what reports whether a refresh asking for usage no
@@ -888,13 +891,13 @@ func (s *state) refreshing(age time.Duration) func(id string, now time.Time) boo
 
 // dueAgain reports whether an account whose usage leaves it no room wants
 // probing again at now, in case a window has reset unseen: nothing has been
-// read of it in the last reprobeAfter, and it can be probed, as probeable
-// says.
+// read of it in the last reprobeAfter, it can be probed, as probeable says,
+// and its read refused doesn't space it off, as spacedOff says.
 func (s *state) dueAgain(id string, now time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
-	return now.Sub(u.updated) >= reprobeAfter && s.probeable(u, now)
+	return now.Sub(u.updated) >= reprobeAfter && s.probeable(u, now) && !u.spacedOff(now)
 }
 
 // probeable reports whether the account whose usage is u can be probed at
@@ -1009,8 +1012,10 @@ func (s *state) nextLook(id string, schedule prime.Schedule, now time.Time) (tim
 // primeAt returns when the account with the given id is next to be primed, at
 // from or after: when schedule says of its windows as last read, but not
 // before reprobeAfter has passed since a probe of it last ended, or
-// reprimeAfter when that one failed as a prime, as primeFailed says. It
-// reports false when the schedule can't say.
+// reprimeAfter when that one failed as a prime, as primeFailed says, and
+// where its read was refused, as readRefused says, not before its rounds'
+// backoff has, as retryAfter has it, where that's longer: as spacedOff holds
+// back a choice's probe. It reports false when the schedule can't say.
 func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy, from time.Time) (time.Time, bool) {
 	at, ok := schedule.Next(id, u.latest(), from)
 	if !ok {
@@ -1019,6 +1024,9 @@ func (u *usage) primeAt(id string, schedule prime.Schedule, policy score.Policy,
 	retry := reprobeAfter
 	if u.primeFailed(policy) {
 		retry = reprimeAfter
+	}
+	if u.readRefused() {
+		retry = max(retry, retryAfter(u.misses))
 	}
 	return score.Later(at, u.probed.Add(retry)), true
 }
@@ -1176,12 +1184,13 @@ func (u *usage) refuses(now time.Time, family string) bool {
 	return u.turnedAway(now) || u.forbidden[family].inForce(now)
 }
 
-// shut reports whether the account has no room at now for a request of any
-// model, whatever its windows read: it's turned away, as turnedAway says, or
-// a limit it reached holds back the requests of every model, which shared
-// says the windows of.
-func (u *usage) shut(now time.Time, shared func(key string) bool) bool {
-	return u.turnedAway(now) || u.limited.holds(now, shared)
+// shut reports whether the account had no room at at for a request of any
+// model, whatever its windows read: its token's refusal was in force then,
+// its read refused held it back then, as heldByReadAt says, or a limit it
+// reached held back the requests of every model, which shared says the
+// windows of.
+func (u *usage) shut(at time.Time, shared func(key string) bool) bool {
+	return u.refused.inForce(at) || u.heldByReadAt(at) || u.limited.holds(at, shared)
 }
 
 // turnedAway reports whether the account's token is refused at now, holding
@@ -1195,10 +1204,41 @@ func (u *usage) turnedAway(now time.Time) bool {
 
 // readRefused reports whether the API refused the account's last read, as
 // status.RefusedRead finds its error: its subscription has ended, or its
-// token is refused. Any reading clears the error, as take has it, and so
-// does the account going out on another token, as probesAfresh has it.
+// token is refused. Only a reading clears it, as take has it, or the
+// account going out on another token, as probesAfresh has it: a read that
+// fails otherwise after it keeps it, as failed says.
 func (u *usage) readRefused() bool {
 	return status.RefusedRead(u.probeErr) != 0
+}
+
+// heldByReadAt reports whether the account's read refused held it back at
+// at, as a moment gone is judged, as seed judges the history: from the end
+// of its last probe on, which is the refused read's or a failed read's after
+// it, so never before the refusal. Routing, which judges now alone, holds it
+// whatever the clock says, as turnedAway has it.
+func (u *usage) heldByReadAt(at time.Time) bool {
+	return u.readRefused() && !at.Before(u.probed)
+}
+
+// failed notes err as why the account's last probe read nothing, but where
+// its read was refused, as readRefused says, and err isn't a refusal too:
+// a read that times out, or is answered otherwise, says nothing of whether
+// the refusal has ended, so the account stays held till a read comes back
+// clean.
+func (u *usage) failed(err string) {
+	if u.readRefused() && status.RefusedRead(err) == 0 {
+		return
+	}
+	u.probeErr = err
+}
+
+// spacedOff reports whether the account's read refused, as readRefused says,
+// holds back its next probe at now that the rounds' backoff, as retryAfter
+// has it, would: a choice or a prime gains nothing by reading it sooner, as
+// it takes no request till a read comes back clean, and each read refused is
+// another warning in the log.
+func (u *usage) spacedOff(now time.Time) bool {
+	return u.readRefused() && now.Sub(u.probed) < retryAfter(u.misses)
 }
 
 // spent reports whether the account's quota leaves it no room at now for a

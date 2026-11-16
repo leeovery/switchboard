@@ -133,9 +133,9 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 			want:    status.Routing{Kind: status.RoutingRefused, Says: "token refused", Clauses: []string{"its token needs renewing"}, Short: []string{"refused"}},
 		},
 		{
-			name:    "a limit before its subscription ended, back at no time known, as a read lifts it",
-			account: with(with(readNow(1, 0.3, 0), limited("5h")), failedWith(endedSubscription)),
-			want:    status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Short: []string{"limit reached"}},
+			name:    "its week at its limit before its subscription ended: the ended subscription, which the limit lifting doesn't",
+			account: with(with(readNow(0.2, 1, 0), limited("7d")), failedWith(endedSubscription)),
+			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
 		},
 		{
 			name:    "its last read answered 403 for another reason: its windows as last read saying how it stands",

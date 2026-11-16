@@ -458,16 +458,26 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   authentication not allowed for its organization, which is how an ended subscription is answered,
   the router holds the account back from every request, as for a token it refused itself. It's no
   candidate, however much room it has; sessions on it move; a pin to it yields; and its pool counts
-  none of its room, so a pool whose every account is held has none, as when every account is out.
-  The hold has no timer: it lasts till a read of it comes back clean, by a probe, a prime or an
-  answer, which clears the error. A held account is never passed over for being held: it's probed
-  on the router's rounds at any hour, as one whose probe read nothing, so a subscription renewed is
-  seen within the half hour (see The router's rounds). A new token in its file lifts the hold at
-  once, as it starts its probes afresh. A read that fails otherwise, as one timed out, unanswered
-  or answered 5xx, holds nothing: the account routes on its windows as last read. The router
-  judges the hold from its own state, through the readers of Claude's answers, and the status
-  document states it once, as the account's `RefusedRead`: no view reads the error again. An
-  account removed goes as any other, its history kept.
+  none of its room. A pool whose every account is held has no room: a request in it goes out on
+  the client's account all the same, for the upstream to refuse it, and ends in the 502 of Requests
+  that need special handling, or the router's 503 where it can't go out on that account (see
+  Choosing an account, step 5). The hold has no timer: it lasts till a read of it comes back clean,
+  by a probe, a prime or an answer, which clears the error. A read that fails otherwise after it,
+  as one timed out, unanswered or answered 5xx, keeps it, as that says nothing of whether the
+  refusal has ended; one refused again keeps it, saying why afresh. A held account is never passed
+  over for being held: it's probed on the router's rounds at any hour, as one whose probe read
+  nothing, so a subscription renewed is seen within the half hour (see The router's rounds); a
+  choice probes it no sooner, nor is a failed prime of it sent again sooner, as each read refused
+  would only be another warning. A new token in its file lifts the hold at once, as it starts its
+  probes afresh. A read that fails otherwise with no refusal before it holds nothing: the account
+  routes on its windows as last read. A limit holding the account too doesn't hide the hold:
+  ROUTING, the routing card and `status` say the refusal first, and nothing says it's back as the
+  limit lifts. The pools' room, which the forecast's day rate counts, holds it back only from the
+  end of its last probe on, never before the refusal, so a restart replaying the readings history
+  doesn't count it held across them. The router judges the hold from its own state, through the
+  readers of Claude's answers, and the status document states it once, as the account's
+  `RefusedRead`: no view reads the error again. An account removed goes as any other, its history
+  kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -1719,7 +1729,8 @@ come back one at a time rather than together: once all are spent, the wait for t
   could be, once its limit or refusal ends, or its spent window resets; it's still probed where the
   probe rules allow, which is how a reset made by hand is seen. One held back by a read refused
   (see 401s and 403s) is the exception: it's primed as its schedule has it, as a prime that reads it
-  is a clean read, which lifts the hold.
+  is a clean read, which lifts the hold, but a prime of it that fails goes again no sooner than its
+  rounds would probe it, after five minutes or their backoff, whichever is longer.
 - **Through the day,** whenever an account's window resets, in use or not, the router primes it 5
   seconds on, so its windows stay back to back: the API's clock may be a little behind the Mac's,
   and a prime it took in before the reset would start nothing, and go again five minutes later,
@@ -1810,7 +1821,8 @@ accounts:
   minute for the next. One whose probe read nothing is probed again on the rounds 2 minutes on,
   then 4, doubling to the half hour, and every half hour after, while it can't be read: a refused
   token probed every 5 minutes would only fill the log. One held back by a read refused (see 401s
-  and 403s) is probed so, never passed over for the hold, as only a clean read lifts it. One whose
+  and 403s) is probed so, never passed over for the hold, as only a clean read lifts it, and a
+  choice made afresh, or one with no room, waits out that backoff too before it probes it. One whose
   token the router refused isn't probed on the rounds while it's so, nor one without a usable
   token. One that goes out on another token,
   loses its usable token, or has a usable one again, starts afresh: how its probes went on the
@@ -4252,10 +4264,10 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
   |---|---|---|---|
   | No usable token (settled in the plan) | `✕ no token · switchboard accounts token work` | `state.destructive` | `no token` |
   | Its token another subscription's (see Account identity) | `✕ its token is another subscription's · switchboard accounts token work · or add that subscription as an account of its own` | `state.destructive` | `wrong token` |
+  | Its subscription ended, as its last read says, a limit holding it or not (the owner's call, 16 November 2026) | `■ subscription lapsed · its subscription needs renewing` | `state.destructive` | `lapsed` |
+  | Its token refused, as its last read says, a limit holding it or not (the owner's call, 16 November 2026) | `■ token refused · its token needs renewing` | `state.destructive` | `refused` |
   | A limit holds it back from every request | `■ limit reached · back 15:54` | `state.destructive` | `limit reached · 15:54` |
   | A limit holds back some models alone (settled in the plan) | `■ Fable wk limit · back Mon 21:00 · other models still come here` | `accent.attention` | `Fable wk limit` |
-  | Its subscription ended, as its last read says (the owner's call, 16 November 2026) | `■ subscription lapsed · its subscription needs renewing` | `state.destructive` | `lapsed` |
-  | Its token refused, as its last read says (the owner's call, 16 November 2026) | `■ token refused · its token needs renewing` | `state.destructive` | `refused` |
   | Its token refused | `■ refused (401) · its token needs renewing` | `state.destructive` | `refused (401)` |
   | One model's requests refused alone (settled in the plan) | `■ refused (403, opus) · other models still come here` | `accent.attention` | `refused (403)` |
   | Its usage can't be read, nothing read before, the API refusing neither its token nor its login (settled in the plan) | `! can't read it · timed out` | `state.destructive` | `can't read it` |
@@ -6578,8 +6590,10 @@ them at the section's width, from a day before now, for a week:
   the readings by then among it, as none after changes it, and none is judged past when the
   readings were last read through. From now on, at its projection, falling at its pace to where it runs
   out, then its floor to its reset, then full, as nothing is known of its next window, in its hue
-  mixed with the canvas so 50% of it shows; an account whose read is refused has none, as no time
-  lifts that (see 401s and 403s).
+  mixed with the canvas so 50% of it shows, as its moment's room ahead has it: a window a limit
+  holds has none till the limit lifts, or the refusal of its token ends where that's later, and
+  none at all where its read is refused, as no time lifts that (see 401s and 403s), which Graphs'
+  cards draw alike.
 - **Now:** `│` in `text.primary` down now's column, through every row.
 - **Under it,** Runway's axis, its three rows as Runway draws them at that width; then its key: each
   account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, as
@@ -8078,10 +8092,10 @@ numbers (see Account identity).
 - **Amber where the account's own cap closed it:** the share it holds back from the router's own
   choices, which reopens itself as its window resets. A pin spends the caps of the accounts it names
   (see Pinning), so an account at its cap can be picked, and takes new sessions up to its limit.
-- **Red where Anthropic closed it:** a limit holding back its every request, `at its limit till
-  15:54`; its read refused, as its last read says, `subscription lapsed` or `token refused`, which
-  holds till a read comes back clean (see 401s and 403s); or its token refused,
-  `token refused (401)`; and red too an account with no usable token,
+- **Red where Anthropic closed it:** its read refused, as its last read says, `subscription
+  lapsed` or `token refused`, which holds till a read comes back clean (see 401s and 403s), and is
+  said before a limit holding it too; a limit holding back its every request, `at its limit till
+  15:54`; or its token refused, `token refused (401)`; and red too an account with no usable token,
   `no token`, which the router refuses a pin to (settled in the plan), or `wrong token` where its
   token is another subscription's (see Account identity).
 - **An account that can't take a session can't be picked,** in either card: its row stays, with its
@@ -11176,7 +11190,7 @@ probing.
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, pool, session, model, dir, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
-| `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
+| `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's; none while the account's read is refused, which no time lifts), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
 | `accounts` | Every configured account, in the config's order, as below |
 
