@@ -62,10 +62,10 @@ looking at.
 | `switchboard accounts edit <id> --pool <id>` | Moves an account into another pool. |
 
 Every flag is in [Commands](commands.md), and the `[[pool]]` keys are in
-[Configuration](configuration.md). When a new account starts taking sessions is in
-[`switchboard pool`](commands/pool.md). Why `run --direct` is refused inside a fence is in
-[`switchboard run`](commands/run.md). If `claude` won't start in a folder, or a request is refused
-inside a pool, see [Troubleshooting](troubleshooting.md).
+[Configuration](configuration.md). [`switchboard pool`](commands/pool.md) says when a new account
+starts taking sessions, and [`switchboard run`](commands/run.md) says why `run --direct` is refused
+inside a fence. If `claude` won't start in a folder, or a request is refused inside a pool, see
+[Troubleshooting](troubleshooting.md).
 
 ## Related
 
