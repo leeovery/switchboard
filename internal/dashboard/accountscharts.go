@@ -39,7 +39,7 @@ const capLevel = "┄"
 func (cp compared) weeksSection(c *canvas, y int, columns []compareColumn) int {
 	cp.weeksHead(c, y, y+1)
 	floor := y + weeksChartRows
-	cells := cp.laid.chartCells()
+	cells := cp.laid.chartCells(len(cp.page.Reach))
 	for _, col := range columns {
 		slots := chartSlots(cells, len(cp.page.Reach))
 		cp.capLine(c, col, floor, slots)
@@ -137,15 +137,16 @@ func leftFacts(v views.AccountVerdict) partForms {
 
 // worthSection draws WORTH from row y, and returns its last row: its
 // heading, naming its bucket; then in each column its worth over the period
-// in the finest bucket that fits the cells chartCells gives, as chartFits
-// has it, so every column's is in the same one, worthChartRows tall, as worthChart
-// draws it: each account's against the highest bucket of every configured
-// account's, shown or not, so they compare, and all accounts' against its
-// own; and under it its peak, in the fullest of peakForms' forms its column
-// holds, as its figures take theirs.
+// in the finest bucket that fits each column, as the layout's chartFits has
+// it, so every column's is in the same one, worthChartRows tall, as
+// worthChart draws it across the cells chartCells gives all accounts' chart:
+// each account's against the highest bucket of every configured account's,
+// shown or not, so they compare, and all accounts' against its own; and
+// under it its peak, in the fullest of peakForms' forms its column holds, as
+// its figures take theirs.
 func (cp compared) worthSection(c *canvas, y int, columns []compareColumn) int {
-	cells := cp.laid.chartCells()
-	fits := chartFits(cells)
+	fits := cp.laid.chartFits()
+	cells := cp.laid.chartCells(len(cp.page.All.WorthBy.Fitting(fits).Buckets))
 	cp.worthHead(c, y, y+1, fits)
 	scale := cp.worthScale(fits)
 	for _, col := range columns {

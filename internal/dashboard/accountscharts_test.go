@@ -81,17 +81,37 @@ func weekByDay(dollars []float64) views.WorthBy {
 }
 
 // chartedCompare is Compare of chartedPage, as text alone, at the size
-// given: its columns, and its rows drawn.
-func chartedCompare(t *testing.T, width, height int, page views.AccountsPage) ([]compareColumn, []string) {
+// given: Compare, and its rows drawn.
+func chartedCompare(t *testing.T, width, height int, page views.AccountsPage) (compared, []string) {
 	f, doc := threeCompared(t, width, height)
 	f.Accounts.Page = &page
-	return f.comparing(doc, routedAt).columns(), textOf(f.Draw(doc, routedAt))
+	return f.comparing(doc, routedAt), textOf(f.Draw(doc, routedAt))
 }
 
-// chartCellsOf are the cells each of the columns' charts takes: the
-// narrowest head's, less the gutter.
-func chartCellsOf(columns []compareColumn) int {
-	return slices.MinFunc(columns, func(a, b compareColumn) int { return a.head - b.head }).head - chartGutter
+// monthCharted is chartedPage over 30 days, each column's worth by day, 30
+// of them, and by week, the days' worth on the 3rd to the 7th.
+func monthCharted(t *testing.T) views.AccountsPage {
+	page := chartedPage(t)
+	page.Period = views.PeriodThirtyDays
+	first := time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
+	for _, row := range []*views.AccountsRow{&page.Rows[0], &page.Rows[1], &page.Rows[2], &page.All} {
+		days := views.WorthBy{Unit: views.ByDay, Peak: -1}
+		weeks := views.WorthBy{Unit: views.ByWeek, Peak: -1}
+		for i := range 30 {
+			day := first.AddDate(0, 0, i)
+			b := views.WorthBucket{Start: day, Label: day.Format("2 Jan"), Axis: day.Format("2 Jan")}
+			if i >= 2 && i < 7 {
+				b.Amount = usd(float64(10 * i))
+				days.Peak = i
+			}
+			days.Buckets = append(days.Buckets, b)
+			if i%7 == 0 {
+				weeks.Buckets = append(weeks.Buckets, views.WorthBucket{Start: day, Label: day.Format("2 Jan"), Axis: day.Format("2 Jan")})
+			}
+		}
+		row.WorthBy = views.WorthCharts{days, weeks}
+	}
+	return page
 }
 
 // twelveMonthsCharted is chartedPage over 12 months, its reach the 13
@@ -119,22 +139,26 @@ func comparedWhole(t *testing.T, width, height int, page views.AccountsPage) (co
 }
 
 // Side by side, each of Compare's charts takes the same cells, its head's
-// less the gutter, so more cells lie between one account's chart and the
-// next's, on its bars and its axis, than any gap within one: WEEKS' and
-// WORTH's this week at 160 columns, and WEEKS' at 12 months at 173. Every
-// WEEKS chart, its last week charted, ends on the same cell of its column.
+// less a gutter, so more cells lie between one account's chart and the
+// next's, on its bars and its axis, than any gap within one: where its
+// columns stand apart, chartsApart, as WEEKS' and WORTH's this week at 160
+// columns and WEEKS' at 12 months at 173; where they touch, as 30 days by day
+// at 160, two, its chart its head less a cell, by day still. Every WEEKS
+// chart, its last week charted, ends on the same cell of its column.
 func TestComparesChartsStandApartByTheGutter(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
 		width, height int
 		page          views.AccountsPage
 		heading       string
-		rows          int
+		rows, buckets int
+		apart         int
 		toTheEdge     bool
 	}{
-		{"WEEKS this week", 160, 37, chartedPage(t), "WEEKS  each week at its peak", weeksChartRows + 1, true},
-		{"WORTH this week", 160, 37, chartedPage(t), "WORTH  at API prices, by day", worthChartRows + 1, false},
-		{"WEEKS at 12 months", 173, 53, twelveMonthsCharted(t), "WEEKS  each week at its peak, a month its fullest", weeksChartRows + 1, true},
+		{"WEEKS this week", 160, 37, chartedPage(t), "WEEKS  each week at its peak", weeksChartRows + 1, 8, chartsApart, true},
+		{"WORTH this week", 160, 37, chartedPage(t), "WORTH  at API prices, by day", worthChartRows + 1, 7, chartsApart, false},
+		{"WEEKS at 12 months", 173, 53, twelveMonthsCharted(t), "WEEKS  each week at its peak, a month its fullest", weeksChartRows + 1, 13, chartsApart, true},
+		{"WORTH over 30 days, by day", 160, 37, monthCharted(t), "WORTH  at API prices, by day", worthChartRows + 1, 30, 2, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cp, _, rows := comparedWhole(t, tt.width, tt.height, tt.page)
@@ -142,24 +166,27 @@ func TestComparesChartsStandApartByTheGutter(t *testing.T) {
 			if head < 0 {
 				t.Fatalf("no row reads %q in\n%s", tt.heading, strings.Join(rows, "\n"))
 			}
-			columns := cp.columns()
-			checkChartsApart(t, rows[head+1:head+1+tt.rows], columns, chartCellsOf(columns), tt.toTheEdge)
+			cells := cp.laid.chartCells(tt.buckets)
+			if gutter := cp.laid.narrowest() - cells; gutter+1 != tt.apart {
+				t.Errorf("its charts take %d cells of a %d-cell head, %d apart, want %d", cells, cp.laid.narrowest(), gutter+1, tt.apart)
+			}
+			checkChartsApart(t, rows[head+1:head+1+tt.rows], cp.columns(), cells, tt.apart, tt.toTheEdge)
 		})
 	}
 }
 
 // chartsApart are the fewest cells between one of Compare's charts side by
-// side and the next: the gutter and the cell between columns, more than the
-// two cells, the most, between a chart's own columns, or the three, at most,
-// its spare makes of them.
+// side and the next, their columns apart: the gutter and the cell between
+// columns, more than the two cells, the most, between a chart's own
+// columns, or the three, at most, its spare makes of them.
 const chartsApart = 5
 
 // checkChartsApart fails where a chart's cells, along any of rows, lie past
-// its cells from its column's first, or where fewer than chartsApart cells
-// lie between the last drawn of one column's and the first of the next's;
-// and, where toTheEdge, where any column's charts don't reach their last
-// cell along some row.
-func checkChartsApart(t *testing.T, rows []string, columns []compareColumn, cells int, toTheEdge bool) {
+// its cells from its column's first, or where fewer than apart cells lie
+// between the last drawn of one column's and the first of the next's; and,
+// where toTheEdge, where any column's charts don't reach their last cell
+// along some row.
+func checkChartsApart(t *testing.T, rows []string, columns []compareColumn, cells, apart int, toTheEdge bool) {
 	t.Helper()
 	reach := make([]int, len(columns))
 	for y, row := range rows {
@@ -179,8 +206,8 @@ func checkChartsApart(t *testing.T, rows []string, columns []compareColumn, cell
 			if last >= col.x+cells {
 				t.Errorf("row %d of the chart from %d reads %q, drawn to %d, want it within its %d cells", y, col.x, span, last, cells)
 			}
-			if prevLast >= 0 && first-prevLast-1 < chartsApart {
-				t.Errorf("row %d has %d cells between one chart's last, %d, and the next's first, %d, want %d at least, in %q", y, first-prevLast-1, prevLast, first, chartsApart, row)
+			if prevLast >= 0 && first-prevLast-1 < apart {
+				t.Errorf("row %d has %d cells between one chart's last, %d, and the next's first, %d, want %d at least, in %q", y, first-prevLast-1, prevLast, first, apart, row)
 			}
 			prevLast, reach[i] = last, max(reach[i], last)
 		}
@@ -192,14 +219,15 @@ func checkChartsApart(t *testing.T, rows []string, columns []compareColumn, cell
 	}
 }
 
-// slotsFrom are where a chart of buckets columns lies across the column of
-// columns from x, as chartSlots lays them across its chart's cells, from x.
-func slotsFrom(t *testing.T, columns []compareColumn, x, buckets int) []chartSlot {
+// slotsFrom are where a chart of buckets columns lies across Compare's
+// column from x, as chartSlots lays them across the cells chartCells gives,
+// from x.
+func slotsFrom(t *testing.T, cp compared, x, buckets int) []chartSlot {
 	t.Helper()
-	if !slices.ContainsFunc(columns, func(col compareColumn) bool { return col.x == x }) {
+	if !slices.ContainsFunc(cp.columns(), func(col compareColumn) bool { return col.x == x }) {
 		t.Fatalf("no column starts at %d", x)
 	}
-	slots := chartSlots(chartCellsOf(columns), buckets)
+	slots := chartSlots(cp.laid.chartCells(buckets), buckets)
 	for j := range slots {
 		slots[j].x += x
 	}
@@ -220,13 +248,13 @@ func cut(row string, x int, text string) string {
 // account's limits hit, all accounts' weeks short, and what they left.
 func TestWEEKSChartsEachColumnsWeeksOfTheReach(t *testing.T) {
 	page := chartedPage(t)
-	columns, rows := chartedCompare(t, 173, 60, page)
+	cp, rows := chartedCompare(t, 173, 60, page)
 	head := rowWith(rows, "WEEKS  each week at its peak")
 	if head < 0 {
 		t.Fatalf("no WEEKS heading in\n%s", strings.Join(rows, "\n"))
 	}
 	work, all := columnOf(rows[6], "work"), columnOf(rows[6], "all accounts")
-	workSlots, allSlots := slotsFrom(t, columns, work, len(page.Reach)), slotsFrom(t, columns, all, len(page.Reach))
+	workSlots, allSlots := slotsFrom(t, cp, work, len(page.Reach)), slotsFrom(t, cp, all, len(page.Reach))
 	if workSlots[0].width != 3 {
 		t.Fatalf("work's weeks are %d cells wide, want 3", workSlots[0].width)
 	}
@@ -275,10 +303,10 @@ func TestWEEKSChartsEachColumnsWeeksOfTheReach(t *testing.T) {
 // across no other's, nor all accounts'.
 func TestWEEKSMarksTheCapWhereAReserveIsKept(t *testing.T) {
 	page := chartedPage(t)
-	columns, rows := chartedCompare(t, 173, 60, page)
+	cp, rows := chartedCompare(t, 173, 60, page)
 	top := rowWith(rows, "WEEKS  each week at its peak") + 1
 	work, personal, all := columnOf(rows[6], "work"), columnOf(rows[6], "personal"), columnOf(rows[6], "all accounts")
-	slots := slotsFrom(t, columns, work, len(page.Reach))
+	slots := slotsFrom(t, cp, work, len(page.Reach))
 	var want strings.Builder
 	for i, cell := range []string{capLevel, "▃", "█", "▆", "█", capLevel, "█", capLevel} {
 		want.WriteString(strings.Repeat(capLevel, slots[i].x-work-ansi.StringWidth(want.String())))
@@ -321,7 +349,7 @@ func TestWEEKSAxisEndsOnTheCurrentMonthAt12Months(t *testing.T) {
 		t.Fatalf("no WEEKS heading at 12 months in\n%s", strings.Join(rows, "\n"))
 	}
 	axis, columns := head+weeksChartRows+1, cp.columns()
-	cells := chartCellsOf(columns)
+	cells := cp.laid.chartCells(len(page.Reach))
 	if slots := chartSlots(cells, len(page.Reach)); slots[len(slots)-1].x+3 <= cells {
 		t.Fatalf("a chart of %d cells holds Oct from its last column's first cell, want it too narrow to", cells)
 	}
@@ -357,13 +385,13 @@ func TestWEEKSFactsTakeTheFullestFormTheyHold(t *testing.T) {
 // its Wednesday fills all four too, and its peak says so. The axis names
 // each day; the line under it names the peak.
 func TestWORTHChartsTheAccountsOnOneScaleAllAccountsOnItsOwn(t *testing.T) {
-	columns, rows := chartedCompare(t, 173, 60, chartedPage(t))
+	cp, rows := chartedCompare(t, 173, 60, chartedPage(t))
 	head := rowWith(rows, "WORTH  at API prices, by day")
 	if head < 0 {
 		t.Fatalf("no WORTH heading by day in\n%s", strings.Join(rows, "\n"))
 	}
 	work, personal, all := columnOf(rows[6], "work"), columnOf(rows[6], "personal"), columnOf(rows[6], "all accounts")
-	days := func(x int) []chartSlot { return slotsFrom(t, columns, x, 7) }
+	days := func(x int) []chartSlot { return slotsFrom(t, cp, x, 7) }
 	if got := days(work)[0].width; got != 3 {
 		t.Fatalf("work's days are %d cells wide, want 3", got)
 	}
@@ -512,12 +540,12 @@ func TestWEEKSMarksTheCapOnTheRowItFallsIn(t *testing.T) {
 func TestWORTHsScaleIsEveryAccountsShownOrNot(t *testing.T) {
 	page := chartedPage(t)
 	page.Rows[2].WorthBy = views.WorthCharts{weekByDay([]float64{0, 0, 296, 0})}
-	columns, rows := chartedCompare(t, 100, 60, page)
+	cp, rows := chartedCompare(t, 100, 60, page)
 	if x := columnOf(rows[6], "side"); x >= 0 {
 		t.Fatalf("side shows at column %d at 100 columns, want it scrolled out of view", x)
 	}
 	head, work := rowWith(rows, "WORTH  at API prices, by day"), columnOf(rows[6], "work")
-	wed := slotsFrom(t, columns, work, 7)[2]
+	wed := slotsFrom(t, cp, work, 7)[2]
 	if wed.width != 1 {
 		t.Fatalf("work's Wednesday is %d cells wide, want 1", wed.width)
 	}
@@ -568,12 +596,13 @@ func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
 			if tt.width == 83 && head != f.leastCompared()-1 {
 				t.Fatalf("at 83 columns the narrowest head is %d cells, want the least, %d", head, f.leastCompared()-1)
 			}
-			cells := f.compareLaid().chartCells()
-			if !chartFits(cells)(views.BucketsMost) {
+			laid := f.compareLaid()
+			fits, cells := laid.chartFits(), laid.chartCells(views.BucketsMost)
+			if !fits(views.BucketsMost) || !chartFits(cells)(views.BucketsMost) {
 				t.Errorf("at %d columns a chart of %d cells doesn't hold %d buckets, the most a period's coarsest chart has", tt.width, cells, views.BucketsMost)
 			}
-			by := page.All.WorthBy.Fitting(chartFits(cells))
-			if by.Unit != unit || !chartFits(cells)(len(by.Buckets)) {
+			by := page.All.WorthBy.Fitting(fits)
+			if by.Unit != unit || !chartFits(laid.chartCells(len(by.Buckets)))(len(by.Buckets)) {
 				t.Errorf("%s at %d columns, its chart %d cells, WORTH is by %s in %d buckets, want by %s, fitting", period.Name(), tt.width, cells, bucketWord[by.Unit], len(by.Buckets), bucketWord[unit])
 			}
 			rows := textOf(f.Draw(usageWorld(tenCompared, extraOff, heldFirst(4)), routedAt))

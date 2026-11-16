@@ -31,11 +31,12 @@ const (
 	labelIndent = 2
 	versionAt   = labelIndent + 2
 	labelsGap   = 2
-	// chartGutter are the cells of a column's head its charts leave at the
-	// right, so with the cell between columns the cells between one
-	// account's chart and the next's are wider than any gap within one, and
-	// the charts don't read as one.
-	chartGutter = 4
+	// apartGutter and touchingGutter are the cells of a column's head its
+	// charts leave at the right, their columns standing apart or touching,
+	// so with the cell between columns the cells between one account's chart
+	// and the next's are wider than any gap within one, and the charts don't
+	// read as one: a touching chart has no gaps, so a cell is enough.
+	apartGutter, touchingGutter = 4, 1
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'. It's a floor: the rows'
 	// shortest forms at their bounds, as compareFigures has them, set the
@@ -102,16 +103,30 @@ func (l compareLayout) shown() int {
 }
 
 // narrowest are the cells of the narrowest column's head, which every
-// column's charts take, less chartGutter, so they chart alike.
+// column's charts take, less their gutter, so they chart alike.
 func (l compareLayout) narrowest() int {
 	return slices.MinFunc(l.slots, func(a, b flex.Span) int { return a.Size - b.Size }).Size - 1
 }
 
-// chartCells are the cells each column's charts take, every column's
-// alike, so they compare cell for cell: the narrowest head's, less
-// chartGutter.
-func (l compareLayout) chartCells() int {
-	return l.narrowest() - chartGutter
+// chartFits reports whether a chart of as many buckets as given fits each
+// column, as chartCells lays it: touching across the narrowest head less
+// touchingGutter, which holds any that stand apart across it less
+// apartGutter.
+func (l compareLayout) chartFits() func(buckets int) bool {
+	return chartFits(l.narrowest() - touchingGutter)
+}
+
+// chartCells are the cells each column's chart of as many buckets as given
+// takes, every column's alike, so they compare cell for cell: the narrowest
+// head's less apartGutter, where its columns stand apart there, as
+// chartSlots lays them; else less touchingGutter, but never so many that
+// its columns would stand apart.
+func (l compareLayout) chartCells(buckets int) int {
+	head, apart := l.narrowest(), chartPart(buckets, 1, 1)
+	if _, fits := flex.Lay(head-apartGutter, apart); fits {
+		return head - apartGutter
+	}
+	return min(head-touchingGutter, apart.Least-1)
 }
 
 // comparedAlways are the accounts' columns, from the first, that never give
