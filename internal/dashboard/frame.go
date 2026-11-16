@@ -392,7 +392,8 @@ func (f Frame) tabViewRows() int {
 	return f.viewRows()
 }
 
-// Under is what of the frame is under a cell, for the wheel to scroll.
+// Under is what of the frame is under a cell, for the wheel to scroll or to
+// choose through.
 type Under int
 
 const (
@@ -406,15 +407,16 @@ const (
 	// UnderView is a cell of what of the view scrolls, while no card is
 	// open.
 	UnderView
-	// UnderList is a cell of a list the wheel chooses through, a thing at a
-	// time, rather than scrolls, while no card is open: Projects' list.
-	UnderList
+	// UnderProjectsList is a cell of Projects' list, which the wheel chooses
+	// through a project at a time, rather than scrolls, while no card is
+	// open.
+	UnderProjectsList
 )
 
 // Under is what's under the cell at x along row y, as the frame draws doc at
 // now: while a card is open, the card, in its box, and nothing outside it;
-// else, where the page has room for the view, as cramped says, the list the
-// wheel chooses through, as chooses has it, or what of the view scrolls, as
+// else, where the page has room for the view, as cramped says, Projects'
+// list, as chooses has it, or what of the view scrolls, as
 // scrolls has it.
 func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 	f = f.At(doc, now)
@@ -426,7 +428,7 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 		return UnderCard
 	case f.Card != nil || f.cramped():
 	case inside(f.chooses(doc, now)):
-		return UnderList
+		return UnderProjectsList
 	case inside(f.scrolls(doc, now)):
 		return UnderView
 	}
@@ -435,7 +437,8 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 
 // chooses is what of the view of doc at now the wheel chooses through, from
 // column x along row y, width cells wide and rows tall: on Projects, its
-// list's projects, as projectsLaid has them; nothing elsewhere.
+// list's projects shown and the line saying how many more, as projectsLaid
+// has them; nothing elsewhere.
 func (f Frame) chooses(doc status.Document, now time.Time) (x, y, width, rows int) {
 	if f.Shown() == Projects {
 		return f.projectsLaying(doc, now).chooses()

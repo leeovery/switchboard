@@ -69,7 +69,7 @@ func (m Model) wheeled(msg tea.MouseWheelMsg) Model {
 		switch f.Under(m.doc, at, msg.X, msg.Y) {
 		case dashboard.UnderView:
 			return m.scrollView(notch(f, m.doc, at, way))
-		case dashboard.UnderList:
+		case dashboard.UnderProjectsList:
 			return m.projectsWheeled(way)
 		}
 	}

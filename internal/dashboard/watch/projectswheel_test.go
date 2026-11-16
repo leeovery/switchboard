@@ -92,6 +92,46 @@ func TestTheWheelOverProjectsListChoosesAProjectATime(t *testing.T) {
 	}
 }
 
+// A turn of the wheel over Projects' list from SESSIONS, at either of the
+// list's ends, brings ↑ and ↓ back to the list, the project chosen kept, as
+// a click on its row does.
+func TestTheWheelAtProjectsListsEndsFromSessionsComesBackToTheList(t *testing.T) {
+	for _, size := range []tea.WindowSizeMsg{{Width: 73, Height: 61}, {Width: 160, Height: 37}} {
+		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
+			h := wheelHarness(t, size)
+			rows := rowsOf(h)
+			x := size.Width / 2
+			ends := []struct {
+				name string
+				way  tea.MouseButton
+				to   func()
+				at   string
+			}{
+				{name: "top", way: tea.MouseWheelUp, to: func() {}, at: rows[0]},
+				{name: "bottom", way: tea.MouseWheelDown, to: func() {
+					for range rows {
+						h.keys(downKey)
+					}
+				}, at: rows[len(rows)-1]},
+			}
+			for _, end := range ends {
+				end.to()
+				if got := h.model.projects.shown.Chosen; got != end.at {
+					t.Fatalf("at the list's %s, %s chosen, want %s", end.name, got, end.at)
+				}
+				h.keys(rightKey)
+				if !h.model.projects.shown.InSessions {
+					t.Fatalf("→ at the list's %s left ↑ and ↓ in the list, want SESSIONS", end.name)
+				}
+				h.wheel(end.way, x, h.projectsOnScreen()[0].Y)
+				if s := h.model.projects.shown; s.Chosen != end.at || s.InSessions {
+					t.Errorf("a turn past the list's %s from SESSIONS chose %s, in sessions %v; want %s, back in the list", end.name, s.Chosen, s.InSessions, end.at)
+				}
+			}
+		})
+	}
+}
+
 // A turn of the wheel over SESSIONS scrolls it wheelRows rows, the project
 // chosen kept; and a turn over anything else of Projects moves nothing.
 func TestTheWheelOverProjectsSessionsScrollsThemAndElsewhereNothing(t *testing.T) {

@@ -3641,7 +3641,8 @@ Overview's SESSIONS):
   choose;
 - on the Overview and Trends, on a section's heading or its key, it hides the section;
 - on the Log's `▼ 214 new`, it follows again, and on a tick in its `f` panel, it ticks it;
-- the wheel scrolls what's under the pointer, where that scrolls.
+- the wheel scrolls what's under the pointer, where that scrolls; over Projects' list, it chooses
+  the project before or after, a project a turn, as the arrows do there.
 
 Routing takes keys alone: no click opens the routing card or acts in it, so a stray click never
 moves a session.
@@ -5374,7 +5375,7 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   before the days are joined, joined only to build it. While another tab shows, such a change
   leaves it stale, built as Projects next shows, never a frame at a time; and the chosen project's
   as the page or the choice does. The project shown is held as chosen once any
-  key or click moves the choice, the top row's included, else the top row is chosen as the list
+  key, click or turn of the wheel moves the choice, the top row's included, else the top row is chosen as the list
   ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
   where the session selected showed, it's kept in view; a project that leaves the list leaves the
   top row chosen, the list with the choice, no session selected and SESSIONS from its top.
@@ -8118,7 +8119,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `↑` `↓` | Projects | Choose a project in the list; or, in its SESSIONS, a session |
 | `→` `←` | Projects | Into the project's SESSIONS, and back to the list |
-| the wheel | Projects, over the list | Choose the project before or after, a project a turn, as `↑` `↓` do in the list, and back to the list from SESSIONS, as a click on it is (the owner's call, 16 November 2026) |
+| the wheel | Projects, over the list | Choose the project before or after, a project a turn, as `↑` `↓` do in the list, and back to the list from SESSIONS, as a click on it does (settled in the plan) |
 | `←` `→` | Runway | Step back to this week, then a week at a time; step forward, to the live view (the owner's call, 12 November 2026) |
 | `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
 | `w` `o` `g` `h` | Trends | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |
