@@ -5338,7 +5338,15 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   half where it lies wide, else by two hours; over 30 days and 12 weeks, by day where one fits
   each day, else by week; over 12 months, by week where one fits each week, else by month. Its
   axis names buckets from the last back, the one now falls in bold, and weeks by the month of
-  their first day in the period, where it's another than the week before's. SESSIONS is the
+  their first day in the period, where it's another than the week before's. WORTH BY spans the
+  cells it takes, here and on Accounts' Detail (the owner's call, 15 November 2026: a chart is
+  never cut short). Its spare cells are spread evenly: across the gaps where its columns stand
+  apart, every column one width, and across the columns where they touch (`chartSlots`). Where
+  the last bucket's name would run past the edge from its own column, the chart narrows to the
+  widest that holds it, so every name starts at its column and the last ends at the edge
+  (`namedSlots`, settled in the plan). Compare's charts keep whole steps and the spare at the
+  right, because that spare is the gutter between its side-by-side charts (`compareSlots`,
+  settled in the plan: a fixed gutter thinned the columns and dropped names). SESSIONS is the
   List's columns, the session's from 11 cells to its whole, then model, started and requests leaving as the width runs
   short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
   and its date, each session's state its end by the clock alone and its start, where it began on

@@ -44,7 +44,7 @@ func (cp compared) turnedWorth(c *canvas, y int, l turnedLayout, columns []compa
 		y += partsApart
 		by, against := scale.of(col)
 		c.line(turnedNameAt, y, turnedName(col, l.names))
-		worthChart(c, cp.f.Look, l.at, y, cells, worthChartRows, by, against)
+		worthChart(c, cp.f.Look, l.at, y, cells, worthChartRows, compareLay, by, against)
 		y += worthChartRows + 1
 		c.line(l.at, y, fitParts(cells, peakForms(by, col.all).fitting(cells)...))
 	}

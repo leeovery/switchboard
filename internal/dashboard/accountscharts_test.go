@@ -180,6 +180,36 @@ func TestWEEKSSaysAMonthIsItsFullestAt12Months(t *testing.T) {
 	}
 }
 
+// At 12 months each WEEKS chart's axis ends on the current month, in bold,
+// from its own column's first cell, as compareSlots lays the columns.
+func TestWEEKSAxisEndsOnTheCurrentMonthAt12Months(t *testing.T) {
+	page := chartedPage(t)
+	page.Period = views.PeriodTwelveMonths
+	first := time.Date(2025, time.October, 1, 0, 0, 0, 0, time.UTC)
+	page.Reach = nil
+	for i := range 13 {
+		month := first.AddDate(0, i, 0)
+		page.Reach = append(page.Reach, views.Bucket{Start: month, Label: month.Format("Jan"), Axis: month.Format("Jan")})
+	}
+	f, doc := threeCompared(t, 173, 60)
+	f.Accounts.Page = &page
+	cp := f.comparing(doc, routedAt)
+	body := cp.rows()
+	rows := textOf(body.rows(Look{}))
+	head := rowWith(rows, "WEEKS  each week at its peak, a month its fullest")
+	if head < 0 {
+		t.Fatalf("no WEEKS heading at 12 months in\n%s", strings.Join(rows, "\n"))
+	}
+	axis := head + weeksChartRows + 1
+	for _, col := range cp.columns() {
+		slots := compareSlots(col.head, len(page.Reach))
+		at := col.x + slots[len(slots)-1].x
+		if got := cut(rows[axis], at, "Oct"); got != "Oct" || inkAt(body, at, axis) != strongInk {
+			t.Errorf("the axis of the column from %d reads %q at %d, want now's Oct, in bold, from its column's first cell", col.x, got, at)
+		}
+	}
+}
+
 // WEEKS' facts take the fullest form their column holds: what was left at
 // a reset said short, then not at all; and where no whole week is judged, a
 // dash.

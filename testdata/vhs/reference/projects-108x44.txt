@@ -21,10 +21,10 @@ WORTH BY DAY
 
 
 
-               ▅▅▅▅▅▅▅▅▅▅▅▅▅                 ▅▅▅▅▅▅▅▅▅▅▅▅▅
+                ▅▅▅▅▅▅▅▅▅▅▅▅▅                   ▅▅▅▅▅▅▅▅▅▅▅▅▅
 ▇▇▇▇▇▇▇▇▇▇▇▇▇
 
-Mon            Tue            Wed            Thu            Fri            Sat            Sun
+Mon             Tue             Wed             Thu            Fri             Sat             Sun
 peak Wed $109
 
 BY MODEL                                              ON ACCOUNTS

@@ -32,12 +32,12 @@ side            47%     60%     78%…  limit hit 0 of 5    54% left
 
 WORTH
 
-          ▇▇▇▇▇▇▇▇
-▄▄▄▄▄▄▄▄                      ▅▅▅▅▅▅▅▅
+           ▇▇▇▇▇▇▇▇
+▄▄▄▄▄▄▄▄                        ▅▅▅▅▅▅▅▅
 
 
 
-Mon       Tue       Wed       Thu       Fri       Sat       Sun
+Mon        Tue       Wed        Thu        Fri       Sat        Sun
 peak Wed $212
 
 LATELY

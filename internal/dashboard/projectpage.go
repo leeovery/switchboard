@@ -297,7 +297,7 @@ func (d projectDrawn) section(c *canvas, section, x, y, width int) int {
 // row after it.
 func (d projectDrawn) worthBy(c *canvas, x, y, width int) int {
 	c.line(x, y, line{{"WORTH BY " + strings.ToUpper(bucketWord[d.worth.Unit]), headingInk}})
-	worthChart(c, d.f.Look, x, y+1, width, worthRows, d.worth, peakWorth(d.worth))
+	worthChart(c, d.f.Look, x, y+1, width, worthRows, namedSlots, d.worth, peakWorth(d.worth))
 	c.line(x, y+1+worthRows+1, worthPeak(d.worth))
 	return y + worthTaken
 }

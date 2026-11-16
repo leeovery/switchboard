@@ -21,9 +21,9 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │
                     │               ▂▂▂▂▂▂▂▂▂▂▂▂▂▂▂
-                    │                                                                  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+                    │                                                                     ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
                     │
-                    │               Mon              Tue              Wed              Thu              Fri              Sat              Sun
+                    │               Mon               Tue               Wed               Thu              Fri               Sat               Sun
                     │               peak Wed $108
                     │
                     │   SESSIONS  now                                   LATELY

@@ -284,7 +284,7 @@ func (d detailDrawn) worth(c *canvas, y int) {
 // under that its peak, as peakForms has it, the fullest that fits.
 func worthAcross(c *canvas, look Look, x, y, cells int, charts views.WorthCharts) {
 	by := charts.Fitting(chartFits(cells))
-	worthChart(c, look, x, y, cells, detailWorthChart, by, peakWorth(by))
+	worthChart(c, look, x, y, cells, detailWorthChart, namedSlots, by, peakWorth(by))
 	c.line(x, y+detailWorthChart+1, fitParts(cells, peakForms(by, false).fitting(cells)...))
 }
 

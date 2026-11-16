@@ -257,13 +257,14 @@ func TestDetailOfAllAccountsDrawsBandsWideAndTheTableStacked(t *testing.T) {
 // under the weeks section: its heading at the panel's left on its chart's
 // top row; its chart detailWorthChart rows tall, its peak's column the
 // whole of them, its buckets' slots laid across the weeks' cells as
-// chartSlots lays them; its axis under it; and its peak under that.
+// namedSlots lays them; its axis under it; and its peak under that.
 func TestDetailsWORTHReachesAcrossThePanel(t *testing.T) {
 	doc := usageWorld(extraOff)
 	for _, width := range []int{120, 160, 220} {
 		t.Run(fmt.Sprint(width), func(t *testing.T) {
 			page := detailsPage(t)
-			page.Rows[0].WorthBy = views.WorthCharts{weekByDay([]float64{40, 80, 148, 60, 30, 20, 10})}
+			by := weekByDay([]float64{40, 80, 148, 60, 30, 20, 10})
+			page.Rows[0].WorthBy = views.WorthCharts{by}
 			f := detailFrame(Look{}, framedAccounts, "work", "", page, nil)
 			f.Width = width
 			rows, d := panelOf(f, doc)
@@ -274,7 +275,7 @@ func TestDetailsWORTHReachesAcrossThePanel(t *testing.T) {
 			if got := fromPanel(rows[y], d.l); !strings.HasPrefix(got, "WORTH") {
 				t.Errorf("WORTH's row reads %q, want WORTH at the panel's left", got)
 			}
-			floor, slots := rows[y+detailWorthChart-1], chartSlots(d.l.weeksCells(), 7)
+			floor, slots := rows[y+detailWorthChart-1], namedSlots(d.l.weeksCells(), bucketNames(by))
 			last := d.l.cx() + slots[6].x + slots[6].width
 			if columnOf(floor, "█") != d.l.cx() || ansi.StringWidth(strings.TrimRight(floor, " ")) != last || last > d.l.edge() {
 				t.Errorf("its chart's floor reads %q, want it from %d to %d, its last slot's end, within the weeks' edge, %d", floor, d.l.cx(), last, d.l.edge())

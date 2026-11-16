@@ -31,7 +31,7 @@ const capLevel = "┄"
 // weeksSection draws WEEKS from row y, and returns its last row: its
 // heading, a month's fullest week named at 12 months; then in each column
 // its peaks in the reach's columns, weeksChartRows tall at a full week, as
-// peakColumn draws them, laid across its head's cells as chartSlots lays
+// peakColumn draws them, laid across its head's cells as compareSlots lays
 // them, the cap's level across them where its account keeps a reserve, as
 // capLine draws it; under them their axis, as reachNames has it; and under
 // that its facts, as weeksFacts says them, cut as its figures are.
@@ -39,12 +39,13 @@ func (cp compared) weeksSection(c *canvas, y int, columns []compareColumn) int {
 	cp.weeksHead(c, y, y+1)
 	floor := y + weeksChartRows
 	for _, col := range columns {
-		slots := chartSlots(col.head, len(cp.page.Reach))
+		names := cp.reachNames(col.row)
+		slots := compareSlots(col.head, len(names))
 		cp.capLine(c, col, floor, slots)
 		for i, p := range col.row.Reached {
 			peakColumn(c, cp.f.Look, col.x+slots[i].x, floor, weeksChartRows, slots[i].width, p)
 		}
-		chartAxis(c, col.x, floor+1, col.head, slots, cp.reachNames(col.row))
+		chartAxis(c, col.x, floor+1, col.head, slots, names)
 		c.line(col.x, floor+2, fitParts(col.width, weeksFacts(col.row.Reaching).fitting(col.width)...))
 	}
 	return floor + 2
@@ -147,7 +148,7 @@ func (cp compared) worthSection(c *canvas, y int, columns []compareColumn) int {
 	scale := cp.worthScale(fits)
 	for _, col := range columns {
 		by, against := scale.of(col)
-		worthChart(c, cp.f.Look, col.x, y+1, col.head, worthChartRows, by, against)
+		worthChart(c, cp.f.Look, col.x, y+1, col.head, worthChartRows, compareLay, by, against)
 		c.line(col.x, y+1+worthChartRows+1, fitParts(col.width, peakForms(by, col.all).fitting(col.width)...))
 	}
 	return y + compareWorthUnder

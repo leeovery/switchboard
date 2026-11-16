@@ -25,6 +25,6 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │   limit hit 3 of the last 5 weeks · 5% left at a reset, on average
                     │
-                    │   WORTH                                                 ▇▇▇▇▇▇▇▇▇▇▇▇
+                    │   WORTH                                                   ▇▇▇▇▇▇▇▇▇▇▇▇
                         ▼ 18 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit
