@@ -16,8 +16,13 @@ switchboard logs cli -n 200
 switchboard logs --path
 ```
 
-The router notes every request it routes, with the account, the pool if you have pools, and why it
-went there. Each record is one line of logfmt:
+The router notes every request it routes. The line names:
+
+- the account the request went out on;
+- the pool the request was routed in, if you have pools;
+- why the request went there.
+
+Each record is one line of logfmt:
 
 ```text
 time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=4242 id=5f3a9c2e session=18bb978f model=claude-opus-5-5 account=q4tx pool=h4w2 reason="moved: b6s7 hit its limit" status=200 attempts=2 duration=9.412s

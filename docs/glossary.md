@@ -28,9 +28,9 @@ more requests in that window until it resets.
 router's choice. A pin gives way when its account hits a limit.
 
 **Pool.** A set of accounts that sessions are routed across. Every account is in exactly one
-pool, and nothing crosses from one pool to another. The `Σ pool` row and the POOL chart sum the
-room of the pool's accounts: every account in the pool, or only the pinned ones while a pin holds.
-See [Pools](pools.md).
+pool, and nothing crosses from one pool to another. The `Σ pool` row, Runway's `Σ pool` lane and
+the POOL chart sum the room of the pool's accounts. While the pool's pin holds, they sum only the
+pinned accounts. See [Pools](pools.md).
 
 **Primary.** The account whose token Claude Code holds in a pool. Each pool has one. The router
 picks the account for each conversation. What Claude Code sends outside the conversation goes out

@@ -72,7 +72,8 @@ A document that falls back for `before pools` is of every account, never of one 
 ### `pool`
 
 `pool` holds `accounts`, the ids of the accounts it sums: every account in the pool, or only the
-pinned ones while a pin holds. `pinned` is set if those are the accounts the pin names. Its `windows` hold one entry for each window:
+pinned ones while the pool's pin holds. `pinned` is set if those are the accounts the pin names.
+The `windows` of `pool` hold one entry for each window:
 
 | Field | Type | Meaning |
 |---|---|---|

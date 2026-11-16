@@ -22,8 +22,8 @@ The page has five sections, always in this order:
 ## USAGE: the windows of every account
 
 USAGE is the block that [`usage`](../commands/usage.md) prints. It has a row for each account, and
-a `Σ pool` row for the pool's accounts together. Each window is a bar, with the share used and a few
-words on where it's heading, such as `out ~Sat` or `at cap · back 17:10`.
+a `Σ pool` row for the pool's accounts together. Each window is a bar, with the share used and a
+few words on where it's heading, such as `out ~Sat` or `at cap · back 17:10`.
 
 The key line under the block names the marks:
 

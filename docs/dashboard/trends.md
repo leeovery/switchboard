@@ -73,8 +73,8 @@ card is as wide as the others, so the same burn draws the same slope on each. Wi
 the third sits under the first, as wide. Each card keeps its own clock: its days and its now fall
 where that week puts them, not where the card beside it does.
 
-Under the cards, `Σ pool` gives the room in the week of the pool, such as
-`week 1.2 of 3 left`. At the foot, over the key line, a legend names the marks.
+Under the cards, `Σ pool` gives the pool's room in the week, such as `week 1.2 of 3 left`.
+At the foot, over the key line, a legend names the marks.
 
 Trends charts the week that all models share, as Runway does. A model's own week has no card, and
 neither has the 5-hour window, which the Overview shows.

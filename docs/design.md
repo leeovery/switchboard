@@ -10035,9 +10035,10 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   in place to its newest 5 MiB, from the start of a line, so launchd's writes still land in it, and
   the router's output and errors move to its new end, so a start that fails writes why after what's
   kept. A router run by hand, its output elsewhere, leaves it alone.
-- **Pools:** the router's lines name a pool by its id, as `pool=h4w2`, never by its label: the
-  `routed` and `moved` lines the pool the choice was made in, beside the account. A config from
-  before pools names none, on any line.
+- **Pools:** the router's lines name a pool by its id, as `pool=h4w2`, never by its label. The
+  `routed` and `moved` lines name the pool the choice was made in, beside the account. Only a
+  router with no pools names none: one whose config has no `[[pool]]` tables, once it has taken
+  up pools, still routes in the pools it kept, and its lines name them.
 - **Levels:** `SWITCHBOARD_LOG_LEVEL` is `debug`, `info`, `warn` or `error`, in any case; `info`
   when unset, and `info` with a warning naming the value when it's anything else. A
   `--log-level` given to `serve`, or to `service install`, which passes it on, overrides it.

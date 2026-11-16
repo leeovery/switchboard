@@ -203,25 +203,38 @@ func TestEachRequestIsRoutedWithinItsPool(t *testing.T) {
 }
 
 func TestAMoveIsLoggedWithThePoolItWasIn(t *testing.T) {
+	// sideInAcme has side join personal in Acme, so Acme has a move to make.
+	sideInAcme := pooledAccounts()
+	sideInAcme[2].Pool = acmePool
 	tests := []struct {
 		name string
-		// pooled has the config put the accounts in pools: else it has none.
-		pooled bool
+		// accounts are the accounts configured in testPools, none for a
+		// config from before pools.
+		accounts config.Accounts
+		// pool is what the requests' header names, "" for none, and token
+		// the token they carry.
+		pool, token string
 		// from is the account session one starts on, and wantPool the pool
 		// the move's line names, "" for none.
 		from, wantPool string
 	}{
-		{name: "in pools", pooled: true, from: "work", wantPool: defaultPool},
-		{name: "a config from before pools", from: "personal"},
+		{name: "in the first pool", accounts: pooledAccounts(), pool: defaultPool, token: workToken, from: "work", wantPool: defaultPool},
+		{name: "in another", accounts: sideInAcme, pool: acmePool, token: personalToken, from: "personal", wantPool: acmePool},
+		{name: "a config from before pools", token: workToken, from: "personal"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			r := newPoolsRouter(t, at(start), tt.pooled)
+			var r *Router
+			if tt.accounts == nil {
+				r = newPoolsRouter(t, at(start), false)
+			} else {
+				r = pooledRouter(t, tt.accounts, testPools)
+			}
 			readPersonalFirst(r)
 
 			for _, headers := range []map[string]string{nil, {"X-Switchboard-Account": "side"}} {
-				if w := routeIn(t, r, workToken, "one", "", headers); w.Code != http.StatusOK {
+				if w := routeIn(t, r, tt.token, "one", tt.pool, headers); w.Code != http.StatusOK {
 					t.Fatalf("answered %d, want 200", w.Code)
 				}
 			}
@@ -256,7 +269,7 @@ func poolsLogged(log *logstest.Log, msg string) []string {
 	return pools
 }
 
-func TestNoLineNamesAPoolInAConfigFromBeforePools(t *testing.T) {
+func TestWithoutPoolsTheRoutedMovedAndPinDroppedLinesNameNoPool(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newPoolsRouter(t, at(start), false)
 	readPersonalFirst(r)
