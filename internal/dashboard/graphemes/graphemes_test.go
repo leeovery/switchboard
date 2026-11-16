@@ -3,6 +3,9 @@ package graphemes_test
 import (
 	"slices"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/graphemes"
 )
@@ -69,4 +72,40 @@ func TestRangingOverInAllocatesNothing(t *testing.T) {
 	}); allocs != 0 {
 		t.Errorf("ranging over In made %v allocations, want none", allocs)
 	}
+}
+
+// Every pair of ASCII bytes, box drawing characters and block elements, and
+// each of those before a character that can join it, a wide one and a flag,
+// splits as the grapheme cluster rules split it, each part the cells they
+// give it: telling a plain character alone, as In does, never parts what
+// they'd join.
+func TestInSplitsPlainCharactersAsTheClusterRulesDo(t *testing.T) {
+	var firsts []string
+	for r := range rune(utf8.RuneSelf) {
+		firsts = append(firsts, string(r))
+	}
+	for r := '─'; r <= '▟'; r++ {
+		firsts = append(firsts, string(r))
+	}
+	afters := append(slices.Clone(firsts), "", "\u0301", "\u200d👩", "\uFE0F", "\u20e3", "\u0903", "漢", "🇬🇧", "e\u0301")
+	for _, a := range firsts {
+		for _, after := range afters {
+			text := a + after
+			if got, want := all(text), clusters(text); !slices.Equal(got, want) {
+				t.Errorf("In(%q) gives %v, the cluster rules %v", text, got, want)
+			}
+		}
+	}
+}
+
+// clusters are text's characters as the grapheme cluster rules split them,
+// each with its cells, two at the most, as In gives them.
+func clusters(text string) []glyph {
+	var gs []glyph
+	for text != "" {
+		g, width := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
+		gs = append(gs, glyph{g, min(width, 2)})
+		text = text[len(g):]
+	}
+	return gs
 }
