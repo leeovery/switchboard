@@ -71,11 +71,14 @@ keeps its chosen row bold, marked `▸`.
 WORTH BY runs across the width, with the other two side by side under it. On a phone, all three
 stack.
 
-**If rows run short,** sections leave so SESSIONS keeps at least three rows:
+**If rows run short,** the page gives way in this order, so SESSIONS keeps at least three rows:
 
-1. ON ACCOUNTS leaves first.
-2. Then BY MODEL.
-3. Then WORTH BY.
+1. The columns of WORTH BY shrink from 6 rows to 3.
+2. The list shrinks from a third of the rows to 5.
+3. ON ACCOUNTS leaves.
+4. Then BY MODEL.
+5. Then WORTH BY.
+6. Then the list takes up to a third of the rows again, and shrinks to 2 rows.
 
 **If the width runs short,** the list gives way:
 

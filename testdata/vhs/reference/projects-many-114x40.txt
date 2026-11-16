@@ -1,0 +1,40 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log              Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+PROJECTS  ─────────────────────────────────────────────────────────────────────────────────────────  < this week >
+
+  project       live  sessions   worth                                                             requests  last
+▸ switchboard   ● 1          2    $121                                                                1,040  now
+  website       ● 1          2  $29.10               ▋                                                  291  14:32
+  docs          ● 1          3  $21.82            ▎                                                     213  now
+  infra         ● 1          3  $14.95                                                                  185  now
+  api           ● 1          3  $13.96        ▋                                                         154  now
+  repo-28                    1  $10.80       ▏                                                          138  09:00
+  repo-22                    1   $7.22     ▍                                                             94  08:48
+  repo-17                    1   $6.83     ▎                                                             90  08:34
+  ▼ 27 more projects
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  all projects  ● 6         44    $335                                                                3,632
+
+switchboard  ~/Code/switchboard                                                                        ● 1 running
+2 sessions · 1,040 requests · $121 at API prices · 36% of all use · 130M tokens
+
+WORTH BY DAY
+
+
+
+Mon              Tue             Wed              Thu              Fri             Sat              Sun
+peak Wed $73.00
+
+BY MODEL                                                 ON ACCOUNTS
+  ● Opus 5.5 100%                                          work                            ▎                   52%
+                                                           side        ▲                 ▊                     48%
+
+SESSIONS
+  session                        on    model     state        started  requests   worth
+↑ d28c switchboard               side  opus-5-5  asking       12:02         445  $48.20
+  ended yesterday  ───────────────────────────────────────────────────────────────────────────────────────────────
+▸ b9c4 switchboard               side  opus-5-5  ended 18:46  13:20         595  $73.00
+
+tab views   ↑↓ project   → its sessions   < > period: this week   p pin   ? help  q quit

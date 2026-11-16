@@ -37,8 +37,10 @@ func projectsHelp() []helpPart {
 					"fits, else by two hours; this week by day; 30 days and 12 weeks by day where a column a day fits, " +
 					"else by week; and 12 months by week where a column a week fits, else by month, the peak under it. BY MODEL is each version's share of its worth, those " +
 					"under 1% left out, and ON ACCOUNTS each account's, the greatest first."),
-				said("Where rows run short, ON ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps " +
-					"three rows at least."),
+				said("Where rows run short, WORTH BY's columns squeeze from " + prose.Grouped(worthRows) + " rows to " +
+					prose.Grouped(worthRowsLeast) + ", then the list shrinks from its third to " + prose.Grouped(listBeforeLeaving) +
+					" rows; only then does ON ACCOUNTS leave, then BY MODEL, then WORTH BY, and with them gone the list " +
+					"takes up to its third again, shrinking to 2, so SESSIONS keeps three rows at least."),
 			},
 		},
 		{

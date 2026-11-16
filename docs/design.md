@@ -5438,8 +5438,15 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   columns of 8 cells, 2 apart, fit the half, whatever the period, so a MacBook's frame stays wide as
   the dial turns, and the two fit the right half whole; middling, WORTH BY across and the two side
   by side under it, where each fits a half whole; else stacked. In whichever cells WORTH BY takes as
-  the sections lie, its columns narrow to fit, as middling draws them. As rows run short, ON
-  ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY
+  the sections lie, its columns narrow to fit, as middling draws them. As rows run short,
+  Projects gives way in one order, so SESSIONS keeps three rows (the owner's call, 16 November
+  2026: a short screen keeps the sections longer): WORTH BY's columns squeeze from 6 rows to 3,
+  its heading, axis and peak kept; then the list gives rows back from its third to 5; only then
+  do the sections leave, ON ACCOUNTS first, then BY MODEL, then WORTH BY; and with them gone the
+  list is as it is with nothing between it and SESSIONS, up to its third, giving way to 2. Where BY MODEL and ON ACCOUNTS lie beside WORTH BY and stand taller, it keeps
+  the rows squeezing wouldn't free. `projectsLaid` works the layout out once, and the drawing, the
+  mouse and the scrolling read it. The squeeze is Projects' alone: Accounts' Detail draws WORTH as
+  it did. WORTH BY
   today is by the hour where a column a cell wide fits each hour in the cells it takes, the left
   half where it lies wide, else by two hours; over 30 days and 12 weeks, by day where one fits
   each day, else by week; over 12 months, by week where one fits each week, else by month. Its
