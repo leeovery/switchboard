@@ -194,7 +194,12 @@ func TestAStepsPanicStopsTheScreenAndPutsTheBackgroundBack(t *testing.T) {
 func thrownAwayOnceLast(t *testing.T, unread []string, out string) {
 	t.Helper()
 	if len(unread) != 1 || unread[0] != out {
-		t.Errorf("what was typed unread was thrown away %d times; want once, after the screen's last", len(unread))
+		ends := make([]string, len(unread))
+		for i, then := range unread {
+			ends[i] = then[max(len(then)-80, 0):]
+		}
+		t.Errorf("what was typed unread was thrown away %d times, the output then ending %q; want once, after the screen's last, ending %q",
+			len(unread), ends, out[max(len(out)-80, 0):])
 	}
 }
 

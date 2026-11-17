@@ -17,7 +17,7 @@ func TestAStorysRatesAreItsRequestsCountedIntoTheirMinutes(t *testing.T) {
 	for seed := range uint64(40) {
 		s := storyOfGaps(rand.New(rand.NewPCG(seed, 11)))
 		for at := range s.Sent.All() {
-			if at.Equal(at.Truncate(time.Minute)) {
+			if at.After(s.Start) && at.Equal(at.Truncate(time.Minute)) {
 				onEdge++
 			}
 		}

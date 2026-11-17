@@ -82,8 +82,9 @@ type AxisLabel struct {
 }
 
 // Columns is s laid across width columns: none where it has no request, or
-// the width hasn't room for it. It costs its columns, never its requests, as
-// rates has it, so a page lays it afresh at every frame.
+// the width hasn't room for it. It costs its columns and its stretches,
+// never its requests, as rates has it, so a page lays it afresh at every
+// frame.
 func (s Story) Columns(width int) StoryColumns {
 	if s.Start.IsZero() {
 		return StoryColumns{}

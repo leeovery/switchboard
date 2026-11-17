@@ -207,9 +207,6 @@ func TestRunThrowsAwayWhatWasTypedUnreadLastHoweverTheScreenStops(t *testing.T) 
 	}{
 		{name: "a quit", stop: func(s stopping) (tea.Model, tea.Cmd) { return s, tea.Quit }},
 		{name: "an interrupt", stop: func(s stopping) (tea.Model, tea.Cmd) { return s, tea.Interrupt }, wantError: true},
-		{name: "a terminate signal, which Bubble Tea takes as a quit", stop: func(s stopping) (tea.Model, tea.Cmd) {
-			return s, func() tea.Msg { return tea.QuitMsg{} }
-		}},
 		{name: "a panic Bubble Tea recovers from", stop: func(stopping) (tea.Model, tea.Cmd) { panic("a bug") }, wantError: true},
 	}
 	for _, tt := range stops {

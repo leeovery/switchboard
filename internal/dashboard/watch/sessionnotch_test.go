@@ -14,9 +14,9 @@ import (
 // Bubble Tea draws it after every message, costs what's on screen, never
 // the session's history: over a page of 5,000 turns, or a turn open of
 // 20,000 requests, it allocates no more than historyAllowance more than over
-// one of 50, as the page's story is laid by its columns, never its
-// requests, and its turns' rows are made only as they show. It counts the
-// bytes allocated, not the time taken, so a busy machine never fails it.
+// one of 50, as the page's story costs its columns and its stretches, never
+// its requests, and its turns' rows are made only as they show. It counts
+// the bytes allocated, not the time taken, so a busy machine never fails it.
 func TestANotchOnASessionsPageCostsWhatsOnScreenNotItsHistory(t *testing.T) {
 	tests := []struct {
 		name  string

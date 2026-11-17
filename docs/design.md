@@ -8555,9 +8555,9 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a
   cache going cold; never at each tenth of a second, nor as an answer streams on, which its rows
   count as they're drawn. Drawing a session's page costs what's on screen, never its history: its
-  story is laid across the width at each frame at the cost of its columns, each column's rate
-  counted by when its minutes fall among the requests' times, by halves, never request by request;
-  and only the rows of its turns in view are made, so a turn of the wheel over a session of 300,000
+  story is laid across the width at each frame at the cost of its columns and its stretches, never
+  its requests, each column's rate counted by when its minutes fall among the requests' times, by
+  halves; and only the rows of its turns in view are made, so a turn of the wheel over a session of 300,000
   requests costs what one over a session of minutes does (17 November 2026). The Log places and
   tables each line once, as its read grows, each day's rows held in chunks of 256 rows that
   tabling a line copies one of, never the table; a change to the stream's rows, those of requests
