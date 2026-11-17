@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2026-11-17
+
+🔧 Changed
+- Session page scrolls faster on sessions with thousands of turns — turns are laid out only as they come into view
+- Story graph on the session page draws faster on long sessions — its columns no longer cost every request sent
+
+🐛 Fixed
+- On macOS, keys typed or wheel turns a busy dashboard or setup screen fell behind on are no longer left for the shell to read after quitting
+
 ## [0.9.2] - 2026-11-17
 
 🔧 Changed
