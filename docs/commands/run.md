@@ -34,10 +34,9 @@ The [primary](../glossary.md) is the account whose token Claude Code holds in a 
 | The router is down, and the session goes direct | The token of `<id>`. |
 
 When the router runs, a primary whose subscription has ended counts as having no usable token here.
-So does a primary whose token Anthropic refused, or whose token belongs to another subscription. A
-primary added since the router started gives way to the primary the router started with, until it
-restarts. If the router holds back every account in the pool, Claude Code connects with the
-primary's token after all.
+So does a primary whose token Anthropic refused, or whose token belongs to another subscription. So
+does a primary added since the router started, until the router restarts. If the router holds back
+every account in the pool, none of this applies: Claude Code connects as the table says.
 
 Requests outside the conversation, such as uploads and artifacts, aren't routed. They pass through
 the router on the token Claude Code holds, whichever account the conversation is on.

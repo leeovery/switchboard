@@ -28,18 +28,17 @@ var everyToken = tokenstest.Files{"work": workToken, "personal": personalToken, 
 var docBuilt = time.Date(2026, 11, 17, 15, 0, 0, 0, time.UTC)
 
 // routing returns r, its status document, built at docBuilt, naming the
-// accounts with the given ids, in their order, as the router routes them,
-// the one whose id primary gives its primary: each with a usable token of
-// its own and nothing holding it back, but as stands has the account, by its
-// id.
-func (r *fakeRouter) routing(ids []string, primary string, stands map[string]status.Account) *fakeRouter {
-	r.doc = status.Document{GeneratedAt: docBuilt, Primary: primary}
+// accounts with the given ids, in their order, as the router routes them:
+// each with a usable token of its own and nothing holding it back, but as
+// stands has the account, by its id.
+func (r *fakeRouter) routing(ids []string, stands map[string]status.Account) *fakeRouter {
+	r.doc = status.Document{GeneratedAt: docBuilt}
 	for _, id := range ids {
 		a, given := stands[id]
 		if !given {
 			a = status.Account{TokenSet: true}
 		}
-		a.ID, a.Label, a.Primary = id, id, id == primary
+		a.ID, a.Label = id, id
 		r.doc.Accounts = append(r.doc.Accounts, a)
 	}
 	return r
@@ -74,10 +73,10 @@ func (k *keptHolds) of(id string, token tokens.Token) router.KeptHold {
 // subscription: routed, as the router's status document says, by whether
 // the account takes requests, as status judges it; with the router down, as
 // its state file keeps a read refused, or a token another subscription's, of
-// the token the account holds now. Passing over one, the pool's primary as
-// the router names it comes next, where earlier sessions started. A pin
-// direct is the whole session's, as asked. Where every account is passed
-// over, it's chosen as if nothing were known.
+// the token the account holds now. Passing over the primary, a usable pin
+// comes next, then the config's order. A pin direct is the whole session's,
+// as asked. Where every account is passed over, it's chosen as if nothing
+// were known: the primary's, else the pin's, else the first with a token.
 func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) {
 	ended := map[string]status.Account{"work": readRefused(quota.SubscriptionEnded)}
 	everyEnded := map[string]status.Account{
@@ -89,15 +88,13 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 		name string
 		// down has the router not running, going direct, as the state file
 		// keeps what holds the accounts back, kept; else the router routes
-		// the accounts routes names, every one where it's nil, the one
-		// primary gives, work where it's "", its primary, standing as stands
-		// has them.
-		down    bool
-		routes  []string
-		primary string
-		stands  map[string]status.Account
-		kept    map[string]router.KeptHold
-		docErr  error
+		// the accounts routes names, every one where it's nil, standing as
+		// stands has them.
+		down   bool
+		routes []string
+		stands map[string]status.Account
+		kept   map[string]router.KeptHold
+		docErr error
 		// tokens are the token files there are, everyToken where nil.
 		tokens  tokenstest.Files
 		account string
@@ -125,11 +122,24 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 			account: "side",
 			want:    personalToken,
 		},
-		{name: "routed, the primary not routed yet: the router's primary", routes: []string{"personal", "side"}, primary: "side", want: sideToken},
-		{name: "routed, the primary not routed yet, pinned: the router's primary before the pin", routes: []string{"personal", "side"}, primary: "side", account: "personal", want: sideToken},
-		{name: "routed, the primary and the router's held: the first held back by nothing", primary: "side", stands: map[string]status.Account{"work": readRefused(quota.SubscriptionEnded), "side": {}}, want: personalToken},
+		{name: "routed, the primary not routed yet: the first the router routes", routes: []string{"personal", "side"}, want: personalToken},
+		{name: "routed, the primary not routed yet, pinned: the pinned account's", routes: []string{"personal", "side"}, account: "side", want: sideToken},
 		{name: "routed, the primary held, pinned to an account not routed yet: the first the router routes", routes: []string{"work", "personal"}, stands: ended, account: "side", want: personalToken},
 		{name: "routed, every account held: the primary's, as if nothing were known", stands: everyEnded, want: workToken},
+		{name: "routed, every account held, pinned: the primary's, as if nothing were known", stands: everyEnded, account: "side", want: workToken},
+		{
+			name:    "routed, every account held, the primary without a token, pinned: the pinned account's, as if nothing were known",
+			stands:  everyEnded,
+			tokens:  tokenstest.Files{"personal": personalToken, "side": sideToken},
+			account: "side",
+			want:    sideToken,
+		},
+		{
+			name:   "routed, every account held, the primary without a token: the first with one, as if nothing were known",
+			stands: everyEnded,
+			tokens: tokenstest.Files{"personal": personalToken, "side": sideToken},
+			want:   personalToken,
+		},
 		{name: "routed, the router routing none: the primary's, as if nothing were known", routes: []string{}, want: workToken},
 		{name: "routed, a refusal this build doesn't know: the primary's", stands: map[string]status.Account{"work": readRefused("something_new")}, want: workToken},
 		{name: "routed, the router's document not to be had: the primary's", stands: ended, docErr: errors.New("no answer within 5s"), want: workToken},
@@ -155,17 +165,14 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			routes, primary, files := tt.routes, tt.primary, tt.tokens
+			routes, files := tt.routes, tt.tokens
 			if routes == nil {
 				routes = all
-			}
-			if primary == "" {
-				primary = "work"
 			}
 			if files == nil {
 				files = everyToken
 			}
-			rt := healthy().routing(routes, primary, tt.stands)
+			rt := healthy().routing(routes, tt.stands)
 			rt.docErr = tt.docErr
 			if tt.down {
 				rt = notRunning()
@@ -192,9 +199,12 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 	}
 }
 
-// The log says each account passed over and why, and, where every one is,
-// that Claude Code starts as if nothing held any back.
+// The log says each account passed over and why: what bars it, as the
+// router's document has it, whatever error its last read left; and, where
+// every one is, that Claude Code starts as if nothing held any back.
 func TestPassingOverAnAccountForClaudeCodesOwnTokenSaysWhyInTheLog(t *testing.T) {
+	failed := "HTTP 503 · overloaded"
+	refused := status.Refusal{Until: docBuilt.Add(10 * time.Minute), Status: 401}
 	tests := []struct {
 		name   string
 		down   bool
@@ -209,12 +219,24 @@ func TestPassingOverAnAccountForClaudeCodesOwnTokenSaysWhyInTheLog(t *testing.T)
 			want:   []string{"level=INFO", `msg="passing over an account for Claude Code's own token"`, "account=work", `chosen="the primary"`, `reason="the router doesn't route it yet"`},
 		},
 		{
-			name:   "held back, saying why",
-			stands: map[string]status.Account{"work": {TokenSet: true, RefusedRead: quota.SubscriptionEnded, Error: "HTTP 403 · OAuth authentication is currently not allowed for this organization"}},
-			want: []string{
-				"level=INFO", `msg="passing over an account for Claude Code's own token"`, "account=work",
-				`reason="the router holds it back: HTTP 403 · OAuth authentication is currently not allowed for this organization"`,
-			},
+			name:   "its read refused",
+			stands: map[string]status.Account{"work": {TokenSet: true, RefusedRead: quota.SubscriptionEnded, Error: failed}},
+			want:   []string{"level=INFO", `msg="passing over an account for Claude Code's own token"`, "account=work", `reason="its last read was refused (subscription_ended)"`},
+		},
+		{
+			name:   "its token refused on a request",
+			stands: map[string]status.Account{"work": {TokenSet: true, Refused: refused, Error: failed}},
+			want:   []string{"level=INFO", "account=work", `reason="the upstream refused its token"`},
+		},
+		{
+			name:   "its token another subscription's",
+			stands: map[string]status.Account{"work": {TokenForeign: true, Error: failed}},
+			want:   []string{"level=INFO", "account=work", `reason="its token is another subscription's"`},
+		},
+		{
+			name:   "no usable token at the router",
+			stands: map[string]status.Account{"work": {Error: failed}},
+			want:   []string{"level=INFO", "account=work", `reason="the router has no usable token for it"`},
 		},
 		{
 			name: "its read kept refused",
@@ -242,7 +264,7 @@ func TestPassingOverAnAccountForClaudeCodesOwnTokenSaysWhyInTheLog(t *testing.T)
 			if routes == nil {
 				routes = []string{"work", "personal", "side"}
 			}
-			rt := healthy().routing(routes, "work", tt.stands)
+			rt := healthy().routing(routes, tt.stands)
 			if tt.down {
 				rt = notRunning()
 			}
@@ -281,11 +303,10 @@ func TestRunUnreadPassesOverAnAccountTheRouterHoldsBack(t *testing.T) {
 
 // In a pool, the router's document of the session's pool says how its
 // accounts stand: one the config made the pool's primary since the router
-// started, which it doesn't route yet, is passed over for the pool's primary
-// as the router names it, where the pool's earlier sessions started.
+// started, which it doesn't route yet, is passed over for the first it
+// routes.
 func TestRunStartsOnAnAccountOfThePoolTheRouterRoutes(t *testing.T) {
 	before := pooledConfig()
-	before.Accounts[3].Primary, before.Accounts[4].Primary = false, true
 	cfg := pooledConfig()
 	cfg.Accounts[3].Primary = false
 	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "acme3", Label: "Acme 3", Pool: acmePool.ID, Primary: true})
@@ -295,7 +316,7 @@ func TestRunStartsOnAnAccountOfThePoolTheRouterRoutes(t *testing.T) {
 		wantPool string
 		want     string
 	}{
-		{name: "in the pool with a new primary", dir: acmeDir, wantPool: acmePool.ID, want: acme2Token},
+		{name: "in the pool with a new primary", dir: acmeDir, wantPool: acmePool.ID, want: acme1Token},
 		{name: "in another pool", dir: elsewhere, wantPool: defaultPool.ID, want: workToken},
 	}
 	for _, tt := range tests {
@@ -307,8 +328,7 @@ func TestRunStartsOnAnAccountOfThePoolTheRouterRoutes(t *testing.T) {
 			for _, a := range before.Accounts.InPool(tt.wantPool) {
 				routes = append(routes, a.ID)
 			}
-			primary, _ := before.Accounts.PrimaryOf(tt.wantPool)
-			rt.routing(routes, primary.ID, nil)
+			rt.routing(routes, nil)
 			r := pooledRoute(cfg, rt, "")
 			r.Document = rt.Status
 			r.Token = tokenstest.Files{"work": workToken, "acme1": acme1Token, "acme2": acme2Token, "acme3": "test-token-acme3"}.Read

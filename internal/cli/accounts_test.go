@@ -477,9 +477,11 @@ func keepingTheFormer(former string) string {
 }
 
 // heldThen is what accounts edit says, after what the sessions running keep,
-// of those that started while the router held that account back, which
-// started on another's.
-const heldThen = "; any started while the router held that account back started on the next one's instead"
+// of those that started while the router held back, or didn't route yet, the
+// account they were to start on, which started on another's, unless every
+// account was so.
+const heldThen = "; where the router held back the account a session was to start on, or didn't route that account yet, " +
+	"the session started on another account's token, unless every account was so"
 
 // onTheFirst is what accounts edit says of the sessions running through the
 // router, once it's made another account the primary in place of former,

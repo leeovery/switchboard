@@ -46,15 +46,14 @@ Claude Code starts with `ANTHROPIC_BASE_URL` pointing at the router, and the rou
 account for each conversation request. Claude Code holds the
 [primary](../glossary.md)'s token, or if that isn't usable, the first usable one.
 
-Claude Code skips an account the router won't send on, and takes the next usable one, trying the
-primary the router started with first. So artifacts and uploads still go through. The router won't
-send on these accounts:
+Claude Code skips an account the router won't send on, and takes the next usable one. So artifacts
+and uploads still go through. The router won't send on these accounts:
 
 - an account whose subscription has ended, until a read of it comes back clean;
 - an account whose token Anthropic refused, or whose token belongs to another subscription;
 - an account added since the router started, until the router restarts.
 
-If every account is skipped, Claude Code holds the primary's token as before.
+If every account is skipped, Claude Code takes the token it would take with none skipped.
 
 Claude Code also gets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, unless your environment sets it
 already. With it, Claude Code tells the router what it tells the API about each request, such as

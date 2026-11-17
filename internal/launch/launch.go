@@ -932,20 +932,18 @@ type choice struct {
 // it, else the primary's. Either way, failing those, it's the first with a
 // usable token. A pin direct aside, it passes over each account known has
 // something against, as the router doesn't route it yet, or holds it back
-// from every request, while another will do, the log saying so: what goes
-// out on Claude Code's own token, such as artifacts, uploads and what never
-// reaches the router, would pass the router by, or be refused. Once it has
-// passed over one, the pool's primary as the router names it comes next, as
-// where the config's primary is one the router takes up only as it
-// restarts, earlier sessions started on the router's. Where every one is
-// passed over, it picks as if nothing were known, the log saying so. It
-// fails, saying why of each account, when none has a usable token.
+// from every request, taking the next in that order while another will do,
+// the log saying so: what goes out on Claude Code's own token, such as
+// artifacts, uploads and what never reaches the router, would pass the
+// router by, or be refused. Where every one is passed over, it picks as if
+// nothing were known, the first in that order, the log saying so. It fails,
+// saying why of each account, when none has a usable token.
 func (r Route) choose(accounts config.Accounts, pin choice, routed bool, known standing) (choice, error) {
 	if pin.account.ID != "" && !routed {
 		return pin, nil
 	}
 	var passed []choice
-	for c := range r.inTurn(accounts, pin, known.routersPrimary()) {
+	for c := range r.inTurn(accounts, pin) {
 		why := known.against(c.account.ID, c.token)
 		if why == "" {
 			return c, nil
@@ -962,10 +960,9 @@ func (r Route) choose(accounts config.Accounts, pin choice, routed bool, known s
 
 // inTurn yields the accounts of accounts, one pool's, that Claude Code can
 // start on, each with its usable token, in the turn choose takes them, each
-// once: the primary; the one with the id routers gives, the pool's primary
-// as the router names it, where it names one; pin's, where it's pinned; then
-// each in the config's order.
-func (r Route) inTurn(accounts config.Accounts, pin choice, routers string) iter.Seq[choice] {
+// once: the primary; pin's, where it's pinned; then each in the config's
+// order.
+func (r Route) inTurn(accounts config.Accounts, pin choice) iter.Seq[choice] {
 	return func(yield func(choice) bool) {
 		var offered []string
 		offer := func(c choice, ok bool) bool {
@@ -975,7 +972,7 @@ func (r Route) inTurn(accounts config.Accounts, pin choice, routers string) iter
 			offered = append(offered, c.account.ID)
 			return yield(c)
 		}
-		if !offer(r.primary(accounts)) || !offer(r.named(accounts, routers)) || !offer(pin, pin.account.ID != "") {
+		if !offer(r.primary(accounts)) || !offer(pin, pin.account.ID != "") {
 			return
 		}
 		for _, a := range accounts {
@@ -984,17 +981,6 @@ func (r Route) inTurn(accounts config.Accounts, pin choice, routers string) iter
 			}
 		}
 	}
-}
-
-// named is the account of accounts with the given id, the pool's primary as
-// the router names it, with its usable token: none where there's no such
-// account, as for "", or its token isn't usable.
-func (r Route) named(accounts config.Accounts, id string) (choice, bool) {
-	i := slices.IndexFunc(accounts, func(a config.Account) bool { return strings.EqualFold(a.ID, id) })
-	if i < 0 {
-		return choice{}, false
-	}
-	return r.withToken(accounts[i], "the router's primary")
 }
 
 // withToken is a, chosen as why says, with its usable token: none where its

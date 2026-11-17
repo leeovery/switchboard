@@ -595,8 +595,10 @@ func (a *app) editChange(cmd *cobra.Command, flags editFlags) (accounts.Change, 
 // while the router was down, are untouched by the move. Where there are
 // pools, it tells of the sessions of the account's pool alone, and of its
 // accounts, as no session starts on another pool's. As the router's word on
-// each account as they started can't be had, it says too that any started
-// while the router held that account back started on the next one's.
+// each account as they started can't be had, it says too that where the
+// router held back, or didn't route yet, the account a session was to start
+// on, the session started on another's, unless every account was so, as
+// launch's choice passes over each such account while another will do.
 func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
 	before := e.Before
 	if len(before.Pools) > 0 {
@@ -611,7 +613,8 @@ func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (toke
 	const (
 		running  = "sessions running through the router"
 		outside  = ", so what they send outside the conversation, such as artifacts and uploads, still goes out "
-		heldBack = "; any started while the router held that account back started on the next one's instead"
+		heldBack = "; where the router held back the account a session was to start on, or didn't route that account yet, " +
+			"the session started on another account's token, unless every account was so"
 	)
 	if own.ID == e.FormerPrimary {
 		return "\n" + running + " keep " + own.ID + "'s token as Claude Code's own until they restart" + outside + "on " + own.ID + heldBack
@@ -786,10 +789,10 @@ func emptiedSays(left accounts.Left) string {
 // account is now; and, where its token is usable, so sessions may have
 // started on it, that those running on it are refused once it has left, and
 // which account's token they start on resumed, as a launch in the pool
-// would choose it now (launch.Route's OwnAccount), or the next one's, where
-// the router holds that one back then, as the router isn't asked. Or that
-// the pool has no accounts now. It's "" where the edit moved it from no
-// pool's primary.
+// would choose it now (launch.Route's OwnAccount), or another's where the
+// router holds that one back then, or doesn't route it yet, unless every
+// account there is so, as the router isn't asked. Or that the pool has no
+// accounts now. It's "" where the edit moved it from no pool's primary.
 func (a *app) leftSays(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
 	if e.Left.Primary == "" {
 		return emptiedSays(e.Left)
@@ -805,17 +808,18 @@ func (a *app) leftSays(e accounts.Edited, readToken func(id string) (tokens.Toke
 	case !ok:
 		return said + ", and no account left there has a usable token to resume them on (switchboard accounts token " + e.Left.Primary + ")"
 	case own.ID == e.Left.Primary:
-		return said + ": resume them, and they start on " + own.ID + "'s" + orNextThere(own.ID)
+		return said + ": resume them, and they start on " + own.ID + "'s" + unlessPassedOver(own.ID)
 	}
 	return said + ": resume them, and they start on " + own.ID + "'s, the first account there with a usable token, as " +
-		e.Left.Primary + " has none" + orNextThere(own.ID)
+		e.Left.Primary + " has none" + unlessPassedOver(own.ID)
 }
 
-// orNextThere follows the account with the given id that sessions start on
-// resumed, as the config and the tokens alone choose it: a launch passes it
-// over where the router holds it back then.
-func orNextThere(id string) string {
-	return ", or the next account's there if the router holds " + id + " back"
+// unlessPassedOver follows the account with the given id that sessions start
+// on resumed, as the config and the tokens alone choose it: a launch passes
+// it over where the router holds it back then, or doesn't route it yet,
+// while another account there will do.
+func unlessPassedOver(id string) string {
+	return ", or another account's there if the router holds " + id + " back or doesn't route " + id + " yet, unless every account there is so"
 }
 
 // leftConfig is the config of the pool the account an edit moved left, as

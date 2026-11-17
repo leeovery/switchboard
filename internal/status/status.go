@@ -1022,9 +1022,44 @@ func (a Account) turnedAway(now time.Time) bool {
 }
 
 // Takes reports whether the account can take requests at now, whatever its
-// windows read: the router has a usable token of the account's own for it,
-// as TokenSet says, which one of another subscription's isn't, and it isn't
-// turned away, as turnedAway says.
+// windows read: nothing bars it, as Barred says.
 func (a Account) Takes(now time.Time) bool {
-	return a.TokenSet && !a.turnedAway(now)
+	return a.Barred(now) == 0
+}
+
+// Bar is what bars an account from every request, whatever its windows
+// read, as Account's Barred has it: zero where nothing does.
+type Bar int
+
+const (
+	// BarForeign is an account whose token is another subscription's, which
+	// is no usable token of its own, as TokenForeign says.
+	BarForeign Bar = iota + 1
+	// BarTokenless is an account the router has no usable token for, as
+	// TokenSet says.
+	BarTokenless
+	// BarTokenRefused is an account whose token the router saw the upstream
+	// refuse, while that holds, as tokenRefused says.
+	BarTokenRefused
+	// BarReadRefused is an account whose last read the API refused, as
+	// RefusedRead says, till a read comes back clean.
+	BarReadRefused
+)
+
+// Barred is what bars the account from every request at now, whatever its
+// windows read, the first of the causes as Bar orders them: zero where
+// nothing does, the router having a usable token of the account's own, and
+// the account not turned away, the causes turnedAway judges by.
+func (a Account) Barred(now time.Time) Bar {
+	switch {
+	case a.TokenForeign:
+		return BarForeign
+	case !a.TokenSet:
+		return BarTokenless
+	case a.tokenRefused(now):
+		return BarTokenRefused
+	case a.refusedRead() != 0:
+		return BarReadRefused
+	}
+	return 0
 }

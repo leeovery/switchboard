@@ -1934,33 +1934,40 @@ func TestARouterReportingNoPoolsIsFromBeforePoolsWhereTheConfigHasThem(t *testin
 	}
 }
 
-// An account takes requests while the router has a usable token of its own
-// for it and nothing turns it away: not one without, nor one whose token is
-// another subscription's; not while the upstream refuses its token, though a
-// refusal of a model family alone leaves it the rest, nor once its last read
-// was refused, till a read comes back clean. A refusal this build doesn't
-// know is none.
-func TestAnAccountTakesRequestsWhileNothingTurnsItAway(t *testing.T) {
+// An account takes requests while nothing bars it, and Barred names the
+// first cause that does: a token another subscription's, which is no usable
+// token of its own; no usable token; its token refused by the upstream,
+// though a refusal of a model family alone leaves it the rest; its last read
+// refused, till a read comes back clean. A refusal this build doesn't know
+// is none.
+func TestAnAccountTakesRequestsWhileNothingBarsIt(t *testing.T) {
 	now := time.Date(2026, 11, 17, 15, 0, 0, 0, time.UTC)
+	refused := status.Refusal{Until: now.Add(time.Minute), Status: 401}
 	tests := []struct {
 		name    string
 		account status.Account
-		want    bool
+		want    status.Bar
 	}{
-		{name: "a usable token", account: status.Account{TokenSet: true}, want: true},
-		{name: "no usable token", account: status.Account{}},
-		{name: "another subscription's token", account: status.Account{TokenForeign: true}},
-		{name: "its token refused", account: status.Account{TokenSet: true, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 401}}},
-		{name: "its token refused till now", account: status.Account{TokenSet: true, Refused: status.Refusal{Until: now, Status: 401}}, want: true},
-		{name: "a model family refused", account: status.Account{TokenSet: true, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}}, want: true},
-		{name: "its subscription ended", account: status.Account{TokenSet: true, RefusedRead: quota.SubscriptionEnded}},
-		{name: "its read's token refused", account: status.Account{TokenSet: true, RefusedRead: quota.TokenRefused}},
-		{name: "a refusal this build doesn't know", account: status.Account{TokenSet: true, RefusedRead: "something_new"}, want: true},
+		{name: "a usable token", account: status.Account{TokenSet: true}},
+		{name: "no usable token", account: status.Account{}, want: status.BarTokenless},
+		{name: "another subscription's token", account: status.Account{TokenForeign: true}, want: status.BarForeign},
+		{name: "another subscription's token, refused", account: status.Account{TokenForeign: true, Refused: refused}, want: status.BarForeign},
+		{name: "no usable token, its last read refused", account: status.Account{RefusedRead: quota.SubscriptionEnded}, want: status.BarTokenless},
+		{name: "its token refused", account: status.Account{TokenSet: true, Refused: refused}, want: status.BarTokenRefused},
+		{name: "its token refused, its last read too", account: status.Account{TokenSet: true, Refused: refused, RefusedRead: quota.TokenRefused}, want: status.BarTokenRefused},
+		{name: "its token refused till now", account: status.Account{TokenSet: true, Refused: status.Refusal{Until: now, Status: 401}}},
+		{name: "a model family refused", account: status.Account{TokenSet: true, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}}},
+		{name: "its subscription ended", account: status.Account{TokenSet: true, RefusedRead: quota.SubscriptionEnded}, want: status.BarReadRefused},
+		{name: "its read's token refused", account: status.Account{TokenSet: true, RefusedRead: quota.TokenRefused}, want: status.BarReadRefused},
+		{name: "a refusal this build doesn't know", account: status.Account{TokenSet: true, RefusedRead: "something_new"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.account.Takes(now); got != tt.want {
-				t.Errorf("Takes() = %v, want %v", got, tt.want)
+			if got := tt.account.Barred(now); got != tt.want {
+				t.Errorf("Barred() = %d, want %d", got, tt.want)
+			}
+			if got, want := tt.account.Takes(now), tt.want == 0; got != want {
+				t.Errorf("Takes() = %v, want %v", got, want)
 			}
 		})
 	}

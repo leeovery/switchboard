@@ -821,11 +821,11 @@ within, where it's started within one, and the session keeps that pool for its w
 
 - **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, or the router
   holds the primary back or doesn't route it yet, as one the config made the primary since the
-  router started, it starts on the pool's primary as the router names it, else the token of the
-  pool's first account with a usable token that the router would send on (see Launching). If no
-  account in the pool has a usable token, the
-  launch refuses, saying so: `switchboard: pool Acme has no account with a usable token — not
-  starting claude`, as Claude Code's own login would go out on whatever account it's signed into;
+  router started, it starts on `--account`'s token, where it's pinned, else the token of the pool's
+  first account with a usable token that the router would send on (see Launching). If no account
+  in the pool has a usable token, the launch refuses, saying so:
+  `switchboard: pool Acme has no account with a usable token — not starting claude`, as Claude
+  Code's own login would go out on whatever account it's signed into;
   but a config of one pool, unfenced, starts unaided, as before pools, as no session there can
   leave its pool. A pool with no accounts refuses: `switchboard: pool Acme has no accounts — not
   starting claude`. Every launch names its pool's id to the router in a header,
@@ -1276,8 +1276,9 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   saying so. The pool it leaves takes its next account as its primary where it was the primary,
   and `accounts edit` says which, that the sessions running on the moved account's token, where it
   has a usable one, are refused now it has left, and which account's token they start on resumed,
-  as a launch in that pool would choose it by the config and the tokens, or the next one's where
-  the router holds that one back then, as it isn't asked; or, where it was the pool's last
+  as a launch in that pool would choose it by the config and the tokens, or another's where the
+  router holds that one back then, or doesn't route it yet, unless every account there is so, as
+  the router isn't asked; or, where it was the pool's last
   account, that the pool has no accounts now. `accounts remove` says the same of the removed
   account's pool: its primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
@@ -2314,8 +2315,10 @@ formats below; the screens as signed off in Paper (see The screens, below).
   is the new primary, that the pinned sessions keep their pinned account's token. The pinned
   sessions are said only where an account other than the first with a usable token has one, as
   otherwise none can be pinned elsewhere; and nothing is said where no account has a usable
-  token. As the router's word on that account as each started can't be had, it says too that any
-  started while the router held it back started on the next one's (see Launching). Sessions
+  token. As the router's word on each account as a session started can't be had, it says too that
+  where the router held back the account a session was to start on, or didn't route that account
+  yet, the session started on another account's token, unless every account was so (see
+  Launching). Sessions
   started directly, while the router was down, are untouched by the move. It
   warns on stderr when the new primary has no usable token. A label the config writes over
   several lines, as a multi-line string, can't be edited as text: a label edit of that account
@@ -11558,25 +11561,25 @@ verbs).
   accounts serves for both), and passes over an account the document doesn't name, which the router
   doesn't route yet, as one `accounts add --primary` made the primary since it started, taken up
   only as it restarts, whose token it couldn't tell for an account's, so every request would pass
-  it by unrouted and unrecorded; and one that takes no requests as the document was built, as
-  status judges it, its one owner (`Account.Takes`): without a usable token of its own, as one whose
-  file holds another subscription's (`token_foreign`), its token refused on a request, or its
+  it by unrouted and unrecorded; and one something bars from every request as the document was
+  built, as status judges it, its one owner (`Account.Barred`): a token another subscription's
+  (`token_foreign`), no usable token, its token refused on a request while that holds, or its
   `refused_read` set (see 401s and 403s), as what went out on its token would be refused, or go out
-  on another subscription. With the router down, going direct, `run` reads `state.json`, leaving it
-  as it is, a corrupt one included, by the rule the router loads it by (`router.KeptHolds`), and
-  passes over an account it keeps a read refused of, or a token another subscription's, each of the
-  token the account's file holds now: one replaced since starts afresh, as it does for the router.
-  It takes the next in the order above: the primary; then, once one is passed over, the pool's
-  primary as the router names it, where earlier sessions started while the config's waits for the
-  router to restart; `--account`'s; then each account with a usable token in the config's order. A
-  pin direct is never passed over, as the whole session is to go out on it, the command line's
-  choice. Where every account is passed over, as when every account of the pool is held, or
-  nothing's known, as where the document or the file can't be had, it chooses as before. The log
+  on another subscription. The log names that cause, never the account's `error`, which a read
+  failed otherwise can have left. With the router down, going direct, `run` reads `state.json`,
+  leaving it as it is, a corrupt one included, by the rule the router loads it by
+  (`router.KeptHolds`), and passes over an account it keeps a read refused of, or a token another
+  subscription's, each of the token the account's file holds now: one replaced since starts
+  afresh, as it does for the router. It takes the next in the order above: the primary,
+  `--account`'s, then each account with a usable token in the config's order. A pin direct is never
+  passed over, as the whole session is to go out on it, the command line's choice. Where every
+  account is passed over, as when every account of the pool is held, or nothing's known, as where
+  the document or the file can't be had, it chooses as before, the first in that order. The log
   says each account passed over and why, at info: `passing over an account for Claude Code's own
   token`, and, where it chooses as before, so at warn. A command saying which account's token the
   sessions start on, as `accounts edit` does, goes by the config and the token files alone, and so
-  says where the router holding that account back starts them on the next instead. (The v1 release
-  review, 17 November 2026.)
+  adds that where the router held that account back, or didn't route it yet, a session started on
+  another, unless every account was so. (The v1 release review, 17 November 2026.)
 - **Without the config:** where `run` can't read its config, as when an upgrade's rules refuse the
   one the running router took, and the router holds its restart (see The router looking after
   itself), it locates the state directory, as it can without a config, and asks the router as it

@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -32,8 +33,8 @@ type standing struct {
 // the account yet, so every request on its token would pass the router by,
 // unrouted and unrecorded; or it holds the account back from every request,
 // as whatever went out on its token would be refused, or go out on another
-// subscription: routed, where the account doesn't take requests, as
-// status.Account's Takes judges it as the document was built; with the
+// subscription: routed, where something bars the account, as
+// status.Account's Barred judges it as the document was built; with the
 // router down, where the state file keeps its last read refused, or its
 // token another subscription's. "" where nothing's known against it.
 func (s standing) against(id string, token tokens.Token) string {
@@ -43,22 +44,27 @@ func (s standing) against(id string, token tokens.Token) string {
 		if i < 0 {
 			return "the router doesn't route it yet"
 		}
-		if a := s.doc.Accounts[i]; !a.Takes(s.doc.GeneratedAt) {
-			return heldBack(a.Error)
-		}
+		return barredBy(s.doc.Accounts[i], s.doc.GeneratedAt)
 	case s.kept != nil:
 		return keptBack(s.kept(id, token))
 	}
 	return ""
 }
 
-// heldBack says the router holds an account back, and why, as its error
-// says, where it says.
-func heldBack(why string) string {
-	if why == "" {
-		return "the router holds it back"
+// barredBy says what bars a, as the router's document has it, from every
+// request at now, as a's Barred names it: "" where nothing does.
+func barredBy(a status.Account, now time.Time) string {
+	switch a.Barred(now) {
+	case status.BarForeign:
+		return "its token is another subscription's"
+	case status.BarTokenless:
+		return "the router has no usable token for it"
+	case status.BarTokenRefused:
+		return "the upstream refused its token"
+	case status.BarReadRefused:
+		return "its last read was refused (" + string(a.RefusedRead) + ")"
 	}
-	return "the router holds it back: " + why
+	return ""
 }
 
 // keptBack says what holds an account back, as hold, the state file's, has
@@ -71,12 +77,6 @@ func keptBack(hold router.KeptHold) string {
 		return "the router kept its last read refused (" + string(hold.RefusedRead) + ")"
 	}
 	return ""
-}
-
-// routersPrimary is the id of the pool's primary, as the router's document
-// names it: "" where the document wasn't had.
-func (s standing) routersPrimary() string {
-	return s.doc.Primary
 }
 
 // standing returns how the accounts of in's pool stand, as far as a launch,
