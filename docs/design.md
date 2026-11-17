@@ -12723,6 +12723,9 @@ What's built but hasn't been seen against the real thing:
   the window, as the two seen did (see Observed).
 - That the API reports usage in the order it takes requests in: a reading off a request sent after
   another was taken in counting, whatever it reads, rests on it.
+- Whether Claude Fable 5.2 reports Fable's week, `7d_oi`: the probe for it still asks Claude
+  Fable 5.1 first (`internal/claude/families.go`), which is served and reports it. Claude Fable
+  5.2 goes at the head of the family once a request on it has been seen to carry that window.
 - `service install`, `service restart` and setup's service step against the real launchd:
   `restart` of a router from before routers restarted when asked relies on launchd's `KeepAlive`
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
