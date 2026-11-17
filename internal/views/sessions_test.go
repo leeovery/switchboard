@@ -794,3 +794,25 @@ func amount(c *ledger.Picodollars) string {
 	}
 	return c.Cents()
 }
+
+// A List of a pool's sessions is the router's where the router was asked and
+// listed them; else the ledger's alone: where it wasn't asked, as of a pool
+// it doesn't route, or didn't list them.
+func TestAListsSourceIsTheRoutersOnlyWhereItListedTheSessions(t *testing.T) {
+	tests := []struct {
+		name            string
+		asked, unlisted bool
+		want            string
+	}{
+		{name: "asked and listed", asked: true, want: views.SessionsFromRouter},
+		{name: "asked, unlisted", asked: true, unlisted: true, want: views.SessionsFromLedger},
+		{name: "not asked", want: views.SessionsFromLedger},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := views.SessionsSource(tt.asked, tt.unlisted); got != tt.want {
+				t.Errorf("SessionsSource(%t, %t) = %q, want %q", tt.asked, tt.unlisted, got, tt.want)
+			}
+		})
+	}
+}

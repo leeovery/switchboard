@@ -119,6 +119,27 @@ type SessionsToday struct {
 	Worth
 }
 
+// Where a List's sessions were read from, as the sessions verb's JSON says.
+const (
+	// SessionsFromRouter marks a List the router's sessions went into, as it
+	// answered, those running marked so.
+	SessionsFromRouter = "router"
+	// SessionsFromLedger marks a List of the ledger's sessions alone, none
+	// running, as where the router isn't running, can't be asked, or isn't
+	// asked, of a pool it doesn't route.
+	SessionsFromLedger = "ledger"
+)
+
+// SessionsSource says where a List of a pool's sessions was read from: the
+// router's, where it was asked and listed them, as SessionSources' Unlisted
+// has it; else the ledger's alone.
+func SessionsSource(asked, unlisted bool) string {
+	if !asked || unlisted {
+		return SessionsFromLedger
+	}
+	return SessionsFromRouter
+}
+
 // SessionSources are what the List is built from.
 type SessionSources struct {
 	// Running are the sessions the router lists, as GET /sessions gives
