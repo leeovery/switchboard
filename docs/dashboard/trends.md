@@ -166,9 +166,9 @@ the first and the last month can each be part of a month. Each row has:
 - the limits reached;
 - a bar of its worth against the largest month, split by model family, each in its colour.
 
-The bars take the width left. The month still running says `so far` after its bar. The first
-month names the day the 12 months begin, such as `from the 18th`. The month the ledger began in
-names the day it began the same way. If some accounts have no `plan`, the worth is set against
+The bars take the width left. The month still running says `so far` after its bar. If the 12
+months begin past the 1st of a month, the first month names the day they begin, such as `from
+the 18th`. The month the ledger began in names the day it began the same way. If some accounts have no `plan`, the worth is set against
 the plans that are known, as the heading says. For one version, its share of the month stands in
 place of the worth against the plans.
 

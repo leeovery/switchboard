@@ -425,7 +425,9 @@ func (p rowsPaged) said(c *canvas, y, from, to, width int, forms ...outForm) {
 
 // saysOn is the row after the page, the page's first being 0, that says how
 // many rows are out of view, as says has it: reporting false where the rows
-// don't say it, or all of them fit.
+// don't say it, or, without a foot, where they all fit. With a foot, it's
+// the blank row over it, reported whether or not any are out of view, as
+// what it says of none is nothing.
 func (p rowsPaged) saysOn() (int, bool) {
 	page := p.page()
 	return page, p.says && page > 0 && page < p.rows-p.foot

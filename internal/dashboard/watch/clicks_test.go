@@ -736,9 +736,12 @@ func keyNamed(t *testing.T, name string) tea.KeyPressMsg {
 
 // A click on each key of the key line acts as its key does, on every tab,
 // on a phone's width and a wide terminal's, and on the pages whose key line
-// names an arrow: Projects' list and SESSIONS, and Accounts' Detail's
-// SESSIONS. Each key is clicked on a model and pressed on its twin, and
-// both must draw the one screen.
+// names keys of their own: Projects' list and SESSIONS, Accounts' Detail's
+// SESSIONS and Compare focused, a session's page, the Log paused and with
+// its find open, the theme picker, Runway, and Trends split by account.
+// Each key is clicked on a model and pressed on its twin, and both must
+// draw the one screen; and in each state some key must change the screen,
+// so a state whose keys all do nothing can't pass by matching.
 func TestAClickOnEachKeyOfTheKeyLineActsAsItsKey(t *testing.T) {
 	t.Parallel()
 	type state struct {
@@ -768,20 +771,71 @@ func TestAClickOnEachKeyOfTheKeyLineActsAsItsKey(t *testing.T) {
 			}},
 		)
 	}
+	states = append(states,
+		state{"Compare, a column focused", func(t *testing.T) *harness {
+			shown := dashboard.AccountsShown{Accounts: threeConfigured, Focused: true, Focus: "side"}
+			return accountsKeysHarness(t, routerDocument(three()...), true, shown, 0)
+		}},
+		state{"a session's page", func(t *testing.T) *harness {
+			h, _ := pageHarness(t, promptedLines(2, start.Add(-30*time.Minute)))
+			next, read := h.model.openSession(idD28C)
+			h.model = next
+			h.deliver(h.run(read)...)
+			return h
+		}},
+		state{"the Log paused", func(t *testing.T) *harness { return loggedHarness(t, upKey) }},
+		state{"the Log's find open", func(t *testing.T) *harness {
+			return loggedHarness(t, upKey, tea.KeyPressMsg{Code: '/', Text: "/"})
+		}},
+		state{"the theme picker", func(t *testing.T) *harness {
+			return clickedHarness(t, dashboard.Overview, tea.WindowSizeMsg{Width: 160, Height: 40}, "t")
+		}},
+		state{"Runway", func(t *testing.T) *harness { return runwayKeysHarness(t, routerDocument(three()...), 0, "") }},
+		state{"Trends split by account", func(t *testing.T) *harness {
+			h, _ := trendsHarness(t, "year")
+			for range len(h.model.trends.year.Versions) + 1 {
+				h.typed("v")
+			}
+			if h.model.trends.split.Account == "" {
+				t.Fatalf("v split YEAR by %+v, want an account", h.model.trends.split)
+			}
+			return h
+		}},
+	)
 	for _, s := range states {
 		t.Run(s.name, func(t *testing.T) {
 			t.Parallel()
-			for _, target := range s.build(t).targets() {
+			built := s.build(t)
+			before, acted := built.view(), false
+			for _, target := range built.targets() {
 				if target.On != dashboard.OnKey {
 					continue
 				}
 				clicked, pressed := s.build(t), s.build(t)
 				clicked.click(target.X, target.Y)
 				pressed.keys(keyNamed(t, target.Key))
-				if got, want := clicked.view(), pressed.view(); got != want {
+				got, want := clicked.view(), pressed.view()
+				if got != want {
 					t.Errorf("a click on %q drew\n%s\nwant what its key draws\n%s", target.Key, got, want)
 				}
+				acted = acted || want != before
+			}
+			if !acted {
+				t.Errorf("no key of the key line changed the screen:\n%s\nwant some key to act, for the test to hold", before)
 			}
 		})
 	}
+}
+
+// loggedHarness is a model of the router of three on the Log, its ledger
+// holding two requests, started, the keys given pressed.
+func loggedHarness(t *testing.T, keys ...tea.KeyPressMsg) *harness {
+	t.Helper()
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute), arrived("0a000002", "side", -4*time.Minute))
+	h := routedHarness(t, routerDocument(three()...))
+	onTheLog(h, state)
+	h.start()
+	h.keys(keys...)
+	return h
 }

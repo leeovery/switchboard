@@ -1,13 +1,14 @@
 # An idle day's pool, recorded as the day is summarised
 
-When an account moves to another pool, the pool it left keeps its past: its work, and the window
-facts of the days it worked there, such as limits and minutes at its cap. An idle day is different.
-The day's summary records no pool for an account that sent no request, so a read can't tell which
-pool the account was in that day. The pool it left therefore loses the account's idle days, such as
-a day spent capped with nothing sent, and the pool it's in now shows them.
+An account's window facts, such as limits and minutes at its cap, show on every day in the pool
+it's in now, as they're the account's. When it moves to another pool, the pool it left keeps its
+past: its work, and the window facts of the days it worked there. An idle day is different. The
+day's summary records no pool for an account that sent no request, so a read can't tell which pool
+the account was in that day. The pool it left therefore drops the account's idle days, such as a
+day spent capped with nothing sent.
 
 The v1 release review found this (17 November 2026). For v1, the design states the rule as it
-stands: an idle day's window facts go by the pool the account is in now.
+stands: in a pool an account left, its idle days drop.
 
 ## What it could do
 

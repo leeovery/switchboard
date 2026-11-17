@@ -23,7 +23,8 @@ import (
 // its worth against it, the ledger begun part-way through the period or
 // not, as both price a young ledger's plans from its first day. THIS WEEK
 // on its first day is the one period whose plans history can't be asked
-// for, as from its first day history prices today.
+// for, as from its first day history prices today: its plans there are
+// Accounts' TODAY's.
 func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
@@ -33,12 +34,18 @@ func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 			if len(rows) != len(history.Totals.Accounts) || len(rows) != len(history.Plans) {
 				t.Fatalf("the page has %d rows, history %d totals and %d plans", len(rows), len(history.Totals.Accounts), len(history.Plans))
 			}
-			priced := !isThisWeeksFirstDay(am)
+			priced := rows
+			if isThisWeeksFirstDay(am) {
+				today := am
+				today.Period = views.PeriodToday
+				page, _ := accountsAt(today)
+				priced = append(slices.Clone(page.Rows), page.All)
+			}
 			for i, row := range rows {
 				if got, want := jsonOf(t, row.Totals), jsonOf(t, history.Totals.Accounts[i]); got != want {
 					t.Errorf("row %d counts\n%s\nhistory counts\n%s", i, got, want)
 				}
-				if got, want := jsonOf(t, row.Plan), jsonOf(t, history.Plans[i]); priced && got != want {
+				if got, want := jsonOf(t, priced[i].Plan), jsonOf(t, history.Plans[i]); got != want {
 					t.Errorf("row %d's plan is\n%s\nhistory's\n%s", i, got, want)
 				}
 			}

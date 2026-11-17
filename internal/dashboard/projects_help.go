@@ -52,7 +52,8 @@ func projectsHelp() []helpPart {
 					"where it began on another."),
 				said("`→` takes the choice into them and `←` back to the list; `↑` and `↓` select one, and `enter` opens " +
 					"its page, as the List does. The chosen row is lit where `↑` and `↓` act; the other's stays bold, " +
-					"marked ▸."),
+					"marked ▸. Where they don't all fit, the last row says how many are out of view, so long as two " +
+					"sessions still show above it."),
 			},
 		},
 	}

@@ -1134,15 +1134,20 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
 pool recorded at the time: the requests and the Log, sessions, Projects, what work was worth, and
-Accounts' totals. A moved account's window facts in a day's summary, its limits and minutes at its
-cap, go by the pool at the time on the days it worked, and by the pool it's in now on its idle
-days, as a day's summary keeps no pool for an account that sent nothing (recording one is in the
-Backlog). So an account moved out keeps its work in the pool it left, and is named there by its
-label, as a removed account is shown, with where it is now in place of when it was removed: in
-text.faint on the screens that draw a removed account so, and in the verbs' text as `work (now in
-Acme)` (`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a column of its own there, and its JSON lists it under
-`moved`, with its pool's id and label. Accounts' Tokens draws one, kept as
-`accounts-tokens-moved-160`.
+Accounts' totals. An account's window facts in a day's summary, its limits and minutes at its cap,
+show:
+
+- in the pool it's in now, on every day, as they're the account's;
+- in a pool it left, on the days it worked there, as the past stands;
+- and not on the days it did no work in a pool it left, as a day's summary keeps no pool for an
+  account that sent nothing (recording one is in the Backlog).
+
+So an account moved out keeps its work in the pool it left, and is named there by its label, as a
+removed account is shown, with where it is now in place of when it was removed: in text.faint on
+the screens that draw a removed account so, and in the verbs' text as `work (now in Acme)`
+(`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a
+column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
+Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 
 ### Reading a pool
 
@@ -3187,7 +3192,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `move_cost`.
   - **Accounts' Compare, Detail and Tokens, and Trends' YEAR, BY MONTH and MODELS BY DAY:**
     `history`, its blocks: days, year, months, weeks, tokens, totals, plans and capacity, with
-    `status` for each account's windows and state now, and its extra usage.
+    `status` for each account's windows and state now, and its extra usage; but THIS WEEK's plans
+    on its first day, which `history` prices as today's (see `history` below).
   - **LATELY, the Log's Events, and Detail's LATELY:** `events`.
   - **The Log's Requests:** `requests`, and its day rule, `history`'s days.
   - **A session's page:** `sessions <id>`, and its requests, `requests --session <id>`.
@@ -3214,8 +3220,11 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `"schema": 1` put first, fields a later release added included.
   - **`history`:** one object, as Commands gives it, holding every block Accounts' and
     Trends' views build, over the days asked for, so an agent asks for a period by its first day
-    (settled in the plan), as each view builds it: `prices_as_of`, and `days`, each day's summary as
-    the ledger holds it, priced, with its worth by family, as MODELS BY DAY draws it; then:
+    (settled in the plan), as each view builds it. The one period it can't be asked for so is THIS
+    WEEK on its first day: today begins then too, and the shorter wins, so a day asked for is
+    priced a day, never a week, and THIS WEEK's plans that day are Accounts' alone. It holds
+    `prices_as_of`, and `days`, each day's summary as the ledger holds it, priced, with its worth
+    by family, as MODELS BY DAY draws it; then:
     - `year` and `months`: YEAR's grid, each day's requests and the level its shade is drawn at,
       with the key's cuts, and BY MONTH's rows, each month's requests, worth, plans' cost, limits
       and worth by family (see Trends).
