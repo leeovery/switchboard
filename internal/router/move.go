@@ -23,13 +23,12 @@ var errHistoryMoving = errors.New("import once it's done")
 
 // Mover moves the accounts and their history onto the ids switchboard makes,
 // once, as idmove.Mover does: Settle moves the files the router takes up as
-// it starts, before it does, reporting whether the router starts on the ids
-// the move renames onto, and RunBeside the rest, beside the router, given
+// it starts, before it does, and RunBeside the rest, beside the router, given
 // the history's files as it keeps them, failing with idmove.ErrUnanswered,
 // having changed nothing, where the API doesn't answer, to run again once
 // AskAgain's wait is up, given the wait before, zero the first time.
 type Mover interface {
-	Settle() (bool, error)
+	Settle() error
 	RunBeside(ctx context.Context, history idmove.History) error
 	AskAgain(wait time.Duration) time.Duration
 }
@@ -58,9 +57,6 @@ type moving struct {
 	// router's start, where it has a move to make, until every move is done.
 	// Nil where none is owed.
 	stands atomic.Pointer[status.Moving]
-	// held is set where settle finds the router starting on the ids the move
-	// onto them renames onto, or can't tell, for holds.
-	held atomic.Bool
 }
 
 // newMoving returns the moving of mover's move onto the ids, then pools'
@@ -104,15 +100,16 @@ func (m *moving) standing(s status.Moving) {
 }
 
 // holds reports whether the history's rounds are held, so the request
-// ledger summarises nothing and neither it nor the readings history prunes:
-// from the router's start on the ids the move onto them renames onto, as
-// settle finds it, until that move is done. The move renames the newest
-// readings as the router starts, and the rest of the history day by day
-// after, each day's lines before its summary, so a round in between would
-// summarise a day named by both: no reader reads one till the move's done,
-// as every reader waits on it.
+// ledger summarises nothing and neither it nor the readings history prunes
+// or compresses: for as long as the move onto the ids is owed, from the
+// router's start until that move is done, whatever ids the router is on.
+// The move renames the history day by day, each day's lines before its
+// summary, as the accounts record has the ids moved, among them ids only
+// the history names, or a config another Mac has moved already, so a round
+// in between would summarise a day named by both: no reader reads one till
+// the move's done, as every reader waits on it.
 func (m *moving) holds() bool {
-	return m.held.Load() && m.idsOwed()
+	return m.idsOwed()
 }
 
 // historyMoving is the error of an import while the history waits on the
@@ -122,19 +119,15 @@ func (m *moving) historyMoving() error {
 }
 
 // settle has the mover move the files the router takes up as it starts,
-// where the move onto the ids is owed, noting whether the router starts on
-// the ids it renames onto, as holds has it. Where it can't move them, the
-// router starts all the same, the state those files kept of the accounts
-// moved let go of, and its history held, as it can't tell what's renamed.
+// where the move onto the ids is owed. Where it can't, the router starts all
+// the same, the state those files kept of the accounts moved let go of.
 func (m *moving) settle() {
 	if !m.idsOwed() {
 		return
 	}
-	settled, err := m.mover.Settle()
-	if err != nil {
+	if err := m.mover.Settle(); err != nil {
 		logger.Warn("couldn't move the state file and the newest readings onto the accounts' ids, so what they kept of the accounts moved is let go of", "error", err)
 	}
-	m.held.Store(settled || err != nil)
 }
 
 // run runs the moves owed, given the history's files as history gives them,

@@ -194,9 +194,9 @@ type Day struct {
 // MarshalJSON gives the day as its fields have it, a field added to it or
 // to the summary among them, but for what the summary keeps to know when to
 // summarise the day again: its version, the lines and bytes of the day's
-// files it was made from, the whole day's whatever pool is read, and each
-// account's windows read in the week before. They say how the summary was
-// made, not what the day did, so the verb promises none of them.
+// files it was made from, and each account's windows read in the week
+// before. They say how the summary was made, not what the day did, so the
+// verb promises none of them.
 func (d Day) MarshalJSON() ([]byte, error) {
 	type day Day
 	accounts := make([]dayAccount, len(d.Accounts))

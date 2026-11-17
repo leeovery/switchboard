@@ -14,10 +14,9 @@ import (
 )
 
 // fakeMover is a move onto the accounts' ids as the router runs it: Settle
-// writes the state file it's given, where it's given one, the router then
-// starting on the new ids; and each run hands the history's files it's given
-// to history, then answers as the test sends on runs; the API is asked again
-// only after the test's end.
+// writes the state file it's given, where it's given one, and each run hands
+// the history's files it's given to history, then answers as the test sends
+// on runs; the API is asked again only after the test's end.
 type fakeMover struct {
 	statePath, settled string
 	history            chan idmove.History
@@ -28,11 +27,11 @@ func newFakeMover() *fakeMover {
 	return &fakeMover{history: make(chan idmove.History, 8), runs: make(chan error)}
 }
 
-func (m *fakeMover) Settle() (bool, error) {
+func (m *fakeMover) Settle() error {
 	if m.settled == "" {
-		return false, nil
+		return nil
 	}
-	return true, os.WriteFile(m.statePath, []byte(m.settled), 0o600)
+	return os.WriteFile(m.statePath, []byte(m.settled), 0o600)
 }
 
 func (m *fakeMover) RunBeside(ctx context.Context, history idmove.History) error {

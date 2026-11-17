@@ -1510,13 +1510,19 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
   start nothing; a config changed meanwhile is asked for at the next read (see The dashboard in a
   pool).
 - **A router draining across the upgrade** can file a few lines naming no pool after the move,
-  read as the first pool's work (see What's recorded). One from before a day's plain file was
-  held across processes (see Account identity) can lose a line it appends as the move renames
-  that day's file into place: it takes no hold. The usual upgrade can't: the router restarts in
-  place, `exec`ing the new build in the same process (see The router looking after itself), so
-  no two routers ever run. Nor can launchd's restarts, as it starts the next only once the last
-  has gone. It needs one of the two routers run by hand, the one still draining among them, and
-  a request ending in the milliseconds of the rename.
+  read as the first pool's work (see What's recorded). A router on the old ids still draining
+  as one on the new ids moves the history onto them can do two things more:
+  - lose a line it appends as the move renames that day's file into place, where it's from
+    before a day's plain file was held across processes (see Account identity), as it takes no
+    hold;
+  - file a line under an old id once the move has renamed that day, so its request is counted
+    under the old id, apart from its account.
+
+  The usual upgrade can't do either: the router restarts in place, `exec`ing the new build in
+  the same process (see The router looking after itself), so no two routers ever run. Nor can
+  launchd's restarts, as it starts the next only once the last has gone. Each needs one of the
+  two routers run by hand, the one still draining among them, and a request ending in the
+  milliseconds of the rename, for the first, or after it, for the second.
 - **A pool's id re-cased by a hand edit** lists the pool twice in the day's summary, once each
   spelling, and so in `history`'s JSON, each priced; every read of the pool takes both, as the
   config, the readers and a pool's read compare ids ignoring case.
@@ -2070,24 +2076,28 @@ formats below; the screens as signed off in Paper (see The screens, below).
     kept in its place, and the file itself set aside beside it as `<name>.damaged`, then
     `.damaged-2` and on, till its day's past keeping. The files the router builds from these,
     the days' digests, parts, heads and rows, are built again.
-  - **The rounds held:** while the move is owed, from the router's start on the new ids until
-    the move is done, the request ledger's rounds summarise nothing and prune nothing, and the
-    readings history prunes nothing (`moving.holds`). The move renames the newest readings as
-    the router starts, and the rest of the history day by day after it, each day's lines before
-    its summary. A round in between would summarise a day named by both, from readings under one
-    id and lines or a summary under the other: it would count the day's work under both ids,
-    or its rise, minutes and limits without what the week before carried, and the summary
-    renamed after would keep it so. Every reader waits while the move is owed (`history`,
-    `requests`, the sessions, the events, export, import and the dashboard), so a summary made
-    then has no reader. Nothing but the rounds writes a summary, beside the move and an import,
-    and nothing but a prune takes readings, so holding both loses nothing: a move held up, as
-    by a step that keeps failing, costs only the disk the days past keeping hold meanwhile. Once
+  - **The rounds held:** for as long as the move is owed, from the router's start until the
+    move is marked done, the request ledger's rounds summarise nothing and prune nothing, and
+    the readings history prunes nothing (`moving.holds`). That's so whatever ids the router is
+    on, and whatever `Settle` finds: a router on the old ids, waiting to restart, holds too. A
+    prune is where a day's files are compressed, so a day that ends while the rounds are held
+    stays plain files till the first round after the move, and nothing is lost. The move
+    renames the history day by day, each day's lines before its summary, by the ids the
+    accounts record has moved: the configured ones, those only the history names, and those of
+    a config another Mac moved, which this Mac's record learns only as the move decides. A
+    round in between would summarise a day named by both, from readings under one id and lines
+    or a summary under the other: it would count the day's work under both ids, or its rise,
+    minutes and limits without what the week before carried, and the summary renamed after
+    would keep it so. Every reader waits while the move is owed (`history`, `requests`, the
+    sessions, the events, export, import and the dashboard), so a summary made then has no
+    reader. Nothing but the rounds writes a summary, beside the move and an import, and nothing
+    but a prune takes readings, so holding both loses nothing: a move held up, as by a step
+    that keeps failing, costs only the disk the days past keeping hold meanwhile. A fresh
+    install's move has nothing to rename, and is done moments after the router starts. Once
     the move's done, every line, reading and summary names the new ids, and the next round,
-    within the hour, summarises and prunes as ever. A router on the old ids, waiting to
-    restart, holds nothing, its files all under the old ids still. A router whose `Settle`
-    can't read the config holds its rounds all the same, as it can't tell which ids it starts
-    on. Days under ids an account had in two cases still merge as the summary is renamed,
-    their figures added up, as each read readings of its own.
+    within the hour, summarises, compresses and prunes as ever. Days under ids an account had
+    in two cases still merge as the summary is renamed, their figures added up, as each read
+    readings of its own.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals by account the same before and after, and
     the dashboard and the verbs reading it whole.
