@@ -889,7 +889,8 @@ func (r Route) OwnAccount() (config.Account, bool) {
 // rule the config holds it to, as a router that reports no pools routes
 // every account it has in one, and how they stand, as the document has
 // them, so it's asked for once. It fails where the document can't be had,
-// as without a way to ask for it, or the router names no account.
+// as without a way to ask for it, or within documentWait, or the router
+// names no account.
 func (r Route) routersConfig(ctx context.Context, h router.Health) (*config.Config, standing, error) {
 	if pools, reported := RoutedPools(h); reported {
 		cfg, err := routedConfig(h, pools)
@@ -898,7 +899,7 @@ func (r Route) routersConfig(ctx context.Context, h router.Health) (*config.Conf
 	if r.Document == nil {
 		return nil, standing{}, errors.New("the router can't be asked for its status document")
 	}
-	doc, err := r.Document(ctx, "")
+	doc, err := r.document(ctx, "")
 	if err != nil {
 		return nil, standing{}, err
 	}

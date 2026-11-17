@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -262,6 +263,34 @@ func TestRunUnreadStartsWithoutSwitchboardWhereNoAccountTheRouterNamesCanBeStart
 			}
 		})
 	}
+}
+
+// Where the config can't be read, a router slow to send the status document
+// that names its accounts holds the launch up for a second at most, after
+// which claude starts without switchboard, as where the document can't be
+// had.
+func TestRunUnreadWaitsASecondAtMostForTheRoutersDocument(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inherited := []string{"HOME=/home/tester"}
+		log := logstest.Capture(t)
+		h := newHarness(t, inherited...)
+		rt := healthy().naming("side", accounts...)
+		rt.docWait = time.Minute
+
+		began := time.Now()
+		if err := h.launcher.RunUnread(t.Context(), unreadRoute(rt, ""), nil, errUnread); err != nil {
+			t.Fatalf("RunUnread() error = %v", err)
+		}
+		if waited := time.Since(began); waited > time.Second {
+			t.Errorf("the launch waited %s on the router, want a second at most", waited)
+		}
+		if got := h.only(t); !slices.Equal(got.env, inherited) {
+			t.Errorf("started claude with %q, want the environment untouched, %q, as without switchboard", got.env, inherited)
+		}
+		if want := []string{"level=WARN", `msg="can't read which accounts the router routes for"`, "context deadline exceeded"}; !log.Has(want...) {
+			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+		}
+	})
 }
 
 func TestRunUnreadStartsWithoutSwitchboardWhereTheRouterCantBeRoutedThrough(t *testing.T) {

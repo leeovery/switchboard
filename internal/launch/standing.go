@@ -11,12 +11,20 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
-// documentWait is how long a routed launch waits for the router's status
-// document of the session's pool, after its health answer, before it goes
-// on knowing nothing of how the accounts stand: a busy router would
-// otherwise hold the launch up for as long as the client waits on any
-// answer.
+// documentWait is how long a launch waits for a status document of the
+// router's, after its health answer, before it goes on without it: a busy
+// router would otherwise hold the launch up for as long as the client waits
+// on any answer.
 const documentWait = time.Second
+
+// document asks the router for its status document of the pool with the
+// given id, as Document does, waiting documentWait at most. Document must be
+// set.
+func (r Route) document(ctx context.Context, pool string) (status.Document, error) {
+	asking, cancel := context.WithTimeout(ctx, documentWait)
+	defer cancel()
+	return r.Document(asking, pool)
+}
 
 // standing is how the accounts a launch can start on stand, beyond their
 // tokens, as far as the launch can know: routed, as the router's status
@@ -99,9 +107,7 @@ func (r Route) standing(ctx context.Context, state routerState, in place) standi
 	if r.Document == nil {
 		return standing{}
 	}
-	asking, cancel := context.WithTimeout(ctx, documentWait)
-	defer cancel()
-	doc, err := r.Document(asking, in.id())
+	doc, err := r.document(ctx, in.id())
 	if err != nil {
 		logger.Info("can't ask the router how the pool's accounts stand", "router", state.name, "pool", in.id(), "error", err)
 		return standing{}

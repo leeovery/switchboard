@@ -265,8 +265,9 @@ func TestTheHistoryIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
 
 // While the move holds the history, the router's request ledger summarises
 // no day and prunes none, and its readings history prunes none; once the
-// move's done, they make their rounds at once, doing both, never waiting on
-// the hourly tick.
+// move's done, each makes its own round at once, never waiting on the hourly
+// tick: the readings' summarises the ledger's days before it prunes, so only
+// the ledger's own round prunes the ledger's lines past keeping.
 func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *testing.T) {
 	logstest.Capture(t)
 	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
@@ -274,13 +275,18 @@ func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *t
 	cfg.Ledger.Keep, cfg.History.Keep = 24*time.Hour, 24*time.Hour
 	cfg.Move = &answeringMover{}
 	day, old := dayfile.DateOf(start.AddDate(0, 0, -1)), dayfile.DateOf(start.AddDate(0, 0, -30))
-	line, err := json.Marshal(ledger.Line{At: start.AddDate(0, 0, -1).UTC(), Request: "r1", Kind: ledger.KindMessage, Session: "one", Model: opus,
-		Account: "work", Reason: "sticky", Status: 200, Attempts: 1})
-	if err != nil {
-		t.Fatal(err)
+	lineOn := func(at time.Time) string {
+		t.Helper()
+		line, err := json.Marshal(ledger.Line{At: at.UTC(), Request: "r1", Kind: ledger.KindMessage, Session: "one", Model: opus,
+			Account: "work", Reason: "sticky", Status: 200, Attempts: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(line) + "\n"
 	}
 	dir, history := ledger.Dir(cfg.StateDir), readings.Dir(cfg.StateDir)
-	writeFile(t, filepath.Join(dir, "requests-"+day+".jsonl"), string(line)+"\n")
+	writeFile(t, filepath.Join(dir, "requests-"+day+".jsonl"), lineOn(start.AddDate(0, 0, -1)))
+	writeFile(t, filepath.Join(dir, "requests-"+old+".jsonl"), lineOn(start.AddDate(0, 0, -30)))
 	writeFile(t, filepath.Join(history, "readings-"+old+".jsonl"), "\n")
 	r := newTestRouterOf(t, cfg)
 	r.openHistory()
@@ -293,11 +299,14 @@ func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *t
 		cancel()
 		running.Wait()
 	}()
+	gone := func(path string) bool {
+		_, err := os.Stat(path)
+		return errors.Is(err, fs.ErrNotExist)
+	}
 	kept := func() (summarised, pruned bool) {
 		t.Helper()
 		_, err := os.Stat(ledger.SummaryFile(dir, day))
-		_, gone := os.Stat(filepath.Join(history, "readings-"+old+".jsonl"))
-		return err == nil, errors.Is(gone, fs.ErrNotExist)
+		return err == nil, gone(filepath.Join(history, "readings-"+old+".jsonl")) || gone(filepath.Join(dir, "requests-"+old+".jsonl"))
 	}
 
 	if err := r.ledger.roundNow(ctx); err != nil {
@@ -307,14 +316,14 @@ func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *t
 		t.Fatal(err)
 	}
 	if summarised, pruned := kept(); summarised || pruned {
-		t.Errorf("while the move holds the history, a day was summarised %t, the readings past keeping pruned %t; want neither", summarised, pruned)
+		t.Errorf("while the move holds the history, a day was summarised %t, the readings or the ledger's lines past keeping pruned %t; want neither", summarised, pruned)
 	}
 	r.moving.run(ctx, func() idmove.History { return idmove.History{} }, nil)
 	// Nothing asks for a round here: the writers' next tick is an hour off,
 	// so only the move's own kick makes one this soon.
-	waitFor(t, "the move's done and a day is summarised and the readings past keeping pruned", func() bool {
-		summarised, pruned := kept()
-		return summarised && pruned
+	waitFor(t, "the move's done, a day is summarised, and the readings and the ledger's lines past keeping are pruned", func() bool {
+		_, err := os.Stat(ledger.SummaryFile(dir, day))
+		return err == nil && gone(filepath.Join(history, "readings-"+old+".jsonl")) && gone(filepath.Join(dir, "requests-"+old+".jsonl"))
 	})
 }
 

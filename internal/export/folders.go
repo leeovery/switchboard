@@ -51,12 +51,16 @@ func makeDir(dir string) error {
 }
 
 // Reachable reports whether an Exporter with NoParents can export into dir:
-// where it's a folder, or the folder it goes in is, so it can be made there.
+// where it's a folder, or a link to one, or nothing is there and the folder
+// it goes in is a folder, so it can be made there. A link whose target isn't
+// there is never reachable, as nothing can be made in its place.
 func Reachable(dir string) bool {
 	for _, path := range []string{dir, filepath.Dir(dir)} {
-		if info, err := os.Stat(path); err == nil {
-			return info.IsDir()
+		if _, err := os.Lstat(path); err != nil {
+			continue
 		}
+		info, err := os.Stat(path)
+		return err == nil && info.IsDir()
 	}
 	return false
 }

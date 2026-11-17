@@ -669,13 +669,21 @@ func TestAFolderMissingIsMadeWhereTheFolderItGoesInIsThere(t *testing.T) {
 	}
 }
 
-// An export with NoParents reaches a folder that's there, or one whose
-// folder is there, as it makes it; never one whose folder isn't there, as
-// one under another Mac's home, nor one in a file.
+// An export with NoParents reaches a folder that's there, or a link to one,
+// or one whose folder is there, as it makes it; never one whose folder isn't
+// there, as one under another Mac's home, nor one in a file, nor a link to
+// nothing.
 func TestAFolderIsReachableWhereItOrTheFolderItGoesInIsThere(t *testing.T) {
 	root := t.TempDir()
 	file := filepath.Join(root, "a-file")
 	writeFile(t, file, []byte("a file\n"), exportNow)
+	linked, dangling := filepath.Join(root, "linked"), filepath.Join(root, "dangling")
+	if err := os.Symlink(root, linked); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "gone"), dangling); err != nil {
+		t.Fatal(err)
+	}
 	tests := []struct {
 		name string
 		dir  string
@@ -686,6 +694,8 @@ func TestAFolderIsReachableWhereItOrTheFolderItGoesInIsThere(t *testing.T) {
 		{name: "missing, its folder missing", dir: filepath.Join(root, "unmounted", "backups")},
 		{name: "a file", dir: file},
 		{name: "in a file", dir: filepath.Join(file, "backups")},
+		{name: "a link to a folder", dir: linked, want: true},
+		{name: "a link to nothing", dir: dangling},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

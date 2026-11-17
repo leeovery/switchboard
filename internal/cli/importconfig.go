@@ -80,7 +80,7 @@ func (a *app) restore(out, errOut io.Writer, state, dir string) error {
 	if err := a.sayExportAway(errOut, cfg.Export); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(out, "next, run %s to give each account its token and start the router, then %s again to bring in the history, once the router has started and finished moving, which takes moments\n",
+	_, err = fmt.Fprintf(out, "next, run %s to give each account its token and start the router, then %s again to bring in the history, once the router has started and finished its first upgrade steps, which takes moments\n",
 		a.command("setup"), a.command("import", dir))
 	return err
 }
@@ -303,7 +303,8 @@ func (a *app) sayUnfenced(errOut io.Writer, pools config.Pools) error {
 
 // sayExportAway warns on errOut where the folder exp names isn't one the
 // router can export into on this Mac, as one in another home isn't, no
-// export running each hour until [export] dir names one that is.
+// export running until that folder, or the folder it goes in, is there, as
+// export.Reachable has it.
 func (a *app) sayExportAway(errOut io.Writer, exp config.Export) error {
 	if !exp.On() {
 		return nil
@@ -311,7 +312,7 @@ func (a *app) sayExportAway(errOut io.Writer, exp config.Export) error {
 	if folder, err := exp.Folder(a.HomeDir); err == nil && export.Reachable(folder) {
 		return nil
 	}
-	_, err := fmt.Fprintf(errOut, "switchboard: %s isn't on this Mac, so the router exports nothing each hour until [export] dir in the config names a folder that is\n", exp.Dir)
+	_, err := fmt.Fprintf(errOut, "switchboard: %s isn't on this Mac, so the router exports nothing until that folder, or the folder it goes in, is there\n", exp.Dir)
 	return err
 }
 

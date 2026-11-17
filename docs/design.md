@@ -10244,8 +10244,8 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   waits for a router to take it in: `laid down the config of mac-<id> at <path>: 3 accounts in 2
   pools`, then `next, run switchboard setup to give each account its token and start the router,
   then switchboard import <dir> again to bring in the history, once the router has started and
-  finished moving, which takes moments`, as the import before the router's first moves are done
-  is refused (see Moving to ids made, once), each command carrying the
+  finished its first upgrade steps, which takes moments`, as the import before the router's
+  first moves are done is refused (see Moving to ids made, once), each command carrying the
   `--config` given, and each word quoted for the shell where it needs it, as a folder in iCloud
   Drive's `Mobile Documents` does. The pools keep the ids the history names, so the router
   started on them, which notes the config's first pool as this Mac's first (see What's
@@ -10297,9 +10297,9 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
     folder written from `~/` is the same folder in this home.
   - **An export folder not here,** an `[export] dir` the router can't export into on this Mac,
     as it exports with no parents made (`export.Reachable`: neither the folder nor the folder it
-    goes in is there), is warned of alike: `switchboard: /Users/other/Dropbox/switchboard isn't
-    on this Mac, so the router exports nothing each hour until [export] dir in the config names
-    a folder that is`.
+    goes in is there, or it's a link to nothing), is warned of alike: `switchboard:
+    /Users/other/Dropbox/switchboard isn't on this Mac, so the router exports nothing until that
+    folder, or the folder it goes in, is there`.
 - **Through the router:** the router is the history's one writer, so `import` needs it, failing
   without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
   removing any an import cut short left there first, so the router reads nothing outside the state
@@ -11835,8 +11835,9 @@ verbs).
   router and what passes through it untouched (see What doesn't go through the router), so an
   account the router wouldn't send on is none to start on while another will do. Routed, once the
   router has answered, `run` asks it for its status document of the session's pool, as `status`
-  asks it, 5 seconds at most, once a launch (without the config, the document that names a router's
-  accounts serves for both), and passes over an account the document doesn't name, which the router
+  asks it, a second at most, so a busy router never holds a launch up for longer, going on as
+  if nothing were known once that's up, once a launch (without the config, the document that
+  names a router's accounts serves for both), and passes over an account the document doesn't name, which the router
   doesn't route yet, as one `accounts add --primary` made the primary since it started, taken up
   only as it restarts, whose token it couldn't tell for an account's, so every request would pass
   it by unrouted and unrecorded; and one something bars from every request as the document was
@@ -11864,7 +11865,8 @@ verbs).
   would with one. While the router answers saying where it listens, healthy or not, `run` routes
   through it, as Routed says, on the accounts the router's status document names, in its order, in
   place of the config's, asking for the document once the router has answered, as `status` asks it,
-  for 5 seconds at most. Claude Code's own token is the primary's, as the document names it, read
+  for a second at most, as Routed waits, starting Claude Code without switchboard where it doesn't
+  come in time, as where it can't be had. Claude Code's own token is the primary's, as the document names it, read
   from its token file, `<state dir>/tokens/<id>`, which needs no config, or, while that isn't
   usable, `--account`'s, else the first account's in the document with a usable token, the order
   Routed uses, passing over an account held back as Routed does; `--account` must name an account
