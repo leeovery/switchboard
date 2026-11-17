@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -19,23 +20,25 @@ var ErrNotTerminal = errors.New("output isn't a terminal")
 // Run shows the dashboard full screen on out, which must be a terminal, until
 // the user quits. The frame is drawn in full colour and brought down to what
 // the terminal shows, judged by out and environ. The mouse moving, or a
-// button let go, never reaches the model, as backdrop.Heeded has it.
+// button let go, never reaches the model, as backdrop.Heeded has it. What
+// was typed at the terminal it reads, stdin, and never read, it throws away
+// as it stops, as backdrop.Unread has it.
 func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) error {
 	if f, ok := out.(term.File); !ok || !term.IsTerminal(f.Fd()) {
 		return ErrNotTerminal
 	}
-	return run(ctx, cfg, out, tea.WithEnvironment(environ), tea.WithFilter(backdrop.Heeded))
+	return run(ctx, cfg, out, backdrop.Unread(os.Stdin), tea.WithEnvironment(environ), tea.WithFilter(backdrop.Heeded))
 }
 
 // run shows the dashboard on out until the user quits, noting in the log when
 // it starts and stops, its model run as turns runs it, and puts back the
-// terminal's background as it stops, however it stops, as backdrop.Run has
-// it, then keeps the preferences changed that it hadn't yet, as keepLeft has
-// it.
-func run(ctx context.Context, cfg Config, out io.Writer, opts ...tea.ProgramOption) error {
+// terminal's background as it stops, however it stops, then has unread throw
+// away what was typed and never read, as backdrop.Run has it, then keeps the
+// preferences changed that it hadn't yet, as keepLeft has it.
+func run(ctx context.Context, cfg Config, out io.Writer, unread func(), opts ...tea.ProgramOption) error {
 	logger.Info("watch started", "interval", cfg.Interval)
 	started := time.Now()
-	last, err := backdrop.Run(turns{New(ctx, cfg)}, out, append(opts, tea.WithContext(ctx))...)
+	last, err := backdrop.Run(turns{New(ctx, cfg)}, out, unread, append(opts, tea.WithContext(ctx))...)
 	last.keepLeft()
 	logger.Info("watch stopped", "ran", time.Since(started).Round(time.Second))
 	// In raw mode ctrl+c arrives as a key, so an interrupt comes from outside

@@ -73,7 +73,8 @@ func turnOpened() *SessionShown {
 // it moving down: its heads; its requests, as many as the turns' rows hold
 // under every turn, its heads and its foot, else five at the most, as far
 // as they're scrolled; and its foot, the rows of another turn none of them.
-// Without a turn open, a row a turn.
+// Without a turn open, a row a turn. Before each row, as many turns' own
+// rows as the rows before it hold.
 func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 	turn := func(i int) turnsRow { return turnsRow{kind: aTurn, index: i} }
 	request := func(i int) turnsRow { return turnsRow{kind: openRequest, index: i} }
@@ -98,6 +99,12 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 			turn(0), turn(1), heads, request(0), request(1), request(2), request(3), request(4), foot, turn(2),
 		}},
 		{name: "at 16 rows, one shown", height: 16, want: []turnsRow{turn(0), turn(1), heads, request(0), foot, turn(2)}},
+		{name: "the newest open", open: func(s *SessionShown) { s.Open = s.Page.Turns[0].Turn }, height: 37, want: []turnsRow{
+			turn(0), heads, request(0), request(1), request(2), request(3), request(4), foot, turn(1), turn(2),
+		}},
+		{name: "the oldest open", open: func(s *SessionShown) { s.Open = s.Page.Turns[2].Turn }, height: 37, want: []turnsRow{
+			turn(0), turn(1), turn(2), heads, request(0), request(1), request(2), request(3), request(4), foot,
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,11 +113,27 @@ func TestATurnOpenedLaysItsRowsOutUnderItsOwn(t *testing.T) {
 			if tt.open != nil {
 				tt.open(shown)
 			}
-			if got := shown.turnsRows(pageFrame(t, shown, 160, tt.height).layoutOf(1)); !slices.Equal(got, tt.want) {
+			laid := shown.turnsLaid(pageFrame(t, shown, 160, tt.height).layoutOf(1))
+			if got := laidRows(laid); !slices.Equal(got, tt.want) {
 				t.Errorf("the turns' rows are\n%v\nwant\n%v", got, tt.want)
+			}
+			for i := range len(tt.want) + 1 {
+				want := len(slices.DeleteFunc(slices.Clone(tt.want[:i]), func(r turnsRow) bool { return r.kind != aTurn }))
+				if got := laid.turnsBefore(i); got != want {
+					t.Errorf("before row %d, %d turns' own rows, want %d", i, got, want)
+				}
 			}
 		})
 	}
+}
+
+// laidRows are every row of the turns laid, in order.
+func laidRows(laid turnsLaid) []turnsRow {
+	rows := make([]turnsRow, laid.len())
+	for i := range rows {
+		rows[i] = laid.row(i)
+	}
+	return rows
 }
 
 // A turn opened shows as many of its requests at a time as the turns' rows
@@ -156,9 +179,9 @@ func keptInView(f Frame) {
 // it does.
 func openShownWhole(f Frame) string {
 	l := f.pageLayout()
-	rows, from, to := f.Session.turnsInView(l)
+	laid, from, to := f.Session.turnsInView(l)
 	seen := map[turnsRowKind]bool{}
-	for _, r := range rows[from:to] {
+	for _, r := range laidRows(laid)[from:to] {
 		if r.kind != aTurn || f.Session.Page.Turns[r.index].Turn == f.Session.Open {
 			seen[r.kind] = true
 		}

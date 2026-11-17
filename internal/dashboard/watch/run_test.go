@@ -17,7 +17,10 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-func TestTheBackgroundIsPutBackHoweverTheWatchStops(t *testing.T) {
+// However the watch stops, it puts back the terminal's background, then,
+// once it has written its last, throws away what was typed and never read,
+// once, so none of it reaches the shell.
+func TestTheBackgroundIsPutBackAndWhatWasTypedUnreadThrownAwayHoweverTheWatchStops(t *testing.T) {
 	stops := []struct {
 		name string
 		// key is what's typed to stop the watch, which the filter turns into
@@ -46,13 +49,17 @@ func TestTheBackgroundIsPutBackHoweverTheWatchStops(t *testing.T) {
 	for _, stop := range stops {
 		for _, terminal := range terminals {
 			t.Run(stop.name+", "+terminal.name, func(t *testing.T) {
-				out, err := watchUntil(t, themedConfig(), terminal.answer, stop.key, stop.as)
+				w, err := watchUntil(t, themedConfig(), terminal.answer, stop.key, stop.as)
 
 				if (err != nil) != stop.wantError {
 					t.Errorf("run() error = %v, want an error: %v", err, stop.wantError)
 				}
-				if !strings.HasSuffix(out, terminal.want) {
-					t.Errorf("the watch's output ends %q, want the background put back with %q", tail(out), terminal.want)
+				if !strings.HasSuffix(w.out, terminal.want) {
+					t.Errorf("the watch's output ends %q, want the background put back with %q", tail(w.out), terminal.want)
+				}
+				if len(w.unread) != 1 || w.unread[0] != w.out {
+					t.Errorf("what was typed unread was thrown away %d times, the output then ending %q; want once, after the watch's last",
+						len(w.unread), tail(strings.Join(w.unread, "|")))
 				}
 			})
 		}
@@ -77,12 +84,12 @@ func TestABackgroundNeverSetIsLeftAlone(t *testing.T) {
 	cfg.Pair = cfg.Themes.List().Pair(cfg.Choice)
 	for name, cfg := range map[string]Config{"without colour": noColourConfig(), "in the terminal's own colours": cfg} {
 		t.Run(name, func(t *testing.T) {
-			out, err := watchUntil(t, cfg, "\x1b]11;rgb:1a1a/1b1b/2626\x07", "q", nil)
+			w, err := watchUntil(t, cfg, "\x1b]11;rgb:1a1a/1b1b/2626\x07", "q", nil)
 			if err != nil {
 				t.Fatalf("run() error = %v", err)
 			}
-			if strings.Contains(out, "\x1b]11;#") || strings.Contains(out, ansi.ResetBackgroundColor) {
-				t.Errorf("the watch's output %q sets or resets the background, want it left alone", tail(out))
+			if strings.Contains(w.out, "\x1b]11;#") || strings.Contains(w.out, ansi.ResetBackgroundColor) {
+				t.Errorf("the watch's output %q sets or resets the background, want it left alone", tail(w.out))
 			}
 		})
 	}
@@ -91,8 +98,9 @@ func TestABackgroundNeverSetIsLeftAlone(t *testing.T) {
 // watchUntil runs a watch of cfg on a terminal that answers its question
 // about its background with answer, and once the watch has its answer, or
 // has given up on one, types key, which the watch's filter turns into as,
-// where that's set. It returns what the watch wrote, and how it stopped.
-func watchUntil(t *testing.T, cfg Config, answer, key string, as func() tea.Msg) (string, error) {
+// where that's set. It returns what the watch wrote, and what it had written
+// each time it threw away what was typed unread, and how it stopped.
+func watchUntil(t *testing.T, cfg Config, answer, key string, as func() tea.Msg) (watched, error) {
 	t.Helper()
 	// Bubble Tea reads these itself: set, they have it write a trace, or a
 	// log of a panic it recovers from in the working directory.
@@ -131,8 +139,18 @@ func watchUntil(t *testing.T, cfg Config, answer, key string, as func() tea.Msg)
 		}
 		_, _ = io.WriteString(typing, key)
 	}()
-	err := run(t.Context(), cfg, &out, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
-	return out.String(), err
+	var w watched
+	unread := func() { w.unread = append(w.unread, out.String()) }
+	err := run(t.Context(), cfg, &out, unread, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter))
+	w.out = out.String()
+	return w, err
+}
+
+// watched is what a watch wrote, and what it had written each time it threw
+// away what was typed unread.
+type watched struct {
+	out    string
+	unread []string
 }
 
 // themedConfig is a watch of calm, in colour, in nord.

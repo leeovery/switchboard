@@ -2,6 +2,8 @@ package backdrop_test
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"runtime"
 	"testing"
 	"weak"
@@ -72,7 +74,7 @@ func TestAFilterHeedingTheScreenIsGivenItAsItsLastStepLeftIt(t *testing.T) {
 		return msg
 	})
 	var out bytes.Buffer
-	last, err := backdrop.Run(stepped{}, &out, tea.WithInput(nil), tea.WithoutSignals(), tea.WithFilter(heed))
+	last, err := backdrop.Run(stepped{}, &out, func() {}, tea.WithInput(nil), tea.WithoutSignals(), tea.WithFilter(heed))
 	if err != nil || last.steps != 1 {
 		t.Fatalf("Run() = %+v, %v; want the screen quit after its step", last, err)
 	}
@@ -156,10 +158,28 @@ func TestAScreenAStepLeftBehindIsLetGoWhileItRuns(t *testing.T) {
 	t.Setenv("TEA_DEBUG", "")
 	var let bool
 	var out bytes.Buffer
-	if _, err := backdrop.Run(startingWithPayload(&let), &out, tea.WithInput(nil), tea.WithoutSignals()); err != nil {
+	if _, err := backdrop.Run(startingWithPayload(&let), &out, func() {}, tea.WithInput(nil), tea.WithoutSignals()); err != nil {
 		t.Fatal(err)
 	}
 	if !let {
 		t.Error("the payload the screen started with was still held once a step replaced it, want it let go")
+	}
+}
+
+// What a screen reads that isn't a terminal is left as it is: nothing of it
+// is thrown away as the screen stops.
+func TestUnreadLeavesWhatIsntATerminalAlone(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	if _, err := io.WriteString(w, "typed"); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+	backdrop.Unread(r)()
+	if got, err := io.ReadAll(r); err != nil || string(got) != "typed" {
+		t.Errorf("the pipe holds %q, %v, want what was written to it, unread", got, err)
 	}
 }

@@ -81,8 +81,23 @@ type AxisLabel struct {
 }
 
 // Columns is s laid across width columns: none where it has no request, or
-// the width hasn't room for it.
+// the width hasn't room for it. A story built of a page lays itself once a
+// width, as its rates go through every request it sent: what it gives is
+// shared, never to be changed.
 func (s Story) Columns(width int) StoryColumns {
+	if s.laid == nil {
+		return s.columns(width)
+	}
+	if last := s.laid.Load(); last != nil && last.width == width {
+		return last.columns
+	}
+	c := s.columns(width)
+	s.laid.Store(&laidAt{width: width, columns: c})
+	return c
+}
+
+// columns is s laid across width columns, afresh, as Columns has it.
+func (s Story) columns(width int) StoryColumns {
 	if s.Start.IsZero() {
 		return StoryColumns{}
 	}

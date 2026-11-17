@@ -18,9 +18,13 @@ type Screen interface {
 // puts back the terminal's background as the last step the screen took left
 // it, however it stops that Bubble Tea catches: a quit, an interrupt, a
 // terminate signal, which it takes as a quit, or a panic it recovers from.
+// Last, once Bubble Tea has given the terminal back, unread throws away what
+// was typed at it and never read, as Unread has it, so none of it reaches
+// the shell: the turns of a wheel, or keys, a busy screen fell behind on.
 // It returns the screen as that last step left it, and how Bubble Tea's run
 // ended.
-func Run[S Screen](screen S, out io.Writer, opts ...tea.ProgramOption) (S, error) {
+func Run[S Screen](screen S, out io.Writer, unread func(), opts ...tea.ProgramOption) (S, error) {
+	defer unread()
 	last := screen
 	_, err := tea.NewProgram(tracked[S]{last: &last}, append(opts, tea.WithOutput(out))...).Run()
 	last.Backdrop().PutBack(out)

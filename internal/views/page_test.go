@@ -151,6 +151,38 @@ func runningOn(account string) *status.Session {
 	return &status.Session{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: account, Reason: "sticky", LastSeen: now}}}
 }
 
+// A page's turn is found by its number among its turns, newest first, as
+// they're numbered, or however they're numbered: -1 where it has none such.
+func TestAPagesTurnIsFoundByItsNumber(t *testing.T) {
+	numbered := func(numbers ...int) views.SessionPage {
+		var p views.SessionPage
+		for _, n := range numbers {
+			p.Turns = append(p.Turns, views.Turn{Turn: n})
+		}
+		return p
+	}
+	tests := []struct {
+		name string
+		page views.SessionPage
+		n    int
+		want int
+	}{
+		{name: "the newest", page: numbered(3, 2, 1), n: 3, want: 0},
+		{name: "the oldest", page: numbered(3, 2, 1), n: 1, want: 2},
+		{name: "past the newest", page: numbered(3, 2, 1), n: 4, want: -1},
+		{name: "none chosen", page: numbered(3, 2, 1), n: 0, want: -1},
+		{name: "of a page with none", n: 1, want: -1},
+		{name: "numbered otherwise", page: numbered(14, 12, 11), n: 12, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.page.TurnIndex(tt.n); got != tt.want {
+				t.Errorf("turn %d is at %d, want %d", tt.n, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestATurnIsAPromptAndEveryRequestThatServesIt(t *testing.T) {
 	sideOnly := []string{"side"}
 	tests := []struct {

@@ -47,33 +47,83 @@ type turnsRow struct {
 	index int
 }
 
-// turnsRows are the rows of the session's turns, newest first, as the
-// layout l lays them out: a row a turn, and under the turn open's own, its
-// heads, its requests shown, as requestsShown has them, and its foot.
-func (s *SessionShown) turnsRows(l sessionLayout) []turnsRow {
-	rows := make([]turnsRow, 0, len(s.Page.Turns))
-	for i, t := range s.Page.Turns {
-		rows = append(rows, turnsRow{kind: aTurn, index: i})
-		if s.Open == 0 || t.Turn != s.Open {
-			continue
-		}
-		rows = append(rows, turnsRow{kind: openHeads})
-		from, to := s.requestsShown(l)
-		for r := from; r < to; r++ {
-			rows = append(rows, turnsRow{kind: openRequest, index: r})
-		}
-		rows = append(rows, turnsRow{kind: openFoot})
-	}
-	return rows
+// turnsLaid are the rows of the session's turns, newest first, as a layout
+// lays them out: a row a turn, and under the turn open's own, its heads,
+// its requests shown, and its foot. A row is made only as it's asked for,
+// as row has it, as a session of weeks has thousands of turns, and its page
+// is drawn at every turn of the wheel.
+type turnsLaid struct {
+	turns int
+	// open is the index of the turn open among the turns, -1 where none is;
+	// from and to its first request shown and the one after its last.
+	open     int
+	from, to int
 }
 
-// turnsInView are the rows of the session's turns, as turnsRows lays them
+// turnsLaid are the rows of the session's turns as the layout l lays them
+// out, the turn open's requests shown as requestsShown has them.
+func (s *SessionShown) turnsLaid(l sessionLayout) turnsLaid {
+	t := turnsLaid{turns: len(s.Page.Turns), open: -1}
+	if s.Open != 0 {
+		t.open = s.Page.TurnIndex(s.Open)
+	}
+	if t.open >= 0 {
+		t.from, t.to = s.requestsShown(l)
+	}
+	return t
+}
+
+// len is how many rows there are.
+func (t turnsLaid) len() int {
+	return t.turns + t.under()
+}
+
+// under is how many rows the turn open has under its own: its heads, its
+// requests shown and its foot; none where none is open.
+func (t turnsLaid) under() int {
+	if t.open < 0 {
+		return 0
+	}
+	return t.to - t.from + 2
+}
+
+// row is the row at index i.
+func (t turnsLaid) row(i int) turnsRow {
+	under := t.under()
+	switch {
+	case i <= t.open:
+		return turnsRow{kind: aTurn, index: i}
+	case i > t.open+under:
+		return turnsRow{kind: aTurn, index: i - under}
+	case i == t.open+1:
+		return turnsRow{kind: openHeads}
+	case i == t.open+under:
+		return turnsRow{kind: openFoot}
+	}
+	return turnsRow{kind: openRequest, index: t.from + i - t.open - 2}
+}
+
+// turnsBefore counts the turns' own rows among those before the row at
+// index i.
+func (t turnsLaid) turnsBefore(i int) int {
+	under := t.under()
+	switch {
+	case i <= t.open+1:
+		return i
+	case i > t.open+under:
+		return i - under
+	}
+	return t.open + 1
+}
+
+// turnsInView are the rows of the session's turns, as turnsLaid lays them
 // out, and the first in view and the one after the last, as they're
 // scrolled: no further than leaves the rows the layout gives them full.
-func (s *SessionShown) turnsInView(l sessionLayout) (rows []turnsRow, from, to int) {
-	rows = s.turnsRows(l)
-	from = min(max(s.Scroll, 0), max(len(rows)-l.turns, 0))
-	return rows, from, min(from+l.turns, len(rows))
+func (s *SessionShown) turnsInView(l sessionLayout) (laid turnsLaid, from, to int) {
+	laid = s.turnsLaid(l)
+	n := laid.len()
+	from = min(max(s.Scroll, 0), max(n-l.turns, 0))
+	return laid, from, min(from+l.turns, n)
 }
 
 // requestsShown are the turn open's requests shown, the first and the one
@@ -160,9 +210,9 @@ func (f Frame) turnLitRow() (int, bool) {
 	if l.chrome {
 		return 0, false
 	}
-	rows, from, to := f.Session.turnsInView(l)
+	laid, from, to := f.Session.turnsInView(l)
 	for i := from; i < to; i++ {
-		if r := rows[i]; r.kind == openRequest && r.index == f.Session.Request {
+		if r := laid.row(i); r.kind == openRequest && r.index == f.Session.Request {
 			return l.turnsAt + i - from, true
 		}
 	}
@@ -229,17 +279,6 @@ func (d sessionDrawn) foot(c *canvas, y int) {
 	}
 	from, to := d.shown.requestsShown(d.l)
 	c.line(turnSpread.left, y, outOfView(from, len(d.shown.Requests)-to, d.Width-turnSpread.left, requestsOut))
-}
-
-// turnsIn counts the turns' own rows among rows.
-func turnsIn(rows []turnsRow) int {
-	n := 0
-	for _, r := range rows {
-		if r.kind == aTurn {
-			n++
-		}
-	}
-	return n
 }
 
 // turnPart is one of the parts of a row of a session's turns.

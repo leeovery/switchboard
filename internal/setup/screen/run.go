@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -21,17 +22,19 @@ var ErrNotTerminal = errors.New("output isn't a terminal")
 // user leaves it, and says how they left it. The screen is drawn in full
 // colour and brought down to what the terminal shows, judged by out and
 // environ. The mouse moving, or a button let go, never reaches the model, as
-// backdrop.Heeded has it.
+// backdrop.Heeded has it. What was typed at the terminal it reads, stdin,
+// and never read, it throws away as it stops, as backdrop.Unread has it.
 func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) (Left, error) {
 	if f, ok := out.(term.File); !ok || !term.IsTerminal(f.Fd()) {
 		return Left{}, ErrNotTerminal
 	}
-	return run(ctx, cfg, out, waitedSaid, backdrop.Heeded, tea.WithEnvironment(environ))
+	return run(ctx, cfg, out, backdrop.Unread(os.Stdin), waitedSaid, backdrop.Heeded, tea.WithEnvironment(environ))
 }
 
 // run shows setup's screen on out until the user leaves it, putting back the
-// terminal's background however it stops, as backdrop.Run has it, and only
-// once every job of setup's still running has been cancelled and has ended,
+// terminal's background however it stops, then having unread throw away
+// what was typed and never read, as backdrop.Run has it, and only once every
+// job of setup's still running has been cancelled and has ended,
 // says how it was left: as the screen last stood, whatever stopped it, with
 // what the walk's last job came to, should the screen have gone first, as
 // Model.gone has it; the summary as it's left; and how the token card's
@@ -40,13 +43,13 @@ func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) (Left
 // out that setup is finishing it. Bubble Tea's filter is heed, but that it
 // tells Holding of the screen going, as heeding has it; and as Bubble Tea
 // returns, as a failure or a panic it ends with passes the filter by.
-func run(ctx context.Context, cfg Config, out io.Writer, moment func(*jobs) <-chan time.Time, heed func(tea.Model, tea.Msg) tea.Msg, opts ...tea.ProgramOption) (Left, error) {
+func run(ctx context.Context, cfg Config, out io.Writer, unread func(), moment func(*jobs) <-chan time.Time, heed func(tea.Model, tea.Msg) tea.Msg, opts ...tea.ProgramOption) (Left, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	m := New(ctx, cfg)
 	logger.Info("setup's screen started", "step", m.walk.step.Title())
 	filter := tea.WithFilter(backdrop.Heeding(heeding(cfg.Holding, heed)))
-	last, err := backdrop.Run(m, out, append(opts, tea.WithContext(ctx), filter)...)
+	last, err := backdrop.Run(m, out, unread, append(opts, tea.WithContext(ctx), filter)...)
 	last.holding(cfg.Holding)
 	cancel()
 	waitSaying(m.jobs.wait, moment(m.jobs), func() {

@@ -288,7 +288,7 @@ func runIn(t *testing.T, ctx context.Context, cfg Config, term terminal) (Left, 
 		}
 		return term.moment(js)
 	}
-	left, err := run(ctx, cfg, &out, moment, filter, tea.WithInput(in), tea.WithoutSignals())
+	left, err := run(ctx, cfg, &out, func() {}, moment, filter, tea.WithInput(in), tea.WithoutSignals())
 	return left, out.String(), err
 }
 

@@ -479,7 +479,7 @@ func (f Frame) KeysScroll(doc status.Document, now time.Time) bool {
 }
 
 // TurnsScrolling is how far the turns of the frame's session's page scroll:
-// a row a turn and its turn open's rows under its own, as turnsRows lays
+// a row a turn and its turn open's rows under its own, as turnsLaid lays
 // them out, in the rows its layout gives them, of the frame's size and the
 // page alone; none without a page, or where the frame is too short for its
 // turns, as cramped says.
@@ -496,7 +496,7 @@ func (s *SessionShown) turnsScrolling(l sessionLayout) Scrolling {
 	if l.chrome {
 		return Scrolling{}
 	}
-	return byRows(len(s.turnsRows(l)), l.turns)
+	return byRows(s.turnsLaid(l).len(), l.turns)
 }
 
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to

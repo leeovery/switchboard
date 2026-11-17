@@ -8444,7 +8444,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   terminal's background to it, having asked for the old one first (OSC 11), and puts it back on
   every exit it can catch: quitting, an interrupt, a terminate signal, or a panic it recovers from;
   where the terminal didn't answer, it resets it instead (OSC 111), which restores the terminal
-  profile's own. A kill leaves `canvas` as the background until the terminal's reset, so a
+  profile's own. On the same exits, once Bubble Tea has given the terminal back, it throws away
+  what was typed at it and never read (`TIOCFLUSH`, `backdrop.Unread`), so turns of the wheel or
+  keys it fell behind on never reach the shell as typing; setup's screen does the same (17
+  November 2026). A kill leaves `canvas` as the background until the terminal's reset, so a
   background the terminal reports that's a dashboard's own canvas is never set back: it's reset
   with OSC 111 on exit, its half of the pair going by how dark it is all the same. A theme that
   paints none, shown mid-session, as from the picker, sets back the background found, or resets it
@@ -8550,11 +8553,14 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   and what's built is drawn at each tick: a session's page as a look, a request or a full read
   changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a
   cache going cold; never at each tenth of a second, nor as an answer streams on, which its rows
-  count as they're drawn. The Log places and tables each line once, as its read grows, each day's
-  rows held in chunks of 256 rows that tabling a line copies one of, never the table; a change to
-  the stream's rows, those of requests whose lines are yet to come, builds those rows alone and lays
-  them over the lines tabled, each where it sits among them, copying none of the lines and never
-  placing or tabling one afresh; and a line's row is told again only as its session's story tells
+  count as they're drawn. Drawing a session's page costs what's on screen, never its history: its
+  story is laid across the width once each time it's built, not at each frame, and only the rows
+  of its turns in view are made, so a turn of the wheel over a session of 300,000 requests costs
+  what one over a session of minutes does (17 November 2026). The Log places and tables each line
+  once, as its read grows, each day's rows held in chunks of 256 rows that tabling a line copies
+  one of, never the table; a change to the stream's rows, those of requests whose lines are yet to
+  come, builds those rows alone and lays them over the lines tabled, each where it sits among
+  them, copying none of the lines and never placing or tabling one afresh; and a line's row is told again only as its session's story tells
   otherwise of it (see What the dashboard holds of the ledger, below). Its Events are built again
   as a look tells of an event anew, or of one otherwise, or as a line comes, as a move's cost is
   its session's story, never at a look telling what the last told; its panel builds its figures as

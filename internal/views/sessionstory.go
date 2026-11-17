@@ -3,6 +3,7 @@ package views
 import (
 	"iter"
 	"slices"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -23,6 +24,16 @@ type Story struct {
 	Folds     []Fold
 	Moves     []SessionMove
 	Stretches []Stretch
+	// laid is the story as Columns laid it last, shared by its copies, so a
+	// page drawn at every frame, every turn of the wheel among them, lays
+	// it once a width, not once a frame: nil lays it afresh each time.
+	laid *atomic.Pointer[laidAt]
+}
+
+// laidAt are a story's columns, laid across width columns.
+type laidAt struct {
+	width   int
+	columns StoryColumns
 }
 
 // SentTimes are when a story's requests went upstream, oldest first: those
@@ -102,7 +113,7 @@ func (w worked) story(page SessionPage) Story {
 	}
 	s := Story{
 		Start: p.first, End: p.last.In(now.Location()), Ended: !page.Runs(), Sent: w.upstream(), Folds: p.folds, Moves: w.movesOf(page),
-		Stretches: p.stretches(),
+		Stretches: p.stretches(), laid: new(atomic.Pointer[laidAt]),
 	}
 	if !s.Ended {
 		s.End = score.Later(s.End, now)
