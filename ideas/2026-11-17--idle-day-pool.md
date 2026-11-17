@@ -6,8 +6,8 @@ The day's summary records no pool for an account that sent no request, so a read
 pool the account was in that day. The pool it left therefore loses the account's idle days, such as
 a day spent capped with nothing sent, and the pool it's in now shows them.
 
-The v1 release review found this (17 November 2026). The owner accepted it for v1, the rule written
-into the design: an idle day's window facts go by the pool the account is in now.
+The v1 release review found this (17 November 2026). For v1, the design states the rule as it
+stands: an idle day's window facts go by the pool the account is in now.
 
 ## What it could do
 
