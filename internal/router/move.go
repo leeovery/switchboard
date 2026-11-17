@@ -78,8 +78,8 @@ func (m *moving) owed() bool {
 	return m.stands.Load() != nil
 }
 
-// idsOwed reports whether the move onto the accounts' ids is owed, the
-// config's ids and the record's differing till it's done.
+// idsOwed reports whether the move onto the accounts' ids is owed: from the
+// router's start, where the move isn't marked done, until it's done.
 func (m *moving) idsOwed() bool {
 	s := m.stands.Load()
 	return s != nil && s.Move == status.MovingIDs

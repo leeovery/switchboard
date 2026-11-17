@@ -384,6 +384,46 @@ func TestARouterRestartingOntoTheNewIDsFinishesTheMove(t *testing.T) {
 	}
 }
 
+// A router starting on the old ids, the move stopped once it had decided the
+// new ones and before it moved the config, settles nothing the config still
+// names: the history's files keep the old ids, and the state file renames
+// only the account the history alone names.
+func TestSettlingARouterStartingOnTheOldIDsRenamesNothingTheConfigNames(t *testing.T) {
+	f := newFixture(t)
+	stopped := f.mover(answering())
+	stopped.Routing = []string{work, personal}
+	stopped.StopAfter(func(step string) error {
+		if step == "give" {
+			return errStopped
+		}
+		return nil
+	})
+	if err := stopped.Run(t.Context()); !errors.Is(err, errStopped) {
+		t.Fatalf("Run() = %v, want it stopped once the tokens were given their ids", err)
+	}
+	record := f.record(t)
+	moved, workMoved := record.ByWas(work)
+	removed, goneMoved := record.ByWas(gone)
+	if !workMoved || moved.ID != workID || !goneMoved {
+		t.Fatalf("the record holds %+v, want work and %s moved onto their ids before the config", record.Accounts, gone)
+	}
+	history := f.snapshotOf(t, "ledger", "history")
+	state := readFile(t, filepath.Join(f.state, "state.json"))
+
+	m := f.mover(answering())
+	m.Routing = []string{work, personal}
+	if err := m.Settle(); err != nil {
+		t.Fatalf("Settle() = %v", err)
+	}
+	if got := f.snapshotOf(t, "ledger", "history"); !maps.Equal(got, history) {
+		t.Errorf("settling a router on the old ids changed the history:\n%s", differences(history, got))
+	}
+	want := strings.ReplaceAll(state, `"`+gone+`"`, `"`+removed.ID+`"`)
+	if got := readFile(t, filepath.Join(f.state, "state.json")); got != want {
+		t.Errorf("settling a router on the old ids left the state file\n%s\nwant\n%s", got, want)
+	}
+}
+
 // A router keeps appending to today's files as the move rewrites them: here,
 // lines under the old id, so each run of the move has lines to rewrite, while
 // they're appended. However the two fall, each line appended is kept, and

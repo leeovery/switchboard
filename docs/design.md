@@ -1511,18 +1511,24 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
   pool).
 - **A router draining across the upgrade** can file a few lines naming no pool after the move,
   read as the first pool's work (see What's recorded). A router on the old ids still draining
-  as one on the new ids moves the history onto them can do two things more:
+  as one on the new ids moves the history onto them can do three things more:
   - lose a line it appends as the move renames that day's file into place, where it's from
     before a day's plain file was held across processes (see Account identity), as it takes no
     hold;
   - file a line under an old id once the move has renamed that day, so its request is counted
-    under the old id, apart from its account.
+    under the old id, apart from its account;
+  - make a round as the move renames, where it's from before the rounds were held (see Account
+    identity) and its Mac joins a config another Mac moved, so the move begins as the new
+    router starts: the round can count a day's rise and limits twice, as the hold is there to
+    stop.
 
-  The usual upgrade can't do either: the router restarts in place, `exec`ing the new build in
-  the same process (see The router looking after itself), so no two routers ever run. Nor can
-  launchd's restarts, as it starts the next only once the last has gone. Each needs one of the
-  two routers run by hand, the one still draining among them, and a request ending in the
-  milliseconds of the rename, for the first, or after it, for the second.
+  The usual upgrade can't do any of them: the router restarts in place, `exec`ing the new build
+  in the same process (see The router looking after itself), so no two routers ever run. Nor
+  can launchd's restarts, as it starts the next only once the last has gone. Each needs one of
+  the two routers run by hand, the one still draining among them. The first then needs a
+  request ending in the milliseconds of the rename, and the second one ending after it. The
+  third needs a round, which comes hourly and with a day's first line, falling within the
+  drain, so it's the rarest.
 - **A pool's id re-cased by a hand edit** lists the pool twice in the day's summary, once each
   spelling, and so in `history`'s JSON, each priced; every read of the pool takes both, as the
   config, the readers and a pool's read compare ids ignoring case.
@@ -2093,11 +2099,12 @@ formats below; the screens as signed off in Paper (see The screens, below).
     reader. Nothing but the rounds writes a summary, beside the move and an import, and nothing
     but a prune takes readings, so holding both loses nothing: a move held up, as by a step
     that keeps failing, costs only the disk the days past keeping hold meanwhile. A fresh
-    install's move has nothing to rename, and is done moments after the router starts. Once
-    the move's done, every line, reading and summary names the new ids, and the next round,
-    within the hour, summarises, compresses and prunes as ever. Days under ids an account had
-    in two cases still merge as the summary is renamed, their figures added up, as each read
-    readings of its own.
+    install's move has nothing to rename. Where the record knows every account configured, as
+    setup leaves it, the move is done moments after the router starts; a config written by hand
+    waits on the API for its accounts' organizations first. Once the move's done, every line,
+    reading and summary names the new ids, and the next round, within the hour, summarises,
+    compresses and prunes as ever. Days under ids an account had in two cases still merge as
+    the summary is renamed, their figures added up, as each read readings of its own.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals by account the same before and after, and
     the dashboard and the verbs reading it whole.
