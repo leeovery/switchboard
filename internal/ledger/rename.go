@@ -30,14 +30,42 @@ type Renaming struct {
 	Unpooled string
 }
 
+// Moving has the ledger's rounds pass over a day whose summary names an
+// account by an id a move of the accounts onto new ids renames, as moving
+// reports of each, asked once a round, none where it gives nil: the move
+// renames a day's lines before its summary, and a round summarising the day
+// between the two, from lines under the new ids, knowing no less than a
+// summary under the old, would count its work under both, which the move's
+// rename of the summary would then sum. RenameDay holds the rounds off
+// while it runs; this holds them off where it failed, or the router stopped,
+// between the two, till the move renames the summary.
+func Moving(moving func() func(id string) bool) Option {
+	return func(o *options) { o.moving = moving }
+}
+
+// renamedByMove reports, of an id, whether a move renames it, as Moving has
+// the ledger ask: nil where none does.
+func (l *Ledger) renamedByMove() func(id string) bool {
+	if l.moving == nil {
+		return nil
+	}
+	return l.moving()
+}
+
+// names reports whether any of the summary's accounts' days is of an
+// account by an id renamed reports true of: none where it's nil.
+func (s Summary) names(renamed func(id string) bool) bool {
+	return renamed != nil && slices.ContainsFunc(s.Accounts, func(a AccountDay) bool { return a.Account != "" && renamed(a.Account) })
+}
+
 // RenameDay renames the local day with the given date: each of its lines as
 // line makes it, its files rewritten as dayfile's Rewrite rewrites them,
 // then its summary, as rename has it, as renameSummary renames it. It holds
 // summarising throughout, so no round summarises the day from lines of one
 // form, knowing no less than a summary of the other, which would count its
-// work twice; and the day's files only as Rewrite holds them. A summary that
-// doesn't read as one is left as it is, for a round to summarise again, as
-// it would.
+// work twice, as Moving holds them off where it stops between the two; and
+// the day's files only as Rewrite holds them. A summary that doesn't read as
+// one is left as it is, for a round to summarise again, as it would.
 func (l *Ledger) RenameDay(date string, line func([]byte) []byte, rename Renaming) error {
 	l.summarising.Lock()
 	defer l.summarising.Unlock()

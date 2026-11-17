@@ -368,6 +368,35 @@ func TestARouterRestartingOntoTheNewIDsFinishesTheMove(t *testing.T) {
 	}
 }
 
+func TestTheMoveRenamesTheOldIDsFromWhenTheConfigTakesTheNewTillItsDone(t *testing.T) {
+	f := newFixture(t)
+	m := f.mover(answering())
+	m.Routing = []string{work, personal}
+	if renames, err := m.Renames(); renames != nil || err != nil {
+		t.Errorf("before the move, Renames() = %v, %v; want none, as nothing's renamed yet", renames != nil, err)
+	}
+	if err := m.Run(t.Context()); !errors.Is(err, idmove.ErrAwaitingRestart) {
+		t.Fatalf("Run() beside a router on the old ids = %v, want ErrAwaitingRestart", err)
+	}
+	renames, err := m.Renames()
+	if renames == nil || err != nil {
+		t.Fatalf("once the config takes the new ids, Renames() = %v, %v; want the old ids", renames != nil, err)
+	}
+	for id, want := range map[string]bool{work: true, strings.ToUpper(work): true, personal: true, workID: false, personalID: false} {
+		if got := renames(id); got != want {
+			t.Errorf("renames(%q) = %v, want %v", id, got, want)
+		}
+	}
+	restarted := f.mover(answering())
+	restarted.Routing = []string{workID, personalID}
+	if err := restarted.Run(t.Context()); err != nil {
+		t.Fatalf("Run() beside the router restarted = %v", err)
+	}
+	if renames, err := restarted.Renames(); renames != nil || err != nil {
+		t.Errorf("once the move's done, Renames() = %v, %v; want none", renames != nil, err)
+	}
+}
+
 // A router keeps appending to today's files as the move rewrites them: here,
 // lines under the old id, so each run of the move has lines to rewrite, while
 // they're appended. However the two fall, each line appended is kept, and

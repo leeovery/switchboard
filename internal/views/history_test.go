@@ -16,13 +16,13 @@ func TestHistorysDaysAreTheSummariesPricedWithTheirWorthByFamily(t *testing.T) {
 		prices config.Prices
 		want   string
 	}{
-		{name: "the empty ledger, today alone", days: daysFrom("2026-10-07"), want: `[{"version":2,"day":"2026-10-07","lines":0}]`},
+		{name: "the empty ledger, today alone", days: daysFrom("2026-10-07"), want: `[{"day":"2026-10-07"}]`},
 		{
 			name: "one day, the families in the version table's order, every account's together",
 			days: daysFrom("2026-10-07", day("2026-10-07",
 				account("side", sent("claude-opus-5", 1, inputUsage)),
 				account("work", sent("claude-haiku-4-5", 1, inputUsage), sent("claude-opus-5-5", 1, inputUsage), sent("claude-sonnet-5-5", 1, inputUsage)))),
-			want: `[{"version":2,"day":"2026-10-07","lines":0,"accounts":[` +
+			want: `[{"day":"2026-10-07","accounts":[` +
 				`{"account":"side","sessions":0,"moved_on":0,"moved_off":0,"models":[` +
 				`{"model":"claude-opus-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":0,"usage":{"input_tokens":1000000},"worth":5}]},` +
 				`{"account":"work","sessions":0,"moved_on":0,"moved_off":0,"models":[` +
@@ -35,7 +35,7 @@ func TestHistorysDaysAreTheSummariesPricedWithTheirWorthByFamily(t *testing.T) {
 			name:   "at the config's prices",
 			days:   daysFrom("2026-10-07", day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage)))),
 			prices: config.Prices{Models: map[string]config.ModelPrices{"claude-opus-5-5": {Input: new(8.0)}}},
-			want: `[{"version":2,"day":"2026-10-07","lines":0,"accounts":[{"account":"work","sessions":0,"moved_on":0,"moved_off":0,"models":[` +
+			want: `[{"day":"2026-10-07","accounts":[{"account":"work","sessions":0,"moved_on":0,"moved_off":0,"models":[` +
 				`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":0,"usage":{"input_tokens":1000000},"worth":8}]}],` +
 				`"by_family":[{"family":"opus","worth":8}]}]`,
 		},
@@ -48,6 +48,21 @@ func TestHistorysDaysAreTheSummariesPricedWithTheirWorthByFamily(t *testing.T) {
 				t.Errorf("the days are\n%s\nwant\n%s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHistorysDaysLeaveOutWhatTheSummaryKeepsToKnowWhenToSummariseItAgain(t *testing.T) {
+	work := account("work", sent("claude-opus-5-5", 1, inputUsage))
+	work.Highest, work.ReadBefore = map[string]float64{"7d": 0.4}, []string{"7d"}
+	summary := day("2026-10-07", work)
+	summary.Version, summary.Lines, summary.Bytes = 7, 12, ledger.Bytes{Plain: 3000, Compressed: 400}
+
+	got := jsonOf(t, views.NewHistory(input(daysFrom("2026-10-07", summary))).Days)
+	want := `[{"day":"2026-10-07","accounts":[{"account":"work","sessions":0,"moved_on":0,"moved_off":0,"highest":{"7d":0.4},"models":[` +
+		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":0,"usage":{"input_tokens":1000000},"worth":4}]}],` +
+		`"by_family":[{"family":"opus","worth":4}]}]`
+	if got != want {
+		t.Errorf("the days are\n%s\nwant\n%s\nwithout the summary's version, lines, bytes or windows read before", got, want)
 	}
 }
 

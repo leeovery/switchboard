@@ -49,7 +49,10 @@ const Forever time.Duration = math.MaxInt64
 // Files are the files a day of one kind of line, in a directory, by the
 // prefix their names begin with: what can't be done with them is logged
 // under their name. They're safe for concurrent use: pruning waits for reads
-// and appends, and they for it.
+// and appends, and they for it. Across processes, as of a router draining as
+// another starts, a day's plain file is held, flock's lock on it, as it's
+// appended to and as Rewrite renames a file into its place, each waiting
+// for the other, so no line appended meanwhile goes to the file replaced.
 type Files struct {
 	// Dir is the directory they're in.
 	Dir string
@@ -86,6 +89,11 @@ type Files struct {
 	// rewrites is written beside, before it's held to be checked and renamed:
 	// lines may be appended to it between the two, as tests do there.
 	rewriting func(dayFile)
+	// renaming, where it's set, is called as Rewrite holds a day's plain file
+	// it rewrote, checked, just before it renames the file written beside
+	// into its place: another process may try to append to it then, as tests
+	// do there.
+	renaming func(dayFile)
 	// link, where it's set, links a file under a second name in place of
 	// os.Link: tests have it fail as a file system without links has it.
 	link func(oldname, newname string) error
@@ -281,9 +289,10 @@ func appendLines(path string, lines []byte) error {
 
 // appendWith appends what write writes, to the writer it's given, to the file
 // at path, making it, the user's alone, when it isn't there, and ending first
-// the line it ends in, should that be cut short.
+// the line it ends in, should that be cut short: holding it shared
+// throughout, as openHeld opens it.
 func appendWith(path string, write func(w io.Writer) error) error {
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600)
+	file, err := openHeld(path)
 	if err != nil {
 		return err
 	}
@@ -292,6 +301,45 @@ func appendWith(path string, write func(w io.Writer) error) error {
 		err = write(file)
 	}
 	return errors.Join(err, file.Close())
+}
+
+// appendTries is how many times a day's plain file is opened to append to,
+// where each time another process renames a file into its place as it's
+// opened, before the append gives up.
+const appendTries = 5
+
+// errKeptReplaced is the error of a file to append to that kept being
+// replaced as it was opened.
+var errKeptReplaced = errors.New("it kept being replaced as it was opened to append to")
+
+// openHeld opens the file at path to read and append, making it, the user's
+// alone, when it isn't there, and holds it shared, as holdAcross says. Where
+// another process renamed a file into its place before it was held, as a
+// rewrite holding it renames one, it opens that one instead, appendTries
+// times at most.
+func openHeld(path string) (*os.File, error) {
+	for range appendTries {
+		file, err := os.OpenFile(path, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o600)
+		if err != nil {
+			return nil, err
+		}
+		holdAcross(file, false)
+		if stillAt(file, path) {
+			return file, nil
+		}
+		_ = file.Close()
+	}
+	return nil, &fs.PathError{Op: "append", Path: path, Err: errKeptReplaced}
+}
+
+// stillAt reports whether file is still the one at path.
+func stillAt(file *os.File, path string) bool {
+	held, err := file.Stat()
+	if err != nil {
+		return false
+	}
+	now, err := os.Stat(path)
+	return err == nil && os.SameFile(held, now)
 }
 
 // endCutShort ends the line file ends in, opened to read and append, where

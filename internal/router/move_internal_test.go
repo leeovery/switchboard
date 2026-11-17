@@ -2,29 +2,46 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // answeringMover is a move onto the accounts' ids that answers each run with
-// the next of its answers, nil once they've run out, counting its runs; and
-// has the API asked again after wait more than the wait before, noting each
-// wait before it's handed.
+// the next of its answers, nil once they've run out, counting its runs; has
+// the API asked again after wait more than the wait before, noting each wait
+// before it's handed; and renames the ids renames gives, or fails to tell
+// them with unread.
 type answeringMover struct {
 	answers []error
 	runs    int
 	ranAt   []time.Time
 	wait    time.Duration
 	waited  []time.Duration
+	renames []string
+	unread  error
+}
+
+func (m *answeringMover) Renames() (func(id string) bool, error) {
+	if m.unread != nil || m.renames == nil {
+		return nil, m.unread
+	}
+	return func(id string) bool { return slices.Contains(m.renames, id) }, nil
 }
 
 func (m *answeringMover) Settle() error {
@@ -177,6 +194,84 @@ func TestNoMoveOwedRunsNothing(t *testing.T) {
 	}, nil)
 	if m.owed() || m.report() != (status.Moving{}) {
 		t.Errorf("no move is owed, but the router says the move stands %+v", m.report())
+	}
+}
+
+// While the move onto the ids is owed, the ids it renames are its mover's,
+// every id where its mover can't tell; none once it's done, or where none
+// is owed.
+func TestTheIDsTheMoveRenamesAreItsMoversWhileItsOwed(t *testing.T) {
+	tests := []struct {
+		name  string
+		mover *answeringMover
+		done  bool
+		want  map[string]bool
+	}{
+		{name: "owed", mover: &answeringMover{renames: []string{"work"}}, want: map[string]bool{"work": true, "b6s7": false}},
+		{name: "owed, renaming none yet", mover: &answeringMover{}},
+		{name: "owed, its mover unable to tell", mover: &answeringMover{unread: errors.New("the config can't be read")}, want: map[string]bool{"work": true, "b6s7": true}},
+		{name: "done", mover: &answeringMover{renames: []string{"work"}}, done: true},
+		{name: "none owed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var mover Mover
+			if tt.mover != nil {
+				mover = tt.mover
+			}
+			m := newMoving(mover, nil)
+			if tt.done {
+				m.run(t.Context(), func() idmove.History { return idmove.History{} }, nil)
+			}
+			renames := m.renaming()
+			if (renames != nil) != (tt.want != nil) {
+				t.Fatalf("renaming() = %v, want one: %v", renames != nil, tt.want != nil)
+			}
+			for id, want := range tt.want {
+				if got := renames(id); got != want {
+					t.Errorf("renaming()(%q) = %v, want %v", id, got, want)
+				}
+			}
+		})
+	}
+}
+
+// The router's ledger passes over a day whose summary names an id the move
+// onto the ids renames, its lines renamed already, as the move left them
+// stopping before it renamed the summary: summarised from them, knowing the
+// summary, its work would count under both ids.
+func TestTheRoutersLedgerPassesOverADayTheMoveOntoTheIDsHasntRenamed(t *testing.T) {
+	logstest.Capture(t)
+	day := start.AddDate(0, 0, -1)
+	date := dayfile.DateOf(day)
+	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+	cfg.StateDir = t.TempDir()
+	cfg.Move = &answeringMover{renames: []string{"work"}}
+	dir := ledger.Dir(cfg.StateDir)
+	var lines strings.Builder
+	for _, request := range []string{"r1", "r2"} {
+		line, err := json.Marshal(ledger.Line{At: day.UTC(), Request: request, Kind: ledger.KindMessage, Session: "one", Model: opus,
+			Account: "b6s7", Reason: "sticky", Status: 200, Attempts: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines.Write(append(line, '\n'))
+	}
+	writeFile(t, filepath.Join(dir, "requests-"+date+".jsonl"), lines.String())
+	held := `{"version":7,"day":"` + date + `","lines":1,"accounts":[{"account":"work","sessions":1,"moved_on":0,"moved_off":0}]}` + "\n"
+	writeFile(t, ledger.SummaryFile(dir, date), held)
+
+	r := newTestRouterOf(t, cfg)
+	r.openHistory()
+	r.openLedger(dir)
+	r.ledger.opened.Load().SummariseEnded(start)
+
+	data, err := os.ReadFile(ledger.SummaryFile(dir, date))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != held {
+		t.Errorf("a round wrote the day's summary %s, want it passed over till the move renames it, as %s", data, held)
 	}
 }
 

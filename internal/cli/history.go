@@ -157,7 +157,7 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 	history := views.NewHistory(views.HistoryInput{
 		Ledger: days, From: asked.from, Now: asked.now, Began: began, Prices: prices, Accounts: asked.accounts(), Removed: removed,
 		Moved: asked.pool.moved(asked.cfg), WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
-		PoolLabel: status.PoolLabels(asked.cfg.Pools, record), OnePool: status.ManyPoolsFiled(asked.cfg.Pools, record),
+		PoolLabel: status.PoolLabels(asked.cfg.Pools, record),
 	})
 	if asJSON {
 		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})

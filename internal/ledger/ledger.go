@@ -171,6 +171,9 @@ type Ledger struct {
 	// digesting is the ledger's digesting of its days, nil where it was
 	// opened to digest none.
 	digesting *digesting
+	// moving tells the ids a move renames, as Moving says: nil where the
+	// ledger was opened without.
+	moving func() func(id string) bool
 }
 
 // Open returns the ledger in dir, which keeps a day's lines for keep once the
@@ -181,7 +184,7 @@ type Ledger struct {
 // say, none without them.
 func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger, opts ...Option) *Ledger {
 	o := optionsOf(opts)
-	l := &Ledger{days: days{files: Files(dir, logger), history: history, caps: caps, logger: logger, firstPool: o.firstPool}}
+	l := &Ledger{days: days{files: Files(dir, logger), history: history, caps: caps, logger: logger, firstPool: o.firstPool}, moving: o.moving}
 	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.round,
 		Spare: func(date string) bool { return !l.days.settled(date) }})
 	if o.digester != nil {
@@ -273,13 +276,14 @@ func (l *Ledger) SummariseEnded(now time.Time) {
 // now, as writeSummary says, is logged, as written says, and left to a later
 // round, counting for none of those it summarises again: one that can't be
 // opened, or can't be told to stand, is left to the next pass, as failed
-// says. It lists the ledger's directory and the history's once each, the
-// history's before it reads any of its files; and where the history can't be
-// listed, it summarises no day, as listedReadings says. It's safe to call
-// from any goroutine, holding summarising for its own part alone. It kicks
-// the ledger's digesting as it ends, where it digests its days and leaves
-// none for a later call, as digesting.kick says, so no pass finds a day still
-// to be summarised again.
+// says. A day whose summary names an id a move renames, as Moving says, is
+// passed over until the move has renamed it. It lists the ledger's directory
+// and the history's once each, the history's before it reads any of its
+// files; and where the history can't be listed, it summarises no day, as
+// listedReadings says. It's safe to call from any goroutine, holding
+// summarising for its own part alone. It kicks the ledger's digesting as it
+// ends, where it digests its days and leaves none for a later call, as
+// digesting.kick says, so no pass finds a day still to be summarised again.
 func (l *Ledger) SummariseSome(now time.Time) (more bool) {
 	return l.summariseSome(now, "")
 }
@@ -328,6 +332,7 @@ func (l *Ledger) summariseSome(now time.Time, kept string) (more bool) {
 		return false
 	}
 	left := make(map[string]fs.FileInfo)
+	renamed := l.renamedByMove()
 	var whole, again []dueDay
 	for _, date := range l.ended(now, held) {
 		pruned := held.readsBefore(date, kept)
@@ -341,6 +346,8 @@ func (l *Ledger) summariseSome(now time.Time, kept string) (more bool) {
 			left[date] = l.warnLeft(date, err)
 		case err != nil:
 			l.fail(date, err)
+		case !stands && summary != nil && summary.names(renamed):
+			// Left for the move to rename first, as Moving says.
 		case !stands && (summary == nil || pruned):
 			whole = append(whole, day)
 		case !stands:

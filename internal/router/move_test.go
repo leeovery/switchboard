@@ -48,6 +48,10 @@ func (m *fakeMover) AskAgain(time.Duration) time.Duration {
 	return time.Hour
 }
 
+func (m *fakeMover) Renames() (func(id string) bool, error) {
+	return nil, nil
+}
+
 // moving reports whether the router's status says the move stands as want
 // does: zero for none owed.
 func moving(want status.Moving) func(status.Document) bool {

@@ -701,14 +701,14 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"schema":1,"prices_as_of":"2026-10-11","days":[` +
-		`{"version":7,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","pool":"b2n8","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+		`{"day":"2026-10-04","accounts":[{"account":"work","pool":"b2n8","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(9) +
 		`,"sessions":1,"session_ids":["` + sessionA + `"],` +
 		`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
-		`{"version":7,"day":"2026-10-05","lines":0},` +
-		`{"version":7,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`{"day":"2026-10-05"},` +
+		`{"day":"2026-10-06","accounts":[{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(22) +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],` +
@@ -720,19 +720,19 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
 		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56,"pool_label":"Default"}],` +
 		`"by_family":[{"family":"opus","worth":0.01502}]},` +
-		`{"version":7,"day":"2026-10-07","lines":6,"accounts":[` +
+		`{"day":"2026-10-07","accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
 		`{"pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,` + hoursJSON() +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],"worth":0}]},` +
 		`{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"rise":{"5h":0.05},` +
-		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"pool_label":"Default",` +
+		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,"checks":0,"counts":0,` + hoursJSON(10) +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],` +
 		`"worth":0,"unpriced":["no_usage"]}]},` +
 		`{"account":"work","pool":"b2n8","sessions":2,"session_ids":["` + sessionC + `","` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},` +
-		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"pool_label":"Default","models":[` +
+		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default","models":[` +
 		// Work's quota check, whose usage is left out, so it's worth nothing.
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,` + hoursJSON() + `,"sessions":0,"session_ids":[],"worth":0},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,` + hoursJSON(9) +
@@ -1031,7 +1031,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		}
 		days = append(days, compact.String())
 	}
-	if want := []string{`{"version":7,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+	if want := []string{`{"day":"2026-10-07"}`}; !slices.Equal(days, want) {
 		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
 	}
 }

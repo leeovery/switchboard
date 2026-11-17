@@ -26,11 +26,14 @@ var errHistoryMoving = errors.New("import once it's done")
 // it starts, before it does, and RunBeside the rest, beside the router, given
 // the history's files as it keeps them, failing with idmove.ErrUnanswered,
 // having changed nothing, where the API doesn't answer, to run again once
-// AskAgain's wait is up, given the wait before, zero the first time.
+// AskAgain's wait is up, given the wait before, zero the first time. Renames
+// reports, of an id, whether the move renames what names it, nil where it
+// renames none.
 type Mover interface {
 	Settle() error
 	RunBeside(ctx context.Context, history idmove.History) error
 	AskAgain(wait time.Duration) time.Duration
+	Renames() (func(id string) bool, error)
 }
 
 // PoolMover moves the history to pools, once, after the move onto the ids,
@@ -97,6 +100,23 @@ func (m *moving) report() status.Moving {
 // standing notes how the move stands.
 func (m *moving) standing(s status.Moving) {
 	m.stands.Store(&s)
+}
+
+// renaming reports, of an id, whether the move onto the ids renames what
+// names it, while that's owed, as the mover's Renames has it, for the
+// request ledger's rounds to pass over the days it hasn't renamed yet, as
+// ledger.Moving says: nil where it isn't owed, or renames none; and every id
+// where the mover can't tell, so no round summarises a day it may not have
+// reached.
+func (m *moving) renaming() func(id string) bool {
+	if !m.idsOwed() {
+		return nil
+	}
+	renames, err := m.mover.Renames()
+	if err != nil {
+		return func(string) bool { return true }
+	}
+	return renames
 }
 
 // historyMoving is the error of an import while the history waits on the
