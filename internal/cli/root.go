@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -73,8 +72,10 @@ type Deps struct {
 	RepositoryOf func(dir string) (string, bool)
 	// Root is the filesystem from its root, as os.DirFS("/") gives it, which
 	// the project of a session that ran in a Claude Code scratchpad, or a
-	// temporary folder, is read against, as status.Projects reads it: nil
-	// reads every project as status.ProjectOf does.
+	// temporary folder, is read against, as status.Projects reads it, and
+	// where pool add and edit look for the directories they fence a pool
+	// to: nil reads every project as status.ProjectOf does, and looks for
+	// none.
 	Root fs.FS
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes
@@ -448,8 +449,7 @@ func (a *app) loadConfig() (*config.Config, error) {
 func (a *app) loadConfigAt(path string) (*config.Config, error) {
 	cfg, err := config.Load(path, a.HomeDir)
 	if errors.Is(err, fs.ErrNotExist) {
-		example := strings.TrimSuffix(config.Example, "\n")
-		return nil, fmt.Errorf("no config file at %s\n\nCreate one like this:\n\n%s", redact.Text(path), example)
+		return nil, fmt.Errorf("no config file at %s: run switchboard setup, which adds your accounts and writes it", redact.Text(path))
 	}
 	if err != nil {
 		return nil, err

@@ -631,7 +631,22 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
 - **A fenced pool has one or more directories,** each one covering everything beneath it. Two
   pools' directories can't overlap: no directory may be the same as, inside or around another
   pool's. Directories are compared one whole folder name at a time, so `~/Code/acme` doesn't cover
-  `~/Code/acme-api`, and without regard to case, as macOS compares them.
+  `~/Code/acme-api`, as macOS compares them: by Unicode's canonical caseless match (NFD, full case
+  folding, NFD again), so `ß` is `SS` and a name with its accents composed is the same name with
+  them apart, as a name typed and one Finder made can differ, while fullwidth and compatibility
+  forms stay apart, as macOS holds them. Not NFC, which composes only one case of some pairs, nor
+  Go's simple folding alone, which misses `ß` and matches U+0345 where macOS doesn't; each letter
+  is folded on to the least of its cases, as `golang.org/x/text`'s folding swaps Cherokee's cases
+  rather than joining them. The standard library has no Unicode normalisation or full folding, so
+  `golang.org/x/text`, the Go team's own, does both. A directory inside the home is written from
+  `~/` by every verb that writes one, though a shell gives it whole, so a config shared by Macs
+  with different homes fences the same directories on each; a home at the root writes none so,
+  and the router's heal writes them back as the config last wrote them. Directories given as a
+  pool writes them already, a `/` at the end aside, change nothing; given in another form, as
+  from `~/` where the pool writes them whole, they're written, so an old fence can be made to
+  travel, and `pool edit` says they're rewritten alone, as they hold the same; but where the
+  pool writes them across lines, which can't be changed in place, the same directories change
+  nothing, and the rest of the edit is made.
 - **At most one pool is unfenced,** having no directories: two would leave a session outside every
   fence with two pools to be in. So any start directory belongs to exactly one fenced pool, else to
   the unfenced pool, else, where every pool is fenced, to none, and a session there doesn't start.
@@ -651,9 +666,10 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
   config by the router as Account identity keeps accounts, on a change to the pools alone too, so
   the verbs name a removed pool. A pool is known as an account is, rather than by a name the user
   types, so a pool can be relabelled and its history holds (the owner's call, 11 November 2026).
-- **The first pool** is made by setup as it adds the first account, on a new install, and by the
-  move to pools on an install from before them (see What's recorded). It's labelled `Default`, and
-  no screen names a pool until there's a second.
+- **The first pool** is made by the move to pools, as the router first starts: on a new install,
+  once setup has added the accounts, as on an install from before pools (see What's recorded).
+  Until it's written, `pool add` is refused, saying to start the router. It's labelled `Default`,
+  and no screen names a pool until there's a second.
 
 ### The primary, a pool each
 
@@ -1270,21 +1286,29 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   --dirs` on directories the config writes across lines is refused, to be made by hand, as a
   label over lines is. `pool add` and `pool edit` say, as they fence a pool, that the sessions
   running in its directories keep the pool they started in till they're resumed (see What pools
-  can't hold). An account moved to another pool is its new pool's primary only with
-  `--primary`: without it, the pool keeps its primary, `accounts edit` marking it where the config
-  marks none, so the account moved doesn't take it by coming first in the config's order, and
-  saying so. The pool it leaves takes its next account as its primary where it was the primary,
-  and `accounts edit` says which, that the sessions running on the moved account's token, where it
-  has a usable one, are refused now it has left, and which account's token they start on resumed,
-  as a launch in that pool would choose it by the config and the tokens, or another's where the
-  router holds that one back then, or doesn't route it yet, unless every account there is so, as
-  the router isn't asked; or, where it was the pool's last
-  account, that the pool has no accounts now. `accounts remove` says the same of the removed
-  account's pool: its primary now, by the pool, or that it has no accounts.
+  can't hold); they warn of a directory that isn't one on this Mac, making the pool all the same,
+  as it may be made later. `pool edit` says, as it fences the one unfenced pool, that `claude`
+  won't start outside every fence now, but within a session or in a worktree of a repository
+  inside one; `pool add` and `pool edit`, as they make a pool unfenced, that the sessions started
+  outside every fence go to it now; and each, where the pool the verbs act on without `--pool`
+  changes, as `pool add` beside one pool alone, fenced, changes it, which it is now, or that they
+  need `--pool`, `accounts add` among them. An account
+  moved to another pool is its new pool's primary only with `--primary`: without it, the pool
+  keeps its primary, `accounts edit` marking it where the config marks none, so the account moved
+  doesn't take it by coming first in the config's order, and saying so. The pool it leaves takes
+  its next account as its primary where it was the primary, and `accounts edit` says which, that
+  the sessions running on the moved account's token, where it has a usable one, are refused now it
+  has left, and which account's token they start on resumed, as a launch in that pool would choose
+  it by the config and the tokens, or another's where the router holds that one back then, or
+  doesn't route it yet, unless every account there is so, as the router isn't asked; or, where it
+  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same
+  of the removed account's pool: its primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
-  beside each account's day's `pool` and in its `pools`; and `pool` lists every pool so. The
+  beside each account's day's `pool` and in its `pools`; `history` and `sessions` name the pool
+  they read at their top, `sessions` saying too where it read its list, its `source` `router`
+  where the router listed its sessions, else `ledger`; and `pool` lists every pool so. The
   status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the room, and
   as it gives its accounts' labels in its `accounts`, not on each event, its events name their pool
   by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps

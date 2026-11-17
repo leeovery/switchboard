@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -39,7 +40,8 @@ type NewPool struct {
 	// Label is the name it's shown by: none shows it by its id.
 	Label string
 	// Dirs are the directories it's fenced to, each an absolute path or one
-	// starting ~/, written as they're given: none leaves it unfenced.
+	// starting ~/, written as they're given, as FromHome gives them for a
+	// verb: none leaves it unfenced.
 	Dirs []string
 }
 
@@ -75,9 +77,9 @@ func dirsGiven(dirs []string) []string {
 
 // AddPool adds a [[pool]] table for the pool: after the last pool's, else
 // after the last account's, else before the first table, else at the end,
-// its directories on one line. Added to a config from before pools, which
-// has accounts, it puts each in the pool, as a config with pools needs every
-// account in one. It fails with a WrongID or a WrongLabel for an id or a
+// its directories on one line, as they're given. Added to a config from
+// before pools, which has accounts, it puts each in the pool, as a
+// config with pools needs every account in one. It fails with a WrongID or a WrongLabel for an id or a
 // label no pool can have, matching ErrConfigured where a pool has the id
 // already, ignoring case, and, as the config it would make does, where its
 // directories overlap another's, or it would be a second pool unfenced.
@@ -178,8 +180,13 @@ func (d *Draft) SetPoolLabel(id, given string) error {
 
 // SetPoolDirs sets the directories of the pool with the given id, ignoring
 // case, in place of those it has, each an absolute path or one starting ~/,
-// written as given on one line: none takes them out, leaving it unfenced. It
-// fails, matching ErrNotConfigured, when no pool has the id, and, as the
+// written as given on one line: none takes them out, leaving it unfenced.
+// Directories written as it writes them already, cleaned, as of a / at
+// their end, change nothing; the same directories in another form, as from
+// ~/ where it writes them whole, are written, so a fence can be made to
+// travel, but where it writes them across lines, which can't be changed in
+// place, they change nothing too, the same directories as placed finds them.
+// It fails, matching ErrNotConfigured, when no pool has the id, and, as the
 // config it would make does, for a directory a pool can't have, one that
 // overlaps another, or a second pool unfenced.
 func (d *Draft) SetPoolDirs(id string, dirs []string) error {
@@ -187,11 +194,59 @@ func (d *Draft) SetPoolDirs(id string, dirs []string) error {
 	if i < 0 {
 		return PoolNotConfigured(id)
 	}
-	dirs = dirsGiven(dirs)
-	if !slices.Equal(dirs, d.file.Pools[i].Dirs) && d.dirsSpanLines(i) {
+	dirs, was := dirsGiven(dirs), d.file.Pools[i].Dirs
+	if slices.Equal(cleaned(dirs), cleaned(was)) {
+		return nil
+	}
+	if d.dirsSpanLines(i) {
+		if slices.Equal(d.placed(dirs), d.placed(was)) {
+			return nil
+		}
 		return fmt.Errorf("%s writes its dirs across lines, which editing %s as text can't change: set them by hand", poolNamed(d.file.Pools[i].ID), d.path)
 	}
 	return d.setPoolKey(i, "dirs", writtenDirs(dirs), func(p *filePool) { p.Dirs = dirs })
+}
+
+// FromHome returns dirs as a verb writes a pool's: each as given, but one
+// inside the home directory the draft's homeDir returns, written from ~/, as
+// ~/Code/acme, so a config that moves to a Mac with another home fences the
+// same directories there. Where the home can't be found, each is as given.
+func (d *Draft) FromHome(dirs []string) []string {
+	home, err := findHome(d.homeDir)
+	if err != nil || len(dirs) == 0 {
+		return dirs
+	}
+	written := make([]string, len(dirs))
+	for i, dir := range dirs {
+		written[i] = writtenFrom(home, dir)
+	}
+	return written
+}
+
+// cleaned returns dirs each cleaned, as filepath.Clean cleans it, for
+// telling whether two lists write the same directories, a / at the end of
+// one aside.
+func cleaned(dirs []string) []string {
+	clean := make([]string, len(dirs))
+	for i, dir := range dirs {
+		clean[i] = filepath.Clean(dir)
+	}
+	return clean
+}
+
+// placed returns dirs as the config finds them, each as expandIn finds it,
+// one starting ~/ in the home directory the draft's homeDir returns, left as
+// it is where that can't be found.
+func (d *Draft) placed(dirs []string) []string {
+	home, err := findHome(d.homeDir)
+	found := make([]string, len(dirs))
+	for i, dir := range dirs {
+		found[i] = dir
+		if err == nil || !strings.HasPrefix(dir, homePrefix) {
+			found[i] = expandIn(home, dir)
+		}
+	}
+	return found
 }
 
 // dirsSpanLines reports whether the [[pool]] table of the pool at i writes

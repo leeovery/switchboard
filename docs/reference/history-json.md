@@ -23,6 +23,7 @@ switchboard history --json | jq \
 | Field | Type | Meaning |
 |---|---|---|
 | `schema` | number | `1`. See [Reading the JSON](reading-the-json.md). |
+| `pool` and `pool_label` | string | The pool the history is of. Left out before the router has made the first pool. |
 | `prices_as_of` | string | The date the prices were read. |
 | `prices_from_config` | boolean | Set if `[prices]` in the config prices a model or a plan. |
 | `days` | list of objects | The summary of each day, priced. See below. |

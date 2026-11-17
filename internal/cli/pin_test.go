@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -456,6 +458,33 @@ func TestStatusSessionNamesTheAccountByItsLabel(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// status --session, asked at every refresh of a statusline, names the account
+// by its id where the config can't be loaded, as every verb does, noting it
+// in cli.log at debug alone, never as a warning at every refresh.
+func TestStatusSessionWhoseConfigCantBeLoadedWarnsOfNothing(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	session := status.Session{ID: sessionOne, Assignments: []status.Assignment{{Model: "claude-haiku-4-5-20251001", Account: "side"}}, Account: status.Account{ID: "side"}}
+	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /health":        reportsPools,
+		"GET /sessions":      func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode([]status.Session{}) },
+		"GET /sessions/{id}": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(session) },
+	})
+	path, err := config.Path(srv.deps.Getenv, srv.deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("[[account]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := run(t, srv.deps, "status", "--session", sessionOne, "--pretty"), (result{stdout: "side\n"}); got != want {
+		t.Errorf("switchboard status --session = %+v, want %+v", got, want)
+	}
+	if log := readLog(t, srv.deps, "cli.log"); strings.Contains(log, "level=WARN") {
+		t.Errorf("cli.log reads\n%s\nwant no warning", log)
 	}
 }
 

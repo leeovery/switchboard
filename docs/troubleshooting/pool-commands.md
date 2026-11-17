@@ -23,9 +23,9 @@ without being told.
 # Open on one pool; press P to turn to the
 # next
 switchboard dashboard --pool q7mt
-# Or leave one pool unfenced, to open on it
-# by default
-switchboard pool edit q7mt --unfence
+# Or leave your first pool unfenced, to open
+# on it by default
+switchboard pool edit d3wn --unfence
 ```
 
 ## A command can't tell which pool to read
@@ -78,8 +78,19 @@ separately. A session can be pinned only to an account of its own pool.
 
 ## `pool add` says the config names no pools
 
-The router makes the first pool when it moves the record to pools, the first time it starts on a
-version with them. Once the config names that pool, add the rest.
+The router makes the first pool, `Default`, the first time it starts on a version with pools. On a
+new Mac, that's once setup has added your accounts and started it. If the router isn't running,
+start it, then add the pool again:
+
+```bash
+switchboard service install
+```
+
+If the router is running, its log says what holds it up:
+
+```bash
+switchboard logs router
+```
 
 ## `pool remove` is refused
 

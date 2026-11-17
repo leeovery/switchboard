@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"slices"
 	"strings"
 
@@ -170,21 +172,37 @@ started in, and that pool's accounts, till it's resumed.
 			if err != nil {
 				return err
 			}
-			return poolAddedSays(cmd.OutOrStdout(), added)
+			if err := poolAddedSays(cmd.OutOrStdout(), added); err != nil {
+				return err
+			}
+			warnUnmade(cmd.ErrOrStderr(), a.Root, added.Pool)
+			return nil
 		},
 	}
 }
 
 // poolAddedSays writes to out that the pool added was, by its label and the
-// id switchboard made for it, fenced or not as fenceSaid says, and of one
+// id switchboard made for it, fenced or not as fenceSaid says; of one
 // fenced, that the sessions running in its directories keep the pool they
-// started in till they're resumed, as runningKeepTheirPool says.
-func poolAddedSays(out io.Writer, added config.Pool) error {
+// started in till they're resumed, as runningKeepTheirPool says; of one
+// unfenced, that the sessions outside every fence go to it; and where the
+// pool the verbs act on without --pool is another now, as verbsSaid says.
+func poolAddedSays(out io.Writer, added accounts.AddedPool) error {
 	var running string
-	if added.Fenced() {
+	var outside []string
+	if added.Pool.Fenced() {
 		running = "; " + runningKeepTheirPool
+	} else {
+		outside = append(outside, outsideGoToIt)
 	}
-	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added), running)
+	if verbs := verbsSaid(added.Before(), added.Pools, added.Pool); verbs != "" {
+		outside = append(outside, verbs)
+	}
+	if len(outside) > 0 {
+		running += "; " + strings.Join(outside, ", and ")
+	}
+	p := added.Pool
+	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(prose.Clean(p.Label)), p.ID, fenceSaid(p), running)
 	return err
 }
 
@@ -192,6 +210,25 @@ func poolAddedSays(out io.Writer, added config.Pool) error {
 // takes in keep the pool they started in, as a session's pool is decided as
 // it starts: their work goes on that pool's accounts till they're resumed.
 const runningKeepTheirPool = "sessions running in its directories keep the pool they started in, and its accounts, till they're resumed"
+
+// What pool add and edit say a pool's fence changed for the sessions started
+// outside every fence, and for the verbs.
+const (
+	// outsideGoToIt says that the sessions started outside every fence go to
+	// the pool, unfenced.
+	outsideGoToIt = "sessions started outside every fence go to it now"
+	// noneOutside says that no session starts outside every fence, every
+	// pool fenced, but one started within a session, which takes its pool,
+	// or in a worktree of a repository inside a fence, which is in its pool.
+	noneOutside = "every pool is fenced now, so claude won't start in a folder outside every fence, " +
+		"unless it's started within a session, or in a worktree of a repository inside a fence"
+	// verbsReadIt says that the verbs read and act on the pool without
+	// --pool, as config.Pools' Implicit gives it.
+	verbsReadIt = "the verbs read and act on it without --pool"
+	// verbsNeedPool says that the verbs read and act on no pool without
+	// --pool, as config.Pools' Implicit gives none.
+	verbsNeedPool = "the verbs, accounts add among them, need --pool to read or act on a pool"
+)
 
 // poolRemovedSays writes to out that the pool removed was, by its id and
 // label, and that its history stays, read by its id.
@@ -207,11 +244,17 @@ func fenceSaid(p config.Pool) string {
 	if !p.Fenced() {
 		return "unfenced"
 	}
+	return "fenced to " + dirsListed(p)
+}
+
+// dirsListed lists p's directories as the config writes them:
+// "~/Code/acme and /Volumes/Acme".
+func dirsListed(p config.Pool) string {
 	dirs := make([]string, len(p.WrittenDirs))
 	for i, d := range p.WrittenDirs {
 		dirs[i] = prose.Clean(d)
 	}
-	return "fenced to " + prose.List(dirs)
+	return prose.List(dirs)
 }
 
 // poolEditFlags are pool edit's flags, of which it's given one or more.
@@ -259,8 +302,13 @@ new fence takes in.
 			if err != nil {
 				return err
 			}
-			_, err = io.WriteString(cmd.OutOrStdout(), poolEditedSays(edited)+"\n")
-			return err
+			if _, err := io.WriteString(cmd.OutOrStdout(), poolEditedSays(edited)+"\n"); err != nil {
+				return err
+			}
+			if !slices.Equal(edited.Was.WrittenDirs, edited.Now.WrittenDirs) {
+				warnUnmade(cmd.ErrOrStderr(), a.Root, edited.Now)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&label, "label", "", "show the pool as `LABEL`")
@@ -298,7 +346,10 @@ func poolChangeOf(given func(name string) bool, label string, dirs []string, unf
 // poolEditedSays says what an edit changed of a pool, each value as it is
 // now, then as it was, and where it fenced it anew, that the sessions
 // running in its directories keep their pool, as runningKeepTheirPool
-// says; or that it changed nothing.
+// says, and what its fence changed for the sessions outside every fence, as
+// outsideSaid has it; where it wrote its directories in another form alone,
+// as from ~/, that they're rewritten, as they hold the same; or that it
+// changed nothing.
 func poolEditedSays(e accounts.EditedPool) string {
 	if !e.Changed() {
 		return "pool " + e.Now.ID + " has every value given already, so nothing changed"
@@ -308,13 +359,74 @@ func poolEditedSays(e accounts.EditedPool) string {
 		changed = append(changed, nowAndWas("label", prose.Quoted(prose.Clean(e.Now.Label)), prose.Quoted(prose.Clean(e.Was.Label))))
 	}
 	var running string
-	if !slices.Equal(e.Was.WrittenDirs, e.Now.WrittenDirs) {
+	switch {
+	case slices.Equal(e.Was.WrittenDirs, e.Now.WrittenDirs):
+	case slices.Equal(e.Was.Dirs, e.Now.Dirs):
+		changed = append(changed, "directories rewritten as "+dirsListed(e.Now)+" (was "+dirsListed(e.Was)+"), the same directories")
+	default:
 		changed = append(changed, fenceSaid(e.Now)+" (was "+fenceSaid(e.Was)+")")
 		if e.Now.Fenced() {
 			running = "; " + runningKeepTheirPool
 		}
+		if outside := outsideSaid(e); outside != "" {
+			running += "; " + outside
+		}
 	}
 	return "edited pool " + e.Now.ID + ": " + strings.Join(changed, ", ") + running
+}
+
+// outsideSaid says what an edit of a pool's fence changed for the sessions
+// started outside every fence, and for the verbs: unfencing it, that those
+// sessions go to it now; fencing the one pool that was unfenced, that none
+// starts outside every fence; and where the pool the verbs act on without
+// --pool is another now, as verbsSaid says: "" where it changed nothing for
+// them.
+func outsideSaid(e accounts.EditedPool) string {
+	var said []string
+	switch _, unfenced := e.Pools.Unfenced(); {
+	case e.Was.Fenced() && !e.Now.Fenced():
+		said = append(said, outsideGoToIt)
+	case !e.Was.Fenced() && !unfenced:
+		said = append(said, noneOutside)
+	}
+	if verbs := verbsSaid(e.Before(), e.Pools, e.Now); verbs != "" {
+		said = append(said, verbs)
+	}
+	return strings.Join(said, ", and ")
+}
+
+// verbsSaid says, where the pool the verbs act on without --pool, as
+// config.Pools' Implicit gives it, is another among the pools after a change
+// than before it, that it's p now, or that there's none, so they need
+// --pool: "" where it's the one it was.
+func verbsSaid(before, after config.Pools, p config.Pool) string {
+	was, _ := before.Implicit()
+	switch now, ok := after.Implicit(); {
+	case config.SamePool(was.ID, now.ID):
+		return ""
+	case !ok:
+		return verbsNeedPool
+	case config.SamePool(now.ID, p.ID):
+		return verbsReadIt
+	}
+	return ""
+}
+
+// warnUnmade warns w of each of p's directories that isn't a directory on
+// this Mac, as root, the filesystem from its root, finds it, as where it's
+// mistyped: the pool's made all the same, as its directory may be made
+// later. Where root is nil, or a directory can't be looked for, nothing is
+// said of it.
+func warnUnmade(w io.Writer, root fs.FS, p config.Pool) {
+	if root == nil || len(p.Dirs) != len(p.WrittenDirs) {
+		return
+	}
+	for i, dir := range p.Dirs {
+		info, err := fs.Stat(root, cmp.Or(strings.TrimPrefix(dir, "/"), "."))
+		if errors.Is(err, fs.ErrNotExist) || err == nil && !info.IsDir() {
+			launch.Notice(w, prose.Clean(p.WrittenDirs[i])+" isn't a directory, so no session starts in it yet: if it's mistyped, fence the pool anew with switchboard pool edit "+p.ID+" --dirs")
+		}
+	}
 }
 
 func newPoolRemoveCommand(a *app) *cobra.Command {

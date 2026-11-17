@@ -103,8 +103,9 @@ func madeIn(draft *config.Draft, pool NewPool, id poolID) (string, error) {
 	return added, err
 }
 
-// poolMade adds a pool shown as label, fenced to dirs, to the draft, under
-// the id given apart from those configured, returning it: it fails with
+// poolMade adds a pool shown as label, fenced to dirs, written as the
+// draft's FromHome writes them, to the draft, under the id given apart from
+// those configured, returning it: it fails with
 // ErrNoPools in a config from before pools; with ErrNoPoolLabel, or a
 // PoolLabelTakenError, for a label that's none or another pool's; with an
 // UnfencedError where it would be a second pool unfenced; and as the
@@ -121,5 +122,5 @@ func poolMade(draft *config.Draft, label string, dirs []string, id poolID) (stri
 	if err != nil {
 		return "", err
 	}
-	return made, draft.AddPool(config.NewPool{ID: made, Label: label, Dirs: dirs})
+	return made, draft.AddPool(config.NewPool{ID: made, Label: label, Dirs: draft.FromHome(dirs)})
 }

@@ -387,7 +387,7 @@ func TestRunWithoutAConfigItCanRead(t *testing.T) {
 		config   string
 		wantSaid string
 	}{
-		{name: "missing", config: missing, wantSaid: "switchboard: couldn't read the config (no config file at " + missing + ") — starting claude without it\n"},
+		{name: "missing", config: missing, wantSaid: "switchboard: couldn't read the config (no config file at " + missing + ": run switchboard setup, which adds your accounts and writes it) — starting claude without it\n"},
 		{name: "invalid", config: invalid, wantSaid: "switchboard: couldn't read the config (invalid config " + invalid + ") — starting claude without it\n"},
 	}
 	for _, tt := range tests {
@@ -444,7 +444,7 @@ func TestRunWithoutAConfigItCanReadRoutesThroughTheRunningRouter(t *testing.T) {
 			name:        "missing, pinned",
 			config:      missing,
 			account:     "side",
-			wantSaid:    "switchboard: couldn't read the config (no config file at " + missing + ") — starting claude through the running router\n",
+			wantSaid:    "switchboard: couldn't read the config (no config file at " + missing + ": run switchboard setup, which adds your accounts and writes it) — starting claude through the running router\n",
 			wantHeaders: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Pool: b2n8",
 		},
 	}

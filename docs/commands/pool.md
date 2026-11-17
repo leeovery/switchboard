@@ -47,6 +47,22 @@ Give each folder as an absolute path, or one starting `~/`. A fence covers every
 folder, and every git worktree of a repository there, wherever the worktree lives. With no
 folders, the pool is the unfenced pool, which takes every session started outside all the fences.
 
+A folder inside your home is written from `~/`, even if your shell gave it as a full path. So a
+config copied to a Mac with another home fences the same folders there.
+
+If a folder isn't there, `add` makes the pool anyway, because you may make the folder later. It
+warns you, in case the name is mistyped. The warning is one line, broken here to fit:
+
+```text
+switchboard: ~/Code/acmee isn't a directory, so no
+session starts in it yet: if it's mistyped, fence
+the pool anew with switchboard pool edit q7mt --dirs
+```
+
+If your only pool is fenced, a second fenced pool means commands need `--pool` to read one, and
+`add` says so. An unfenced pool added beside fenced ones takes every session started outside the
+fences, and commands read it without `--pool`.
+
 `add` refuses a pool if:
 
 - another pool has the same label, ignoring case;
@@ -54,9 +70,11 @@ folders, the pool is the unfenced pool, which takes every session started outsid
 - its folders are the same as, inside, or around another pool's;
 - the config names no pools yet.
 
-The router writes the first pool into the config, as it moves your record to pools after an
-upgrade. You add pools after that. If you put back a config from before pools, the router gives the
-pools back to it.
+The router writes the first pool, `Default`, into the config when it first starts. That happens
+after setup on a new Mac, and after an upgrade from before pools. Until then, `add` asks you to
+start the router with `switchboard service install`. If the router is running,
+`switchboard logs router` says what holds it up. If you put back a config from before pools, the
+router gives the pools back to it.
 
 A new pool has no accounts. Until you add one, a session started in its folders refuses to start.
 Add an account with `accounts add --pool`, or move one in with `accounts edit --pool`. See
@@ -69,10 +87,21 @@ Add an account with `accounts add --pool`, or move one in with `accounts edit --
 is now and as it was. If every value given is what the pool has already, it says so and writes
 nothing.
 
-- **The label and folders** are refused for the same reasons as on `add`.
-- **`--unfence`** is refused if another pool is unfenced already.
+- **The label and folders** are refused for the same reasons as on `add`, and `edit` warns of a
+  folder that isn't there.
+- **`--unfence`** is refused if another pool is unfenced already. Once it's done, `edit` says that
+  sessions started outside every fence go to the pool now. With several pools, the commands read
+  it without `--pool` from then on.
+- **Fencing the unfenced pool** leaves every pool fenced, and `edit` says so. `claude` then starts
+  outside the fences only within a session, or in a worktree of a repository inside a fence.
+- **With several pools all fenced,** a command that reads a pool needs `--pool`, and so does
+  `accounts add`. With one pool, every command reads it without `--pool`.
 - **`--dirs` replaces every folder.** To add a folder, give the old ones again beside it.
+- **A folder written as a full path** in your home is written from `~/` if you give it again with
+  `--dirs`, and `edit` says it's rewritten. Older versions of `add` wrote full paths, which match
+  on no Mac with another home.
 - **Folders the config writes across several lines** can't be changed in place. Edit them by hand.
+  Given again as they are, they change nothing, and the rest of the edit goes ahead.
 
 ## `remove`: take a pool away
 
@@ -112,8 +141,8 @@ resume the sessions running there. `add` and `edit` both say so.
 switchboard pool add Acme ~/Code/acme \
   ~/Code/acme-infra
 switchboard pool edit q7mt --label "Acme Ltd"
-# fence the first pool
-switchboard pool edit d3wn --dirs ~/Code/employer
+# move Acme's fence to another folder
+switchboard pool edit q7mt --dirs ~/Work/acme
 switchboard pool remove q7mt
 ```
 

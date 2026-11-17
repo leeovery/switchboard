@@ -9,14 +9,18 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 var (
 	// ErrNoPools is what adding a pool to a config naming none fails with: the
-	// router writes the first into it as it moves the history to pools, and
-	// the pools it routes for, as the move left them, as it starts on a
-	// config that lost them; a pool added before would take every account in.
-	ErrNoPools = errors.New("the config names no pools: the router writes them into it, the first as it moves the history to pools, and pools are added after")
+	// router writes the first into it as it moves the history to pools, as
+	// it first starts, on a new install as on one from before pools, and the
+	// pools it routes for, as the move left them, as it starts on a config
+	// that lost them; a pool added before would take every account in.
+	ErrNoPools = errors.New("the config names no pools yet: the router writes them into it as it starts, and pools are added after: " +
+		"start the router with switchboard service install where it isn't running; where it is, switchboard logs router says what holds it up; " +
+		"then add the pool again")
 	// ErrNoPoolLabel is what adding a pool without a label fails with: every
 	// pool has one.
 	ErrNoPoolLabel = errors.New("a pool needs a label")
@@ -107,9 +111,21 @@ func (c PoolChange) Asks() bool {
 	return c.Label != nil || c.Dirs != nil
 }
 
-// EditedPool is a pool as it was and as an edit left it.
+// EditedPool is a pool as it was and as an edit left it, and every pool as
+// the edit left them.
 type EditedPool struct {
 	Was, Now config.Pool
+	Pools    config.Pools
+}
+
+// Before returns the pools as they were before the edit: Pools, the pool
+// edited as it was.
+func (e EditedPool) Before() config.Pools {
+	before := slices.Clone(e.Pools)
+	if i := slices.IndexFunc(before, func(p config.Pool) bool { return config.SamePool(p.ID, e.Was.ID) }); i >= 0 {
+		before[i] = e.Was
+	}
+	return before
 }
 
 // Changed reports whether the edit changed the pool, as the config reads it.
@@ -126,8 +142,8 @@ func (e EditedPool) Changed() bool {
 // for a label that's none or another pool's; with an UnfencedError where it
 // would be a second pool unfenced; and as the config file's edits do, as for
 // directories that overlap another pool's.
-func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
-	var added config.Pool
+func (r Registry) AddPool(label string, dirs []string) (AddedPool, error) {
+	var added AddedPool
 	err := r.Record.Change(func(record *identity.Record, _ func() error) error {
 		draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 		if err != nil {
@@ -140,14 +156,27 @@ func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
 		if err := draft.Save(); err != nil {
 			return err
 		}
-		added, _ = draft.Config().Pools.ByID(id)
+		added.Pools = draft.Config().Pools
+		added.Pool, _ = added.Pools.ByID(id)
 		return nil
 	})
 	if err != nil {
-		return config.Pool{}, err
+		return AddedPool{}, err
 	}
-	poolAdded(added)
+	poolAdded(added.Pool)
 	return added, nil
+}
+
+// AddedPool is a pool AddPool added, and every pool as the add left them.
+type AddedPool struct {
+	Pool  config.Pool
+	Pools config.Pools
+}
+
+// Before returns the pools as they were before the add: Pools, but the pool
+// added.
+func (a AddedPool) Before() config.Pools {
+	return slices.DeleteFunc(slices.Clone(a.Pools), func(p config.Pool) bool { return config.SamePool(p.ID, a.Pool.ID) })
 }
 
 // poolAdded logs a pool added, by AddPool, or made with an account added or
@@ -202,7 +231,7 @@ func (r Registry) EditPool(id string, change PoolChange) (EditedPool, error) {
 	if err != nil {
 		return EditedPool{}, err
 	}
-	edited := EditedPool{Was: was, Now: now}
+	edited := EditedPool{Was: was, Now: now, Pools: draft.Config().Pools}
 	if !edited.Changed() {
 		return edited, nil
 	}
@@ -213,7 +242,8 @@ func (r Registry) EditPool(id string, change PoolChange) (EditedPool, error) {
 	return edited, nil
 }
 
-// apply makes the change to the pool with the given id in the draft.
+// apply makes the change to the pool with the given id in the draft, its
+// directories written as the draft's FromHome writes them.
 func (c PoolChange) apply(draft *config.Draft, id string) error {
 	if c.Label != nil {
 		if err := draft.SetPoolLabel(id, *c.Label); err != nil {
@@ -221,7 +251,7 @@ func (c PoolChange) apply(draft *config.Draft, id string) error {
 		}
 	}
 	if c.Dirs != nil {
-		return draft.SetPoolDirs(id, *c.Dirs)
+		return draft.SetPoolDirs(id, draft.FromHome(*c.Dirs))
 	}
 	return nil
 }
@@ -252,12 +282,17 @@ func (r Registry) RemovePool(id string) (config.Pool, error) {
 
 // configuredPool returns the pool with the given id, ignoring case, that cfg
 // configures, failing, matching config.ErrNotConfigured, where none has it,
-// as where cfg is nil.
+// as where cfg is nil; and where a pool is labelled so, ignoring case, saying
+// to give its id, as "Acme is a label: give its id, q7mt".
 func configuredPool(cfg *config.Config, id string) (config.Pool, error) {
-	if cfg != nil {
-		if p, ok := cfg.Pools.ByID(id); ok {
-			return p, nil
-		}
+	if cfg == nil {
+		return config.Pool{}, config.PoolNotConfigured(id)
+	}
+	if p, ok := cfg.Pools.ByID(id); ok {
+		return p, nil
+	}
+	if p, ok := cfg.Pools.Labelled("", id); ok {
+		return config.Pool{}, fmt.Errorf("%w: %s is a label: give its id, %s", config.PoolNotConfigured(id), prose.Clean(redact.Text(id)), prose.Clean(p.ID))
 	}
 	return config.Pool{}, config.PoolNotConfigured(id)
 }

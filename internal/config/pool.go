@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -39,9 +43,9 @@ func (p Pool) Fenced() bool {
 }
 
 // Covers reports whether one of the pool's directories is dir or holds it,
-// both absolute and clean, compared a whole folder name at a time and
-// ignoring case. It reads no files: links are resolved by the caller, where
-// they're to be.
+// both absolute and clean, compared as within compares them: a whole folder
+// name at a time, ignoring case and how accents are written. It reads no
+// files: links are resolved by the caller, where they're to be.
 func (p Pool) Covers(dir string) bool {
 	return slices.ContainsFunc(p.Dirs, func(fence string) bool { return within(dir, fence) })
 }
@@ -490,11 +494,46 @@ func overlap(a, b fence) error {
 
 // within reports whether path is dir or inside it, both absolute and clean,
 // compared a whole folder name at a time, so /Code/acme doesn't hold
-// /Code/acme-api, and ignoring case, as macOS compares them. It's lexical
-// alone: it reads no files.
+// /Code/acme-api, as macOS compares them: ignoring case, and taking a name
+// with its accents composed for the same name with them apart, as a name
+// typed and one Finder made can differ. It's lexical alone: it reads no
+// files.
 func within(path, dir string) bool {
 	in, fence := folders(path), folders(dir)
-	return len(fence) <= len(in) && slices.EqualFunc(fence, in[:len(fence)], strings.EqualFold)
+	return len(fence) <= len(in) && slices.EqualFunc(fence, in[:len(fence)], sameFolder)
+}
+
+// sameFolder reports whether a and b name one folder, as within compares
+// them: by Unicode's canonical caseless match, as folded has them, which
+// takes ß for SS and a name with its accents composed for one with them
+// apart, as macOS does, and keeps fullwidth and compatibility forms apart, as
+// it does too.
+func sameFolder(a, b string) bool {
+	return a == b || folded(a) == folded(b)
+}
+
+// folded is name as Unicode's canonical caseless match compares it: NFD,
+// fully case folded, then NFD again, as folding can leave marks out of
+// order. Not NFC, which composes only one case of some pairs, nor Go's simple
+// folding, which misses ß and SS and matches U+0345 where macOS doesn't. Each
+// letter is then the least of those simple folding takes for it, as
+// x/text's folding swaps Cherokee's cases rather than folding them to one.
+func folded(name string) string {
+	// A Caser keeps state as it folds, so each name has one of its own.
+	return norm.NFD.String(strings.Map(leastOfCase, norm.NFD.String(cases.Fold().String(norm.NFD.String(name)))))
+}
+
+// leastOfCase is the least of the letters simple case folding takes r for,
+// r among them: one letter for every case of it. A mark is never taken, as
+// U+0345, which folds with iota, would be ordered among the marks before it.
+func leastOfCase(r rune) rune {
+	least := r
+	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+		if f < least && !unicode.Is(unicode.Mn, f) {
+			least = f
+		}
+	}
+	return least
 }
 
 // folders returns the folder names of path, from the root.

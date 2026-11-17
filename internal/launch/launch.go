@@ -640,7 +640,7 @@ func Notice(w io.Writer, text string) {
 }
 
 // firstLine is the first line of err's text, which is enough for a notice:
-// the rest, such as the example a missing config's error shows, is for the
+// the rest, such as each problem an invalid config's error lists, is for the
 // commands that fail with it.
 func firstLine(err error) string {
 	line, _, _ := strings.Cut(err.Error(), "\n")
