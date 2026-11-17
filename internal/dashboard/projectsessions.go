@@ -132,13 +132,22 @@ func (s projectSessions) within(top, rows int) projectSessions {
 // SESSIONS is scrolled.
 const outLeast = 4
 
+// outFits reports whether SESSIONS' page, rows tall, has room for the row
+// saying how many sessions are out of view, as flex lays it under the page
+// at outLeast rows.
+func outFits(rows int) bool {
+	_, fits := flex.Lay(rows, flex.Part{Least: outLeast}, flex.Part{Least: 1})
+	return fits
+}
+
 // paged is how SESSIONS' lines page under its heads, a row at a time, each
 // day's rule shown with the first session under it, or not at all; where
 // they don't all fit, its last row says how many sessions are out of view,
-// as the List's does, so long as that leaves its page outLeast rows.
+// as the List's does, so long as that leaves its page outLeast rows, as
+// outFits has it.
 func (s projectSessions) paged() rowsPaged {
 	rows := s.rows - 2
-	return rowsPaged{rows: rows, content: len(s.lines), heads: s.heads(), says: rows > outLeast}
+	return rowsPaged{rows: rows, content: len(s.lines), heads: s.heads(), says: outFits(rows)}
 }
 
 // draw draws SESSIONS from its top: its heading, in text.muted; its heads,
