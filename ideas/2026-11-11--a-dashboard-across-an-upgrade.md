@@ -9,7 +9,7 @@ v1 met it (the v1 release review, 11 November 2026): #275 made a plan's size one
 week 10 Pro weeks where the forecast had 20, so the router's `demand.day` halves for an Ultra pool.
 A dashboard started on v0.5.6 still sizes each Ultra account at 20, so once its hold fades the
 pool's use lands on the accounts at half its rate and the weeks' run-outs on Overview, Runway and
-Graphs drift later, until it's started again. A v1 dashboard on a v0.5.6 router, before the
+Trends drift later, until it's started again. A v1 dashboard on a v0.5.6 router, before the
 handover, shows them early, briefly.
 
 ## What it could do

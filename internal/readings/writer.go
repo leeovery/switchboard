@@ -28,10 +28,12 @@ type Writer struct {
 // Open returns a writer of the history's files, which keeps a day's for keep
 // once the day has ended, by now's clock, calling pruning, where it's given,
 // with that keep, just before each prune of them, as dayfile.WriterOptions'
-// Pruning says.
-func Open(files *dayfile.Files, keep time.Duration, now func() time.Time, pruning func(now time.Time, keep time.Duration)) *Writer {
+// Pruning says, and pruning none while held, where it's given, reports
+// true, as its Held says.
+func Open(files *dayfile.Files, keep time.Duration, now func() time.Time, pruning func(now time.Time, keep time.Duration), held func() bool) *Writer {
 	w := &Writer{files: files}
-	w.writer = dayfile.NewWriter(files, w.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "readings", Pruning: pruning})
+	w.writer = dayfile.NewWriter(files, w.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "readings", Pruning: pruning,
+		Held: held})
 	return w
 }
 
@@ -58,6 +60,12 @@ func (w *Writer) Import(ctx context.Context, date, staged string) (dayfile.Impor
 // where that's due, as dayfile.Writer's TendNow does.
 func (w *Writer) TendNow(ctx context.Context) error {
 	return w.writer.TendNow(ctx)
+}
+
+// RoundAgain has the writer make its round at once, on Run's goroutine, as
+// dayfile.Writer's RoundAgain does. It never waits.
+func (w *Writer) RoundAgain() {
+	w.writer.RoundAgain()
 }
 
 // lines returns taken as the history's lines, each filed under the local day

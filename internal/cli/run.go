@@ -7,6 +7,7 @@ import (
 	"io"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/spf13/cobra"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // runOptions are the run command's flags.
@@ -191,7 +193,8 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 	if err != nil {
 		return l.RouterUnfound(r, args, err)
 	}
-	r.Router, r.Moved, r.Kept = client, a.poolsMoved(), a.keptPools
+	r.Router, r.Document = client, client.StatusOf
+	r.Moved, r.Kept, r.Held = a.poolsMoved(), a.keptPools, a.keptHolds()
 	return l.Run(ctx, r, args)
 }
 
@@ -213,7 +216,7 @@ func (a *app) runUnread(ctx context.Context, l launch.Launcher, opts runOptions,
 		Token:    a.readToken,
 		Pause:    a.Pause,
 		Router:   client,
-		Document: client.Status,
+		Document: client.StatusOf,
 		Patience: a.Patience,
 		Account:  opts.account,
 		Moved:    a.poolsMoved(),
@@ -298,6 +301,32 @@ func (a *app) routerBeforePools(ctx context.Context) bool {
 func (a *app) poolsMoved() bool {
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	return err == nil && idmove.PoolsMoved(dir)
+}
+
+// keptHolds returns what the router's state file keeps holding each account
+// back from every request, of the token given, as router.KeptHolds has it,
+// for launch.Route's Held: a read refused, or a token another
+// subscription's. The file is read on the first call alone, so a launch with
+// the router running, which never asks, never reads it. A refusal in a file
+// from before, kept by its text alone, is read by Claude's provider, as the
+// router this CLI runs reads it. Where the file can't be read, or the state
+// directory can't be located, nothing is held.
+func (a *app) keptHolds() func(id string, token tokens.Token) router.KeptHold {
+	kept := sync.OnceValue(func() router.KeptHolds {
+		dir, err := config.StateDir(a.Getenv, a.HomeDir)
+		if err != nil {
+			logger.Debug("can't find the state file for what holds accounts back", "error", err)
+			return router.KeptHolds{}
+		}
+		holds, err := router.KeptHoldsIn(dir, claude.Provider{}.RefusedReadIn)
+		if err != nil {
+			logger.Info("can't read the state file for what holds accounts back", "error", err)
+		}
+		return holds
+	})
+	return func(id string, token tokens.Token) router.KeptHold {
+		return kept().Of(id, token)
+	}
 }
 
 // keptPools returns cfg, a config naming no pools, with the pools the

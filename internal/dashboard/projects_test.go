@@ -583,6 +583,76 @@ func TestSessionsOfALineShowsNoRuleAlone(t *testing.T) {
 	}
 }
 
+// Where SESSIONS' sessions don't all fit, its last row says how many are out
+// of view, as the List says them, from column 2, scrolled anywhere: the
+// sessions before the first it shows and after the last, its rules not
+// counted; but only where its page keeps two sessions over it, however far
+// it's scrolled, so it never costs a session at SESSIONS' least. Where its
+// sessions all fit, it says nothing. Each height is held to whichever it
+// draws, and the test to drawing both.
+func TestSessionsSaysHowManySessionsAreOutOfView(t *testing.T) {
+	page := chosenPage(chosenSessions())
+	doc := framedDoc(nil, nil)
+	drew := map[bool]bool{}
+	for height := 20; height <= 40; height++ {
+		f := projectsFrame(t, 160, height, projectRows(6), 0, &page)
+		paged := f.projectsLaying(doc, routedAt).sessions.paged()
+		if paged.page() == 0 || paged.content <= paged.rows {
+			continue
+		}
+		_, says := paged.saysOn()
+		drew[says] = true
+		for scroll := range paged.most() + 1 {
+			f.Scroll = scroll
+			rows := textOf(f.page(doc, routedAt).rows(Look{}))
+			at := rowWith(rows, "SESSIONS") + 2
+			var shown []int
+			for _, row := range rows[at : at+paged.page()] {
+				if i := slices.IndexFunc(page.Sessions, func(s views.PeriodSession) bool { return strings.Contains(row, s.Session[:4]) }); i >= 0 {
+					shown = append(shown, i)
+				}
+			}
+			last := ""
+			if at+paged.page() < len(rows) {
+				last = rows[at+paged.page()]
+			}
+			switch {
+			case !says && strings.Contains(last, " more session"):
+				t.Errorf("at 160×%d, scrolled %d, SESSIONS says %q, want nothing said where it would cost a session", height, scroll, last)
+			case !says:
+			case len(shown) < 2:
+				t.Errorf("at 160×%d, scrolled %d, SESSIONS shows %d sessions over its line saying how many more, want two at least:\n%s", height, scroll, len(shown), strings.Join(rows[at:], "\n"))
+			default:
+				if want := "  " + outOfViewSaid(shown[0], len(page.Sessions)-1-shown[len(shown)-1]); last != want {
+					t.Errorf("at 160×%d, scrolled %d, SESSIONS' last row reads %q, want %q", height, scroll, last, want)
+				}
+			}
+		}
+	}
+	if !drew[true] || !drew[false] {
+		t.Fatalf("SESSIONS said how many were out of view at some height %v, and not at some %v; want both, for the test to hold", drew[true], drew[false])
+	}
+	whole := projectsFrame(t, 173, 60, projectRows(3), 0, &page)
+	if rows := textOf(whole.page(doc, routedAt).rows(Look{})); rowWith(rows, "more session") >= 0 {
+		t.Errorf("with every session fitting, the frame reads\n%s\nwant nothing said of sessions out of view", strings.Join(rows, "\n"))
+	}
+}
+
+// outOfViewSaid is how the List says how many sessions are out of view,
+// above and below.
+func outOfViewSaid(above, below int) string {
+	counted := func(mark string, n int) string {
+		return fmt.Sprintf("%s %d more session%s", mark, n, map[bool]string{true: "s"}[n != 1])
+	}
+	switch {
+	case above == 0:
+		return counted("▼", below)
+	case below == 0:
+		return counted("▲", above)
+	}
+	return counted("▲", above) + " · " + counted("▼", below)
+}
+
 // Where no line of SESSIONS fits under its heading and heads, SESSIONS
 // shows nothing, no heading without what's under it.
 func TestSessionsWithoutRoomForALineShowsNothing(t *testing.T) {

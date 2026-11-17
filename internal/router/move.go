@@ -57,6 +57,10 @@ type moving struct {
 	// router's start, where it has a move to make, until every move is done.
 	// Nil where none is owed.
 	stands atomic.Pointer[status.Moving]
+	// released, where it's given, is called once the move onto the ids is
+	// done and the history's rounds no longer held, as holds says, so the
+	// rounds skipped meanwhile are made at once, not on the next tick.
+	released func()
 }
 
 // newMoving returns the moving of mover's move onto the ids, then pools'
@@ -78,8 +82,8 @@ func (m *moving) owed() bool {
 	return m.stands.Load() != nil
 }
 
-// idsOwed reports whether the move onto the accounts' ids is owed, the
-// config's ids and the record's differing till it's done.
+// idsOwed reports whether the move onto the accounts' ids is owed: from the
+// router's start, where the move isn't marked done, until it's done.
 func (m *moving) idsOwed() bool {
 	s := m.stands.Load()
 	return s != nil && s.Move == status.MovingIDs
@@ -97,6 +101,19 @@ func (m *moving) report() status.Moving {
 // standing notes how the move stands.
 func (m *moving) standing(s status.Moving) {
 	m.stands.Store(&s)
+}
+
+// holds reports whether the history's rounds are held, so the request
+// ledger summarises nothing and neither it nor the readings history prunes
+// or compresses: for as long as the move onto the ids is owed, from the
+// router's start until that move is done, whatever ids the router is on.
+// The move renames the history day by day, each day's lines before its
+// summary, as the accounts record has the ids moved, among them ids only
+// the history names, or a config another Mac has moved already, so a round
+// in between would summarise a day named by both: no reader reads one till
+// the move's done, as every reader waits on it.
+func (m *moving) holds() bool {
+	return m.idsOwed()
 }
 
 // historyMoving is the error of an import while the history waits on the
@@ -124,13 +141,29 @@ func (m *moving) settle() {
 // router to restart onto the accounts' new ids. It notes how they stand
 // throughout, as the status says it.
 func (m *moving) run(ctx context.Context, history func() idmove.History, takeUp func() bool) {
-	if m.idsOwed() && !m.until(ctx, status.MovingIDs, func() error { return m.mover.RunBeside(ctx, history()) }) {
-		return
+	if m.idsOwed() {
+		if !m.until(ctx, status.MovingIDs, func() error { return m.mover.RunBeside(ctx, history()) }) {
+			return
+		}
+		m.idsDone()
 	}
 	if m.pools != nil && !m.until(ctx, status.MovingPools, func() error { return m.pools.RunBeside(ctx, history(), takeUp) }) {
 		return
 	}
 	m.stands.Store(nil)
+}
+
+// idsDone notes the move onto the ids done, the move to pools owed next
+// where there's one, and lets the history's rounds go, as released does.
+func (m *moving) idsDone() {
+	if m.pools != nil {
+		m.standing(status.Moving{Stage: status.MoveRunning, Move: status.MovingPools})
+	} else {
+		m.stands.Store(nil)
+	}
+	if m.released != nil {
+		m.released()
+	}
 }
 
 // until runs attempt, the move named move, until it's done, reporting

@@ -153,7 +153,14 @@ func (t tokenKept) held() bool {
 func (s *secret) keeps(sum string) tokenKept {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return tokenKept{same: sum != "" && sum == s.held, usable: s.unusable == nil}
+	return tokenKept{same: sameToken(sum, s.held), usable: s.unusable == nil}
+}
+
+// sameToken reports whether kept, the hash of the token the state file keeps
+// of an account, is held, the hash of the token the account holds: never
+// where the file keeps none.
+func sameToken(kept, held string) bool {
+	return kept != "" && kept == held
 }
 
 // knows reports whether sum is the hash of the token the account holds, or
@@ -267,7 +274,7 @@ func (s *secret) recall(saved savedTokens, now time.Time) bool {
 	case replaced:
 		s.former = append(s.former, formerToken{SHA256: saved.SHA256, ReplacedAt: now.UTC()})
 	}
-	if saved.Foreign == s.held {
+	if sameToken(saved.Foreign, s.held) {
 		s.foreign = saved.Foreign
 	}
 	return replaced

@@ -325,7 +325,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | Reason | Why |
 |---|---|
 | `pinned` | The session's own pin (step 1) |
-| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit, a refusal or a read refused from before this request holds it back, or it has no usable token |
+| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit or a refusal from before this request holds it back, or it has no usable token |
 | `pin yields: <id> hit its limit`, `pin yields: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it |
 | `moved by pin` | A global pin with `--move` (step 2) |
 | `sticky` | The session's account, its cache warm (step 3), a session that yielded its pin included (step 1) |
@@ -338,6 +338,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused above its reserve (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve`, `pin yields: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
+| `moved: <id> had its read refused`, `pin yields: <id> had its read refused` | The same, as the API refused `<id>`'s last read, its subscription ended or its token refused, which holds it back till a read comes back clean, whatever else holds it too (see 401s and 403s) |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
 | `moved: <id> has a new token`, `pin yields: <id> has a new token` | The same, as `<id>` refused the request's token, having taken up a new one |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
@@ -458,41 +459,54 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 - **A read refused holds the account back** (the owner's call, 16 November 2026): where the API
   refuses a read of the account's usage, answering 401, its token refused, or 403 with OAuth
   authentication not allowed for its organization, which is how an ended subscription is answered,
-  the router holds the account back from every request, as for a token it refused itself. It's no
-  candidate, however much room it has; sessions on it move; a pin to it yields; and its pool counts
-  none of its room. A pool whose every account is held has no room, and what Claude Code sees
-  turns on the client's account, the one its token is (see Choosing an account, step 5). Where
-  that's in the pool, the request goes out on it all the same, for the upstream to refuse it: the
-  401 or 403 is never relayed, so Claude Code gets the 502 above, naming the upstream's refusal of
-  the account. Where it's outside the pool, nothing goes out: switchboard answers 429 itself, each
-  account's cause in its message, `subscription lapsed` or `token refused` (see Routing within a
-  pool). The hold has no timer: it lasts till a read of it comes back clean, by a probe, a prime or
-  an answer, which clears the error. A read that fails otherwise after it, as one timed out,
-  unanswered or answered 5xx, keeps it, as that says nothing of whether the refusal has ended; one
-  refused again keeps it, saying why afresh, as a 401 after a 403 says `token refused`. A held
-  account is never passed over for being held: it's probed on the router's rounds at any hour, as
-  one whose probe read nothing, so a subscription renewed is seen within the half hour (see The
-  router's rounds); a choice probes it no sooner, nor the dashboard's refresh after a reset, nor is
-  a failed prime of it sent again sooner, as each read refused would only be another warning. `R`
-  and `--refresh` probe it at once, as someone asks to see a renewal. A new token in its file lifts
-  the hold at once, as it starts its probes afresh. The same token lost and back keeps it, as that
-  token would only be refused again: a file moved away and back, holding no usable token two looks
-  running, as a loss takes, or the router restarting while the file holds none, the state file
-  keeping the refusal for the token it held last. A read that fails otherwise with no refusal before
-  it holds nothing: the account routes on its windows as last read. A limit holding the account too
-  doesn't hide the hold: ROUTING, the routing card and `status` say the refusal first, and nothing
-  says it's back as the limit lifts, its windows' words reading `limit` with no `back`, and Runway's
-  stretch through now no `back` either. An account whose first read is refused, as one added with
-  its subscription already ended, says the refusal too, while every view draws it as not read yet,
-  as nothing of it has been, unless a limit or the router's own refusal of its token holds it too.
-  The hold begins at the first refusal of a run, kept through the refusals and failures after it,
-  which the state file keeps beside the last probe; the pools' room, which the forecast's day rate
-  counts, holds the account back only from then, never before, so a restart replaying the readings
-  history counts its room till then, however long it's been probed since. A state file from before
-  keeps no start, and the hold runs from its last probe; a router from before reads the file all the
-  same, passing over the start. The router judges the hold from its own state, through the readers
-  of Claude's answers, and the status document states it once, as the account's `RefusedRead`: no
-  view reads the error again. An account removed goes as any other, its history kept.
+  in an answer of its own, carrying Anthropic's id for it, in its `Request-Id` header or its body's
+  `request_id`, the router holds the account back from every request, as for a token it refused
+  itself. A proxy between refusing the read in the API's place says nothing of the account: that's a
+  read that fails otherwise. It's no candidate, however much room it has; sessions on it move, and a
+  pin to it yields, saying it `had its read refused`; and its pool counts none of its room. A pool
+  whose every account is held has no room, and what Claude Code sees turns on the client's account,
+  the one its token is (see Choosing an account, step 5). Where that's in the pool, the request goes
+  out on it all the same, for the upstream to refuse it: the 401 or 403 is never relayed, so Claude
+  Code gets the 502 above, naming the upstream's refusal of the account. Where it's outside the
+  pool, nothing goes out: switchboard answers 429 itself, each account's cause in its message,
+  `subscription lapsed` or `token refused` (see Routing within a pool). The hold has no timer: it
+  lasts till a read of it comes back clean, by a probe, a prime or an answer, which clears the
+  error. A read that fails otherwise after it, as one timed out, unanswered or answered 5xx, keeps
+  it, as that says nothing of whether the refusal has ended; one refused again keeps it, saying why
+  afresh, as a 401 after a 403 says `token refused`. A held account is never passed over for being
+  held: it's probed on the router's rounds at any hour, as one whose probe read nothing, so a
+  subscription renewed is seen within the half hour (see The router's rounds); a choice probes it no
+  sooner, nor the dashboard's refresh after a reset, nor is a failed prime of it sent again sooner,
+  as each read refused would only be another warning. `R` and `--refresh` probe it at once, as
+  someone asks to see a renewal. A new token in its file lifts the hold at once, as it starts its
+  probes afresh. The same token lost and back keeps it, as that token would only be refused again: a
+  file moved away and back, holding no usable token two looks running, as a loss takes, or the
+  router restarting while the file holds none, the state file keeping the refusal for the token it
+  held last. A read that fails otherwise with no refusal before it holds nothing: the account routes
+  on its windows as last read. A limit holding the account too doesn't hide the hold: ROUTING, the
+  routing card and `status` say the refusal first, and nothing says it's back as the limit lifts,
+  its windows' words reading `limit` with no `back`, and Runway's stretch through now no `back`
+  either. An account whose first read is refused, as one added with its subscription already ended,
+  says the refusal too, while every view draws it as not read yet, as nothing of it has been, unless
+  a limit or the router's own refusal of its token holds it too. The hold begins at the first
+  refusal of a run, kept through the refusals and failures after it, which the state file keeps
+  beside the last probe, `refused_since`, with why, `refused_read`; the pools' room, which the
+  forecast's day rate counts, holds the account back only from then, never before, so a restart
+  replaying the readings history counts its room till then, however long it's been probed since. The
+  router judges the hold from the probe's failure, which says why as a `quota.ReadRefusal`, read
+  through an interface the router declares, never from its error's text, so no wording of an error
+  lifts a hold or makes one; it keeps why as a value, and the status document gives it as the
+  account's `refused_read`, `subscription_ended` or `token_refused`, never reworded, which status
+  reads once, as the account's `RefusedRead`: no view reads the error. A state file from before the
+  value keeps the start without why: why is read off its error's text, by the provider's
+  `RefusedReadIn`, as the router that wrote it judged the hold. One from before the hold keeps no
+  start, and holds nothing, as its router held nothing, till the account's next read judges it. A
+  router from before reads the file all the same, passing over `refused_read`, and judges the
+  error's text, as it did; and a document from one gives the error alone, which status reads as a
+  read that failed otherwise. A session started while the account is held doesn't start on its
+  token as Claude Code's own while another's will do, as the router's document says it, or with the
+  router down its state file (see Launching). An account removed goes as any other, its history
+  kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -556,7 +570,9 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
   session resumed later gets the same token, so its earlier artifacts stay within reach. While the
   primary's token isn't usable, a routed session gets `--account`'s, else the first account's with a
   usable token. Not routed, `run` gives Claude Code `--account`'s token, else the primary's, else
-  the first account's with a usable token: see Launching.
+  the first account's with a usable token. Each passes over an account the router holds back, as
+  its last read refused or its token another subscription's, or doesn't route yet, while another
+  will do: see Launching.
 - `accounts`, `status` and the dashboard mark the primary.
 
 With pools, each pool has a primary of its own, kept so within the pool (see The primary, a pool
@@ -615,7 +631,22 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
 - **A fenced pool has one or more directories,** each one covering everything beneath it. Two
   pools' directories can't overlap: no directory may be the same as, inside or around another
   pool's. Directories are compared one whole folder name at a time, so `~/Code/acme` doesn't cover
-  `~/Code/acme-api`, and without regard to case, as macOS compares them.
+  `~/Code/acme-api`, as macOS compares them: by Unicode's canonical caseless match (NFD, full case
+  folding, NFD again), so `ß` is `SS` and a name with its accents composed is the same name with
+  them apart, as a name typed and one Finder made can differ, while fullwidth and compatibility
+  forms stay apart, as macOS holds them. Not NFC, which composes only one case of some pairs, nor
+  Go's simple folding alone, which misses `ß` and matches U+0345 where macOS doesn't; each letter
+  is folded on to the least of its cases, as `golang.org/x/text`'s folding swaps Cherokee's cases
+  rather than joining them. The standard library has no Unicode normalisation or full folding, so
+  `golang.org/x/text`, the Go team's own, does both. A directory inside the home is written from
+  `~/` by every verb that writes one, though a shell gives it whole, so a config shared by Macs
+  with different homes fences the same directories on each; a home at the root writes none so,
+  and the router's heal writes them back as the config last wrote them. Directories given as a
+  pool writes them already, a `/` at the end aside, change nothing; given in another form, as
+  from `~/` where the pool writes them whole, they're written, so an old fence can be made to
+  travel, and `pool edit` says they're rewritten alone, as they hold the same; but where the
+  pool writes them across lines, which can't be changed in place, the same directories change
+  nothing, and the rest of the edit is made.
 - **At most one pool is unfenced,** having no directories: two would leave a session outside every
   fence with two pools to be in. So any start directory belongs to exactly one fenced pool, else to
   the unfenced pool, else, where every pool is fenced, to none, and a session there doesn't start.
@@ -635,9 +666,10 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
   config by the router as Account identity keeps accounts, on a change to the pools alone too, so
   the verbs name a removed pool. A pool is known as an account is, rather than by a name the user
   types, so a pool can be relabelled and its history holds (the owner's call, 11 November 2026).
-- **The first pool** is made by setup as it adds the first account, on a new install, and by the
-  move to pools on an install from before them (see What's recorded). It's labelled `Default`, and
-  no screen names a pool until there's a second.
+- **The first pool** is made by the move to pools, as the router first starts: on a new install,
+  once setup has added the accounts, as on an install from before pools (see What's recorded).
+  Until it's written, `pool add` is refused, saying to start the router. It's labelled `Default`,
+  and no screen names a pool until there's a second.
 
 ### The primary, a pool each
 
@@ -803,10 +835,13 @@ within, where it's started within one, and the session keeps that pool for its w
 
 ### Launching in a pool
 
-- **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, it starts on
-  the token of the pool's first account with a usable token. If no account in the pool has one, the
-  launch refuses, saying so: `switchboard: pool Acme has no account with a usable token — not
-  starting claude`, as Claude Code's own login would go out on whatever account it's signed into;
+- **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, or the router
+  holds the primary back or doesn't route it yet, as one the config made the primary since the
+  router started, it starts on `--account`'s token, where it's pinned, else the token of the pool's
+  first account with a usable token that the router would send on (see Launching). If no account
+  in the pool has a usable token, the launch refuses, saying so:
+  `switchboard: pool Acme has no account with a usable token — not starting claude`, as Claude
+  Code's own login would go out on whatever account it's signed into;
   but a config of one pool, unfenced, starts unaided, as before pools, as no session there can
   leave its pool. A pool with no accounts refuses: `switchboard: pool Acme has no accounts — not
   starting claude`. Every launch names its pool's id to the router in a header,
@@ -852,7 +887,8 @@ within, where it's started within one, and the session keeps that pool for its w
   through it goes nowhere outside its pool, where going direct would go past the fences. It routes
   the session once it takes its pools up, as while `run` waits for it.
 - **Direct,** as `when_router_down` or `SWITCHBOARD_WHEN_ROUTER_DOWN` say, goes out on `--account`'s
-  token, else the pool's primary's, else the token of the pool's first account with a usable token.
+  token, else the pool's primary's, else the token of the pool's first account with a usable token,
+  passing over one the router's state file keeps held back (see Launching).
   It never uses an account outside the pool. Where the router's state directory can't be located,
   the config read, a config with pools goes as with the router down, direct on the pool's tokens
   or stopped, and refuses where none is usable, rather than start unaided, but for a config of one
@@ -1120,10 +1156,14 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals the same before and after, and the
     dashboard and the verbs reading it whole.
-- **Export and import:** an export carries the pools in the accounts record, and `export.json` is
-  version 3, so a switchboard from before pools refuses a folder whose lines name them. Taking a
-  folder in, its pools join this Mac's record as its accounts do: matched by id, else added as the
-  other Mac keeps them, their labels and removals with them. A folder from before pools, of version
+- **Export and import:** an export carries the pools in the accounts record, and the config that
+  says which accounts each holds, and `export.json` is version 3, so a switchboard from before
+  pools refuses a folder whose lines name them. An import onto a Mac with no config lays that
+  config down, so the pools keep their ids. Taking a folder in beside a config of this Mac's own,
+  its pools join this Mac's record as its accounts do: matched by id where this Mac configures
+  the pool or has had it; else taken in as the pool here holding their accounts, the folder's
+  lines given its id; else added as the other Mac keeps them, their labels and removals with
+  them (see Import, in Export and import). A folder from before pools, of version
   2 or 1, has its lines, the events that name their pool and its summaries given this Mac's first
   pool as `import` takes them in. So each Mac gives the days from before pools its own first pool, and a request line or
   an event alike but for its pool is one as an import merges a day, the line held standing: a
@@ -1134,11 +1174,19 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
 pool recorded at the time: the requests and the Log, sessions, Projects, what work was worth, and
-Accounts' totals. So an account moved out keeps its work in the pool it left, and is named there by
-its label, as a removed account is shown, with where it is now in place of when it was removed: in
-text.faint on the screens that draw a removed account so, and in the verbs' text as `work (now in
-Acme)` (`status.MovedOf`, read through the names of every view and verb). `history`'s totals give
-it a column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
+Accounts' totals. An account's window facts in a day's summary, its limits and minutes at its cap,
+show:
+
+- in the pool it's in now, on every day, as they're the account's;
+- in a pool it left, on the days it worked there, as the past stands;
+- and not on the days it did no work in a pool it left, as a day's summary keeps no pool for an
+  account that sent nothing (recording one is in the Backlog).
+
+So an account moved out keeps its work in the pool it left, and is named there by its label, as a
+removed account is shown, with where it is now in place of when it was removed: in text.faint on
+the screens that draw a removed account so, and in the verbs' text as `work (now in Acme)`
+(`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a
+column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
 Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 
 ### Reading a pool
@@ -1250,19 +1298,29 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   --dirs` on directories the config writes across lines is refused, to be made by hand, as a
   label over lines is. `pool add` and `pool edit` say, as they fence a pool, that the sessions
   running in its directories keep the pool they started in till they're resumed (see What pools
-  can't hold). An account moved to another pool is its new pool's primary only with
-  `--primary`: without it, the pool keeps its primary, `accounts edit` marking it where the config
-  marks none, so the account moved doesn't take it by coming first in the config's order, and
-  saying so. The pool it leaves takes its next account as its primary where it was the primary,
-  and `accounts edit` says which, that the sessions running on the moved account's token, where it
-  has a usable one, are refused now it has left, and which account's token they start on resumed,
-  as a launch in that pool would choose it; or, where it was the pool's last account, that the
-  pool has no accounts now. `accounts remove` says the same of the removed account's pool: its
-  primary now, by the pool, or that it has no accounts.
+  can't hold); they warn of a directory that isn't one on this Mac, making the pool all the same,
+  as it may be made later. `pool edit` says, as it fences the one unfenced pool, that `claude`
+  won't start outside every fence now, but within a session or in a worktree of a repository
+  inside one; `pool add` and `pool edit`, as they make a pool unfenced, that the sessions started
+  outside every fence go to it now; and each, where the pool the verbs act on without `--pool`
+  changes, as `pool add` beside one pool alone, fenced, changes it, which it is now, or that they
+  need `--pool`, `accounts add` among them. An account
+  moved to another pool is its new pool's primary only with `--primary`: without it, the pool
+  keeps its primary, `accounts edit` marking it where the config marks none, so the account moved
+  doesn't take it by coming first in the config's order, and saying so. The pool it leaves takes
+  its next account as its primary where it was the primary, and `accounts edit` says which, that
+  the sessions running on the moved account's token, where it has a usable one, are refused now it
+  has left, and which account's token they start on resumed, as a launch in that pool would choose
+  it by the config and the tokens, or another's where the router holds that one back then, or
+  doesn't route it yet, unless every account there is so, as the router isn't asked; or, where it
+  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same
+  of the removed account's pool: its primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
-  beside each account's day's `pool` and in its `pools`; and `pool` lists every pool so. The
+  beside each account's day's `pool` and in its `pools`; `history` and `sessions` name the pool
+  they read at their top, `sessions` saying too where it read its list, its `source` `router`
+  where the router listed its sessions, else `ledger`; and `pool` lists every pool so. The
   status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the room, and
   as it gives its accounts' labels in its `accounts`, not on each event, its events name their pool
   by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps
@@ -1510,7 +1568,25 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
   start nothing; a config changed meanwhile is asked for at the next read (see The dashboard in a
   pool).
 - **A router draining across the upgrade** can file a few lines naming no pool after the move,
-  read as the first pool's work (see What's recorded).
+  read as the first pool's work (see What's recorded). A router on the old ids still draining
+  as one on the new ids moves the history onto them can do three things more:
+  - lose a line it appends as the move renames that day's file into place, where it's from
+    before a day's plain file was held across processes (see Account identity), as it takes no
+    hold;
+  - file a line under an old id once the move has renamed that day, so its request is counted
+    under the old id, apart from its account;
+  - make a round as the move renames, where it's from before the rounds were held (see Account
+    identity) and its Mac joins a config another Mac moved, so the move begins as the new
+    router starts: the round can count a day's rise and limits twice, as the hold is there to
+    stop.
+
+  The usual upgrade can't do any of them: the router restarts in place, `exec`ing the new build
+  in the same process (see The router looking after itself), so no two routers ever run. Nor
+  can launchd's restarts, as it starts the next only once the last has gone. Each needs one of
+  the two routers run by hand, the one still draining among them. The first then needs a
+  request ending in the milliseconds of the rename, and the second one ending after it. The
+  third needs a round, which comes hourly and with a day's first line, falling within the
+  drain, so it's the rarest.
 - **A pool's id re-cased by a hand edit** lists the pool twice in the day's summary, once each
   spelling, and so in `history`'s JSON, each priced; every read of the pool takes both, as the
   config, the readers and a pool's read compare ids ignoring case.
@@ -1909,7 +1985,8 @@ formats below; the screens as signed off in Paper (see The screens, below).
   `id` with nothing beside it, and `# do not edit: links the pool to its history` beside each
   pool's, so neither reads as a setting (the owner's call, 16 November 2026). A comment of the
   user's beside one stays, and a config switchboard reads but doesn't change is never written to
-  add them.
+  add them. A config `import` lays down, which an export's copy holds without comments, has them
+  written as it's laid down (`config.LayDown`).
 - **The label:** what every screen shows, free text as today, given as the account is added and
   changed whenever with `accounts edit --label` or setup's edit card, changing nothing but what
   shows. A label never names an account to a command or in a record. Every account has one, and
@@ -1935,7 +2012,8 @@ formats below; the screens as signed off in Paper (see The screens, below).
   made, as `was`, read to import a folder exported before the move (below), and to put back an old
   id a config or a pin still names. Kept for good, as the days' summaries are, a few hundred bytes
   an account, and written whole, 0600, as `state.json` is, under a lock of its own,
-  `accounts.lock`; the config's lock, where a change holds both, is taken first. One that doesn't
+  `accounts.lock`; the config has no lock of its own, and a change of it that goes with the
+  record's, as `accounts add` and `remove` make, is written under this one. One that doesn't
   read is left as it is, never written over: what changes it fails, naming it, and the history's
   readers name a removed account by its id meanwhile. `export` copies it and `import` reads it.
 - **Adding:** `accounts add <label>` takes the label, and setup's add card the label and the plan,
@@ -1958,7 +2036,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
 - **A token replaced,** with `accounts token` or setup's `t`, must be for the account's
   organization: another's is refused, saying it's another subscription's and to add it as an
   account of its own. Where the account's organization isn't known yet, the token's is taken,
-  unless the record has another account of it, which the refusal names. Where the API names none,
+  unless the record has another account of it, which the refusal names: where that account is
+  configured here, the token is its, given the wrong account, as a token pasted on the wrong row
+  is, so the refusal says so, `accounts token` saying to give it that account, and setup saying,
+  as of a token another account's subscription already, that account has it, rather than to add
+  it as an account of its own, which would be one subscription twice. Where the API names none,
   or the record hasn't the account, there's nothing to hold it to, and nothing is recorded.
 - **The router:** each probe's organization is held to the account's. Where they differ, as where a
   token file is replaced by hand, the account takes no requests, its rows and `status` saying its
@@ -2003,16 +2085,16 @@ formats below; the screens as signed off in Paper (see The screens, below).
     organization, or whose organization another account configured or decided has, as two
     accounts of one subscription have, takes a random id, its organization unknown. Each gets a
     label, its old id, where it had none.
-  - **The waits:** an answer counts only where it's the API's own, carrying Anthropic's
-    `Request-Id` for it. A request the API didn't answer, one a proxy between answered in its
-    place, and one answered 408, 425, 429 or a 5xx are no answer: the move waits and asks again
-    from the start, changing nothing meanwhile, 30 seconds the first time, then twice as long each
-    time, 5 minutes at the most. An answer of the API's own that names no organization, as a
-    refusal, counts only once such answers have lasted 10 minutes, each heard within 10 minutes of
-    the one before, so a passing incident or a captive portal never decides an id for good, nor
-    gives two Macs sharing a config different ones. A token file that can't be read, as a writer
-    that empties it first leaves it for a moment, is looked at again 3 seconds later, three looks
-    at most.
+  - **The waits:** an answer counts only where it's the API's own, carrying Anthropic's id for it,
+    in its `Request-Id` header or, of an error, its body's `request_id`. A request the API didn't
+    answer, one a proxy between answered in its place, and one answered 408, 425, 429 or a 5xx are
+    no answer: the move waits and asks again from the start, changing nothing meanwhile, 30 seconds
+    the first time, then twice as long each time, 5 minutes at the most. An answer of the API's own
+    that names no organization, as a refusal, counts only once such answers have lasted 10 minutes,
+    each heard within 10 minutes of the one before, so a passing incident or a captive portal never
+    decides an id for good, nor gives two Macs sharing a config different ones. A token file that
+    can't be read, as a writer that empties it first leaves it for a moment, is looked at again 3
+    seconds later, three looks at most.
   - **The strays,** token files of accounts neither configured nor known to the record, are asked
     about only where their answers may change what's decided, and only then does the move wait on
     one unanswered:
@@ -2054,11 +2136,38 @@ formats below; the screens as signed off in Paper (see The screens, below).
     history, the router's events, the days' summaries and `state.json`, is written anew under the
     new ids and swapped in, a day's files at a time, holding off their writers as they hold one
     another off, so a stop part way loses nothing, and the move runs again from where it stopped:
-    a new id is never an old one, so a file moved reads the same moved again. A day's compressed
-    file that's damaged is read up to its damage, its whole lines kept in its place, and the file
-    itself set aside beside it as `<name>.damaged`, then `.damaged-2` and on, till its day's past
-    keeping. The files the router builds from these, the days' digests, parts, heads and rows, are
-    built again.
+    a new id is never an old one, so a file moved reads the same moved again. Another process's
+    writer is held off too: a day's plain file is held (`flock`), shared as it's appended to, and
+    exclusive from the check before its rename till the file written anew is in its place, and
+    as a compress reads it then removes it, so a router draining as another starts never appends
+    to a file replaced or removed. A router from before the hold doesn't take it (see What pools
+    can't hold). A day's compressed file that's damaged is read up to its damage, its whole lines
+    kept in its place, and the file itself set aside beside it as `<name>.damaged`, then
+    `.damaged-2` and on, till its day's past keeping. The files the router builds from these,
+    the days' digests, parts, heads and rows, are built again.
+  - **The rounds held:** for as long as the move is owed, from the router's start until the
+    move is marked done, the request ledger's rounds summarise nothing and prune nothing, and
+    the readings history prunes nothing (`moving.holds`). That's so whatever ids the router is
+    on, and whatever `Settle` finds: a router on the old ids, waiting to restart, holds too. A
+    prune is where a day's files are compressed, so a day that ends while the rounds are held
+    stays plain files till the first round after the move, and nothing is lost. The move
+    renames the history day by day, each day's lines before its summary, by the ids the
+    accounts record has moved: the configured ones, those only the history names, and those of
+    a config another Mac moved, which this Mac's record learns only as the move decides. A
+    round in between would summarise a day named by both, from readings under one id and lines
+    or a summary under the other: it would count the day's work under both ids, or its rise,
+    minutes and limits without what the week before carried, and the summary renamed after
+    would keep it so. Every reader waits while the move is owed (`history`, `requests`, the
+    sessions, the events, export, import and the dashboard), so a summary made then has no
+    reader. Nothing but the rounds writes a summary, beside the move and an import, and nothing
+    but a prune takes readings, so holding both loses nothing: a move held up, as by a step
+    that keeps failing, costs only the disk the days past keeping hold meanwhile. A fresh
+    install's move has nothing to rename. Where the record knows every account configured, as
+    setup leaves it, the move is done moments after the router starts; a config written by hand
+    waits on the API for its accounts' organizations first. Once the move's done, every line,
+    reading and summary names the new ids, and the next round, within the hour, summarises,
+    compresses and prunes as ever. Days under ids an account had in two cases still merge as
+    the summary is renamed, their figures added up, as each read readings of its own.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals by account the same before and after, and
     the dashboard and the verbs reading it whole.
@@ -2068,6 +2177,20 @@ formats below; the screens as signed off in Paper (see The screens, below).
   it has no token files for, its token files and history under the old, and joins them by
   organization, as the strays above say, so every Mac keys a subscription alike. A Mac still on an
   earlier build reads ids it has no token files for, so the Macs sharing a config upgrade together.
+
+  A Mac that joins so lets go of what its router kept under the old ids. Its router starts on the
+  config's new ids before the move has decided which old id each one was, so `Settle` has nothing
+  to rename, and the router drops what names an id it doesn't configure. The history stays whole,
+  but once per such Mac it costs:
+  - the pool's pin, gone with its `unpinned` event, and the sessions' own pins;
+  - each running session's account, chosen afresh at its next request;
+  - the windows last read, shown again once the accounts are probed;
+  - the old ids' kept tokens, counted as the primary's for a week, another account's among them;
+  - the recent rates, which start empty: the newest readings they're taken from are renamed only
+    by the history step, and the router doesn't read them again.
+
+  Keeping that state while the move is owed, then restarting once it's decided, would carry it
+  over: see [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md).
 - **Import across the move:** an export carries the accounts record, each account the exporting
   Mac configures marked `configured` and labelled as its config labels it. `export.json` is
   version 2, so a switchboard from before, which reads version 1, refuses a folder whose days name
@@ -2293,7 +2416,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
   is the new primary, that the pinned sessions keep their pinned account's token. The pinned
   sessions are said only where an account other than the first with a usable token has one, as
   otherwise none can be pinned elsewhere; and nothing is said where no account has a usable
-  token. Sessions started directly, while the router was down, are untouched by the move. It
+  token. As the router's word on each account as a session started can't be had, it says too that
+  where the router held back the account a session was to start on, or didn't route that account
+  yet, the session started on another account's token, unless every account was so (see
+  Launching). Sessions
+  started directly, while the router was down, are untouched by the move. It
   warns on stderr when the new primary has no usable token. A label the config writes over
   several lines, as a multi-line string, can't be edited as text: a label edit of that account
   is refused, to be made by hand, writing nothing, while a plan, reserve or primary edit is
@@ -2426,7 +2553,9 @@ show.
      approving it in the browser signed in to Side.`; `Personal has no plan set, so its usage
      can't be valued. Press e to set one.`; a token's year within 30 days, with `t`. With two
      accounts or more, and none the primary, a note says one must be, and `p` marks it: `enter`
-     waits for one.
+     waits for one. So on a config `import` laid down (see Export and import), every account
+     there, its label, plan, pool and primary the config's, has the one note, its token's, and
+     `t` on each is all setup asks.
    - **A first run,** with no account: `No accounts yet. Add each Claude subscription you want
      switchboard to route across.`, and the add card open at once (frame 1). There's nothing to set
      up without an account, so `enter` waits for one. Once there's one, the line is `Add each Claude
@@ -3097,12 +3226,12 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts counts, each account's plan and its worth against it, each week's peaks, the capacity verdict on the accounts (see Accounts, The capacity verdict), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"version": 7, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
+| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts counts, each account's plan and its worth against it, each week's peaks, the capacity verdict on the accounts (see Accounts, The capacity verdict), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"day": "2026-10-05", "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, less what it keeps to know when to summarise the day again, which says how it was made, not what the day did: its `version`, `lines` and `bytes`, and each account's `read_before`; every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
-| `export <dir>` | Copy the history, the request ledger's lines and summaries, the readings history and the router's events, into a folder of this Mac's own in `<dir>`, needing no router: see Export and import |
-| `import <dir>` | Bring in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>` is, adding to days the Mac holds already, through the router: see Export and import |
+| `export <dir>` | Copy the history, the request ledger's lines and summaries, the readings history and the router's events, with a copy of the config holding no token, into a folder of this Mac's own in `<dir>`, needing no router: see Export and import |
+| `import <dir>` | Bring in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>` is, adding to days the Mac holds already, through the router; on a Mac with no config and no router, as a new one, laying down the config a folder holds instead: see Export and import |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
 | `pin <id>... [--move] [--force]`, `pin auto [--force] [--pool <id>]` | Set the pin of the accounts' pool to the accounts given, replacing any before, or clear a pool's pin: see Pinning, and Pinning in a pool. It needs the router |
 | `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
@@ -3184,7 +3313,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `move_cost`.
   - **Accounts' Compare, Detail and Tokens, and Trends' YEAR, BY MONTH and MODELS BY DAY:**
     `history`, its blocks: days, year, months, weeks, tokens, totals, plans and capacity, with
-    `status` for each account's windows and state now, and its extra usage.
+    `status` for each account's windows and state now, and its extra usage; but THIS WEEK's plans
+    on its first day, which `history` prices as today's (see `history` below).
   - **LATELY, the Log's Events, and Detail's LATELY:** `events`.
   - **The Log's Requests:** `requests`, and its day rule, `history`'s days.
   - **A session's page:** `sessions <id>`, and its requests, `requests --session <id>`.
@@ -3211,8 +3341,11 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `"schema": 1` put first, fields a later release added included.
   - **`history`:** one object, as Commands gives it, holding every block Accounts' and
     Trends' views build, over the days asked for, so an agent asks for a period by its first day
-    (settled in the plan), as each view builds it: `prices_as_of`, and `days`, each day's summary as
-    the ledger holds it, priced, with its worth by family, as MODELS BY DAY draws it; then:
+    (settled in the plan), as each view builds it. The one period it can't be asked for so is THIS
+    WEEK on its first day: today begins then too, and the shorter wins, so a day asked for is
+    priced a day, never a week, and THIS WEEK's plans that day are Accounts' alone. It holds
+    `prices_as_of`, and `days`, each day's summary as the ledger holds it, priced, with its worth
+    by family, as MODELS BY DAY draws it; then:
     - `year` and `months`: YEAR's grid, each day's requests and the level its shade is drawn at,
       with the key's cuts, and BY MONTH's rows, each month's requests, worth, plans' cost, limits
       and worth by family (see Trends).
@@ -5477,11 +5610,14 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the widest each says of all
   the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
   as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
-  each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
-  showing only with the session under it, and where no line fits, SESSIONS shows nothing, its
-  heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
-  ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
-  and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
+  each frame. Past its rows, its last says how many sessions are out of view, as the List's row
+  over the key line does, but only where that leaves its page four rows, a rule over each of two
+  sessions, so it never costs a session at SESSIONS' least, however far it's scrolled. Where
+  rows run shorter than its least, a page of one line shows no rule, a rule showing only with the
+  session under it, and where no line fits, SESSIONS shows nothing, its heading never alone. BY
+  MODEL draws a version as Compare's BY MODEL does, ON ACCOUNTS its names as Detail's column of
+  names, marks and all. The chosen row is lit where `↑` and `↓` act, in the list or SESSIONS, the
+  other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days before today, read off the update loop once
   Projects or Sessions' List first shows, one read serving both, from the period's first day, and
   again only where the dial reaches further back; and today's, folded off the loop at every read of
@@ -6825,7 +6961,8 @@ so `v` never moves BY MONTH (settled 21 October 2026).
   family's colour, or in `text.muted` for a family with no colour of its own, as one the version
   table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two cells
   after a part month's bar, `so far`, or `from the 16th` for the month the ledger began recording
-  in, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families'
+  in, and for the first of the 12 months, from the day they begin, so a 13th row never reads as a
+  whole month, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families'
   dots, each with its name in `text.subtle`, `● Opus   ● Sonnet   ● Fable   ● Haiku`: the bars' key,
   headed by its column's `by model`, flowed onto as many rows as it takes from that column, a family
   never cut.
@@ -9845,7 +9982,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   tenth more on each token's price, on Claude 4.6 and later, where a request's shape asks for
   `inference_geo` `us`. Each price carries the day it took effect: each model's launch day, and the
   day a price of it changed, as Sonnet 5.5's cache reads did on 7 October 2026, checked against the
-  page again on 11 October 2026; so a request can be priced as at its own day or at
+  page again on 11 October and 17 November 2026; so a request can be priced as at its own day or at
   today's prices, and the views price at today's unless their design says otherwise. Worth is
   worked out as it's read and never stored, so a release with new prices prices the whole ledger
   afresh. A model the table doesn't know has no worth, and is shown as unpriced, never as free, as
@@ -9859,7 +9996,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     sum goes through the one helper that checks it, and a guard holds that none adds otherwise.
     Token counts are summed as they are, as no count nears what a 64-bit integer holds.
   - The table holds the models on the page, but those the API retired before 7 October 2026, the
-    day the ledger began recording, as no answer of theirs is in it to price.
+    day the ledger began recording, as no answer of theirs is in it to price, and the Mythos
+    models, open only to verified organizations.
   - A count the usage holds that the table can't price is left out of the worth, which names it
     unpriced, rather than guessed at: a server tool's it doesn't know, writes to the cache the usage
     doesn't break down by how long they last, and the turns of another model, as an advisor's,
@@ -9965,6 +10103,14 @@ more: what keeps the folder safe, or carries it to another Mac, is the folder's 
 Switchboard never talks to a cloud. Export and import are built, and the export on a schedule
 (see On a schedule).
 
+Their usual use is a backup, or a new Mac taking over from the old one, not another Mac's work
+beside this one's (the owner's call, 17 November 2026). So the export carries the config, and an
+import onto a Mac with none lays it down, its pools under the ids the history names, setup then
+asking for nothing but each account's token: a restore or a takeover matches by construction, as
+an account's id comes from its organization and a pool's from the config. Taking in a Mac's
+history beside this one's own comes second, its pools read as the pools here holding their
+accounts (see Import).
+
 Each Mac's history is its own: no history is read across several Macs at once (the owner's call,
 10 November 2026). A Mac records the requests it routes; usage and limits are Anthropic's, read off
 every answer and probe, so another Mac's use on the same accounts shows in the bars and routing
@@ -9973,14 +10119,15 @@ Mac's. Reading each other's exports would mend that only while two Macs run at o
 sync lag, duplicates and sessions claimed twice.
 
 - **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
-  readings history and the router's events. Not the files the router builds from them, the days'
+  readings history and the router's events; and a copy of the config, which names the accounts
+  and pools the history does, and holds no token, tokens living in files of their own (see
+  Export). Not the files the router builds from them, the days'
   digests, parts, heads and rows, which a round builds again (see The request ledger); nor
   `state.json`, of this Mac's sessions and of readings a new Mac's first probes take afresh; nor
-  `prefs.json`, the config, the tokens or the logs, which stay as they are: the config is the
-  user's, written by hand and theirs to keep; `prefs.json` is a settings file, which a tool that
-  restores settings carries like any app's; and tokens are never backed up, as `setup` makes them on
-  each Mac (see Setup). A day comes to about 2.5–3 MB compressed, about 1 GB a year (measured on
-  3 November 2026).
+  `prefs.json`, the tokens or the logs, which stay as they are: `prefs.json` is a settings file,
+  which a tool that restores settings carries like any app's; and tokens are never backed up, as
+  `setup` makes them on each Mac (see Setup). A day comes to about 2.5–3 MB compressed, about 1 GB
+  a year (measured on 3 November 2026).
 - **A folder a Mac:** `export <dir>` writes into a folder of the Mac's own in `<dir>`,
   `mac-<install id>`, so Macs whose config is one file, as a dotfiles repository keeps it, and so
   names one `<dir>`, never write each other's files. The install's id is `<state dir>/install-id`,
@@ -9989,10 +10136,14 @@ sync lag, duplicates and sessions claimed twice.
   never a machine name. A Mac whose state directory is restored from another's, as Migration
   Assistant restores one, carries the other's id and exports to its folder: removing the file
   gives it a new id, and a folder of its own, at its next export.
-- **What a Mac's folder holds:** `export.json`, `{"version": 2, "install": "<id>", "exported_at":
-  "<RFC 3339 time, UTC>", "ids": true, "accounts": true}`, rewritten at each export, `ids` and
-  `accounts` as Account identity says; `accounts.json`, the accounts record, written first, so the
-  days a sync carries are never ahead of the record that names their accounts; `ledger/`,
+- **What a Mac's folder holds:** `export.json`, `{"version": 3, "install": "<id>", "exported_at":
+  "<RFC 3339 time, UTC>", "ids": true, "accounts": true, "config": true}`, rewritten at each
+  export, `version` 3 since pools (see Pools), `ids` and `accounts` as Account identity says, and
+  `config` where the folder holds a copy of the config, this export's or the last one that loaded, left out where it holds none, a reader
+  from before it passing it over, as the version stays; `accounts.json`, the
+  accounts record, written first, so the
+  days a sync carries are never ahead of the record that names their accounts; `config.toml`, the
+  copy of the config, written next, as the days' pools are the config's; `ledger/`,
   `requests-<local date>.jsonl.gz`, `events-<local date>.jsonl.gz` and `day-<local date>.json`;
   and `history/`, `readings-<local date>.jsonl.gz`: the state directory's own names, each day's
   lines in one compressed file. `<dir>` and the folders are made as they're needed, 0700, the
@@ -10019,6 +10170,33 @@ sync lag, duplicates and sessions claimed twice.
 - **A day's summary** is copied as it is, with its modification time, its stamp (see The request
   ledger), and passed over as a compressed day is, so a summary copied in stands against the day's
   file copied beside it.
+- **The config,** the file at the path the command reads, or the router reads, as it stands at
+  each export, is copied as `config.toml`, with its modification time, passed over as a
+  compressed day is, by its size and time, never read (`config.Copy`): only one that loads, as
+  the config is read, so a copy laid down on another Mac loads there; and never a secret. A
+  config holds none where it's written as switchboard writes it, tokens living in files of their
+  own, but a comment can hold anything, and the upstream's address can carry a gateway's
+  credentials or key. So the copy is the config's values alone, decoded and written anew, keys in
+  order, no comment or layout of the file's reaching it, as a comment's text can't be judged for
+  every way a secret might be written in it; and it's made only where it loads as the config
+  itself does, value for value, as an encoder's way with a value might otherwise change what it
+  means. Each value is judged decoded, never by its text, as an escape or a line split inside a
+  string can hide a token from a search of the text: an upstream that may carry a secret, as the
+  launcher judges a value it passes on (`redact.HoldsSecret`: an `@` or a `?`, or anything shaped
+  like a token), or a `#`, a fragment, or any value or key shaped like a token, and no copy is
+  made, as the config without it isn't the config. A key written into the upstream's host or
+  path reads as any other name, so the docs say to keep keys out of the address. A config that
+  loads but isn't copied, so, has the folder's copy removed and `config` left out of
+  `export.json`, as an older config's copy would read as current. One that isn't there, can't be
+  read or doesn't load leaves the folder's copy as it is, and `config` with it: the last config
+  that loaded is what a restore wants, and a router running on the config it read goes on
+  exporting every hour once the file's gone, as on a Mac that lost its config alone, whose own
+  backup a restore then lays down (the owner's call, 17 November 2026). Each is warned of, the
+  router's once until an export no longer meets it, saying whether the folder keeps a copy or
+  holds none; but of a config that isn't there where the folder holds no copy either, none to
+  copy and none kept, nothing is said. Every error of the config's that names the upstream hides
+  its credentials, query and fragment as `[redacted]`, as it reaches `router.log` and the
+  export's warning.
 - **Every file** is written beside where it goes, as `.<its name>.<digits>`, and renamed into
   place, so a sync never carries one half written. An export cut short, as by a router stopping,
   leaves the file it was writing so named: each export, the router's or the command's, first
@@ -10038,9 +10216,11 @@ sync lag, duplicates and sessions claimed twice.
   stops it at once, and `export.json` is written only once every file has been.
 
 It reads the files as `history` does, so it needs no router and runs beside one, and prints
-`exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full, then each day it
-passed over, as `switchboard: couldn't export the request ledger of 2026-10-30: …`, and fails
-where there was one. A `<dir>` that can't be made or written, or that's a file, fails, saying so.
+`exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full, then why it didn't
+copy the config, where it didn't, as `switchboard: couldn't copy the config, so the folder holds
+none: …`, or `… so the folder keeps the copy an export made before: …`, which fails no export, then each day it passed over, as `switchboard:
+couldn't export the request ledger of 2026-10-30: …`, and fails where there was one. A `<dir>`
+that can't be made or written, or that's a file, fails, saying so.
 
 ### Import
 
@@ -10050,9 +10230,77 @@ be brought back to the Mac it came from. A folder without one is passed over, sa
 holds what an export writes, as an export cut short or a sync not done leaves one, and an
 `export.json` of a version newer than this switchboard's is refused, saying a newer switchboard
 made it. A folder whose accounts can't be told, as Account identity says, is passed over, saying
-why, and the import carries on with the rest. A `<dir>` holding no Mac's folder fails, saying so,
-and so does one whose every folder was passed over.
+why, and the import carries on with the rest; so is one whose `export.json` says it holds the
+config where it doesn't, as a sync not done leaves it, `its config hasn't synced yet`, to import
+again once it has, and one whose copy doesn't read, as its pools can't be told without it, of
+whatever kind the folder is (`idmove`'s `classify`, the one place that tells). A copy
+`export.json` doesn't claim, `config` left out, isn't the folder's, as one whose removal a sync
+hasn't carried yet, or one an older switchboard left behind, and is never read: the folder is
+one holding none. A `<dir>` holding
+no Mac's folder fails, saying so, and so does one whose every folder was passed over.
 
+- **Onto a Mac with no config:** where nothing is at the config's path, the one the command
+  reads, `--config` included, and no router answers, as on a new Mac, `import` lays the folder's
+  config down there (`config.LayDown`), never in place of anything, and stops, as the history
+  waits for a router to take it in: `laid down the config of mac-<id> at <path>: 3 accounts in 2
+  pools`, then `next, run switchboard setup to give each account its token and start the router,
+  then switchboard import <dir> again to bring in the history, once the router has started and
+  finished its first upgrade steps, which takes moments`, as the import before the router's
+  first moves are done is refused (see Moving to ids made, once), each command carrying the
+  `--config` given, and each word quoted for the shell where it needs it, as a folder in iCloud
+  Drive's `Mobile Documents` does. The pools keep the ids the history names, so the router
+  started on them, which notes the config's first pool as this Mac's first (see What's
+  recorded), reads every line as this Mac's own; and setup finds each account without its
+  token, the one thing a config doesn't carry, its `t` making it.
+  - **Which Mac's config:** most imports are backups of the same Mac, a takeover the other case
+    (the owner's call). So the config laid down is that of this install's own folder, where
+    `<dir>` holds one, as its `export.json` names this install's id, as on a Mac that lost its
+    config alone, restoring its own backup; else that of the one Mac's folder `<dir>` holds, as
+    on a new Mac taking over from another. Where `<dir>` holds several Macs' folders, none this
+    install's, none is laid down, as which to take can't be told: the import names each and says
+    to import from the folder of the Mac whose config to lay down, as pointing it at one folder
+    does. A `<dir>` holding no export, or that isn't there, says there's nothing to import in it.
+  - **The accounts record comes with it,** from another Mac's folder, under the record's lock,
+    the folder's joined to an empty one as an import joins it (`idmove.SeedFolder`), so each
+    configured account is recorded with its organization, and none of the marks the folder's
+    copy carries, `first`, `configured`, `here` and `written`, which the router sets as it keeps
+    the record in step; only the accounts and pools the config laid down configures, as those
+    the other Mac removed or kept apart are an import's to take in. Setup then refuses a token
+    of another subscription given an account, as on the wrong row, naming the account it's for,
+    rather than recording it as that account's, which would misfile the history the next import
+    brings: where that account is configured here, it's said as the token that account's, given
+    the wrong one, and `accounts token` says to give it that account. The record is written, then
+    the config laid down, and where that fails the record is taken away again: one goes with the
+    other. A restore cut short between the two, its record written and no config laid down, goes
+    ahead when run again, where the record holds nothing but what a restore seeds
+    (`identity.Record.Seeded`) and the state directory no history, no day of the ledger, the
+    events or the readings. This Mac's own folder, its record still here, seeds nothing, the
+    record its own, kept as it is; one whose record is lost too is seeded as another's would be.
+    The router's first start finds every account decided, so its move onto the ids asks for
+    no organization and changes nothing, and its move to pools notes the config's first pool.
+  - **What's refused,** laying nothing down: something at the config's path that isn't a
+    config that loads, as a link to one that's gone, saying what's there (`... is a link to
+    <target>, which isn't there: put it right, or move it aside, then import again`), rather
+    than that the router's down, as for a config that loads; another Mac's config onto a state
+    directory holding a history of this Mac's own, an accounts record with more than a restore
+    seeds, or a day of history, record or none, which another Mac's config would leave in pools it doesn't have,
+    saying to run setup, then import again; any folder in `<dir>` passed over, each said as an
+    import says them, as a config laid down then might be the wrong Mac's; several Macs'
+    folders, as above; and a folder holding no copy, as exports from before the copy, saying
+    first to upgrade that Mac, if it still runs, and export again, as setup's config here would
+    give the pools new ids and its history would stay apart for good, else to run setup, then
+    import again. A copy is read as an export makes it, so one holding a secret, as one edited
+    by hand might, isn't laid down.
+  - **A fence not here,** a folder a pool fences that isn't a directory on this Mac, as one
+    written in full in another home is, is warned of as `pool add` warns of one: `switchboard:
+    /Users/other/Code/acme isn't a directory, so no session starts in it yet: if it's on this Mac
+    by another name, fence the pool "Acme" anew with switchboard pool edit q7mt --dirs`. A
+    folder written from `~/` is the same folder in this home.
+  - **An export folder not here,** an `[export] dir` the router can't export into on this Mac,
+    as it exports with no parents made (`export.Reachable`: neither the folder nor the folder it
+    goes in is there, or it's a link to nothing), is warned of alike: `switchboard:
+    /Users/other/Dropbox/switchboard isn't on this Mac, so the router exports nothing until that
+    folder, or the folder it goes in, is there`.
 - **Through the router:** the router is the history's one writer, so `import` needs it, failing
   without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
   removing any an import cut short left there first, so the router reads nothing outside the state
@@ -10099,12 +10347,63 @@ and so does one whose every folder was passed over.
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
+- **Pools, onto a Mac with a config of its own:** each pool of the folder's Mac is taken in as
+  the pool here holding its accounts (`identity.Join`, the owner's call, 17 November 2026,
+  reversing "the other Mac's first pool is never this one's"): one this Mac configures, or has
+  had, as its record's `here` and `written` say, is matched by its id, as its history is this
+  Mac's own; any other goes by the accounts the folders' copies of their configs put in it, each
+  matched as Account identity matches it, and those this Mac configures counted alone. Where
+  they're all in one pool here, every request line, every event that names its pool and every
+  summary of the folder names that pool, as it's taken in, two pools taken in as one merged in a
+  summary, a staged day none of whose lines or summary names what's renamed left as it was,
+  never written anew, as of this Mac's own folder, and the folder's pool isn't added to the
+  record; so a Mac that ran setup before the
+  import reads the history as its own pools whatever ids its config gave them, each account being
+  in one pool here. Else the pool stays apart, as before, added to the record as the other Mac
+  keeps it and read with `--pool` and its id (see Reading a pool): its accounts are split across
+  pools here (`split`), none is configured here (`none_here`), the other Mac's config puts no
+  account in it (`empty`), this Mac's config has no pools (`no_pools_here`), or the folder holds
+  no copy of the config to go by (`no_config`), as one exported before the copy. One removed
+  there has no accounts to go by, and stays apart unsaid, as it would. Nothing already on the
+  Mac changes, its config and pools included, and the folder isn't touched.
+  - **One pool everywhere:** a pool's id is random, so it's one pool on every Mac, and every
+    copy of a line of a Mac's own pool goes to one pool here, whatever the order of the folders.
+    So each pool is placed alike by every folder, by every account the configs of the import's
+    folders put in it, together (`identity.JoinAs`' `Members`): those of the Mac that configures
+    it, and of any other configuring it too, as Macs sharing a config do, whichever folder comes
+    first, holds no copy of its config, or relays its history, as a Mac that imported it does
+    (`idmove.JoinFolders`, the folders' records joined once into a copy to find the accounts each
+    pool holds, then again into the record). Those accounts split across pools here keep the
+    pool apart from every folder. A pool kept apart is said once, however many folders hold it.
+    A line a Mac relays, that Mac having taken it in as a pool of its own, names that pool, and
+    may land by the folders' order, as it takes three Macs: the docs claim the order for each
+    Mac's own pools alone (the owner's call, accepted).
+  - **Days taken in apart before** stay apart, as a line held stands against one alike but for
+    its pool: a pool the record held as the import began, as an import before kept it apart, as
+    another Mac's, and which is now taken in as a pool here, has its new days there and any old
+    under its id, and the import says so (`imported_before`): `switchboard: the pool "Client"
+    (c1nt) of mac-<id> goes to the pool here holding its accounts now, but the days an import
+    took in before, if any, stay under c1nt: read them with --pool c1nt`, at each import, as
+    nothing heals them. Whether any were is unknown, as an import that failed, or a restore
+    seeding the record, may have put the pool there with none, so the words hold either way,
+    with no bookkeeping of their own. A pool this import adds, from one folder, and places from
+    another, is said of no such thing.
+  - **Work in no pool** in a folder exported since pools, a line, an event of the kinds that
+    name their pool, or a summary's day, is given that Mac's first pool, as its record notes it,
+    as the pool here it's taken in as, or its own id where it's kept apart: there it's read as
+    that pool's, never this Mac's first's. A folder from before pools gives it this Mac's first,
+    as no other was noted then.
 - **Then** the router runs a round at once, so Accounts, Trends and the data verbs have the days
   within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
-  "lines": 1204, "summaries": 27}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
-  repeated adds nothing, telling only of the days past keeping again. The command prints
-  `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days' summaries`,
-  `summaries` every summary copied in, whichever days they're of.
+  "lines": 1204, "summaries": 27, "apart": [{"install": "<id>", "pool": "c1nt", "label": "Client",
+  "why": "split"}]}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
+  repeated adds nothing, telling only of the days past keeping again, and `apart` each pool kept
+  apart, or whose days imported before stay apart, left out where none was, `why` one of the six
+  words above, never reworded. The command
+  prints `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days'
+  summaries`, `summaries` every summary copied in, whichever days they're of, then each pool kept
+  apart, as `switchboard: kept the pool "Client" (c1nt) of mac-<id> apart, as its accounts are in
+  more than one pool here: read it with --pool c1nt`.
 
 ### On a schedule
 
@@ -10260,7 +10559,13 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   ledger's are: lines dropped for the queue's falling behind, once until it catches up; a write that
   fails, once until one succeeds; a file read short; and a file that couldn't be compressed or
   pruned.
-- **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
+- **Redaction:** nothing logs a token or an account's label; accounts appear by id. The
+  upstream's address shows with its credentials, query and fragment, any of which can carry a
+  gateway's key, each `[redacted]` (`redact.URL`), wherever it's shown: the router's `listening`
+  line, an error of the config's, the router's failing to parse it, and a probe's error, which
+  quotes the address its request went to, as Go's HTTP client hides its password alone, and
+  which reaches `router.log`, the status document and `accounts` and setup. A request the
+  router fails to send names no address, as Go's transport quotes none. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
   `[redacted]`. What the standard library's `log` package is given goes through it too, to the
@@ -10811,7 +11116,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/notify` | Posting desktop notifications, through switchboard's own app where a release embeds it (writing it out, registering it, asking macOS once) and through `osascript` otherwise, and the wording and warning threshold the router's and the dashboard's share; the app's Swift source, `Info.plist` and icon in `internal/notify/app` |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
-| `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
+| `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
@@ -10831,7 +11136,8 @@ Claude-specific knowledge lives in `internal/claude`. The router and `status` de
 interfaces they define themselves (`router.Provider`, `router.Prober`, `status.Prober`), which
 `internal/claude` satisfies, and the windows that matter, the one a request starts among them,
 reach them, the scoring and the watch as a `score.Policy`, which the CLI fills in from
-`internal/claude`. `cmd/switchboard` and `internal/cli`, which wire the rest together,
+`internal/claude`. A guard holds the router to its interfaces: none of its files but its tests
+imports `internal/claude`. `cmd/switchboard` and `internal/cli`, which wire the rest together,
 `internal/launch`, which exists to start Claude Code, and `internal/setup`, which links `claude` to
 switchboard ahead of it, use `internal/claude` directly: for the `claude` command, where it's
 installed and its version, and the environment variables Claude Code reads. A few pieces stay
@@ -10866,12 +11172,15 @@ hiding it behind the provider would take a wider interface than it's worth:
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
-  and `misses` (see The router's rounds), the hold curve, `hold` (see Forecasting run-outs), and the
-  hashes of every configured account's tokens, with a usable token or not: see Accounts and tokens;
-  and the token-year notifications told, an account's against the token they were told for: see
-  Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`, the id an
-  export names the Mac's folder by, `import/`, while an import runs, and `import.lock`, which
-  `import` holds while it stages and waits (see Export and import). `state.json` is versioned, the
+  and `misses` (see The router's rounds), and of a read refused why and since when, `refused_read`
+  and `refused_since` (see 401s and 403s), the hold curve, `hold` (see Forecasting run-outs), and
+  the hashes of every configured account's tokens, with a usable token or not: see Accounts and
+  tokens; and the token-year notifications told, an account's against the token they were told
+  for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
+  the id an export names the Mac's folder by, `import/`, while an import runs, and `import.lock`,
+  which `import` holds while it stages and waits (see Export and import). `run`, with the router
+  down, reads the reads refused from `state.json`, writing nothing (see Launching). `state.json` is
+  versioned, the
   version changing only when a router couldn't read what another wrote: an older file, without
   readings, loads as having none, one whose readings lack `restarted_at` as windows that run a whole
   length before their resets, which a router from before, ignoring the field, takes them all for,
@@ -11248,7 +11557,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, project, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `project` the project that directory is in, as its line will give it, left out alike, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
-| `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
+| `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries", "apart"}`, `apart` the pools of the folders' Macs kept apart, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; with `"spaced": true`, leave an account held back by a read refused to its backoff, as a choice does, rather than probe it however lately it was; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets, spaced |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself), and while an export of the history runs, naming its folder, to be tried again once it ends, the folder given as `exporting` beside `error` too, for a caller to tell a router up and answering (see On a schedule). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 
@@ -11302,6 +11611,7 @@ Each account:
 | `extra_usage` | Its extra usage, the API's overage, as the last answer or probe to give its `anthropic-ratelimit-unified-overage-*` headers left it: `{status, utilization, resets_at}`, from its `overage-status`, `overage-utilization` and `overage-reset` headers, as they've been seen: `status` as given (`allowed`, `allowed_warning` or `rejected`), `utilization` a fraction, and `resets_at` when its period resets. It's on, so the account can be served past its limit and billed for it, while its `status` isn't `rejected` (see What doesn't go through the router). The headers are read with the windows', and never count as a window. Left out where none has given them |
 | `failures` | Windows a probe expected but couldn't read: `{label, window, error}`, `label` naming what should have read it, such as `Fable`. Left out when none |
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
+| `refused_read` | Why the API refused its last read, which holds it back from every request till a read comes back clean (see 401s and 403s): `subscription_ended`, its organization's login refused, as an ended subscription's is, or `token_refused`. These words are never reworded. Left out where the API didn't refuse it, and in a document from a router from before it, whose `error` alone says |
 | `limit` | *router* A limit it reached, while it holds: `{id, windows, until}`, `id` the limit's identity, which it keeps while it holds, reached again, as the router counts its limits from 1 as it starts, and which the limit's event gives as its `limit`; `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
 | `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets, while the account can take a request of some model, as one refused a model or held back in a model's own week still can: the account is under pressure (see Choosing an account). Of an account that can take no request, pressure isn't what passes it over, and `under` is left out. Left out when the rate can't be said, as when the window isn't running, or the account has no 5-hour window |
@@ -11417,6 +11727,7 @@ verbs).
     at its cap`;
   - `moved: work hit its limit`: `work reached its limit`; `from work, at its limit`;
   - `moved: work was refused`: `work refused the request`; `from work, refused`;
+  - `moved: work had its read refused`: as it is; `from work, read refused`;
   - `moved: work has no room`: `work had no room`; `from work, with no room`;
   - `moved by pin`: `pinned to side`; `from work, pinned to side`, the pin's account the one moved
     to;
@@ -11476,7 +11787,8 @@ verbs).
   `ANTHROPIC_BASE_URL` pointing at the proxy, where the router says it listens, not where the config
   says, which may have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever
   account the conversation goes to, or, while the primary's isn't usable, `--account`'s, else the
-  first account's with a usable token, and with `--account`, the pin header added to any
+  first account's with a usable token, each passing over an account the router holds back (see
+  Passing over an account held back, below), and with `--account`, the pin header added to any
   `ANTHROPIC_CUSTOM_HEADERS` already set. The directory header is added too, naming the directory
   `run` started in, which Claude Code starts in as well, the home directory at its start shown as
   `~`, as `~/Code/api`, unless `run` can't read it, as when it's been removed since, or the router's
@@ -11513,23 +11825,54 @@ verbs).
   stepping aside, local or `--direct`, so no launch passes it on. Any other value of it stops,
   saying it takes `stop` or `direct`; a router that can be routed through, healthy or not, routes
   whatever it says. Going direct, `run` connects directly, on `--account`'s token, else the
-  primary's, else the first account's with a usable token, without the base URL, the pin, the
+  primary's, else the first account's with a usable token, the last two passing over an account
+  the router's state file keeps held back (below), without the base URL, the pin, the
   directory or the project, and says why in a line on stderr: `switchboard: the router isn't
   running — connecting directly on work · Work`. Either way, and with `--direct`, a pin, a
   directory or a project inherited from the environment, as from a session this one is started
   within, goes: what this launch pins is the only pin, and the directory and project it names the
   only ones. `--direct` removes the token and the base URL, so Claude Code uses its own login.
+- **Passing over an account held back:** Claude Code's own token carries what never reaches the
+  router and what passes through it untouched (see What doesn't go through the router), so an
+  account the router wouldn't send on is none to start on while another will do. Routed, once the
+  router has answered, `run` asks it for its status document of the session's pool, as `status`
+  asks it, a second at most, so a busy router never holds a launch up for longer, going on as
+  if nothing were known once that's up, once a launch (without the config, the document that
+  names a router's accounts serves for both), and passes over an account the document doesn't name, which the router
+  doesn't route yet, as one `accounts add --primary` made the primary since it started, taken up
+  only as it restarts, whose token it couldn't tell for an account's, so every request would pass
+  it by unrouted and unrecorded; and one something bars from every request as the document was
+  built, as status judges it, its one owner (`Account.Barred`): a token another subscription's
+  (`token_foreign`), no usable token, its token refused on a request while that holds, or its
+  `refused_read` set (see 401s and 403s), as what went out on its token would be refused, or go out
+  on another subscription. The log names that cause, never the account's `error`, which a read
+  failed otherwise can have left. With the router down, going direct, `run` reads `state.json`,
+  leaving it as it is, a corrupt one included, by the rule the router loads it by
+  (`router.KeptHolds`), and passes over an account it keeps a read refused of, or a token another
+  subscription's, each of the token the account's file holds now: one replaced since starts
+  afresh, as it does for the router. It takes the next in the order above: the primary,
+  `--account`'s, then each account with a usable token in the config's order. A pin direct is never
+  passed over, as the whole session is to go out on it, the command line's choice. Where every
+  account is passed over, as when every account of the pool is held, or nothing's known, as where
+  the document or the file can't be had, it chooses as before, the first in that order. The log
+  says each account passed over and why, at info: `passing over an account for Claude Code's own
+  token`, and, where it chooses as before, so at warn. A command saying which account's token the
+  sessions start on, as `accounts edit` does, goes by the config and the token files alone, and so
+  adds that where the router held that account back, or didn't route it yet, a session started on
+  another, unless every account was so. (The v1 release review, 17 November 2026.)
 - **Without the config:** where `run` can't read its config, as when an upgrade's rules refuse the
   one the running router took, and the router holds its restart (see The router looking after
   itself), it locates the state directory, as it can without a config, and asks the router as it
   would with one. While the router answers saying where it listens, healthy or not, `run` routes
   through it, as Routed says, on the accounts the router's status document names, in its order, in
   place of the config's, asking for the document once the router has answered, as `status` asks it,
-  for 5 seconds at most. Claude Code's own token is the primary's, as the document names it, read
+  for a second at most, as Routed waits, starting Claude Code without switchboard where it doesn't
+  come in time, as where it can't be had. Claude Code's own token is the primary's, as the document names it, read
   from its token file, `<state dir>/tokens/<id>`, which needs no config, or, while that isn't
   usable, `--account`'s, else the first account's in the document with a usable token, the order
-  Routed uses; `--account` must name an account the document names, with a usable token, as it must
-  a configured one, and adds the pin header. The directory header, the hints, the mark of what `run`
+  Routed uses, passing over an account held back as Routed does; `--account` must name an account
+  the document names, with a usable token, as it must a configured one, and adds the pin header.
+  The directory header, the hints, the mark of what `run`
   set and the log's `starting claude` line are as Routed says, but that the line goes at warn, with
   the config's error as `config_error`; and `run` says in a line on stderr that it can't read the
   config, and why, and is routing through the running router: `switchboard: couldn't read the
@@ -12380,6 +12723,9 @@ What's built but hasn't been seen against the real thing:
   the window, as the two seen did (see Observed).
 - That the API reports usage in the order it takes requests in: a reading off a request sent after
   another was taken in counting, whatever it reads, rests on it.
+- Whether Claude Fable 5.2 reports Fable's week, `7d_oi`: the probe for it still asks Claude
+  Fable 5.1 first (`internal/claude/families.go`), which is served and reports it. Claude Fable
+  5.2 goes at the head of the family once a request on it has been seen to carry that window.
 - `service install`, `service restart` and setup's service step against the real launchd:
   `restart` of a router from before routers restarted when asked relies on launchd's `KeepAlive`
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
@@ -12431,18 +12777,17 @@ was dropped binds a later choice, the design proper says so.
 
 | Idea | Status | File |
 |---|---|---|
-| The Graphs build's loose ends: one owner of the accounts' order, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the order's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
+| The Trends build's loose ends, built as Graphs: one owner of the accounts' order, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the order's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after OAuth and setup: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: to discuss with its owner after milestone 7's release; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
+| A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after v1: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
+| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: after v1; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026, Fable 5.2 on 17 November | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
-| Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
 | Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from Accounts' Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
@@ -12455,6 +12800,14 @@ was dropped binds a later choice, the design proper says so.
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
-| Pausing an account whose subscription is cancelled: kept whole and out of routing until it's resumed | after Account identity and Pools: the owner, 11 November 2026 | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
+| Pausing an account whose subscription is cancelled: kept whole and out of the probes and the forecast until it's resumed, routing's side answered in part by #351's hold | the owner, 11 November 2026; the verbs, the mark and the paused primary's rule remain | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
 | The dashboard's `--pool` for a pool the config no longer has, its recorded work read by its id, as the verbs read it | later: found with Pools' second phase, 13 November 2026 | [dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md) |
-| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, in place of a move that says `has no room` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
+| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
+| A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
+| Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
+| An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
+| Setup's card for a new pool warns of a fence folder that isn't on this Mac, as `pool add` and `pool edit` do | open: after v1 | [setup-fence-folder-warning](../ideas/2026-11-17--setup-fence-folder-warning.md) |
+| `history --windows --json` names the pool it read, as `history --json` and `sessions --json` do | open: after v1 | [history-windows-json-pool](../ideas/2026-11-17--history-windows-json-pool.md) |
+| `pool --json` gives each fence folder resolved, absolute, beside `dirs` as written | open: after v1 | [pool-json-resolved-paths](../ideas/2026-11-17--pool-json-resolved-paths.md) |
+| Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
+| Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |

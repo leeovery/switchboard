@@ -94,7 +94,7 @@ func TestServiceInstallRefusesAConfigTheRouterCouldntServe(t *testing.T) {
 		config  string
 		wantErr string
 	}{
-		{name: "missing", config: missing, wantErr: "Error: no config file at " + missing + "\n"},
+		{name: "missing", config: missing, wantErr: "Error: no config file at " + missing + ": run switchboard setup, which adds your accounts and writes it\n"},
 		{name: "invalid", config: invalid, wantErr: "Error: invalid config " + invalid + ":\n" + `unknown key "account.token_env": tokens now live in files`},
 	}
 	for _, tt := range tests {

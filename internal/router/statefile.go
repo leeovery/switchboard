@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 const (
@@ -66,10 +68,17 @@ type stateFile struct {
 	// emit tells the events loading the file calls for: each pool's pin it
 	// drops whole, as Unpinned.
 	emit func(Event)
+	// refusalIn reads why the API refused a read off the text of its
+	// failure, as a file from before kept it alone, as the provider's
+	// RefusedReadIn does.
+	refusalIn func(text string) quota.ReadRefusal
 }
 
-func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold, heirs heirs) *stateFile {
-	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told, heirs: heirs, emit: func(Event) {}}
+func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold, heirs heirs, refusalIn func(string) quota.ReadRefusal) *stateFile {
+	return &stateFile{
+		write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told, heirs: heirs,
+		emit: func(Event) {}, refusalIn: refusalIn,
+	}
 }
 
 // changes are the changes the state file lacks. Noting one never blocks, and
@@ -197,10 +206,10 @@ func (s savedUsage) read() int {
 // window was, by its key, the keys of the windows its whole readings stopped
 // reporting, in order, and its extra usage; and how its probes went: when one
 // last ended, why the last read nothing, how many in a row did, and, where
-// that's a read refused, when the refusal began. A file from before kept
-// none of the probes, which reads as none ended, and no window retired; and
-// one from before kept no refusal's start, which reads as its last probe's
-// end. A router from before reads a file kept with one, ignoring it.
+// that's a read refused, why the API refused it and when the refusal began.
+// A file from before kept none of the probes, which reads as none ended, and
+// no window retired; and one from before kept no refusal, as refusal reads
+// it. A router from before reads a file kept with them, ignoring them.
 type savedReading struct {
 	ReadAt        time.Time            `json:"read_at,omitzero"`
 	Windows       []quota.Window       `json:"windows,omitempty"`
@@ -209,8 +218,103 @@ type savedReading struct {
 	Extra         quota.ExtraUsage     `json:"extra_usage,omitzero"`
 	Probed        time.Time            `json:"probed,omitzero"`
 	ProbeError    string               `json:"probe_error,omitempty"`
+	RefusedRead   quota.ReadRefusal    `json:"refused_read,omitempty"`
 	Misses        int                  `json:"misses,omitempty"`
 	RefusedSince  time.Time            `json:"refused_since,omitzero"`
+}
+
+// readRefusals has each reading the file kept say why the API refused its
+// account's last read, as its refusal reads it, by readIn where a file from
+// before kept the refusal's text alone, and reports whether any reads
+// otherwise than it was kept, so the file is written again as this router
+// keeps it.
+func (s savedUsage) readRefusals(readIn func(text string) quota.ReadRefusal) (changed bool) {
+	for id, r := range s.Readings {
+		if refused := r.refusal(readIn); refused != r.RefusedRead {
+			r.RefusedRead = refused
+			s.Readings[id] = r
+			changed = true
+		}
+	}
+	return changed
+}
+
+// refusal is why the API refused the account's last read, as the file kept
+// it: its RefusedRead, where that's a refusal, as status.RefusedRead judges
+// it. A file from before kept none: one that kept a refusal's start, as a
+// router that judged a read refused by its error's text alone wrote it, has
+// the refusal readIn reads off that text; one from before the hold, which
+// kept no start, has none, as its router held nothing, till the account's
+// next read judges it. A refusal this router doesn't know, as a later one
+// may have kept, is none.
+func (r savedReading) refusal(readIn func(text string) quota.ReadRefusal) quota.ReadRefusal {
+	switch {
+	case status.RefusedRead(r.RefusedRead) != 0:
+		return r.RefusedRead
+	case r.RefusedRead == "" && !r.RefusedSince.IsZero():
+		return readIn(r.ProbeError)
+	}
+	return ""
+}
+
+// KeptHolds is what the router's state file keeps of what holds each account
+// back from every request, which a router started again holds it back by
+// while the account holds the token it was found of, as recall takes them
+// in: why the API refused its last read, and the hash of the token it held
+// then; and the hash of a token a probe found another subscription's. A
+// launch with the router down passes over an account so held, as Of has it.
+// The zero KeptHolds keeps none.
+type KeptHolds struct {
+	readings map[string]savedReading
+	tokens   map[string]savedTokens
+}
+
+// KeptHold is what holds an account back from every request, as the state
+// file keeps it of the token the account holds: why the API refused its
+// last read, none where it didn't; and whether the token is another
+// subscription's. The zero KeptHold holds nothing.
+type KeptHold struct {
+	RefusedRead quota.ReadRefusal
+	Foreign     bool
+}
+
+// KeptHoldsIn reads what the state file in stateDir keeps of what holds each
+// account back, as KeptHolds has it, a read refused as the router reads it
+// as it loads the file, readIn reading one a file from before kept by its
+// text alone, as the provider's RefusedReadIn does; and leaves the file as it
+// is: none where there's no file. It fails where the file can't be read, or
+// isn't one this router reads, as when it's corrupt, which the router sets
+// aside as it starts.
+func KeptHoldsIn(stateDir string, readIn func(text string) quota.ReadRefusal) (KeptHolds, error) {
+	path := filepath.Join(stateDir, stateFileName)
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return KeptHolds{}, nil
+	case err != nil:
+		return KeptHolds{}, err
+	}
+	saved, err := parseState(data)
+	if err != nil {
+		return KeptHolds{}, fmt.Errorf("read the state file %s: %w", path, err)
+	}
+	saved.readRefusals(readIn)
+	return KeptHolds{readings: saved.Readings, tokens: saved.Tokens}, nil
+}
+
+// Of is what holds the account with the given id back, which a router
+// started again, the account's file holding token, would hold it back by: a
+// read refused, or the token another subscription's, each as the file keeps
+// it, where it keeps it of token; nothing it keeps of another, as the router
+// starts afresh on a token replaced since.
+func (k KeptHolds) Of(id string, token tokens.Token) KeptHold {
+	held, kept := hash(token.Reveal()), k.tokens[id]
+	var hold KeptHold
+	if sameToken(kept.SHA256, held) {
+		hold.RefusedRead = k.readings[id].RefusedRead
+	}
+	hold.Foreign = sameToken(kept.Foreign, held)
+	return hold
 }
 
 // load takes in the state file at path, as the router starts, the pools as
@@ -223,6 +327,7 @@ func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
 	saved := f.read(now)
+	refusals := saved.readRefusals(f.refusalIn)
 	tokens := f.accounts.recall(saved.Tokens, f.heirs, now)
 	sessions, unpinned := f.sessions.recall(saved.savedSessions, f.accounts, now, f.state.pools.current())
 	f.state.recallPins(f.sessions.pinsNow())
@@ -231,7 +336,7 @@ func (f *stateFile) load(path string) {
 	}
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
-	if tokens || sessions || usage || told {
+	if refusals || tokens || sessions || usage || told {
 		f.changes.note()
 	}
 	held := f.snapshot()

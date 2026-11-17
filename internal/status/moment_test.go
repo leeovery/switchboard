@@ -125,7 +125,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 	if doc.CapHolds(a, now, policy) {
 		lifts = append(lifts, capBack)
 	}
-	refusedRead := status.RefusedRead(a.Error)
+	refusedRead := status.RefusedRead(a.RefusedRead)
 	switch {
 	case refusedRead != 0:
 		lifts = append(lifts, time.Time{})

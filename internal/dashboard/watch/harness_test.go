@@ -688,7 +688,7 @@ func reserving(a status.Account, reserve float64) status.Account {
 
 // unreadable is an account whose token the API refused.
 func unreadable(id, label string) status.Account {
-	return status.Account{ID: id, Label: label, TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}
+	return status.Account{ID: id, Label: label, TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: quota.TokenRefused}
 }
 
 // partlyRead is an account whose Fable window couldn't be read.

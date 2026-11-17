@@ -98,7 +98,7 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 	reservingLess := workAt(func(d *status.Document) { d.Accounts[0].Reserve = 0.02 })
 	pinned := workAt(func(d *status.Document) { d.Pin = status.Pin{Accounts: []string{"work"}} })
 	tokenless := workAt(func(d *status.Document) { d.Accounts[0] = status.Account{ID: "work", Label: "work"} })
-	ended := workAt(func(d *status.Document) { d.Accounts[0].Error = endedSubscription })
+	ended := workAt(func(d *status.Document) { refusedRead(quota.SubscriptionEnded)(&d.Accounts[0]) })
 	tests := []struct {
 		name string
 		// moment is of work as it's configured and read now: its reserve,

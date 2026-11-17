@@ -19,6 +19,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -351,8 +352,8 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 		saved.state.recordProbe("work", quota.Probe{}, errUnreadable, saved.state.mark(), readings.FromProbe)
 	}
 	clock.now = start.Add(-2 * time.Minute)
-	refused := "HTTP 401 · Invalid bearer token"
-	saved.state.recordProbe("side", quota.Probe{}, errors.New(refused), saved.state.mark(), readings.FromProbe)
+	refused := claudetest.ErrTokenRefused.Error()
+	saved.state.recordProbe("side", quota.Probe{}, claudetest.ErrTokenRefused, saved.state.mark(), readings.FromProbe)
 	clock.now = start.Add(-30 * time.Second)
 	saved.state.recordProbe("side", quota.Probe{}, errUnreadable, saved.state.mark(), readings.FromProbe)
 	saved.save()
@@ -361,12 +362,12 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"probed": "2026-09-28T13:09:00Z"`, `"probe_error": "HTTP 529 · Overloaded"`, `"misses": 3`} {
+	for _, want := range []string{`"probed": "2026-09-28T13:09:00Z"`, `"probe_error": "HTTP 529 · Overloaded"`, `"misses": 3`, `"refused_read": "token_refused"`} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("state file holds\n%s\nwant work's probes kept, %s among them", data, want)
 		}
 	}
-	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute)}
+	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute)}
 	if got := readState(t, path).Readings["side"]; !reflect.DeepEqual(got, wantSide) {
 		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept, its read refused since it was first", got, wantSide)
 	}
@@ -383,9 +384,9 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 	}
 	for id, u := range saved.state.usage {
 		got := loaded.state.usage[id]
-		if !got.probed.Equal(u.probed) || got.probeErr != u.probeErr || got.misses != u.misses || !got.refusedSince.Equal(u.refusedSince) {
-			t.Errorf("%s's probes loaded as ended %v, %q, %d in a row, refused since %v; want what was saved: %v, %q, %d, %v",
-				id, got.probed, got.probeErr, got.misses, got.refusedSince, u.probed, u.probeErr, u.misses, u.refusedSince)
+		if !got.probed.Equal(u.probed) || got.probeErr != u.probeErr || got.refusedRead != u.refusedRead || got.misses != u.misses || !got.refusedSince.Equal(u.refusedSince) {
+			t.Errorf("%s's probes loaded as ended %v, %q, refused %q, %d in a row, since %v; want what was saved: %v, %q, %q, %d, %v",
+				id, got.probed, got.probeErr, got.refusedRead, got.misses, got.refusedSince, u.probed, u.probeErr, u.refusedRead, u.misses, u.refusedSince)
 		}
 	}
 	if side, _ := loaded.state.document().Account("side"); side.Error != refused {

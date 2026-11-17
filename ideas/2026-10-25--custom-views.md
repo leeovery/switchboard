@@ -4,14 +4,14 @@ The owner, on 24 October 2026, while the graphs were being reworked into a page 
 "Maybe a page with graphs so you can view the data in lots of ways. toggleable so the user can
 essentially create their own dashboards. custom views is another idea for sb."
 
-The Graphs tab takes the first step: its sections toggle as the Overview's do, so its user chooses
-what it shows (see Graphs in the design). Custom views would go further, a view of the user's own,
+The Trends tab (named Graphs till November 2026) takes the first step: its sections toggle as the
+Overview's do, so its user chooses what it shows (see Trends in the design). Custom views would go further, a view of the user's own,
 put together from the sections the dashboard already draws, on whichever tab they belong to.
 
 ## A first sketch, to discuss
 
 - A view named in the config, listing the sections it shows, in its order: say USAGE and ROUTING
-  from the Overview, WEEK's burn-downs from Graphs, and the Log's Requests.
+  from the Overview, WEEK's burn-downs from Trends, and the Log's Requests.
 - Each such view a tab of its own after the built-in ones, or one tab whose `[ ]` steps through
   them.
 - Each section laid out by its own parts, as every view is, so a section drawn on a custom view

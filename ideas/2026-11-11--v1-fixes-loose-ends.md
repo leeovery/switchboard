@@ -34,7 +34,7 @@ v1.
 - **A broken answer** shows in `requests` alone, as `200 broken off`. The dashboard's Log shows
   canceled, cut off and broken off answers no differently from the rest, and its failed-only filter
   goes by status, so a broken 200 isn't among them.
-- **Accounts' all-accounts weeks** (Detail's, once History's Weeks) mark a week where every
+- **Accounts' all-accounts weeks** (Detail's WEEKS, once History's Weeks) mark a week where every
   account with a known peak reached its cap, while the "short on N weeks" beside it counts a week
   where any did. As signed off (the old
   rule, a mean of 100%, was the same "every"); whether it should mark "any" is the owner's call.
@@ -49,3 +49,27 @@ v1.
 - **A fifth file lock:** the dashboard's prefs take a `flock` on the state directory
   (`internal/theme`), a fifth copy beside the four [one-file-lock](2026-11-04--one-file-lock.md)
   names.
+
+## The second v1 fix round
+
+The second round of v1 fixes, 17 November 2026, left these edges. Each needs something past
+ordinary use, and each fails safe.
+
+- **A relayed history line can change pool.** A line relayed through a Mac that placed it in its
+  own pool can land in another pool, by the order the folders are read. It needs three Macs whose
+  pools hold different accounts.
+- **An unmounted disk reads as reachable.** `export.Reachable` reads a bare `/Volumes/<disk>` as
+  there when the disk isn't mounted, so restore doesn't warn. The export fails until the disk is
+  back.
+- **`imported_before` is a hint.** It says "if any", and can show where no days were taken in: after
+  a failed import, or for a seeded pool.
+- **A configured id can turn random.** An id whose token the old build used, but which none of the
+  move's three looks can read at its decide step, gets a random id.
+- **A token-shaped value stops the config's copy.** A value holding `sk-ant-` that isn't a token,
+  or a reserve that's NaN, makes the export refuse to copy the config. The export warns, and
+  nothing leaks.
+- **An interrupted export keeps `config: true`.** One stopped after removing the copy leaves
+  `export.json` saying `config: true` until the next export. Importers pass the folder over as
+  unsynced meanwhile.
+- **A failed write-back exports no pools.** A config whose router write-back failed exports with
+  no pools, so its pools import as `empty`, kept apart and not lost.

@@ -32,8 +32,10 @@ type view struct {
 	barred []string
 	// refused are the accounts, of those barred, that refused the request
 	// lately, or whose last read was refused, by id: they'd only refuse it
-	// again.
-	refused []string
+	// again. readRefused are those of them whose last read was refused,
+	// which holds them back till a read comes back clean.
+	refused     []string
+	readRefused []string
 	// limited holds, by id, the identity of the limit that holds the request
 	// back on each account, of those barred, where a limit does.
 	limited map[string]int
@@ -159,6 +161,12 @@ func (v view) holding(id string) (Hold, int) {
 		return HeldByReserve, 0
 	}
 	return 0, 0
+}
+
+// heldByRead reports whether the account with the given id is held back
+// from the request by its last read refused, as readRefused has it.
+func (v view) heldByRead(id string) bool {
+	return slices.Contains(v.readRefused, id)
 }
 
 // letGo reports whether any account is held back from the request by its

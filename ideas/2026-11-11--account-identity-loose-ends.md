@@ -9,10 +9,30 @@ past ordinary use that fails safe, or an improvement. Gathered here for later.
 - **Over-waiting.** Wherever a token file may join an account another Mac moved, the move waits on
   every token file the API didn't answer for, even one whose answer couldn't change the join. A
   dead token counts after the 10-minute nameless run; one that only times out holds the move.
-- **A second Mac joining by its token files keeps no old-id `state.json`.** Where its router never
-  ran on the shared config's new ids before the upgrade, the pin, session assignments, former
-  tokens and token years kept under the old ids are dropped. The usual path, an older router
-  restarting onto the new ids first, dropped them before the move anyway.
+- **A second Mac joining by its token files keeps no old-id `state.json`.** Its router starts on
+  the shared config's new ids before the move has decided which old id each one was, so `Settle`
+  renames nothing. The router's load then drops what names an id it doesn't configure, and writes
+  the file whole without it. The history stays whole, but once per such Mac it costs:
+  - the pool's pin, gone with its `unpinned` event, and the sessions' own pins;
+  - each running session's account, chosen afresh at its next request;
+  - the windows last read, shown again once the accounts are probed;
+  - the old ids' kept tokens, counted as the primary's for a week, another account's among them;
+  - the recent rates, which start empty: the newest readings they're taken from are renamed only
+    by the history step, and the router doesn't read them again.
+
+  The usual path, an older router restarting onto the new ids first, dropped them before the move
+  anyway.
+  - **The fix: keep the state while the move is owed, then restart.** While the move onto the ids
+    is owed, the router writes back what `state.json` holds of ids it doesn't configure as it
+    found it, neither dropping it nor having the primary adopt its tokens. Once `decide` has
+    recorded renames that cover those ids, the move owes a restart, through the restart a router
+    can already be asked for. `Settle` then renames the file and the newest readings as the next
+    router starts, as on the Mac that moved first.
+  - **Why not take it up mid-life instead.** The router could keep the dropped entries aside and
+    take them up, renamed, once `decide` hands it the renames, wherever nothing newer was set
+    meanwhile. That needs new rules for merging pins, assignments and readings into live state,
+    each a judgement of which is newer. The restart reuses the path the first Mac already takes,
+    `Settle` at a router's start, which the move's tests already hold.
 - **A session pinned by an old id on a Mac joining another's ids** keeps its pin ignored until the
   router next restarts, as the old ids are read once, at start.
 

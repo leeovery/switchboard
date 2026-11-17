@@ -72,6 +72,9 @@ func TestFoldersPassesOverAFolderOfAnExportWithoutItsExportJSONSayingSo(t *testi
 		{name: "nothing an export writes", put: func(t *testing.T, folder string) {
 			writeFile(t, filepath.Join(folder, "notes.txt"), []byte("no export here\n"), exportNow)
 		}},
+		{name: "a config alone, as a folder of anything else may hold", put: func(t *testing.T, folder string) {
+			writeFile(t, export.ConfigFile(folder), []byte(copiedConfig), exportNow)
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -262,6 +265,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 		requests.compressed(two, day2): {gzipOf(t, linesOf(`{"n":4}`)), appendedAt},
 		summary(two, "2025-10-02"):     {[]byte("{\"version\":5}\n"), summarisedAt},
 		accountsRecord(one):            {[]byte("{\"version\":1,\"accounts\":[]}\n"), summarisedAt},
+		export.ConfigFile(two):         {[]byte(copiedConfig), summarisedAt},
 	}
 	for path, f := range files {
 		writeFile(t, path, f.data, f.modified)

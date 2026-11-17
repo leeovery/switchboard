@@ -167,15 +167,27 @@ func (m ModelDay) countsNoLess(held ModelDay) bool {
 
 // unpooledIn returns the account's day with its work in no pool, of the
 // requests that named none, as every one did before pools, in the pool with
-// the given id instead, merged with its work there, as mergedPool merges it;
-// and reports whether it had any work in none.
+// the given id instead, as repooled gives it; and reports whether it had any
+// work in none.
 func (a AccountDay) unpooledIn(pool string) (AccountDay, bool) {
+	return a.repooled(func(id string) string { return cmp.Or(id, pool) })
+}
+
+// repooled returns the account's day with each pool's work in the pool pool
+// gives its id, work in no pool by "", merged with any work there, as
+// mergedPool merges it, so two pools given one become one; and reports
+// whether pool gave any another.
+func (a AccountDay) repooled(pool func(id string) string) (AccountDay, bool) {
 	days := slices.Clone(a.poolDays())
-	i := slices.IndexFunc(days, func(p PoolDay) bool { return p.Pool == "" })
-	if i < 0 {
+	changed := false
+	for i, d := range days {
+		if to := pool(d.Pool); to != d.Pool {
+			days[i].Pool, changed = to, true
+		}
+	}
+	if !changed {
 		return a, false
 	}
-	days[i].Pool = pool
 	return a.pooled(mergedBy(days, PoolDay.key, mergedPool, strings.Compare)), true
 }
 

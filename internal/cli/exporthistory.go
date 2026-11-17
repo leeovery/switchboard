@@ -21,9 +21,19 @@ func newExportCommand(a *app) *cobra.Command {
 		Long: `Copy this Mac's history into a folder of its own in <dir>, mac-<id>,
 named by this install's id, which the first export makes: the request
 ledger's lines, the days' summaries, the readings history, the router's
-events and the accounts record, each day's lines in one compressed file, and
-export.json, saying whose folder it is and when it was exported. Kept in a folder Dropbox or
-iCloud Drive syncs, the history outlasts the Mac.
+events and the accounts record, each day's lines in one compressed file, a
+copy of the config, config.toml, and export.json, saying whose folder it is
+and when it was exported. Kept in a folder Dropbox or iCloud Drive syncs,
+the history outlasts the Mac, and import restores it, config and all, onto
+a new Mac.
+
+The copy of the config holds its values alone, written anew, and none of its
+comments, so it never holds a secret: tokens live in files of their own,
+which no export copies. A config that gives a value that may hold a secret,
+as a token, or credentials or a key in the upstream's address, isn't
+copied, and the folder's copy is removed, as it would read as current. One
+that's gone, or doesn't load, isn't copied either, and the folder keeps the
+copy an export made before, as a restore wants the last config that loaded.
 
 A day exported before, and unchanged since, is left as it is, and nothing in
 the folder is ever removed, a day past keeping included. Every file is
@@ -94,7 +104,11 @@ func (a *app) export(out, errOut io.Writer, dir string) error {
 		return err
 	}
 	accounts, pools := a.configured()
-	r, err := export.Exporter{StateDir: state, Now: a.Now, Logger: logger, Accounts: accounts, Pools: pools}.Export(dir)
+	// A config file that can't be found is one configured has warned of, and
+	// none to copy.
+	path, _ := a.configFile()
+	x := export.Exporter{StateDir: state, Now: a.Now, Logger: logger, Accounts: accounts, Pools: pools, Config: path, HomeDir: a.HomeDir}
+	r, err := x.Export(dir)
 	if err != nil {
 		return err
 	}
@@ -104,6 +118,11 @@ func (a *app) export(out, errOut io.Writer, dir string) error {
 	if _, err := fmt.Fprintf(out, "exported %s to %s: %s written, %s as they were\n",
 		prose.Counted(r.Days(), "day"), r.Folder, prose.Grouped(r.Written), prose.Grouped(r.AsTheyWere)); err != nil {
 		return err
+	}
+	if r.Uncopied != nil {
+		if _, err := fmt.Fprintln(errOut, "switchboard: couldn't copy the config, so "+r.ConfigKept()+": "+r.Uncopied.Error()); err != nil {
+			return err
+		}
 	}
 	return sayUnexported(errOut, r.Unread)
 }

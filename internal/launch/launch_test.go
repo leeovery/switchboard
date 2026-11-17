@@ -1090,8 +1090,8 @@ func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	}{
 		{
 			name:     "without a config",
-			err:      errors.New("no config file at " + config + "\n\nCreate one like this:\n\n[[account]]\nid = \"work\"\n"),
-			wantSaid: "switchboard: couldn't read the config (no config file at " + config + ") — starting claude without it\n",
+			err:      errors.New("no config file at " + config + ": run switchboard setup, which adds your accounts and writes it"),
+			wantSaid: "switchboard: couldn't read the config (no config file at " + config + ": run switchboard setup, which adds your accounts and writes it) — starting claude without it\n",
 		},
 		{
 			name:     "with an invalid config",
@@ -2187,13 +2187,18 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 }
 
 // fakeRouter answers as a router does: its health, or healthErr; and its
-// status document, or docErr. asks counts the times it's asked its health.
+// status document, or docErr, of any pool, after docWait, or ctx's error
+// where ctx ends first. asks counts the times it's asked
+// its health, and docsOf are the pools its document is asked for, in order,
+// "" for none.
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
 	doc       status.Document
 	docErr    error
+	docWait   time.Duration
 	asks      int
+	docsOf    []string
 }
 
 func (r *fakeRouter) Health(context.Context) (router.Health, error) {
@@ -2201,7 +2206,15 @@ func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 	return r.health, r.healthErr
 }
 
-func (r *fakeRouter) Status(context.Context) (status.Document, error) {
+func (r *fakeRouter) Status(ctx context.Context, pool string) (status.Document, error) {
+	r.docsOf = append(r.docsOf, pool)
+	if r.docWait > 0 {
+		select {
+		case <-time.After(r.docWait):
+		case <-ctx.Done():
+			return status.Document{}, ctx.Err()
+		}
+	}
 	return r.doc, r.docErr
 }
 

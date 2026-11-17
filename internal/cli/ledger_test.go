@@ -488,7 +488,7 @@ const historyOfToday = `Wed 7 Oct 2026, so far
 
 // historyPricedAt is what history prints last, the prices its worth is at.
 const historyPricedAt = `
-worth is what they'd have cost through the API, at its prices as of 11 Oct 2026
+worth is what they'd have cost through the API, at its prices as of 17 Nov 2026
 `
 
 // historyTotalsFromThe6th are the totals history prints over the 6th to
@@ -700,15 +700,15 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
-	want := `{"schema":1,"prices_as_of":"2026-10-11","days":[` +
-		`{"version":7,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","pool":"b2n8","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+	want := `{"schema":1,"pool":"b2n8","pool_label":"Default","prices_as_of":"2026-11-17","days":[` +
+		`{"day":"2026-10-04","accounts":[{"account":"work","pool":"b2n8","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(9) +
 		`,"sessions":1,"session_ids":["` + sessionA + `"],` +
 		`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
-		`{"version":7,"day":"2026-10-05","lines":0},` +
-		`{"version":7,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`{"day":"2026-10-05"},` +
+		`{"day":"2026-10-06","accounts":[{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(22) +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],` +
@@ -720,19 +720,19 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
 		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56,"pool_label":"Default"}],` +
 		`"by_family":[{"family":"opus","worth":0.01502}]},` +
-		`{"version":7,"day":"2026-10-07","lines":6,"accounts":[` +
+		`{"day":"2026-10-07","accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
 		`{"pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,` + hoursJSON() +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],"worth":0}]},` +
 		`{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"rise":{"5h":0.05},` +
-		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"pool_label":"Default",` +
+		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,"checks":0,"counts":0,` + hoursJSON(10) +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],` +
 		`"worth":0,"unpriced":["no_usage"]}]},` +
 		`{"account":"work","pool":"b2n8","sessions":2,"session_ids":["` + sessionC + `","` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},` +
-		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"pool_label":"Default","models":[` +
+		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default","models":[` +
 		// Work's quota check, whose usage is left out, so it's worth nothing.
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,` + hoursJSON() + `,"sessions":0,"session_ids":[],"worth":0},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,` + hoursJSON(9) +
@@ -750,7 +750,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "history", "--since", "2026-10-04")
 			var compact bytes.Buffer
-			if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"schema\": 1,\n  \"prices_as_of\"") {
+			if err := json.Compact(&compact, []byte(got.stdout)); err != nil || got.code != 0 || !strings.HasPrefix(got.stdout, "{\n  \"schema\": 1,\n  \"pool\"") {
 				t.Fatalf("switchboard history %s = %+v (%v), want indented JSON", strings.Join(form.args, " "), got, err)
 			}
 			if compact.String() != want {
@@ -849,7 +849,7 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 
 			got := run(t, deps, "history", "--pretty", "--since", "10:00")
 			table := strings.Replace(historyOfToday, "$0.08", tt.worth, 1)
-			pricedAt := strings.Replace(historyPricedAt, "as of 11 Oct 2026\n", "as of 11 Oct 2026 and the config's\n", 1)
+			pricedAt := strings.Replace(historyPricedAt, "as of 17 Nov 2026\n", "as of 17 Nov 2026 and the config's\n", 1)
 			if !strings.HasPrefix(got.stdout, table) || !strings.HasSuffix(got.stdout, pricedAt) || got.code != 0 {
 				t.Errorf("switchboard history printed\n%s(%d, %s)\nwant today's table\n%s\nand last%s", got.stdout, got.code, got.stderr, table, pricedAt)
 			}
@@ -879,9 +879,9 @@ func TestHistoryPricesAtTheConfigsPricesWhereItGivesAny(t *testing.T) {
 					}
 				}
 			}
-			if doc.PricesAsOf != "2026-10-11" || doc.PricesFromConfig == nil || !*doc.PricesFromConfig || worth != tt.worthJSON {
+			if doc.PricesAsOf != "2026-11-17" || doc.PricesFromConfig == nil || !*doc.PricesFromConfig || worth != tt.worthJSON {
 				t.Errorf("switchboard history --json gives prices as of %s, from the config: %v, and work's Claude Opus 5.5 worth %s, "+
-					"want 2026-10-11, from the config, and %s", doc.PricesAsOf, doc.PricesFromConfig, worth, tt.worthJSON)
+					"want 2026-11-17, from the config, and %s", doc.PricesAsOf, doc.PricesFromConfig, worth, tt.worthJSON)
 			}
 		})
 	}
@@ -1020,8 +1020,8 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		PricesAsOf string            `json:"prices_as_of"`
 		Days       []json.RawMessage `json:"days"`
 	}
-	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || got.stderr != "" || doc.PricesAsOf != "2026-10-11" {
-		t.Fatalf("switchboard history --json = %+v (%v), want the days, priced as of 2026-10-11", got, err)
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 || got.stderr != "" || doc.PricesAsOf != "2026-11-17" {
+		t.Fatalf("switchboard history --json = %+v (%v), want the days, priced as of 2026-11-17", got, err)
 	}
 	var days []string
 	for _, day := range doc.Days {
@@ -1031,7 +1031,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		}
 		days = append(days, compact.String())
 	}
-	if want := []string{`{"version":7,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+	if want := []string{`{"day":"2026-10-07"}`}; !slices.Equal(days, want) {
 		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
 	}
 }
@@ -1047,7 +1047,7 @@ func TestTheLedgersCommandsNeedAConfig(t *testing.T) {
 	}
 	for _, command := range []string{"requests", "history"} {
 		got := run(t, deps, command)
-		if want := "Error: no config file at " + path + "\n"; got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, want) {
+		if want := "Error: no config file at " + path + ": run switchboard setup, which adds your accounts and writes it\n"; got.code != 1 || got.stdout != "" || !strings.HasPrefix(got.stderr, want) {
 			t.Errorf("switchboard %s = %+v, want it to fail, printing nothing, as %q: a summary counts the accounts' minutes at their caps by their reserves",
 				command, got, want)
 		}

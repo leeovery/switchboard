@@ -62,7 +62,7 @@ func stateOf(t *testing.T, now time.Time, configPath string, read []readings.Rea
 	dir := t.TempDir()
 	clock := func() time.Time { return now }
 	files := readings.Files(readings.Dir(dir), logger)
-	history := readings.Open(files, config.DefaultHistoryKeep, clock, nil)
+	history := readings.Open(files, config.DefaultHistoryKeep, clock, nil, nil)
 	history.Note(read)
 	runStopped(t, history.Run)
 	requests := ledger.Open(ledger.Dir(dir), config.DefaultLedgerKeep, clock, ledger.HistoryIn(files), ledger.CapsOf(cfg.Accounts, claude.SharedWindows()), logger)

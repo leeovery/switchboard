@@ -270,9 +270,7 @@ func TestADayCompressedAsItsFilesAreOpenedIsReadOnceWhole(t *testing.T) {
 			}
 		},
 		"written": func(t *testing.T, f *Files) {
-			if err := requestLedger(f.Dir).addPlain(date); err != nil {
-				t.Fatal(err)
-			}
+			addPlainOf(t, requestLedger(f.Dir), date)
 		},
 	}
 	tests := []struct {

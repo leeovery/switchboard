@@ -22,7 +22,7 @@ const keep = 30 * 24 * time.Hour
 // stopped at now, and has it write them all before it returns.
 func write(t *testing.T, dir string, now time.Time, taken ...[]readings.Reading) {
 	t.Helper()
-	w := readings.Open(readings.Files(dir, logs.For("router")), keep, func() time.Time { return now }, nil)
+	w := readings.Open(readings.Files(dir, logs.For("router")), keep, func() time.Time { return now }, nil, nil)
 	for _, read := range taken {
 		w.Note(read)
 	}

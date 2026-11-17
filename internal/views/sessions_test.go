@@ -312,7 +312,7 @@ func utc(t time.Time) time.Time {
 
 func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 	got := views.ListSessions(views.SessionSources{Running: routed, Ledger: world(), Prices: ledger.Pricing, Now: now})
-	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-10-11", Sessions: []views.ListedSession{
+	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-11-17", Sessions: []views.ListedSession{
 		{
 			Session: older, Dir: "~/Code/api", Project: "~/Code/api", Account: "work", Model: opus, Running: true, LastSeen: utc(october(7, 13, 10)),
 			// Its last request ended at 9:00, and its cache with it, however
@@ -382,7 +382,7 @@ func TestWithoutTheRouterTheListHoldsTodaysSessionsAsEnded(t *testing.T) {
 
 func TestTheListIsEmptyWithoutSessions(t *testing.T) {
 	got := views.ListSessions(views.SessionSources{Ledger: fakeLedger{now: now}, Prices: ledger.Pricing, Now: now})
-	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-10-11", Sessions: []views.ListedSession{}}
+	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-11-17", Sessions: []views.ListedSession{}}
 	assertList(t, got, want)
 }
 
@@ -793,4 +793,26 @@ func amount(c *ledger.Picodollars) string {
 		return "none"
 	}
 	return c.Cents()
+}
+
+// A List of a pool's sessions is the router's where the router was asked and
+// listed them; else the ledger's alone: where it wasn't asked, as of a pool
+// it doesn't route, or didn't list them.
+func TestAListsSourceIsTheRoutersOnlyWhereItListedTheSessions(t *testing.T) {
+	tests := []struct {
+		name            string
+		asked, unlisted bool
+		want            string
+	}{
+		{name: "asked and listed", asked: true, want: views.SessionsFromRouter},
+		{name: "asked, unlisted", asked: true, unlisted: true, want: views.SessionsFromLedger},
+		{name: "not asked", want: views.SessionsFromLedger},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := views.SessionsSource(tt.asked, tt.unlisted); got != tt.want {
+				t.Errorf("SessionsSource(%t, %t) = %q, want %q", tt.asked, tt.unlisted, got, tt.want)
+			}
+		})
+	}
 }

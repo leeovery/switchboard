@@ -13,6 +13,8 @@ Nothing notices when Anthropic changes a price. On 9 October 2026 the owner noti
 - **The change itself, done on 11 October 2026:** Sonnet 5.5's cache reads, lowered from $0.20 to
   $0.10 a million on 7 October 2026, are a dated row from that day; Claude Haiku 5.5, launched the
   same day, joined the table; every other model's prices matched the page.
+- **Checked again on 17 November 2026:** Claude Fable 5.2, launched on 9 November 2026, joined the
+  table; every other model's prices matched the page.
 - **Haiku 5.5's two rates:** it prices a prompt of over 100,000 tokens higher, five times its rate
   for shorter ones, and the table holds one rate a model. Until this is settled, every Haiku 5.5
   request is priced at the shorter rate, the owner's call: about a fifth of its requests in the
@@ -28,5 +30,5 @@ Nothing notices when Anthropic changes a price. On 9 October 2026 the owner noti
   lands as a reviewed pull request, never straight into the table.
 - **To settle with the owner:** which runs it, how often, and how it tells a price that changed
   from a page that did.
-- **When, the owner (14 October 2026):** after milestone 7's release. On the same day, Claude Mythos
+- **When, the owner (14 October 2026):** after milestone 7's release, long past; now after v1. On the same day, Claude Mythos
   left the table, as no subscription can use it.

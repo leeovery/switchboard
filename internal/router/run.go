@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 const (
@@ -119,10 +120,12 @@ func (r *Router) socket() (string, error) {
 
 // openLedger keeps the request ledger in dir from now on, a day's summary
 // from before pools giving its work the first pool, as idmove.FirstPool
-// says, and the router's events beside it, as long as the ledger's lines,
-// those heard before filed as they now stand.
+// says, its rounds held while the move onto the ids holds them, as
+// moving.holds says, and the router's events beside it, as long as the
+// ledger's lines, those heard before filed as they now stand.
 func (r *Router) openLedger(dir string) {
-	r.ledger.open(dir, ledger.HistoryIn(r.history.files), idmove.FirstPool(r.cfg.StateDir, func() config.Pools { return r.state.pools.current().pools }))
+	r.ledger.open(dir, ledger.HistoryIn(r.history.files), idmove.FirstPool(r.cfg.StateDir, func() config.Pools { return r.state.pools.current().pools }),
+		ledger.Holding(r.moving.holds))
 	r.eventFiles = events.Open(dir, r.ledger.keep, r.cfg.Now, logger)
 	r.recent.fileTo(r.eventFiles, r.started)
 }
@@ -479,5 +482,5 @@ func (r *Router) logStart(proxy, control net.Addr) {
 		logger.Warn("no account has a usable token yet; nothing will be routed until one has")
 	}
 	logger.Info("listening", "address", proxy.String(), "control", control.String(),
-		"upstream", r.upstream.Redacted(), slog.Group("token_set", tokens...))
+		"upstream", redact.URL(r.upstream.String()), slog.Group("token_set", tokens...))
 }

@@ -333,6 +333,55 @@ func TestAnExportIntoAFolderNotThereWritesNothing(t *testing.T) {
 	}
 }
 
+// The router's export carries a copy of the config file it was started from,
+// read in its home directory, as config.Copy makes it, its values alone, and
+// export.json says the folder holds it; and keeps it once the file's gone.
+func TestTheRoutersExportCarriesItsConfig(t *testing.T) {
+	logstest.Capture(t)
+	state, dir := t.TempDir(), t.TempDir()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	const text = "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"\ndirs = [\"~/Code\"]\n"
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+	cfg.StateDir, cfg.Export, cfg.ConfigFile = state, config.Export{Dir: dir}, Watch(path)
+	cfg.HomeDir = func() (string, error) { return "/Users/test", nil }
+	x := newExports(cfg, tended, noRestart, noMove)
+
+	x.exportNow(t.Context())
+
+	id, err := export.InstallID(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder := export.Folder(dir, id)
+	want, err := config.Copy(path, []byte(text), cfg.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != string(want) {
+		t.Errorf("the folder's config holds %q (%v), want the router's config, %q", got, err, want)
+	}
+	if m, err := export.ReadManifest(folder); err != nil || !m.Config {
+		t.Errorf("the folder's export.json reads %+v (%v), want it to say it holds the config", m, err)
+	}
+
+	// The router runs on as the config file goes, and the copy it made is
+	// the one a restore of this Mac wants.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	x.exportNow(t.Context())
+
+	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != string(want) {
+		t.Errorf("the config gone, the folder's config holds %q (%v), want the last copy kept, %q", got, err, want)
+	}
+	if m, err := export.ReadManifest(folder); err != nil || !m.Config {
+		t.Errorf("the config gone, the folder's export.json reads %+v (%v), want it to say it holds the config", m, err)
+	}
+}
+
 func TestAnExportIntoAFolderInTheHomeDirectory(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -400,6 +449,16 @@ func TestWhatAnExportPassesOverIsWarnedOfOnceAndFailsNoExport(t *testing.T) {
 				"level=WARN", `msg="can't remove a file an export cut short left; trying again at each round"`,
 				"path=" + folder + "/ledger/.requests-2026-09-26.jsonl.gz.123", `error="permission denied"`,
 			},
+		},
+		{
+			name:   "a config it couldn't copy",
+			met:    export.Result{Uncopied: config.ErrSecretValue},
+			warned: []string{"level=WARN", `msg="can't copy the config into the export, so the folder holds none; trying again at each round"`, `error="` + config.ErrSecretValue.Error() + `"`},
+		},
+		{
+			name:   "a config it couldn't copy, the folder keeping the last copy",
+			met:    export.Result{Uncopied: errors.New("read config: no such file or directory"), Config: true},
+			warned: []string{"level=WARN", `msg="can't copy the config into the export, so the folder keeps the copy an export made before; trying again at each round"`, `error="read config: no such file or directory"`},
 		},
 	}
 	steps := []struct {

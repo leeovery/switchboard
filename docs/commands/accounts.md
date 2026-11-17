@@ -139,10 +139,13 @@ marks no primary, the first account counts as one, and `--primary` on it marks i
 `--primary=false` is refused: give `--primary` to another account instead.
 
 Sessions already running keep the token they started on until they restart. That's the token of the
-former primary, or for a pinned session, of its pinned account. So artifacts and uploads from those
-sessions still go out on that account, and `edit` says so. Sessions started direct, while the
-router was down, aren't touched. If the new primary has no usable token,
-`edit` warns on stderr, because new sessions then start on another account's token.
+former primary, or for a pinned session, of its pinned account. If the router held back the account
+a session was to start on, or didn't route that account yet, the session took another account's
+token. If every account was so, the session took that account's token after all. Artifacts and
+uploads go out on the account whose token the session holds, and `edit` says so.
+
+Sessions started direct, while the router was down, aren't touched. If the new primary has no
+usable token, `edit` warns on stderr, because new sessions then start on another account's token.
 
 Sign your browser into the first pool's primary, because artifacts open in a browser signed into
 it.
@@ -162,7 +165,7 @@ first, all at once, which takes up to about 10 seconds.
 
 | If | What `token` does |
 |---|---|
-| The token is for another subscription | Saves nothing, and names the account that has it. |
+| The token is for another subscription | Saves nothing, and names the account that has it. If that account is configured here, it says to give the token to that account. |
 | The API doesn't answer | Saves the token unchecked, with a warning. |
 | The token was made but not read or saved | Shows it, and fails. Paste it with `--paste`. |
 | Nothing is saved for another reason | Says why, and fails. |
@@ -210,6 +213,9 @@ Anything else, such as a new account or a new label, waits for the router to res
 run by the service restarts itself once no request is in flight, and
 `switchboard service restart` does it now. A router run by hand with `serve` only logs that a
 restart is due.
+
+Until the router restarts, `claude` doesn't start Claude Code on a new account's token, even one
+added with `--primary`. It takes the next account the router routes, so the session is routed.
 
 ## Examples
 

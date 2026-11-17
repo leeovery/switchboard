@@ -1,6 +1,8 @@
 package export_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +44,25 @@ func TestTheInstallsIDIsTheOneFoundThere(t *testing.T) {
 
 	if id, err := export.InstallID(state); err != nil || id != "0123456789abcdef" {
 		t.Errorf("InstallID() = %q, %v; want the one there", id, err)
+	}
+}
+
+// Reading the install's id never makes one: where none is made yet, it
+// fails, saying there's none, and leaves the state directory as it was.
+func TestReadingTheInstallsIDMakesNone(t *testing.T) {
+	state := filepath.Join(t.TempDir(), "switchboard")
+	if id, err := export.ReadInstallID(state); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("ReadInstallID() = %q, %v; want none, as none is made yet", id, err)
+	}
+	if _, err := os.Stat(state); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the state directory: %v, want nothing made", err)
+	}
+	made, err := export.InstallID(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id, err := export.ReadInstallID(state); err != nil || id != made {
+		t.Errorf("ReadInstallID() = %q, %v; want the one made, %q", id, err, made)
 	}
 }
 

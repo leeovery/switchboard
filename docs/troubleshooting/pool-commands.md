@@ -23,9 +23,9 @@ without being told.
 # Open on one pool; press P to turn to the
 # next
 switchboard dashboard --pool q7mt
-# Or leave one pool unfenced, to open on it
-# by default
-switchboard pool edit q7mt --unfence
+# Or leave your first pool unfenced, to open
+# on it by default
+switchboard pool edit d3wn --unfence
 ```
 
 ## A command can't tell which pool to read
@@ -49,8 +49,8 @@ which routes nothing in a pool the config no longer has. The pool's record stays
 switchboard requests --pool q7mt
 ```
 
-`requests`, `history`, `sessions` and `events` read it with `--pool`. They read a pool brought in
-from another Mac the same way, shown as `pool Client (not configured here)`.
+`requests`, `history`, `sessions` and `events` read it with `--pool`. They read a pool of another
+Mac that `import` kept apart the same way, shown as `pool Client (not configured here)`.
 
 ## `status` says it probed directly
 
@@ -78,8 +78,19 @@ separately. A session can be pinned only to an account of its own pool.
 
 ## `pool add` says the config names no pools
 
-The router makes the first pool when it moves the record to pools, the first time it starts on a
-version with them. Once the config names that pool, add the rest.
+The router makes the first pool, `Default`, the first time it starts on a version with pools. On a
+new Mac, that's once setup has added your accounts and started it. If the router isn't running,
+start it, then add the pool again:
+
+```bash
+switchboard service install
+```
+
+If the router is running, its log says what holds it up:
+
+```bash
+switchboard logs router
+```
 
 ## `pool remove` is refused
 

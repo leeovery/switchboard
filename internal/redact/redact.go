@@ -5,10 +5,12 @@
 // hidden; and setup tells with it an answer that's a token pasted where it
 // shows, which it never takes. It tells too whether a value may hold a
 // secret before it's passed on, as the launcher asks of each value it keeps
-// in a session's environment.
+// in a session's environment; and it hides the parts of an address that can
+// carry a key, wherever the upstream's is shown.
 package redact
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -52,4 +54,39 @@ func Text(text string, secrets ...string) string {
 		return text
 	}
 	return tokenShaped.ReplaceAllString(text, Placeholder)
+}
+
+// URL returns address with its credentials, query and fragment, any of
+// which can carry a key, each replaced by Placeholder: everything from the
+// end of the scheme's :// to the last @, wherever it is, as a password can
+// hold a ? or a #, then everything after the first ? or # that follows. It
+// goes by the text alone, as the address may be no URL that parses, so an @
+// in a path or a query hides the host too.
+func URL(address string) string {
+	from := 0
+	if i := strings.Index(address, "://"); i >= 0 {
+		from = i + len("://")
+	}
+	shown, rest := address[:from], address[from:]
+	if at := strings.LastIndexByte(rest, '@'); at >= 0 {
+		shown, rest = shown+Placeholder, rest[at:]
+	}
+	if i := strings.IndexAny(rest, "?#"); i >= 0 {
+		rest = rest[:i+1] + Placeholder
+	}
+	return shown + rest
+}
+
+// URLError returns err, where it's a *url.Error, with its URL shown as URL
+// shows it: a URL's parse, and an HTTP client's request, fail with one
+// quoting the URL whole, its query and fragment included, the client's
+// hiding the password alone. It's given the error as the call made it,
+// as a wrap writes its text once, as it's made, the URL whole in it. It
+// changes the error in place, as each is made afresh by the one call that
+// fails with it, so nothing that unwraps one later finds the URL whole.
+func URLError(err error) error {
+	if failed, ok := err.(*url.Error); ok {
+		failed.URL = URL(failed.URL)
+	}
+	return err
 }

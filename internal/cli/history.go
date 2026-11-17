@@ -24,10 +24,13 @@ import (
 // today and those before it.
 const historyDays = 30
 
-// historyDocument is what history --json prints: the date of the prices the
-// days are priced at, whether the config's prices stand in place of any of
-// them, and History's blocks.
+// historyDocument is what history --json prints: the pool it's of, by its id
+// and label, none before the router has made the first pool; the date of the prices the days
+// are priced at, whether the config's prices stand in place of any of them,
+// and History's blocks.
 type historyDocument struct {
+	Pool             string `json:"pool,omitempty"`
+	PoolLabel        string `json:"pool_label,omitempty"`
 	PricesAsOf       string `json:"prices_as_of"`
 	PricesFromConfig bool   `json:"prices_from_config,omitempty"`
 	views.History
@@ -157,10 +160,10 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 	history := views.NewHistory(views.HistoryInput{
 		Ledger: days, From: asked.from, Now: asked.now, Began: began, Prices: prices, Accounts: asked.accounts(), Removed: removed,
 		Moved: asked.pool.moved(asked.cfg), WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
-		PoolLabel: status.PoolLabels(asked.cfg.Pools, record), OnePool: status.ManyPoolsFiled(asked.cfg.Pools, record),
+		PoolLabel: status.PoolLabels(asked.cfg.Pools, record),
 	})
 	if asJSON {
-		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})
+		return writeJSON(out, historyDocument{Pool: asked.pool.ID, PoolLabel: asked.pool.Label, PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})
 	}
 	if _, err := io.WriteString(out, asked.pool.heading()); err != nil {
 		return err

@@ -387,10 +387,10 @@ func TestAFilteredGridShadesWhatsShownAlone(t *testing.T) {
 	}
 }
 
-// BY MONTH is a row a month, the first of the 12 months priced from their
-// first day, the month the ledger began recording in from then, as the
-// ledger tells it, never as the first day it holds, and the month so far
-// marked so.
+// BY MONTH is a row a month, the first of the 12 months priced and marked
+// from their first day, so a part month never reads as a whole one, the
+// month the ledger began recording in from then, as the ledger tells it,
+// never as the first day it holds, and the month so far marked so.
 func TestByMonthMarksTheMonthTheLedgerBeganAndTheMonthSoFar(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -403,7 +403,7 @@ func TestByMonthMarksTheMonthTheLedgerBeganAndTheMonthSoFar(t *testing.T) {
 			// plans' $220 a month cost 24 × 12/365 of it.
 			name: "a ledger from before the 12 months",
 			days: overTheYear, began: "2025-10-06",
-			want: []string{"2025-10 cost 173.58904109589 from  so far false", "2026-10 cost 220 from  so far true"},
+			want: []string{"2025-10 cost 173.58904109589 from 2025-10-08 so far false", "2026-10 cost 220 from  so far true"},
 		},
 		{
 			// September from the ledger's first day, the 15th, is 16 days at
@@ -470,7 +470,7 @@ func TestAVersionsMonthsAreThoseItWasUsedIn(t *testing.T) {
 		},
 		{
 			name: "Opus 5, used from the first month", version: "Opus 5",
-			rows:   `[{"month":"2025-10","requests":10,"worth":5,"by_family":[{"family":"opus","worth":5}],"Share":1,"From":"","SoFar":false}]`,
+			rows:   `[{"month":"2025-10","requests":10,"worth":5,"by_family":[{"family":"opus","worth":5}],"Share":1,"From":"2025-10-08","SoFar":false}]`,
 			before: `null`,
 		},
 	}
@@ -645,16 +645,17 @@ func TestTheDaysReadReachTheWeekBeforeEveryPeriod(t *testing.T) {
 // The 12 months begin the day after today's date a year back, 1 March where
 // today is 29 February, and count from then: their requests, and their plans,
 // priced as 12 months, though 366 days of them hold a 29 February; the month
-// they begin in noted from no day, the ledger having begun before it. On
-// Monday 6 March 2028, weeks from Monday, they begin a day before the grid,
-// and are read from then.
+// they begin in noted from their first day, the ledger having begun before
+// it, or from no day where that's its 1st. On Monday 6 March 2028, weeks
+// from Monday, they begin a day before the grid, and are read from then.
 func TestTheTwelveMonthsBeginTheDayAfterTodaysDateAYearBack(t *testing.T) {
 	tests := []struct {
 		name  string
 		now   time.Time
 		first string
+		from  string
 	}{
-		{name: "Monday 6 March 2028", now: onAt("2028-03-06", "10:00"), first: "2027-03-07"},
+		{name: "Monday 6 March 2028", now: onAt("2028-03-06", "10:00"), first: "2027-03-07", from: "2027-03-07"},
 		{name: "29 February 2028", now: onAt("2028-02-29", "10:00"), first: "2027-03-01"},
 	}
 	for _, tt := range tests {
@@ -673,8 +674,8 @@ func TestTheTwelveMonthsBeginTheDayAfterTodaysDateAYearBack(t *testing.T) {
 			if got, want := jsonOf(t, page.Numbers.Cost), "2640"; got != want {
 				t.Errorf("the 12 months' plans cost %s, want %s, 12 months of them", got, want)
 			}
-			if first := page.ByMonth[0]; first.Month.Month != tt.first[:7] || first.From != "" {
-				t.Errorf("BY MONTH's first row is %s from %q, want %s noted from no day", first.Month.Month, first.From, tt.first[:7])
+			if first := page.ByMonth[0]; first.Month.Month != tt.first[:7] || first.From != tt.from {
+				t.Errorf("BY MONTH's first row is %s from %q, want %s from %q", first.Month.Month, first.From, tt.first[:7], tt.from)
 			}
 		})
 	}

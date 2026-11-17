@@ -191,9 +191,17 @@ func namesIn(dir string, cfg *config.Config) status.Names {
 // accounts without reading the history: each named by its id, warning, where
 // the config can't be loaded, so what names them prints all the same.
 func (a *app) accountNames() status.Names {
+	return a.accountNamesNoting(logger.Warn)
+}
+
+// accountNamesNoting are the names accountNames gives, noting with note, a
+// level of the log, where the config can't be loaded: status --session's,
+// asked at every refresh of a statusline, note it at debug, so cli.log isn't
+// filled with the same warning.
+func (a *app) accountNamesNoting(note func(msg string, args ...any)) status.Names {
 	cfg, err := a.loadConfig()
 	if err != nil {
-		logger.Warn("can't load the config, so each account is named by its id", "error", err)
+		note("can't load the config, so each account is named by its id", "error", err)
 		return status.Names{}
 	}
 	return a.namesOf(cfg)

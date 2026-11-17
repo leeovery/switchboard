@@ -3,12 +3,14 @@ package router
 import (
 	"errors"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -16,19 +18,22 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
-// Why a probe read nothing, as the API answers it: an ended subscription,
-// its organization's login refused, its message cut to the 60 characters a
-// probe's error keeps; a token refused; and a probe that wasn't answered.
+// Why a probe read nothing, as the provider gives it: the API refusing an
+// ended subscription's login, and a token; a proxy between refusing a token
+// in the API's place, its text a refused token's, which says nothing of the
+// account; and a probe that wasn't answered.
 var (
-	errSubscriptionEnded = errors.New("HTTP 403 · OAuth authentication is currently not allowed for this organ")
-	errTokenRefused      = errors.New("HTTP 401 · Invalid bearer token")
+	errSubscriptionEnded = claudetest.ErrSubscriptionEnded
+	errTokenRefused      = claudetest.ErrTokenRefused
+	errProxyRefused      = errors.New(claudetest.ErrTokenRefused.Error())
 	errTimedOut          = errors.New("timed out after 5s")
 )
 
 // readFailures are the ways an account's probes end, in order, and why they
 // leave it held back from every request, as status.RefusedRead says, zero
-// where they don't: only the API refusing a read holds it, till a read comes
-// back clean, however many fail otherwise after, the last refusal saying why.
+// where they don't: only the API refusing a read holds it, as the probe's
+// failure says, never its text, till a read comes back clean, however many
+// fail otherwise after, the last refusal saying why.
 var readFailures = []struct {
 	name string
 	// reads are how the probes end, in order: each error why one read
@@ -40,6 +45,8 @@ var readFailures = []struct {
 	{name: "its token refused", reads: []error{errTokenRefused}, held: status.StaleRefused},
 	{name: "the upstream overloaded", reads: []error{errUnreadable}},
 	{name: "the probe timed out", reads: []error{errTimedOut}},
+	{name: "a proxy between refusing its token", reads: []error{errProxyRefused}},
+	{name: "its subscription ended, then a proxy between refused its token", reads: []error{errSubscriptionEnded, errProxyRefused}, held: status.StaleLapsed},
 	{name: "its subscription ended, then a probe timed out", reads: []error{errSubscriptionEnded, errTimedOut}, held: status.StaleLapsed},
 	{name: "its subscription ended, then the upstream overloaded", reads: []error{errSubscriptionEnded, errUnreadable}, held: status.StaleLapsed},
 	{name: "its subscription ended, then its token refused", reads: []error{errSubscriptionEnded, errTokenRefused}, held: status.StaleRefused},
@@ -102,7 +109,7 @@ func TestASessionOnAnAccountWhoseReadWasRefusedMovesOff(t *testing.T) {
 			probesEnd(r.state, "work", tt.reads)
 			want := Choice{Account: "work", Reason: reasonSticky}
 			if tt.held != 0 {
-				want = Choice{Account: "side", Reason: "moved: work has no room", From: "work"}
+				want = Choice{Account: "side", Reason: "moved: work had its read refused", From: "work"}
 			}
 
 			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
@@ -117,10 +124,11 @@ func TestAPinToAnAccountWhoseReadWasRefusedYieldsAsToOneWhoseTokenTheRouterRefus
 	tests := []struct {
 		name   string
 		refuse func(r *Router)
+		want   string
 	}{
-		{name: "the router refused its token", refuse: func(r *Router) { r.state.refuse("work", http.StatusUnauthorized, someRequest, r.state.mark()) }},
-		{name: "its subscription ended", refuse: func(r *Router) { failWorksRead(r, errSubscriptionEnded) }},
-		{name: "its token refused as it was read", refuse: func(r *Router) { failWorksRead(r, errTokenRefused) }},
+		{name: "the router refused its token", refuse: func(r *Router) { r.state.refuse("work", http.StatusUnauthorized, someRequest, r.state.mark()) }, want: "pin yields: work has no room"},
+		{name: "its subscription ended", refuse: func(r *Router) { failWorksRead(r, errSubscriptionEnded) }, want: "pin yields: work had its read refused"},
+		{name: "its token refused as it was read", refuse: func(r *Router) { failWorksRead(r, errTokenRefused) }, want: "pin yields: work had its read refused"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -129,8 +137,38 @@ func TestAPinToAnAccountWhoseReadWasRefusedYieldsAsToOneWhoseTokenTheRouterRefus
 			tt.refuse(r)
 
 			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work", Pin: "work"})
-			if got.Account != "side" || got.Reason != "pin yields: work has no room" {
-				t.Errorf("the pinned session's request went to %s, %q, want side, as its pin to work yields", got.Account, got.Reason)
+			if got.Account != "side" || got.Reason != tt.want {
+				t.Errorf("the pinned session's request went to %s, %q, want side, %q, as its pin to work yields", got.Account, got.Reason, tt.want)
+			}
+		})
+	}
+}
+
+// A session moves off an account whose read was refused saying so, whatever
+// else holds it back, as a limit reached before the request, which alone
+// would be no room: the refusal is said first, as status says it, and
+// lasts till a read comes back clean.
+func TestAMoveOffAnAccountWhoseReadWasRefusedSaysSoThoughALimitHoldsItToo(t *testing.T) {
+	tests := []struct {
+		name  string
+		reads []error
+		want  string
+	}{
+		{name: "a limit alone", want: "moved: work has no room"},
+		{name: "a limit, its subscription ended", reads: []error{errSubscriptionEnded}, want: "moved: work had its read refused"},
+		{name: "a limit, its token refused as it was read", reads: []error{errTokenRefused}, want: "moved: work had its read refused"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newTestRouter(t, at(start), &stubProber{})
+			readWorkFirst(r)
+			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+			r.state.limit("work", nil, start.Add(time.Hour), r.state.mark())
+			probesEnd(r.state, "work", tt.reads)
+
+			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+			if got.Account != "side" || got.Reason != tt.want || got.From != "work" {
+				t.Errorf("the session's request went to %s, %q, from %q, want side, %q, from work", got.Account, got.Reason, got.From, tt.want)
 			}
 		})
 	}
@@ -254,8 +292,8 @@ func TestTheRoutersDocumentSaysWhyItsReadWasRefusedAsTheLastRefusalDid(t *testin
 
 			doc := r.state.document()
 			work, _ := doc.Account("work")
-			if got := status.RefusedRead(work.Error); got != tt.held {
-				t.Errorf("status reads work's error, %q, as %d, want %d: status and the router judge it alike", work.Error, got, tt.held)
+			if got := status.RefusedRead(work.RefusedRead); got != tt.held {
+				t.Errorf("status reads work's read refused, %q, as %d, want %d: status and the router judge it alike", work.RefusedRead, got, tt.held)
 			}
 			if tt.held == 0 {
 				return
@@ -294,7 +332,7 @@ func TestAnAccountWhoseReadWasRefusedIsHeldTillItGoesOutOnAnotherToken(t *testin
 			if refused != held || !since.Equal(wantSince) {
 				t.Errorf("side's read refused: %v, since %v; want %v, since %v: only another token lifts it", refused, since, held, wantSince)
 			}
-			if got := status.RefusedRead(kept.ProbeError); (got != 0) != held || !kept.RefusedSince.Equal(wantSince) {
+			if got := status.RefusedRead(kept.RefusedRead); (got != 0) != held || !kept.RefusedSince.Equal(wantSince) {
 				t.Errorf("the state file keeps side's probes as %+v, want its read refused kept %v, since %v", kept, held, wantSince)
 			}
 		})
@@ -529,27 +567,203 @@ func TestARefusalKeptByARouterStartedWithoutItsTokenHoldsOnceItsBack(t *testing.
 	}
 }
 
-func TestAStateFileFromBeforeRefusalsWereKeptHoldsAnAccountFromItsLastProbe(t *testing.T) {
-	// A router from before kept work's read refused two hours on, as its
-	// last probe ended, but not when the refusal began.
-	path := filepath.Join(t.TempDir(), "state.json")
-	now := start.Add(3 * time.Hour)
-	putState(t, path, savedState{
-		Version: stateVersion,
-		Tokens:  map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
-		Readings: map[string]savedReading{"work": {
-			ReadAt: start, Windows: []quota.Window{weekUsed(0.5)},
-			Probed: start.Add(2 * time.Hour), ProbeError: errSubscriptionEnded.Error(), Misses: 1,
-		}},
-	})
-	f := newTestFile(at(now), resolve(workReserved(), testTokens.Read, unrecorded))
-
-	f.load(path)
-	u := f.state.usage["work"]
-	if !u.readRefused() || !u.refusedSince.Equal(start.Add(2*time.Hour)) {
-		t.Errorf("work loaded as refused %v since %v, want refused since %v, its last probe's end", u.readRefused(), u.refusedSince, start.Add(2*time.Hour))
+// A read refused loads as the state file kept why: as a value, whatever its
+// error's text reads. A file from a router that judged the hold by the
+// error's text, keeping when the refusal began but not why, holds the account
+// as its text says, and is saved again with why. One from before the hold,
+// keeping no start, holds nothing, as its router held nothing, and neither
+// does a refusal this router doesn't know: the account's next read judges it.
+// A launch with the router down reads the file alike, as KeptHolds has it.
+func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
+	probed, began := start.Add(2*time.Hour), start.Add(time.Hour)
+	tests := []struct {
+		name string
+		kept savedReading
+		// want is why work's read is refused once loaded, since when, and
+		// resaved whether the file is due to be saved again.
+		want    quota.ReadRefusal
+		since   time.Time
+		resaved bool
+	}{
+		{
+			name: "kept as a value",
+			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.SubscriptionEnded, RefusedSince: began},
+			want: quota.SubscriptionEnded, since: began,
+		},
+		{
+			name: "kept as a value, its error reading otherwise",
+			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: quota.TokenRefused, RefusedSince: began},
+			want: quota.TokenRefused, since: began,
+		},
+		{
+			name: "kept as a value without when it began, as by hand: from its last probe",
+			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedRead: quota.TokenRefused},
+			want: quota.TokenRefused, since: probed, resaved: true,
+		},
+		{
+			name: "kept by its start and its error's text alone, as a router from before the value kept it",
+			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedSince: began},
+			want: quota.SubscriptionEnded, since: began, resaved: true,
+		},
+		{
+			name: "kept by its start, its error's text a token refused",
+			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedSince: began},
+			want: quota.TokenRefused, since: began, resaved: true,
+		},
+		{
+			name:    "kept by its start, its error's text no refusal",
+			kept:    savedReading{ProbeError: errUnreadable.Error(), RefusedSince: began},
+			resaved: true,
+		},
+		{
+			name: "an error reading as a refusal, kept from before the hold, with no start",
+			kept: savedReading{ProbeError: errSubscriptionEnded.Error()},
+		},
+		{
+			name:    "a refusal this router doesn't know",
+			kept:    savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.ReadRefusal("something_new"), RefusedSince: began},
+			resaved: true,
+		},
+		{
+			name: "a read that failed otherwise",
+			kept: savedReading{ProbeError: errUnreadable.Error()},
+		},
 	}
-	if !f.changes.unsaved.Load() {
-		t.Error("work's refusal is kept without its start, want the file due to be saved with it")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			kept := tt.kept
+			kept.ReadAt, kept.Windows, kept.Probed, kept.Misses = start, []quota.Window{weekUsed(0.5)}, probed, 1
+			putState(t, path, savedState{
+				Version:  stateVersion,
+				Tokens:   map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+				Readings: map[string]savedReading{"work": kept},
+			})
+			f := newTestFile(at(start.Add(3*time.Hour)), resolve(workReserved(), testTokens.Read, unrecorded))
+			read, err := KeptHoldsIn(filepath.Dir(path), f.refusalIn)
+			if got := read.Of("work", mustToken(t, workToken)).RefusedRead; err != nil || got != tt.want {
+				t.Errorf("a launch with the router down reads work's read refused as %q (%v), want %q, as the router loads it", got, err, tt.want)
+			}
+
+			f.load(path)
+			u := f.state.usage["work"]
+			if u.refusedRead != tt.want || !u.refusedSince.Equal(tt.since) || u.readRefused() != (tt.want != "") {
+				t.Errorf("work loaded as refused %q since %v, held %v; want %q since %v", u.refusedRead, u.refusedSince, u.readRefused(), tt.want, tt.since)
+			}
+			if u.probeErr != tt.kept.ProbeError {
+				t.Errorf("work's error loaded as %q, want %q, as kept", u.probeErr, tt.kept.ProbeError)
+			}
+			if got := f.changes.unsaved.Load(); got != tt.resaved {
+				t.Errorf("the file due to be saved again: %v, want %v", got, tt.resaved)
+			}
+			if !tt.resaved {
+				return
+			}
+			f.save()
+			if got := readState(t, path).Readings["work"]; got.RefusedRead != tt.want || !got.RefusedSince.Equal(tt.since) {
+				t.Errorf("the file saved again keeps work refused %q since %v, want %q since %v", got.RefusedRead, got.RefusedSince, tt.want, tt.since)
+			}
+		})
+	}
+}
+
+// A launch with the router down reads a read refused off the state file as a
+// router started again would hold the account back by it: on the token the
+// file kept it of alone, as a token replaced since starts afresh; of the
+// account it was refused alone; and never where there's no file.
+func TestALaunchReadsARefusalTheStateFileKeepsOnItsTokenAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	saving := newTestFile(at(start), testAccounts())
+	saving.load(path)
+	probesEnd(saving.state, "side", []error{errSubscriptionEnded})
+	saving.save()
+	tests := []struct {
+		name  string
+		dir   string
+		id    string
+		token string
+		want  quota.ReadRefusal
+	}{
+		{name: "its token as kept", dir: filepath.Dir(path), id: "side", token: sideToken, want: quota.SubscriptionEnded},
+		{name: "another token since", dir: filepath.Dir(path), id: "side", token: renewedToken},
+		{name: "another account", dir: filepath.Dir(path), id: "work", token: workToken},
+		{name: "another account, on the token kept of the one refused", dir: filepath.Dir(path), id: "work", token: sideToken},
+		{name: "no file", dir: t.TempDir(), id: "side", token: sideToken},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kept, err := KeptHoldsIn(tt.dir, saving.refusalIn)
+			if got := kept.Of(tt.id, mustToken(t, tt.token)); err != nil || got != (KeptHold{RefusedRead: tt.want}) {
+				t.Errorf("Of(%q) = %+v (error %v), want its read refused as %q, its token its own", tt.id, got, err, tt.want)
+			}
+		})
+	}
+}
+
+// A launch with the router down reads a token kept as another
+// subscription's as the router, started again, takes it in: of the token the
+// file kept it of alone, as a token replaced since is the account's own till
+// a probe finds otherwise.
+func TestALaunchReadsAForeignTokenTheStateFileKeepsAsTheRouterLoadsIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+		want  bool
+	}{
+		{name: "the token kept", token: sideToken, want: true},
+		{name: "another token since", token: renewedToken},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			putState(t, path, savedState{
+				Version: stateVersion,
+				Tokens:  map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash, Foreign: sideHash}},
+			})
+			as := resolve(testConfigured, tokenstest.Files{"work": workToken, "side": tt.token}.Read, unrecorded)
+			f := newTestFile(at(start), as)
+
+			kept, err := KeptHoldsIn(filepath.Dir(path), f.refusalIn)
+			if got := kept.Of("side", mustToken(t, tt.token)); err != nil || got != (KeptHold{Foreign: tt.want}) {
+				t.Errorf("Of(side) = %+v (error %v), want its token another subscription's: %v", got, err, tt.want)
+			}
+			f.load(path)
+			if side, _ := as.byID("side"); side.hasToken() == tt.want {
+				t.Errorf("the router loads side as having a token of its own: %v, want %v, as a launch reads it", side.hasToken(), !tt.want)
+			}
+		})
+	}
+}
+
+// A state file a launch can't read keeps no refusal, and fails saying why,
+// left as it is: only the router, as it starts, sets a corrupt one aside.
+func TestALaunchLeavesAStateFileItCantReadAsItIs(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantError string
+	}{
+		{name: "not JSON", content: "{\"version\": 1, \"readi", wantError: "unexpected end of JSON input"},
+		{name: "a version unknown", content: `{"version": 2, "readings": {"side": {"refused_read": "subscription_ended"}}}`, wantError: "version 2, where 1 is known"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "state.json")
+			if err := os.WriteFile(path, []byte(tt.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			kept, err := KeptHoldsIn(dir, newTestFile(at(start), testAccounts()).refusalIn)
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) || !strings.Contains(err.Error(), path) {
+				t.Errorf("KeptHoldsIn() error = %v, want one naming %s, saying %q", err, path, tt.wantError)
+			}
+			if got := kept.Of("side", mustToken(t, sideToken)); got != (KeptHold{}) {
+				t.Errorf("Of(side) = %+v, want nothing held", got)
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != tt.content {
+				t.Errorf("the state file holds %q (%v), want it left as it was", data, err)
+			}
+		})
 	}
 }

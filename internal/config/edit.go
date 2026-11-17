@@ -487,9 +487,16 @@ func (d *Draft) marked() document {
 	if d.doc.text() == string(d.read) {
 		return d.doc
 	}
-	doc := d.doc.withIDsMarked()
-	if got, _, err := decode(doc.text()); err != nil || !reflect.DeepEqual(got, d.file) {
-		return d.doc
+	return d.doc.idsMarked(d.file)
+}
+
+// idsMarked returns d with its ids marked, as withIDsMarked marks them,
+// where the marks read back as want, the config d reads as: else d as it
+// is.
+func (d document) idsMarked(want file) document {
+	doc := d.withIDsMarked()
+	if got, _, err := decode(doc.text()); err != nil || !reflect.DeepEqual(got, want) {
+		return d
 	}
 	return doc
 }

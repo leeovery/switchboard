@@ -527,10 +527,11 @@ const (
 // in the words of an event, of a request's routing, of a phone, and of the
 // List's routing.
 var offWords = map[string]struct{ event, routed, short, brief string }{
-	WhyReserve: {event: " reached its cap", routed: AtCap, short: "its cap", brief: AtCap},
-	WhyLimit:   {event: " reached its limit", routed: AtLimit, short: "its limit", brief: AtLimit},
-	WhyRefused: {event: " refused the request", routed: "refused", short: "refused", brief: "refused"},
-	WhyNoRoom:  {event: " had no room", routed: "with no room", short: "no room", brief: "no room"},
+	WhyReserve:     {event: " reached its cap", routed: AtCap, short: "its cap", brief: AtCap},
+	WhyLimit:       {event: " reached its limit", routed: AtLimit, short: "its limit", brief: AtLimit},
+	WhyRefused:     {event: " refused the request", routed: "refused", short: "refused", brief: "refused"},
+	WhyReadRefused: {event: " had its read refused", routed: "read refused", short: "read refused", brief: "read refused"},
+	WhyNoRoom:      {event: " had no room", routed: "with no room", short: "no room", brief: "no room"},
 }
 
 // Tried is an account a request went out on that couldn't serve it, and

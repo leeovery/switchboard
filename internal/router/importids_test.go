@@ -3,6 +3,7 @@ package router_test
 import (
 	"encoding/json"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -123,7 +124,7 @@ func TestThisMacsFolderExportedBeforeTheMoveIsTakenInUnderTheNewIDs(t *testing.T
 	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), pastKeep), []byte(summary), stamped(stagedOn))
 
 	want := router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 3, Summaries: 1}
-	if got := importNow(t, cfg); got != want {
+	if got := importNow(t, cfg); !reflect.DeepEqual(got, want) {
 		t.Errorf("Import() = %+v, want %+v", got, want)
 	}
 	for _, kind := range lineKinds {
@@ -158,7 +159,7 @@ func TestAFolderExportedAfterTheMoveIsTakenInByTheRecordItCarries(t *testing.T) 
 	stageLines(t, folder(cfg, 1), requestLines, after, asMoved(requestLines.linesOf(after, 2))...)
 
 	want := router.Imported{Folders: 1, Days: router.ImportedDays{Added: 2}}
-	if got := importNow(t, cfg); got != want {
+	if got := importNow(t, cfg); !reflect.DeepEqual(got, want) {
 		t.Errorf("Import() = %+v, want %+v", got, want)
 	}
 	wantHeld(t, cfg, before, asMoved(requestLines.linesOf(before, 1)))

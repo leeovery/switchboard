@@ -69,7 +69,7 @@ func TestEachKindOfCountIsWorthItsPrice(t *testing.T) {
 }
 
 func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
-	// The prices Anthropic's pricing page gave on 11 October 2026, as dollars
+	// The prices Anthropic's pricing page gave on 17 November 2026, as dollars
 	// a million tokens: of input, writing the cache for five minutes and for
 	// an hour, reading it, and output; Claude Haiku 5.5's for a prompt up to
 	// 100,000 tokens.
@@ -77,6 +77,7 @@ func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
 		ids                                   []string
 		input, write5m, write1h, read, output float64
 	}{
+		{ids: []string{"claude-fable-5-2"}, input: 8, write5m: 10, write1h: 16, read: 0.20, output: 40},
 		{ids: []string{"claude-fable-5-1"}, input: 10, write5m: 12.50, write1h: 20, read: 0.25, output: 50},
 		{ids: []string{"claude-fable-5"}, input: 10, write5m: 12.50, write1h: 20, read: 1, output: 50},
 		{ids: []string{"claude-opus-5-5"}, input: 4, write5m: 5, write1h: 8, read: 0.20, output: 20},
@@ -111,7 +112,7 @@ func TestEachModelIsPricedAsAnthropicsPricingPageGivesIt(t *testing.T) {
 					{usage: `{"output_tokens":1000000}`, dollars: m.output},
 					{usage: `{"server_tool_use":{"web_search_requests":1000}}`, dollars: 10},
 				} {
-					if got := worthOf(t, ledger.Pricing, id, "", priced.usage, today); got.Cost != dollars(priced.dollars) {
+					if got := worthOf(t, ledger.Pricing, id, "", priced.usage, ledger.Pricing.AsOf); got.Cost != dollars(priced.dollars) {
 						t.Errorf("%s is worth %s, want $%v, as the pricing page gives it", priced.usage, got.Cost.Cents(), priced.dollars)
 					}
 				}
@@ -138,6 +139,30 @@ func TestClaudeSonnet55sCacheReadsCostLessFromTheDayTheirPriceFell(t *testing.T)
 			got := worthOf(t, ledger.Pricing, "claude-sonnet-5-5", "", `{"cache_read_input_tokens":1000000}`, tt.date)
 			if got.Cost != tt.want {
 				t.Errorf("a million tokens read from the cache on %s are worth %s, want %s", tt.date, got.Cost.Cents(), tt.want.Cents())
+			}
+		})
+	}
+}
+
+func TestClaudeFable52IsPricedFromTheDayItLaunched(t *testing.T) {
+	// A million tokens of each kind: of input, written to the cache for five
+	// minutes and for an hour, read from it, and of output.
+	tokens := `{"input_tokens":1000000,"cache_creation_input_tokens":2000000,` +
+		`"cache_creation":{"ephemeral_5m_input_tokens":1000000,"ephemeral_1h_input_tokens":1000000},` +
+		`"cache_read_input_tokens":1000000,"output_tokens":1000000}`
+	launched := 8 + 10 + 16 + 0.20 + 40
+	tests := []struct {
+		name, date, geo string
+		want            float64
+	}{
+		{name: "the day it launched", date: "2026-11-09", want: launched},
+		{name: "the day the table was checked", date: "2026-11-17", want: launched},
+		{name: "the day it launched, in the US, a tenth more", date: "2026-11-09", geo: "us", want: launched * 1.1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := worthOf(t, ledger.Pricing, "claude-fable-5-2", tt.geo, tokens, tt.date); got.Cost != dollars(tt.want) {
+				t.Errorf("on Claude Fable 5.2, %s is worth %s, want $%v", tokens, got.Cost.Cents(), tt.want)
 			}
 		})
 	}

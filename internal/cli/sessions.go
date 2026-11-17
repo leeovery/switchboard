@@ -17,6 +17,17 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// sessionsDocument is what sessions --json prints of today's sessions: where
+// they were read from, as views.SessionsSource says; the pool they're of, by
+// its id and label, none before the router has made the first pool; and the
+// List.
+type sessionsDocument struct {
+	Source    string `json:"source"`
+	Pool      string `json:"pool,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
+	views.SessionList
+}
+
 func newSessionsCommand(a *app) *cobra.Command {
 	var (
 		form formFlags
@@ -106,7 +117,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	})
 	list = list.Named(pool.names(cfg, readers.removed))
 	if asJSON {
-		return writeJSON(out, list)
+		return writeJSON(out, sessionsDocument{Source: views.SessionsSource(!pool.kept, unlisted), Pool: pool.ID, PoolLabel: pool.Label, SessionList: list})
 	}
 	if _, err := io.WriteString(out, pool.heading()); err != nil {
 		return err

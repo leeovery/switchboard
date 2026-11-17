@@ -24,7 +24,7 @@ import (
 // made from; and as the router stands with them then, which the readings
 // don't hold: its pin, the limits and refusals in force, when it
 // last read an account it couldn't read since, and why, where its probe's
-// error says, how many sessions it sent
+// failure says, as a failedRead, how many sessions it sent
 // each in the last hour, and where it sends new sessions, where the frames
 // say so; the sessions it lists at a moment, as GET /sessions gives them,
 // where the world has them; what it has told of since it started, its events,
@@ -46,7 +46,7 @@ type accountWorld struct {
 	limits     map[string]status.Limit
 	refused    map[string]status.Refusal
 	stale      map[string]time.Time
-	failed     map[string]string
+	failed     map[string]failedRead
 	sessions   map[string]int
 	best       string
 	routed     func(now time.Time) []status.Session
@@ -162,7 +162,8 @@ func (w accountWorld) account(a config.Account, h history, at time.Time) (status
 	latest := held.windows(claude.WindowLabel)
 	st.Windows, st.Extra = latest, extraOff
 	st = st.AsOf(claude.Policy(), at)
-	st.Limit, st.Refused, st.Sessions, st.Error = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID], w.failed[a.ID]
+	st.Limit, st.Refused, st.Sessions = w.limits[a.ID], w.refused[a.ID], w.sessions[a.ID]
+	st.Error, st.RefusedRead = w.failed[a.ID].error, w.failed[a.ID].refused
 	took := held.takenUp()
 	st.Rates = status.RatesOf(latest, took.trails, took.fastAt(at), at)
 	st.Pressure = pressureOf(st, latest, took.trails, w.pin.Has(a.ID), at)
@@ -626,7 +627,7 @@ func (a accountWorlds) lapsed() accountWorld {
 			history:  t.history(accounts),
 			refused:  map[string]status.Refusal{"work": refused},
 			stale:    map[string]time.Time{"work": dayAt(a.now, today, 14, 20, 0), "personal": dayAt(a.now, today, 13, 35, 0)},
-			failed:   map[string]string{"personal": endedSubscription},
+			failed:   map[string]failedRead{"personal": subscriptionEnded},
 			sessions: map[string]int{"side": 6},
 			best:     "side",
 			events:   ofTheRun(happenings{a.now}.lapsed(refused)),
@@ -634,10 +635,21 @@ func (a accountWorlds) lapsed() accountWorld {
 	})
 }
 
-// endedSubscription is the error of an ended subscription's probe, as the
-// probe gives it: answered 403, the API's message cut to the 60 characters
-// kept.
-const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+// failedRead is why an account's last probe read nothing, as the router
+// keeps it: the probe's error, and why the API refused the read, where it
+// did, as the probe's failure says it.
+type failedRead struct {
+	error   string
+	refused quota.ReadRefusal
+}
+
+// subscriptionEnded is how an ended subscription's probe fails: answered
+// 403, its organization's login refused, the API's message cut to the 60
+// characters kept.
+var subscriptionEnded = failedRead{
+	error:   "HTTP 403 · OAuth authentication is currently not allowed for this organ",
+	refused: quota.SubscriptionEnded,
+}
 
 // many is the world of the frames of six or ten accounts: the auto world's
 // three and the first n−3 of the seven more (dash3.EXTRA): client, its

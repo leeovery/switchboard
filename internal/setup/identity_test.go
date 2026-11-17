@@ -347,7 +347,8 @@ func TestAnAnswerThatCantBeSaved(t *testing.T) {
 // A token replacing an account's must be for the account's organization, as
 // the accounts record has it, made or pasted: another's is refused, saving
 // nothing, naming the account the record has of it, where the account's own
-// isn't known.
+// isn't known; as another account's subscription, where that account's
+// configured here.
 func TestATokenReplacingAnAccountsIsHeldToItsOrganization(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -363,6 +364,11 @@ func TestATokenReplacingAnAccountsIsHeldToItsOrganization(t *testing.T) {
 			name:   "an account's the record has, the account's own not known",
 			record: []identity.Entry{{ID: "k3f9", Added: recordedBefore}, otherRemoved},
 			want:   setup.Tokened{Result: setup.TokenOtherSubscription, SameAs: "Old"},
+		},
+		{
+			name:   "an account's configured here, as on the wrong row, the account's own not known",
+			record: []identity.Entry{{ID: "k3f9", Added: recordedBefore}, {ID: "side", Organization: "org-other", Added: recordedBefore}},
+			want:   setup.Tokened{Result: setup.TokenSameAccount, SameAs: "side"},
 		},
 	}
 	ways := []struct {

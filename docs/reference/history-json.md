@@ -23,6 +23,7 @@ switchboard history --json | jq \
 | Field | Type | Meaning |
 |---|---|---|
 | `schema` | number | `1`. See [Reading the JSON](reading-the-json.md). |
+| `pool` and `pool_label` | string | The pool the history is of. Left out before the router has made the first pool. |
 | `prices_as_of` | string | The date the prices were read. |
 | `prices_from_config` | boolean | Set if `[prices]` in the config prices a model or a plan. |
 | `days` | list of objects | The summary of each day, priced. See below. |
@@ -69,9 +70,12 @@ Each day is its [day summary](day-summary.md), with these added:
 - **`by_family`** counts only models used. A model with only quota checks or counts of tokens
   isn't one.
 - **The models in each of `pools`** are priced as the models of the whole day are.
-- **`lines` and `bytes` are left out** if the files of the day may hold the work of more than one
-  pool. That's the case with two pools or more, or if the accounts record keeps a pool the config
-  doesn't.
+
+Four fields of the summary are left out, because they say how the summary was made, not what the
+day did. The router keeps them to know when to sum up a day again:
+
+- `version`, `lines` and `bytes`, from the top of each day;
+- `read_before`, from each account.
 
 A day with no requests has no `accounts` if the readings history tells of no account. An account
 has a day if its quota checks, its counts of tokens or the readings history give it one.

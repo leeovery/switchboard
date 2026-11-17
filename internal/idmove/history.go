@@ -85,6 +85,23 @@ func rewriteAll(ctx context.Context, files *dayfile.Files, line func([]byte) []b
 	return nil
 }
 
+// HoldsHistory reports whether the state directory stateDir holds any
+// history: a day of the request ledger's lines, or its summary, of the
+// router's events, or of the readings history. It opens nothing, and fails
+// where their folders can't be listed.
+func HoldsHistory(stateDir string) (bool, error) {
+	for _, files := range []*dayfile.Files{
+		ledger.Files(ledger.Dir(stateDir), logger), events.Files(ledger.Dir(stateDir), logger), readings.Files(readings.Dir(stateDir), logger),
+	} {
+		dates, err := files.All()
+		if err != nil || len(dates) > 0 {
+			return len(dates) > 0, err
+		}
+	}
+	summarised, err := ledger.SummaryDates(ledger.Dir(stateDir))
+	return len(summarised) > 0, err
+}
+
 // ledgerDates are the dates of the days the ledger holds lines or a summary
 // of, oldest first, each once.
 func ledgerDates(l *ledger.Ledger) ([]string, error) {
@@ -100,13 +117,17 @@ func ledgerDates(l *ledger.Ledger) ([]string, error) {
 }
 
 // rewritingLines rewrites a line as rename has it, n saying where it names
-// accounts and gives its pool: each account it names renamed, then, where it
-// names no pool, given the pool rename gives the work of the requests that
-// named none.
+// accounts and pools and gives its pool: each account it names renamed, and
+// each pool, then, where it names no pool, given the pool rename gives the
+// work of the requests that named none.
 func rewritingLines(n names, rename ledger.Renaming) func([]byte) []byte {
+	pools := names{values: n.pools}
 	return func(line []byte) []byte {
 		if rename.Account != nil {
 			line, _ = n.renamed(line, rename.Account)
+		}
+		if rename.Pool != nil {
+			line, _ = pools.renamed(line, rename.Pool)
 		}
 		if rename.Unpooled != "" {
 			line, _ = n.pool.pooled(line, rename.Unpooled)

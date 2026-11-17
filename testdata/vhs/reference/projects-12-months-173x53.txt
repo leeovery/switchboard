@@ -48,6 +48,6 @@ SESSIONS
   c646 switchboard               personal  sonnet-5-5  ended 16:53  15:27           130  $15.01
   ended Thu 24 Sep  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
   7902 switchboard               personal  haiku-4-5   ended 14:08  12:15           238  $27.43
-  a358 switchboard               work      opus-5-5    ended 13:32  10:39           260  $30.01
+  ▼ 495 more sessions
 
 tab views   ↑↓ project   → its sessions   < > period: 12 months   p pin   ? help  q quit

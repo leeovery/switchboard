@@ -318,6 +318,7 @@ func TestAccountsTokenIsHeldToTheAccountsOrganization(t *testing.T) {
 	}{
 		{name: "another organization recorded", record: []identity.Entry{otherSide}, wantErr: "the token is for another subscription, so nothing is saved: add it as an account of its own, with switchboard accounts add <label>"},
 		{name: "its organization held by another account", record: []identity.Entry{unknownSide, spareSide}, wantErr: `the token is for another subscription, that of "Spare" (r4n8), so nothing is saved: add it as an account of its own, with switchboard accounts add <label>`},
+		{name: "its organization held by another account configured here", record: []identity.Entry{unknownSide, {ID: "personal", Organization: "org-side", Added: sideAdded}}, wantErr: `the token is for another subscription, that of "Personal" (personal), an account configured here, so nothing is saved: it's that account's token, given the wrong one: give it personal with switchboard accounts token personal`},
 		{name: "no organization recorded", record: []identity.Entry{unknownSide}, recorded: identity.Entry{ID: "side", Organization: "org-side", Added: sideAdded}},
 		{name: "its own organization recorded", record: []identity.Entry{{ID: "side", Organization: "org-side", Added: sideAdded}}, recorded: identity.Entry{ID: "side", Organization: "org-side", Added: sideAdded}},
 	}

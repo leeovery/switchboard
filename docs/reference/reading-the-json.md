@@ -31,6 +31,18 @@ switchboard status --json | head -4
 The number goes up only if a field changes its meaning or its units, or is removed. A new field
 leaves it as it is.
 
+## Lines carry no version
+
+The lines of the request ledger, the readings history and the router events carry no version.
+The rules above hold for each line: a release adds fields, and never renames one or changes what
+it means.
+
+- **A change an older switchboard would misread** raises the version of the folder an export
+  writes, in its `export.json`, instead. An older switchboard then refuses the folder rather
+  than misread its lines. See [Export folders](export-folder.md).
+- **Some files carry a `version` of their own,** for example the [day summary](day-summary.md)
+  and the [accounts record](accounts-record.md).
+
 ## Accounts by id, with labels
 
 Every format names an account by its id, such as `b6s7`, and never by its token. Most verb JSON

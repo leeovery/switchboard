@@ -48,7 +48,7 @@ switchboard pool --json
 | Field | Type | Meaning |
 |---|---|---|
 | `schema` | number | `1`. See [Reading the JSON](reading-the-json.md). |
-| `pools` | list of objects | Every pool, in the order of the config. Empty if the config has no pools yet. |
+| `pools` | list of objects | Every pool, in the order of the config. See below. |
 
 Each pool holds these:
 
@@ -60,3 +60,7 @@ Each pool holds these:
 | `accounts` | list of objects | The accounts in the pool, in the order of the config, as `{account, label, primary}`. |
 
 `primary` is set only on the primary of the pool.
+
+If the config names no pools, `pools` lists the pools the router routes for, or else those the
+accounts record keeps. It's empty only if none of them names a pool, as before the router has made
+the first.

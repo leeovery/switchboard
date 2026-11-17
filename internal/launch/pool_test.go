@@ -119,6 +119,10 @@ func TestRunStartsASessionInThePoolItsDirectoryIsIn(t *testing.T) {
 		{name: "around a fence: the unfenced pool", dir: homeDir + "/Code", wantPool: "b2n8", wantToken: workToken},
 		{name: "a directory not known, no pool fenced: the unfenced pool", pools: config.Pools{defaultPool}, wantPool: "b2n8", wantToken: workToken},
 		{name: "in the second fence of a pool of two", dir: "/Volumes/Client/site", pools: config.Pools{defaultPool, acmePool, clientPool}, wantPool: "h4w2", wantToken: sideToken},
+		// Café's é is composed in one and apart, an e and its accent, in the
+		// other, as a name typed and one Finder made can differ.
+		{name: "inside it, its accents apart where the fence's are composed", dir: homeDir + "/Code/cafe\u0301/api", pools: config.Pools{defaultPool, acmeIn("caf\u00e9")}, wantPool: "q7mt", wantToken: acme1Token},
+		{name: "inside it, its accents composed where the fence's are apart", dir: homeDir + "/Code/caf\u00e9/api", pools: config.Pools{defaultPool, acmeIn("cafe\u0301")}, wantPool: "q7mt", wantToken: acme1Token},
 		{
 			name:     "outside every fence, every pool fenced",
 			dir:      elsewhere,
@@ -172,6 +176,11 @@ func TestRunStartsASessionInThePoolItsDirectoryIsIn(t *testing.T) {
 			}
 		})
 	}
+}
+
+// acmeIn is Acme fenced to the folder named in ~/Code.
+func acmeIn(name string) config.Pool {
+	return config.Pool{ID: acmePool.ID, Label: acmePool.Label, Dirs: []string{homeDir + "/Code/" + name}}
 }
 
 // linkedTree makes, under a directory of the test's own, which it returns,

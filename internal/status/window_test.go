@@ -16,8 +16,8 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	capped := func(a *status.Account) { a.Reserve = 0.05 }
 	failing := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
 	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: at(1, 21, 40).UTC(), Status: 401} }
-	readRefused := func(a *status.Account) { a.Error = "HTTP 401 · Invalid bearer token" }
-	ended := func(a *status.Account) { a.Error = endedSubscription }
+	readRefused := refusedRead(quota.TokenRefused)
+	ended := refusedRead(quota.SubscriptionEnded)
 	read := stateNow.Add(-4 * time.Second).UTC()
 	tests := []struct {
 		name    string
@@ -229,39 +229,43 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	}
 }
 
-// endedSubscription is the error of an ended subscription's probe, as the
-// probe gives it, the API's message cut to the 60 characters it keeps.
-const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+// The errors of a probe the API refused, as the probe gives them: an ended
+// subscription's, the API's message cut to the 60 characters it keeps, and a
+// refused token's.
+const (
+	endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+	tokenRefused      = "HTTP 401 · Invalid bearer token"
+)
 
 // A stale reading says why it's stale, the first that holds of: its
-// subscription ended, as its last read was answered 403 refusing its
-// organization's login, in any case; its token refused, by the router or by
-// its last read's 401; and its last read failed otherwise, a 403 saying
-// anything else among them. A refusal that has lifted, the account read
-// clean since, leaves none.
+// subscription ended, as the account's refused read says its last read was
+// refused its organization's login; its token refused, by the router or by
+// its last read refused; and its last read failed otherwise. The error's
+// text never says it, whatever it reads, nor a refusal this build doesn't
+// know. A refusal that has lifted, the account read clean since, leaves none.
 func TestAStaleReadingSaysWhyItsStale(t *testing.T) {
 	refused := status.Refusal{Until: at(1, 21, 40).UTC(), Status: 401}
 	tests := []struct {
-		name      string
-		error     string
-		refused   status.Refusal
-		wantKind  status.WindowKind
-		wantStale status.StaleCause
+		name        string
+		error       string
+		refusedRead quota.ReadRefusal
+		refused     status.Refusal
+		wantKind    status.WindowKind
+		wantStale   status.StaleCause
 	}{
-		{name: "its organization's login refused: subscription lapsed", error: endedSubscription, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{name: "its subscription ended: subscription lapsed", error: endedSubscription, refusedRead: quota.SubscriptionEnded, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
 		{
-			name: "its organization's login refused, in another case: subscription lapsed", error: "HTTP 403 · oauth AUTHENTICATION is Currently NOT allowed",
+			name: "its subscription ended, its token refused too: subscription lapsed", error: endedSubscription, refusedRead: quota.SubscriptionEnded, refused: refused,
 			wantKind: status.WindowStale, wantStale: status.StaleLapsed,
 		},
-		{name: "its organization's login refused, its token too: subscription lapsed", error: endedSubscription, refused: refused, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
-		{name: "a 403 saying anything else: failed", error: "HTTP 403 · Not allowed", wantKind: status.WindowStale, wantStale: status.StaleFailed},
-		{name: "a 403 without a message: failed", error: "HTTP 403", wantKind: status.WindowStale, wantStale: status.StaleFailed},
+		{name: "its last read's token refused: its token refused", error: tokenRefused, refusedRead: quota.TokenRefused, wantKind: status.WindowStale, wantStale: status.StaleRefused},
+		{name: "the router seeing its token refused: its token refused", refused: refused, wantKind: status.WindowStale, wantStale: status.StaleRefused},
+		{name: "an error reading as an ended subscription's, no refusal said: failed", error: endedSubscription, wantKind: status.WindowStale, wantStale: status.StaleFailed},
+		{name: "an error reading as a refused token's, no refusal said: failed", error: tokenRefused, wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{
-			name: "the login's message on another status: failed", error: "HTTP 400 · OAuth authentication is currently not allowed",
+			name: "a refusal this build doesn't know: failed", error: "HTTP 403 · Something new", refusedRead: quota.ReadRefusal("something_new"),
 			wantKind: status.WindowStale, wantStale: status.StaleFailed,
 		},
-		{name: "its last read answered 401: its token refused", error: "HTTP 401 · Invalid bearer token", wantKind: status.WindowStale, wantStale: status.StaleRefused},
-		{name: "the router seeing its token refused: its token refused", refused: refused, wantKind: status.WindowStale, wantStale: status.StaleRefused},
 		{name: "a read answered otherwise: failed", error: "HTTP 529 · Overloaded", wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{name: "a read not answered: failed", error: "timed out after 5s", wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{
@@ -271,7 +275,7 @@ func TestAStaleReadingSaysWhyItsStale(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := with(readNow(0.2, 0.3, 0), func(a *status.Account) { a.Error, a.Refused = tt.error, tt.refused })
+			a := with(readNow(0.2, 0.3, 0), func(a *status.Account) { a.Error, a.RefusedRead, a.Refused = tt.error, tt.refusedRead, tt.refused })
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{a}}
 			if got := windowAt(doc, a.ID, "5h", stateNow, policy); got.Kind != tt.wantKind || got.Stale != tt.wantStale {
 				t.Errorf("the window stands as kind %d, stale as %d; want kind %d, stale as %d", got.Kind, got.Stale, tt.wantKind, tt.wantStale)

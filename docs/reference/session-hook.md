@@ -9,11 +9,20 @@ without going through switchboard. For why that happens, see
   "hooks": [
     {
       "type": "command",
-      "command": "[ -x '/opt/homebrew/bin/switchboard' ] && '/opt/homebrew/bin/switchboard' hook session-start || true",
+      "command": "<the command below>",
       "timeout": 5
     }
   ]
 }
+```
+
+The command is one line in the file. Here it's broken over lines, for switchboard installed by
+Homebrew:
+
+```bash
+[ -x '/opt/homebrew/bin/switchboard' ] &&
+  '/opt/homebrew/bin/switchboard' \
+  hook session-start || true
 ```
 
 ## The entry
@@ -43,7 +52,16 @@ Every `claude` that switchboard starts carries a mark, `SWITCHBOARD_STARTED`. Th
 | Sends input the hook can't read | The notice below |
 
 ```json
-{"systemMessage": "This session isn't going through switchboard, as the claude that started it isn't switchboard's: from a terminal, switchboard setup puts that right; an app that runs its own Claude Code isn't routed."}
+{"systemMessage": "<the notice>"}
+```
+
+The notice is one line. Here it's broken to fit:
+
+```text
+This session isn't going through switchboard, as
+the claude that started it isn't switchboard's:
+from a terminal, switchboard setup puts that right;
+an app that runs its own Claude Code isn't routed.
 ```
 
 Claude Code shows the notice to you. It adds nothing to what Claude is told.

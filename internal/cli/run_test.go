@@ -2,6 +2,8 @@ package cli_test
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
@@ -333,6 +335,50 @@ func TestRunWithoutThePrimarysToken(t *testing.T) {
 	}
 }
 
+// With the router down, a session going direct passes over the primary
+// where the router's state file keeps its last read refused, or its token
+// another subscription's, of the token its file holds, as the router, started
+// again, would hold it back from every request: once the token is replaced,
+// the router starts afresh on it, and so does the launch.
+func TestRunWithTheRouterDownPassesOverAPrimaryTheStateFileKeepsHeld(t *testing.T) {
+	keptOn := sha256.Sum256([]byte("test-token-work"))
+	hash := hex.EncodeToString(keptOn[:])
+	refused := `{"version": 1, "sessions": [], "tokens": {"work": {"sha256": "` + hash + `"}},` +
+		` "readings": {"work": {"probe_error": "HTTP 403 · OAuth authentication is currently not allowed for this organization",` +
+		` "refused_read": "subscription_ended", "refused_since": "2026-11-17T09:00:00Z"}}}`
+	foreign := `{"version": 1, "sessions": [], "tokens": {"work": {"sha256": "` + hash + `", "foreign": "` + hash + `"}}}`
+	tests := []struct {
+		name        string
+		state       string
+		token       string
+		wantAccount string
+		wantToken   string
+	}{
+		{name: "its read refused, on the token kept", state: refused, token: "test-token-work", wantAccount: "side · Side", wantToken: "test-token-side"},
+		{name: "its read refused, on a token since replaced", state: refused, token: "test-token-work-renewed", wantAccount: "work · Work", wantToken: "test-token-work-renewed"},
+		{name: "its token another subscription's, the token kept", state: foreign, token: "test-token-work", wantAccount: "side · Side", wantToken: "test-token-side"},
+		{name: "its token another subscription's, a token since replaced", state: foreign, token: "test-token-work-renewed", wantAccount: "work · Work", wantToken: "test-token-work-renewed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_WHEN_ROUTER_DOWN": "direct"})
+			writeToken(t, srv.deps, "work", tt.token)
+			if err := os.WriteFile(filepath.Join(stateDir(t, srv.deps), "state.json"), []byte(tt.state), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			handed := recordHandOffs(t, &srv.deps)
+
+			got := run(t, srv.deps, "run")
+			if want := (result{stderr: "switchboard: the router isn't running — connecting directly on " + tt.wantAccount + "\n"}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			if token := handed.only(t).env["CLAUDE_CODE_OAUTH_TOKEN"]; token != tt.wantToken {
+				t.Errorf("handed over on %q, want %q", token, tt.wantToken)
+			}
+		})
+	}
+}
+
 func TestRunWithoutAConfigItCanRead(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "config.toml")
 	invalid := writeConfig(t, invalidConfig)
@@ -341,7 +387,7 @@ func TestRunWithoutAConfigItCanRead(t *testing.T) {
 		config   string
 		wantSaid string
 	}{
-		{name: "missing", config: missing, wantSaid: "switchboard: couldn't read the config (no config file at " + missing + ") — starting claude without it\n"},
+		{name: "missing", config: missing, wantSaid: "switchboard: couldn't read the config (no config file at " + missing + ": run switchboard setup, which adds your accounts and writes it) — starting claude without it\n"},
 		{name: "invalid", config: invalid, wantSaid: "switchboard: couldn't read the config (invalid config " + invalid + ") — starting claude without it\n"},
 	}
 	for _, tt := range tests {
@@ -398,7 +444,7 @@ func TestRunWithoutAConfigItCanReadRoutesThroughTheRunningRouter(t *testing.T) {
 			name:        "missing, pinned",
 			config:      missing,
 			account:     "side",
-			wantSaid:    "switchboard: couldn't read the config (no config file at " + missing + ") — starting claude through the running router\n",
+			wantSaid:    "switchboard: couldn't read the config (no config file at " + missing + ": run switchboard setup, which adds your accounts and writes it) — starting claude through the running router\n",
 			wantHeaders: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Pool: b2n8",
 		},
 	}

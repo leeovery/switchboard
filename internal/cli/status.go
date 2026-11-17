@@ -150,7 +150,7 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, given, pool stri
 	if pool != "" && asJSON && a.routerBeforePools(ctx) {
 		return expected{status.ErrBeforePools}
 	}
-	names := a.accountNames()
+	names := a.accountNamesNoting(logger.Debug)
 	session, err := a.session(ctx, client, names, given, pool)
 	if err != nil {
 		return poolFlagNeeded(sessionError(err))

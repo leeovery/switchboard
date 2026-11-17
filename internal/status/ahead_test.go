@@ -193,7 +193,7 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 			{after: 4 * day, room: 0.7, known: true},
 			{after: 4*day + time.Second, room: 1, known: true},
 		}},
-		{name: "held by a limit for an hour, its subscription ended: none for ever, as only a clean read lifts that", account: statustest.Routed{Account: with(with(lasting, holding), failedWith(endedSubscription))}, key: "7d", want: []roomAt{
+		{name: "held by a limit for an hour, its subscription ended: none for ever, as only a clean read lifts that", account: statustest.Routed{Account: with(with(lasting, holding), refusedRead(quota.SubscriptionEnded))}, key: "7d", want: []roomAt{
 			{room: 0, known: true},
 			{after: 2 * time.Hour, room: 0, known: true},
 			{after: 4 * day, room: 0, known: true},

@@ -77,6 +77,7 @@ func TestHoldHoldsAnOrganizationToItsAccounts(t *testing.T) {
 	}{
 		{name: "the account's own", id: "B6S7", organization: "test-org-work", want: identity.HeldOwn},
 		{name: "other than the account's", id: "b6s7", organization: "test-org-other", want: identity.HeldForeign},
+		{name: "another's, other than the account's", id: "b6s7", organization: "test-org-personal", want: identity.HeldForeign, other: "qgr2"},
 		{name: "another's, the account's not known", id: "k3f9", organization: "test-org-work", want: identity.HeldForeign, other: "b6s7"},
 		{name: "a removed account's, the account's not known", id: "k3f9", organization: "test-org-personal", want: identity.HeldForeign, other: "qgr2"},
 		{name: "none's, the account's not known", id: "k3f9", organization: "test-org-new", want: identity.HeldNew},

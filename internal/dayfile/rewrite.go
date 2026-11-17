@@ -37,8 +37,9 @@ type Rewritten struct {
 //
 // The files are read and written beside without holding them, so appends,
 // prunes and compresses go on meanwhile, and held only for the moment each is
-// checked and renamed: lines appended to a plain file meanwhile are rewritten
-// too, under the hold, and written after those before them, so none is lost.
+// checked and renamed, a plain file against other processes too, as Files
+// says: lines appended to a plain file meanwhile are rewritten too, under the
+// hold, and written after those before them, so none is lost.
 // Where a file changed otherwise meanwhile, replaced, compressed or pruned,
 // it starts afresh, rewriteTries times at most, failing after. A day with
 // both files, as a compress cut short leaves one, is compressed first, under
@@ -165,12 +166,17 @@ func (s *stagedRewrite) write(file dayFile, w io.Writer, rewrite func([]byte) []
 // finishRewrite checks, holding the day's files, that the file staged is the
 // one there still, as its look tells, but for lines appended to a plain file
 // since, which it rewrites onto the file beside; and renames that into place
-// where any line changed. It reports false, renaming nothing, where the
-// file's gone, was replaced or changed otherwise, or the day came to have
-// both files.
+// where any line changed. A plain file is held against other processes too,
+// exclusive, as holdAcross says, till the file staged closes, so none
+// appends to it between the check and the rename. It reports false,
+// renaming nothing, where the file's gone, was replaced or changed
+// otherwise, or the day came to have both files.
 func (f *Files) finishRewrite(date string, file dayFile, s *stagedRewrite, rewrite func([]byte) []byte) (Rewritten, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if !file.compressed {
+		holdAcross(s.src, true)
+	}
 	before, err := f.statHeld(date)
 	if err != nil {
 		return Rewritten{}, false, ignoreGone(err)
@@ -185,6 +191,9 @@ func (f *Files) finishRewrite(date string, file dayFile, s *stagedRewrite, rewri
 	}
 	if !s.changed {
 		return Rewritten{Before: before, After: before}, true, nil
+	}
+	if f.replacing != nil && !file.compressed {
+		f.replacing(file)
 	}
 	if err := os.Rename(s.tmp, f.path(file)); err != nil {
 		return Rewritten{}, false, err

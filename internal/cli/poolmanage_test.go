@@ -3,10 +3,14 @@ package cli_test
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -105,7 +109,10 @@ func TestPoolAddMakesAPoolUnderAnIDSwitchboardMakes(t *testing.T) {
 		dirs           []string
 	}{
 		{name: "fenced", accounts: unfencedBesideFenced, args: []string{"/work/client", "/work/other"}, said: "fenced to /work/client and /work/other; sessions running in its directories keep the pool they started in, and its accounts, till they're resumed", dirs: []string{"/work/client", "/work/other"}},
-		{name: "unfenced, where every pool is fenced", accounts: fencedAccounts, said: "unfenced"},
+		{name: "unfenced, where every pool is fenced", accounts: fencedAccounts, said: "unfenced; " + outsideGoToIt + ", and " + verbsReadIt},
+		{name: "fenced, beside one pool alone, fenced", args: []string{"/work/client"}, dirs: []string{"/work/client"},
+			accounts: "[[account]]\nid = \"work\"\npool = \"q7mt\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\ndirs = [\"/work/acme\"]\n",
+			said:     "fenced to /work/client; " + runningKeep + "; " + verbsNeedPool},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -127,6 +134,141 @@ func TestPoolAddMakesAPoolUnderAnIDSwitchboardMakes(t *testing.T) {
 	}
 }
 
+// A directory in the home, given whole, as a shell gives ~/Code/client, is
+// written from ~/, so a config taken to a Mac with another home fences the
+// same directories there.
+func TestPoolAddAndEditWriteADirectoryInTheHomeFromIt(t *testing.T) {
+	deps, path := accountsDeps(t, "http://127.0.0.1:1", unfencedBesideFenced)
+	home, err := deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := run(t, deps, "pool", "add", "Client", filepath.Join(home, "Code", "client"), "/work/other")
+	m := addedPool.FindStringSubmatch(got.stdout)
+	if got.code != 0 || m == nil || !strings.HasPrefix(m[2], "fenced to ~/Code/client and /work/other;") {
+		t.Fatalf("switchboard pool add Client ~/Code/client /work/other = %+v, want it added, fenced to ~/Code/client and /work/other", got)
+	}
+	inHome := func() *config.Config {
+		cfg, err := config.Load(path, deps.HomeDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	if p, _ := inHome().Pools.ByID(m[1]); !slices.Equal(p.WrittenDirs, []string{"~/Code/client", "/work/other"}) {
+		t.Errorf("the config writes %s's dirs as %q, want ~/Code/client and /work/other", m[1], p.WrittenDirs)
+	}
+
+	if got := run(t, deps, "pool", "edit", "q7mt", "--dirs", filepath.Join(home, "Code", "acme")); got.code != 0 || !strings.HasPrefix(got.stdout, "edited pool q7mt: fenced to ~/Code/acme (was fenced to /work/acme)") {
+		t.Errorf("switchboard pool edit q7mt --dirs ~/Code/acme = %+v, want it fenced to ~/Code/acme", got)
+	}
+	if p, _ := inHome().Pools.ByID("q7mt"); !slices.Equal(p.WrittenDirs, []string{"~/Code/acme"}) {
+		t.Errorf("the config writes q7mt's dirs as %q, want ~/Code/acme", p.WrittenDirs)
+	}
+}
+
+// pool edit --dirs given a fence's own directories, whole, as a shell gives
+// them, writes them from ~/ where the config writes them whole on one line,
+// saying they're rewritten alone, as they hold the same; and where it writes
+// them across lines, which it can't change in place, leaves them, the rest of
+// the edit made, refusing only directories that differ.
+func TestPoolEditGivenAFencesOwnDirectoriesWrittenWhole(t *testing.T) {
+	tests := []struct {
+		name string
+		// written is how the config writes Acme's dirs, %s the home.
+		written string
+		args    []string
+		said    string
+		// refused is what's said where the edit is refused.
+		refused string
+		// dirs is how the config writes Acme's dirs after, %s the home.
+		dirs string
+	}{
+		{
+			name: "written on one line", written: `dirs = ["%s/Code/acme"]`, args: []string{"--dirs", "%s/Code/acme"},
+			said: "edited pool q7mt: directories rewritten as ~/Code/acme (was %s/Code/acme), the same directories", dirs: `dirs = ["~/Code/acme"]`,
+		},
+		{
+			name: "written across lines, with a label", written: "dirs = [\n  \"%s/Code/acme\",\n]", args: []string{"--dirs", "%s/Code/acme", "--label", "Client"},
+			said: `edited pool q7mt: label "Client" (was "Acme")`, dirs: "dirs = [\n  \"%s/Code/acme\",\n]",
+		},
+		{
+			name: "written across lines, given others", written: "dirs = [\n  \"%s/Code/acme\",\n]", args: []string{"--dirs", "%s/Code/client", "--label", "Client"},
+			refused: `pool "q7mt" writes its dirs across lines`, dirs: "dirs = [\n  \"%s/Code/acme\",\n]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, path := accountsDeps(t, "http://127.0.0.1:1", unfencedBesideFenced)
+			home, err := deps.HomeDir()
+			if err != nil {
+				t.Fatal(err)
+			}
+			in := func(s string) string { return strings.ReplaceAll(s, "%s", home) }
+			config := strings.Replace(readFile(t, path), `dirs  = ["/work/acme"]`, in(tt.written), 1)
+			if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			args := make([]string, len(tt.args))
+			for i, a := range tt.args {
+				args[i] = in(a)
+			}
+
+			got := run(t, deps, append([]string{"pool", "edit", "q7mt"}, args...)...)
+			switch {
+			case tt.refused != "" && (got.code == 0 || !strings.Contains(got.stderr, tt.refused)):
+				t.Errorf("switchboard pool edit q7mt %s = %+v, want it refused, saying %q", strings.Join(args, " "), got, tt.refused)
+			case tt.refused == "" && got != (result{stdout: in(tt.said) + "\n"}):
+				t.Errorf("switchboard pool edit q7mt %s = %+v, want it to say %q", strings.Join(args, " "), got, in(tt.said))
+			}
+			if !strings.Contains(readFile(t, path), in(tt.dirs)) {
+				t.Errorf("the config reads\n%s\nwant Acme's dirs written\n%s", readFile(t, path), in(tt.dirs))
+			}
+		})
+	}
+}
+
+// A directory a pool's fenced to that isn't one is warned of, as where it's
+// mistyped, and the pool made all the same, as it may be made later; one
+// that is, or one not looked for, isn't.
+func TestPoolAddAndEditWarnOfADirectoryThatIsntThere(t *testing.T) {
+	dir := &fstest.MapFile{Mode: fs.ModeDir}
+	machine := fstest.MapFS{"work/client": dir, "work/acme": dir, "work/notes.txt": &fstest.MapFile{}}
+	warned := func(written, id string) string {
+		return "switchboard: " + written + " isn't a directory, so no session starts in it yet: if it's mistyped, fence the pool anew with switchboard pool edit " + id + " --dirs\n"
+	}
+	tests := []struct {
+		name string
+		root fs.FS
+		args []string
+		// want is what's warned, the pool's id for %s.
+		want string
+	}{
+		{name: "added, each there", root: machine, args: []string{"pool", "add", "Client", "/work/client"}},
+		{name: "added, one mistyped", root: machine, args: []string{"pool", "add", "Client", "/work/client", "/work/cleint"}, want: warned("/work/cleint", "%s")},
+		{name: "added, one a file", root: machine, args: []string{"pool", "add", "Client", "/work/notes.txt"}, want: warned("/work/notes.txt", "%s")},
+		{name: "added, none looked for", args: []string{"pool", "add", "Client", "/work/cleint"}},
+		{name: "fenced anew, mistyped", root: machine, args: []string{"pool", "edit", "q7mt", "--dirs", "/work/acme", "--dirs", "/work/amce"}, want: warned("/work/amce", "q7mt")},
+		{name: "relabelled, its fence not there", root: fstest.MapFS{}, args: []string{"pool", "edit", "q7mt", "--label", "Client"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := accountsDeps(t, "http://127.0.0.1:1", unfencedBesideFenced)
+			deps.Root = tt.root
+
+			got := run(t, deps, tt.args...)
+			want := tt.want
+			if m := addedPool.FindStringSubmatch(got.stdout); m != nil {
+				want = strings.ReplaceAll(want, "%s", m[1])
+			}
+			if got.code != 0 || got.stdout == "" || got.stderr != want {
+				t.Errorf("switchboard %s = %+v, want it done, warning %q", strings.Join(tt.args, " "), got, want)
+			}
+		})
+	}
+}
+
 func TestPoolAddAndEditRefuse(t *testing.T) {
 	tests := []struct {
 		name, accounts string
@@ -140,7 +282,9 @@ func TestPoolAddAndEditRefuse(t *testing.T) {
 		{name: "directories inside another pool's", accounts: unfencedBesideFenced, args: []string{"pool", "add", "Client", "/work/acme/api"},
 			want: "no directory may be the same as, inside or around another pool's"},
 		{name: "a pool added to a config from before pools", accounts: personalAndSide, args: []string{"pool", "add", "Client", "/work/client"},
-			want: "the config names no pools: the router writes them into it"},
+			want: "the config names no pools yet: the router writes them into it as it starts, and pools are added after: " +
+				"start the router with switchboard service install where it isn't running; where it is, switchboard logs router says what holds it up; " +
+				"then add the pool again"},
 		{name: "unfencing a second pool", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--unfence"},
 			want: "Default (b2n8) is unfenced already, and only one pool can be"},
 		{name: "relabelling as another pool shows", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--label", "DEFAULT"},
@@ -150,6 +294,10 @@ func TestPoolAddAndEditRefuse(t *testing.T) {
 			want:     `pool "q7mt" writes its dirs across lines, which editing`},
 		{name: "a pool that isn't configured", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "z9z9", "--label", "Client"},
 			want: `pool "z9z9" is not configured`},
+		{name: "a pool edited by its label", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "acme", "--label", "Client"},
+			want: `pool "acme" is not configured: acme is a label: give its id, q7mt`},
+		{name: "a pool removed by its label", accounts: unfencedBesideFenced, args: []string{"pool", "remove", "Default"},
+			want: `pool "Default" is not configured: Default is a label: give its id, b2n8`},
 		{name: "no flag", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt"}, want: "give one or more of --label, --dirs or --unfence"},
 		{name: "--dirs and --unfence", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--dirs", "/a", "--unfence"}, want: "takes no --dirs"},
 	}
@@ -182,7 +330,20 @@ func TestPoolEditChangesALabelAndTheDirectories(t *testing.T) {
 		{name: "the directories, replaced", accounts: unfencedBesideFenced, args: []string{"--dirs", "/work/client", "--dirs", "/work/other"},
 			said: "edited pool q7mt: fenced to /work/client and /work/other (was fenced to /work/acme); sessions running in its directories keep the pool they started in, and its accounts, till they're resumed", label: "Acme", dirs: []string{"/work/client", "/work/other"}},
 		{name: "unfenced, where every other pool is fenced", accounts: fencedAccounts, args: []string{"--unfence"},
-			said: "edited pool q7mt: unfenced (was fenced to /work/acme)", label: "Acme"},
+			said: "edited pool q7mt: unfenced (was fenced to /work/acme); " + outsideGoToIt + ", and " + verbsReadIt, label: "Acme"},
+		{name: "unfenced, the only pool", accounts: "[[account]]\nid = \"work\"\npool = \"q7mt\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\ndirs = [\"/work/acme\"]\n",
+			args: []string{"--unfence"}, label: "Acme",
+			said: "edited pool q7mt: unfenced (was fenced to /work/acme); " + outsideGoToIt},
+		{name: "fencing the one pool unfenced, of several", accounts: strings.Replace(fencedAccounts, `dirs  = ["/work/acme"]`, "", 1),
+			args: []string{"--dirs", "/work/acme"}, label: "Acme", dirs: []string{"/work/acme"},
+			said: "edited pool q7mt: fenced to /work/acme (was unfenced); " + runningKeep + "; " + noneOutside + ", and " + verbsNeedPool},
+		{name: "fencing the only pool", accounts: "[[account]]\nid = \"work\"\npool = \"q7mt\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\n",
+			args: []string{"--dirs", "/work/acme"}, label: "Acme", dirs: []string{"/work/acme"},
+			said: "edited pool q7mt: fenced to /work/acme (was unfenced); " + runningKeep + "; " + noneOutside},
+		{name: "fencing the directories it has, given again", accounts: unfencedBesideFenced, args: []string{"--dirs", "/work/acme/"}, label: "Acme", dirs: []string{"/work/acme"},
+			said: "pool q7mt has every value given already, so nothing changed"},
+		{name: "fencing a fenced pool anew, another unfenced", accounts: unfencedBesideFenced, args: []string{"--dirs", "/work/client"}, label: "Acme", dirs: []string{"/work/client"},
+			said: "edited pool q7mt: fenced to /work/client (was fenced to /work/acme); " + runningKeep},
 		{name: "nothing new", accounts: unfencedBesideFenced, args: []string{"--label", "Acme"}, said: "pool q7mt has every value given already, so nothing changed",
 			label: "Acme", dirs: []string{"/work/acme"}},
 	}
@@ -199,6 +360,19 @@ func TestPoolEditChangesALabelAndTheDirectories(t *testing.T) {
 		})
 	}
 }
+
+// What pool add and edit say of the sessions a fence changes, and of the
+// verbs: those running in the directories it takes in; those started
+// outside every fence, going to the pool unfenced, or starting nowhere,
+// every pool fenced; and the verbs, reading the pool without --pool, or none.
+const (
+	runningKeep   = "sessions running in its directories keep the pool they started in, and its accounts, till they're resumed"
+	outsideGoToIt = "sessions started outside every fence go to it now"
+	noneOutside   = "every pool is fenced now, so claude won't start in a folder outside every fence, " +
+		"unless it's started within a session, or in a worktree of a repository inside a fence"
+	verbsReadIt   = "the verbs read and act on it without --pool"
+	verbsNeedPool = "the verbs, accounts add among them, need --pool to read or act on a pool"
+)
 
 func TestPoolRemoveRemovesAPoolWithNoAccountsAlone(t *testing.T) {
 	const empty = "\n[[pool]]\nid    = \"h4w2\"\nlabel = \"Handed back\"\ndirs  = [\"/work/old\"]\n"
@@ -325,9 +499,11 @@ func TestAccountsEditSaysWhatMovingAnAccountLeftOfItsPool(t *testing.T) {
 		want           string
 	}{
 		{name: "its primary, each with a token", accounts: inAcme, tokens: []string{"side", "work", "spare"},
-			want: now + refused + ": resume them, and they start on work's\n"},
+			want: now + refused + ": resume them, and they start on work's" +
+				", or another account's there if the router holds work back or doesn't route work yet, unless every account there is so\n"},
 		{name: "its primary, the next without one", accounts: inAcme, tokens: []string{"side", "spare"},
-			want: now + refused + ": resume them, and they start on spare's, the first account there with a usable token, as work has none\n"},
+			want: now + refused + ": resume them, and they start on spare's, the first account there with a usable token, as work has none" +
+				", or another account's there if the router holds spare back or doesn't route spare yet, unless every account there is so\n"},
 		{name: "its primary, none left with one", accounts: inAcme, tokens: []string{"side"},
 			want: now + refused + ", and no account left there has a usable token to resume them on (switchboard accounts token work)\n"},
 		{name: "its primary, without a token, so none started on it", accounts: inAcme, tokens: []string{"work"}, want: now + "\n"},

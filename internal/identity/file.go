@@ -83,8 +83,9 @@ func (f File) Read() (Record, error) {
 //
 // Decide inside change, by the record it's given, so what's decided still
 // holds when it's written. change must never call Update on the record
-// itself: a second lock in one process waits on the first for good. Where the
-// config's lock is held too, it's taken first.
+// itself: a second lock in one process waits on the first for good. The
+// config has no lock of its own: a change of it that goes with the record's
+// is made under this one, as Change makes it.
 func (f File) Update(change func(*Record) error) error {
 	unlock, err := f.lock()
 	if err != nil {

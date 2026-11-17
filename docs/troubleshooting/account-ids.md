@@ -87,4 +87,4 @@ in [The accounts record](../reference/accounts-record.md).
 
 - [Upgrades and restarts](../upgrades-and-restarts.md): how the move onto ids runs.
 - [Exports](exports.md): an export that fails.
-- [Several Macs and backups](../several-macs.md): exporting and importing between Macs.
+- [Backups and a new Mac](../several-macs.md): exporting and importing between Macs.

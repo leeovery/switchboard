@@ -6,6 +6,7 @@ package quota
 
 import (
 	"cmp"
+	"errors"
 	"maps"
 	"math"
 	"slices"
@@ -141,6 +142,37 @@ type Probe struct {
 	// Organization is the id of the organization the account is in, as the
 	// API answered: "" where no answer said.
 	Organization string `json:"organization,omitempty"`
+}
+
+// ReadRefusal is why the API refused a probe's read of an account's usage,
+// as the provider judges its answer, which holds the account back from
+// every request till a read comes back clean, in the words the status
+// document and the state file give it by, which are never reworded: "" where
+// it didn't.
+type ReadRefusal string
+
+// The refusals of a read.
+const (
+	// SubscriptionEnded is the API refusing the organization's login, which
+	// is how it answers an ended subscription.
+	SubscriptionEnded ReadRefusal = "subscription_ended"
+	// TokenRefused is the API refusing the token.
+	TokenRefused ReadRefusal = "token_refused"
+)
+
+// RefusalOf is why the API refused the read that failed with err, as the
+// failure says it, by a RefusedRead method a provider's probe error has,
+// wrapped or not: none where it doesn't say, as of an error that isn't a
+// probe's.
+func RefusalOf(err error) ReadRefusal {
+	refused, ok := errors.AsType[interface {
+		error
+		RefusedRead() ReadRefusal
+	}](err)
+	if !ok {
+		return ""
+	}
+	return refused.RefusedRead()
 }
 
 // Verdict is what a response to a request says of the account it went out on.

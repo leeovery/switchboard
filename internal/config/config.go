@@ -34,27 +34,6 @@ const (
 	DefaultLedgerKeep = 400 * 24 * time.Hour
 )
 
-// Example is a small valid config, for showing someone who doesn't have one yet.
-const Example = `# One [[account]] per Claude subscription, each added by switchboard setup or
-# switchboard accounts add <label>, which make its token and write it here.
-# Its token is in a file of its own: <state dir>/tokens/<id>.
-
-[[account]]
-id      = "b6s7"  # do not edit: links the account to its history
-label   = "Work"  # what it's called on screen: required, and unique
-primary = true    # optional: the account the browser and the Claude apps use; else the first
-# reserve = 0.1   # optional, on any account: the share of every window the router leaves; else 0
-
-[[account]]
-id    = "k2m9"  # do not edit: links the account to its history
-label = "Personal"
-
-# Optional: start the 5-hour windows on a staggered schedule over the day, in
-# local time; an end before the start means past midnight.
-# [prime]
-# day = "08:00-23:00"
-`
-
 // Config is a validated config file with its defaults filled in.
 type Config struct {
 	Listen   string
@@ -288,6 +267,23 @@ func expandIn(home, path string) string {
 	return filepath.Clean(path)
 }
 
+// writtenFrom returns path, written from ~/ where it's an absolute path
+// inside home, as within finds it inside, and not home itself; else as it
+// is, as for every path where home is the root, or none, as every path is
+// inside the root and would be written for another Mac's home. It's expandIn
+// turned round: expandIn finds it again.
+func writtenFrom(home, path string) string {
+	clean, at := filepath.Clean(path), folders(home)
+	if len(at) == 0 || !filepath.IsAbs(clean) || !within(clean, home) {
+		return path
+	}
+	rest := folders(clean)[len(at):]
+	if len(rest) == 0 {
+		return path
+	}
+	return homePrefix + filepath.Join(rest...)
+}
+
 // Usage says how usage and the dashboard lay out the accounts' windows.
 type Usage struct {
 	// By is the layout they open with: the config's, else ByWindow.
@@ -405,6 +401,12 @@ func Load(path string, homeDir func() (string, error)) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
+	return Parse(path, data, homeDir)
+}
+
+// Parse reads data as the text of the config file at path, which names it
+// in errors, as Load reads the file.
+func Parse(path string, data []byte, homeDir func() (string, error)) (*Config, error) {
 	f, meta, err := decodeFile(path, data)
 	if err != nil {
 		return nil, err
