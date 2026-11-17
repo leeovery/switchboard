@@ -14,10 +14,9 @@ import (
 // Bubble Tea draws it after every message, costs what's on screen, never
 // the session's history: over a page of 5,000 turns, or a turn open of
 // 20,000 requests, it allocates no more than historyAllowance more than over
-// one of 50, as the page's story is laid
-// once a width, not once a frame, and its turns' rows are made only as they
-// show. It counts the bytes allocated, not the time taken, so a busy machine
-// never fails it.
+// one of 50, as the page's story is laid by its columns, never its
+// requests, and its turns' rows are made only as they show. It counts the
+// bytes allocated, not the time taken, so a busy machine never fails it.
 func TestANotchOnASessionsPageCostsWhatsOnScreenNotItsHistory(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -40,9 +39,10 @@ func TestANotchOnASessionsPageCostsWhatsOnScreenNotItsHistory(t *testing.T) {
 
 // historyAllowance is the most bytes a notch may allocate over a page of a
 // hundred times the history, or more, beyond what it allocates over a small
-// one: the wider numbers it says, a few kilobytes, measured 17 Nov 2026. Laying the
-// story once a frame added 46 KB at a hundred times the history, and making
-// every turn's row before drawing those in view 300 KB.
+// one: the wider numbers it says, a few kilobytes, measured 17 Nov 2026.
+// Counting every request into its minute at each frame added 46 KB over
+// 5,000 turns, and making every turn's row before drawing those in view
+// 300 KB.
 const historyAllowance = 16 << 10
 
 // oneTurnLines are idD28C's lines of one turn of n requests, a minute apart,

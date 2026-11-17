@@ -141,15 +141,20 @@ func TestQWhileTheDayIsSetLeavesOnceTheWriteHasEnded(t *testing.T) {
 	}
 }
 
+// Left with q, setup's screen puts the terminal's background back, then,
+// once it has written its last, throws away what was typed and never read,
+// once.
 func TestRunPutsTheBackgroundBackAndSaysHowSetupWasLeft(t *testing.T) {
 	cfg := Config{Steps: newFakeSteps(), Step: dashboard.SetupService, Pair: nord(t)}
-	left, out, err := runUntil(t, cfg, terminal{answer: darkAnswer, keys: "q"})
+	var unread []string
+	left, out, err := runUntil(t, cfg, terminal{answer: darkAnswer, keys: "q", unread: &unread})
 	if err != nil || !sameLeft(how(left), Left{Ending: Paused}) {
 		t.Errorf("run() = %+v, %v; want setup paused, no error", left, err)
 	}
 	if want := ansi.SetBackgroundColor("#1a1b26"); !strings.HasSuffix(out, want) {
 		t.Errorf("the screen's output ends %q, want the background put back with %q", out[max(len(out)-80, 0):], want)
 	}
+	thrownAwayOnceLast(t, unread, out)
 }
 
 // skillPanicking is setup's steps whose Skill panics.
@@ -161,6 +166,9 @@ func (skillPanicking) Skill() (setup.Said, error) {
 	panic("a bug")
 }
 
+// A step's panic stops setup's screen, which puts the terminal's background
+// back, then, once it has written its last, throws away what was typed and
+// never read, once.
 func TestAStepsPanicStopsTheScreenAndPutsTheBackgroundBack(t *testing.T) {
 	cfg := Config{Steps: skillPanicking{newFakeSteps()}, Step: dashboard.SetupLink, Pair: nord(t)}
 	hooked := make(chan struct{})
@@ -170,12 +178,23 @@ func TestAStepsPanicStopsTheScreenAndPutsTheBackgroundBack(t *testing.T) {
 			once.Do(func() { close(hooked) })
 		}
 	}
-	_, out, err := runUntil(t, cfg, terminal{answer: darkAnswer, keys: "\r", ready: hooked, saw: saw})
+	var unread []string
+	_, out, err := runUntil(t, cfg, terminal{answer: darkAnswer, keys: "\r", ready: hooked, saw: saw, unread: &unread})
 	if !errors.Is(err, tea.ErrProgramPanic) {
 		t.Errorf("run() error = %v, want the panic Bubble Tea recovered from", err)
 	}
 	if want := ansi.SetBackgroundColor("#1a1b26"); !strings.HasSuffix(out, want) {
 		t.Errorf("the screen's output ends %q, want the background put back with %q", out[max(len(out)-80, 0):], want)
+	}
+	thrownAwayOnceLast(t, unread, out)
+}
+
+// thrownAwayOnceLast fails t unless what was typed unread was thrown away
+// once, the screen's output then out, all it wrote.
+func thrownAwayOnceLast(t *testing.T, unread []string, out string) {
+	t.Helper()
+	if len(unread) != 1 || unread[0] != out {
+		t.Errorf("what was typed unread was thrown away %d times; want once, after the screen's last", len(unread))
 	}
 }
 
@@ -218,8 +237,9 @@ const darkAnswer = "\x1b]11;rgb:1a1a/1b1b/2626\x07"
 // last. It tells saw, where it's set, each message the screen takes in,
 // before it does. Once the screen has gone, the moment to say what setup's
 // finishing comes as moment, given the jobs run waits for, has it, never
-// where it's nil; and wrote, where it's set, is told of each write to the
-// terminal.
+// where it's nil; wrote, where it's set, is told of each write to the
+// terminal; and unread, where it's set, notes what the screen had written
+// each time it threw away what was typed unread.
 type terminal struct {
 	answer, keys, then, last    string
 	ready, thenReady, lastReady <-chan struct{}
@@ -227,6 +247,7 @@ type terminal struct {
 	saw                         func(tea.Msg)
 	moment                      func(*jobs) <-chan time.Time
 	wrote                       func(p []byte)
+	unread                      *[]string
 }
 
 // runUntil runs setup's screen of cfg on a terminal acting as term does,
@@ -288,7 +309,12 @@ func runIn(t *testing.T, ctx context.Context, cfg Config, term terminal) (Left, 
 		}
 		return term.moment(js)
 	}
-	left, err := run(ctx, cfg, &out, func() {}, moment, filter, tea.WithInput(in), tea.WithoutSignals())
+	unread := func() {
+		if term.unread != nil {
+			*term.unread = append(*term.unread, out.String())
+		}
+	}
+	left, err := run(ctx, cfg, &out, unread, moment, filter, tea.WithInput(in), tea.WithoutSignals())
 	return left, out.String(), err
 }
 

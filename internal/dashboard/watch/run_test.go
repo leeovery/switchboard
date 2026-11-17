@@ -19,7 +19,7 @@ import (
 
 // However the watch stops, it puts back the terminal's background, then,
 // once it has written its last, throws away what was typed and never read,
-// once, so none of it reaches the shell.
+// once.
 func TestTheBackgroundIsPutBackAndWhatWasTypedUnreadThrownAwayHoweverTheWatchStops(t *testing.T) {
 	stops := []struct {
 		name string

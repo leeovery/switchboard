@@ -19,8 +19,8 @@ type Screen interface {
 // it, however it stops that Bubble Tea catches: a quit, an interrupt, a
 // terminate signal, which it takes as a quit, or a panic it recovers from.
 // Last, once Bubble Tea has given the terminal back, unread throws away what
-// was typed at it and never read, as Unread has it, so none of it reaches
-// the shell: the turns of a wheel, or keys, a busy screen fell behind on.
+// was typed at it and never read, as Unread has it, so the turns of a wheel,
+// or keys, a busy screen fell behind on aren't left for the shell to read.
 // It returns the screen as that last step left it, and how Bubble Tea's run
 // ended.
 func Run[S Screen](screen S, out io.Writer, unread func(), opts ...tea.ProgramOption) (S, error) {

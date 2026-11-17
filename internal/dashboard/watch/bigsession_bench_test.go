@@ -21,34 +21,34 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The big session's shape, as the owner's longest: one session running every
-// day for 37 days, some 305,000 requests in 3,000 turns, heavy-tailed, the
-// median turn of 7 requests and the largest of near 2,000, its newest the
-// largest of all, and some 20,000 requests naming no prompt, which a page
+// The big session's shape, a heavy-tailed session of weeks: one session
+// running every day for five weeks, about 300,000 requests in 3,000 turns,
+// the median turn of 7 requests and the largest near 2,000, its newest the
+// largest of all, and about 20,000 requests naming no prompt, which a page
 // counts in its totals and its story and in no turn. Of those naming one,
 // 6% its own conversation's, a fifth auxiliary, one in 512 a compaction, and
 // the rest its subagents', a subagent to every bigAgent of a turn's requests.
 const (
-	bigDays     = 37
+	bigDays     = 35
 	bigTurns    = 3000
-	bigNoPrompt = 20_272
+	bigNoPrompt = 20_000
 	bigAgent    = 40
 	bigBand     = 233
 )
 
 // bigLargest are the sizes of the big session's largest turns, the largest
-// first, as the owner's.
-var bigLargest = []int{1917, 1841, 1685, 1628, 1520}
+// first.
+var bigLargest = []int{2000, 1850, 1700, 1600, 1500}
 
 // bigSizes are how many requests each of the big session's turns takes, in
 // the order they came, its largest the newest: the largest five as
-// bigLargest has them; the next bigBand from 1,500 down to 460; and the
+// bigLargest has them; the next bigBand from 1,450 down to 460; and the
 // rest falling away from 100 to one, the median turn of 7, the others in an
 // order of their own.
 func bigSizes() []int {
 	sizes := slices.Clone(bigLargest[1:])
 	for r := range bigBand {
-		sizes = append(sizes, 1500-r*1040/(bigBand-1))
+		sizes = append(sizes, 1450-r*990/(bigBand-1))
 	}
 	tail := bigTurns - len(bigLargest) - bigBand
 	fall := math.Log(100.0/7) / float64(bigTurns/2-len(bigLargest)-bigBand)
@@ -244,7 +244,7 @@ func (w bigWorld) onProjects(tb testing.TB) *harness {
 }
 
 // onPage is the big world's harness with the big session's page open over
-// Projects, as the owner opened it, its newest turn chosen.
+// Projects, its newest turn chosen.
 func (w bigWorld) onPage(tb testing.TB) *harness {
 	tb.Helper()
 	h := w.onProjects(tb)
@@ -401,14 +401,14 @@ func (b *busy) filed(tb testing.TB, done []bigRequest) {
 	}
 }
 
-// BenchmarkTheBigSessionsPage times the page of a session of the shape of
-// the owner's longest, as newBigWorld writes it, opened over Projects while
-// it runs: opening it, till its lines show; a turn of the wheel over its
-// turns; opening its largest turn, its newest, till its requests show; a
-// turn of the wheel over that turn's requests; and, while it's busy at its
-// peak of 1.6 requests a second, a tick of the clock, a second on, a frame,
-// a request of it sent, and a whole second of it, with no turn open and
-// with its largest open. Each is drawn after, as Bubble Tea draws the screen
+// BenchmarkTheBigSessionsPage times the page of a heavy-tailed session of
+// weeks, as newBigWorld writes it, opened over Projects while it runs:
+// opening it, till its lines show; a turn of the wheel over its turns;
+// opening its largest turn, its newest, till its requests show; a turn of
+// the wheel over that turn's requests; and, while it's busy at its peak of
+// 1.6 requests a second, a tick of the clock, a second on, a frame, a
+// request of it sent, and a whole second of it, with no turn open and with
+// its largest open. Each is drawn after, as Bubble Tea draws the screen
 // after every message. The harness draws without colour, so no number
 // brightens and no second asks for frames: a frame is timed alone, and runs
 // 30 a second while anything on the page moves.

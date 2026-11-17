@@ -201,25 +201,6 @@ func TestAStoryIsLaidAcrossItsWidth(t *testing.T) {
 	}
 }
 
-// A page's story is laid once a width, as it's drawn at every frame: laid
-// again at the width it was laid at last, it gives the columns it gave then;
-// at another, and back, it's laid as a story never laid before is at each.
-func TestAPagesStoryIsLaidOnceAWidth(t *testing.T) {
-	at := october8(14, 40, 30)
-	lines := slices.Concat(minutely("work", october8(9, 0, 0), october8(11, 0, 0)), minutely("side", october8(13, 0, 0), october8(14, 40, 0)))
-	_, story := storied(t, at, lines)
-	first := story.Columns(160)
-	if again := story.Columns(160); &again.Rates[0] != &first.Rates[0] {
-		t.Errorf("laid at 160 again, the story was laid afresh, want the columns it was laid in at 160 before")
-	}
-	for _, width := range []int{100, 160} {
-		_, fresh := storied(t, at, lines)
-		if got, want := story.Columns(width), fresh.Columns(width); !reflect.DeepEqual(laidOf(got), laidOf(want)) || !slices.Equal(got.Rates, want.Rates) {
-			t.Errorf("laid at %d after another width, the story is\n%+v\nwant it as a story never laid before is\n%+v", width, laidOf(got), laidOf(want))
-		}
-	}
-}
-
 // A story 160 minutes old is a minute a column, each column its minute's
 // requests, its last its newest two minutes' mean; a time's column is the
 // minute it falls in, now's the last.

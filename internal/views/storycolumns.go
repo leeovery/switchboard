@@ -82,23 +82,9 @@ type AxisLabel struct {
 }
 
 // Columns is s laid across width columns: none where it has no request, or
-// the width hasn't room for it. A story built of a page lays itself once a
-// width, as its rates go through every request it sent: what it gives is
-// shared, never to be changed.
+// the width hasn't room for it. It costs its columns, never its requests, as
+// rates has it, so a page lays it afresh at every frame.
 func (s Story) Columns(width int) StoryColumns {
-	if s.laid == nil {
-		return s.columns(width)
-	}
-	if last := s.laid.Load(); last != nil && last.width == width {
-		return last.columns
-	}
-	c := s.columns(width)
-	s.laid.Store(&laidAt{width: width, columns: c})
-	return c
-}
-
-// columns is s laid across width columns, afresh, as Columns has it.
-func (s Story) columns(width int) StoryColumns {
 	if s.Start.IsZero() {
 		return StoryColumns{}
 	}
@@ -323,8 +309,7 @@ func (sc storyScale) sentOver(sent SentTimes, lo, hi float64) float64 {
 
 // sentIn is how many of sent were sent in the unfolded minutes from u to
 // before v, those a fold hides left out: those after its first time and
-// before its last, as hides has it, which only a fold merged of several
-// holds.
+// before its last, as hides has it.
 func (sc storyScale) sentIn(sent SentTimes, u, v int) int {
 	if v <= u {
 		return 0

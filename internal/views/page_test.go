@@ -171,6 +171,7 @@ func TestAPagesTurnIsFoundByItsNumber(t *testing.T) {
 		{name: "the oldest", page: numbered(3, 2, 1), n: 1, want: 2},
 		{name: "past the newest", page: numbered(3, 2, 1), n: 4, want: -1},
 		{name: "none chosen", page: numbered(3, 2, 1), n: 0, want: -1},
+		{name: "none chosen, of a page numbered from 0", page: numbered(1, 0), n: 0, want: -1},
 		{name: "of a page with none", n: 1, want: -1},
 		{name: "numbered otherwise", page: numbered(14, 12, 11), n: 12, want: 1},
 	}
