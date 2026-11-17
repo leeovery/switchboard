@@ -2114,6 +2114,20 @@ formats below; the screens as signed off in Paper (see The screens, below).
   it has no token files for, its token files and history under the old, and joins them by
   organization, as the strays above say, so every Mac keys a subscription alike. A Mac still on an
   earlier build reads ids it has no token files for, so the Macs sharing a config upgrade together.
+
+  A Mac that joins so lets go of what its router kept under the old ids. Its router starts on the
+  config's new ids before the move has decided which old id each one was, so `Settle` has nothing
+  to rename, and the router drops what names an id it doesn't configure. The history stays whole,
+  but once per such Mac it costs:
+  - the pool's pin, gone with its `unpinned` event, and the sessions' own pins;
+  - each running session's account, chosen afresh at its next request;
+  - the windows last read, shown again once the accounts are probed;
+  - the old ids' kept tokens, counted as the primary's for a week, another account's among them;
+  - the recent rates, which start empty: the newest readings they're taken from are renamed only
+    by the history step, and the router doesn't read them again.
+
+  Keeping that state while the move is owed, then restarting once it's decided, would carry it
+  over: see [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md).
 - **Import across the move:** an export carries the accounts record, each account the exporting
   Mac configures marked `configured` and labelled as its config labels it. `export.json` is
   version 2, so a switchboard from before, which reads version 1, refuses a folder whose days name
