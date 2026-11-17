@@ -30,19 +30,25 @@ next, run switchboard setup to give each account its token and start the router,
 ```
 
 If this Mac has no config and no router runs, `import` lays down the copy of the config that an
-export keeps in the folder. It takes in no history yet. The accounts and pools keep their ids, so
-the history lands where it was. `switchboard setup` then asks only for each account's token.
+export keeps in the folder. With `--config`, it lays the config down at that path. It takes in no
+history yet. The accounts and pools keep their ids, so the history lands where it was.
 
-`import` never writes over a config. If a link or any file sits where the config goes, it fails as
-it does without the router.
+`import` also records each account with its subscription. So `switchboard setup` asks only for
+each account's token, and refuses a token made for another account. If a pool fences a folder
+that isn't on this Mac, `import` warns, and names the command that fences the pool anew.
+
+`import` never writes over anything at the config path. It lays down nothing in these cases:
 
 | If | Then |
 |---|---|
-| No folder holds a config, for example exports from before the config was copied | It fails, and says to run `switchboard setup`, then import again. |
-| Folders hold configs that differ | It fails, and names a Mac folder to import from instead. |
-| Folders hold the same config, for example Macs that share one | It lays down that config. |
-| The config in the folder hasn't synced yet | It fails. Import again once the sync has carried it. |
-| The config in the folder gives a token as a value | It lays down nothing, and says why. A token in a comment is hidden. |
+| A link or file at the config path isn't a config that loads | It says what's there. |
+| This Mac has an accounts record of its own | It says to run `switchboard setup`, then import again. |
+| A folder in `<dir>` was passed over, for example one not yet synced | It names each one. Import again once each folder reads. |
+| No folder holds a config, for example exports from before the config was copied | It says to export again from the old Mac first, if it still runs. |
+| Folders hold configs that differ | It names a Mac folder to import from instead. |
+| The config in the folder gives a secret as a value | It says why. A token in a comment is hidden. |
+
+Folders that hold the same config, for example from Macs that share one, lay down that config.
 
 ## What it takes in
 
@@ -107,7 +113,13 @@ this Mac configures. A pool it can't match stays apart, and `import` names it, a
 | Holds accounts that all sit in one pool here | Its days go to that pool here. |
 | Holds accounts that sit in two pools here or more | It stays apart. |
 | Holds no account this Mac configures | It stays apart. |
-| Comes from a folder with no copy of the config | It stays apart. |
+| Holds no account on the other Mac | It stays apart. |
+| Comes from a folder with no copy of the config | It stays apart, unless another folder in the import places it. |
+| Was kept apart by an earlier import | New days go to the pool here. Days imported before stay apart, and `import` says so. |
+
+A pool id names one pool on every Mac. So a pool that reaches you through a second Mac's folder
+goes where the folder of its own Mac puts it. Work that names no pool goes to the first pool of
+the Mac that recorded it.
 
 A pool kept apart keeps its record here. Read it with `--pool` and its id. `import` never changes
 the config or the pools on this Mac.

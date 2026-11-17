@@ -55,24 +55,31 @@ func TestACopyOfAConfigHidesATokenInAComment(t *testing.T) {
 	}
 }
 
-// A config giving a value shaped like a token, or that doesn't load, makes
-// no copy: hiding the token would make another config, and a copy that
-// doesn't load is none to lay down.
-func TestNoCopyIsMadeOfAConfigGivingATokenOrThatDoesntLoad(t *testing.T) {
+// A config giving a value that may hold a secret, or that doesn't load,
+// makes no copy: the value is judged as the config is read, decoded, never
+// by its text, so a token written with escapes, or split across lines, is
+// found; hiding a secret would make another config; and a copy that doesn't
+// load is none to lay down.
+func TestNoCopyIsMadeOfAConfigGivingASecretOrThatDoesntLoad(t *testing.T) {
 	tests := []struct {
 		name string
 		data string
 		want error
 	}{
-		{name: "a token in the upstream's path", data: `upstream = "https://gateway.example.com/` + tokenShaped + `"` + "\n" + copiedConfig, want: config.ErrTokenValue},
-		{name: "a token in the upstream's credentials", data: `upstream = "https://user:` + tokenShaped + `@gateway.example.com"` + "\n" + copiedConfig, want: config.ErrTokenValue},
+		{name: "a token in the upstream's path", data: `upstream = "https://gateway.example.com/` + tokenShaped + `"`, want: config.ErrSecretValue},
+		{name: "a token in the upstream's credentials", data: `upstream = "https://user:` + tokenShaped + `@gateway.example.com"`, want: config.ErrSecretValue},
+		{name: "credentials in the upstream", data: `upstream = "https://user:test-secret@gateway.example.com"`, want: config.ErrSecretValue},
+		{name: "a key in the upstream's query", data: `upstream = "https://gateway.example.com/v1?key=test-secret"`, want: config.ErrSecretValue},
+		{name: "a token written with an escape", data: `upstream = "https://gateway.example.com/\u0073k-ant-oat01-fake_token-shaped"`, want: config.ErrSecretValue},
+		{name: "a token split across lines", data: "upstream = \"\"\"https://gateway.example.com/sk-\\\n  ant-oat01-fake_token-shaped\"\"\"", want: config.ErrSecretValue},
+		{name: "a token written with an escape in a label", data: "[[account]]\nid = \"m2x7\"\nlabel = \"\\u0073k-ant-oat01-fake_token-shaped\"\npool = \"b2n8\"\n"},
 		{name: "a config that doesn't load", data: "[[account]]\nid = 7\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := config.Copy("config.toml", []byte(tt.data), inHome)
-			if err == nil || tt.want != nil && !errors.Is(err, tt.want) || strings.Contains(err.Error(), "sk-ant-") {
-				t.Errorf("Copy() = %q, %v; want no copy, failing with %v, saying no token", got, err, tt.want)
+			got, err := config.Copy("config.toml", []byte(tt.data+"\n"+copiedConfig), inHome)
+			if err == nil || tt.want != nil && !errors.Is(err, tt.want) || strings.Contains(err.Error(), "sk-ant-") || strings.Contains(err.Error(), "test-secret") {
+				t.Errorf("Copy() = %q, %v; want no copy, failing with %v, saying no secret", got, err, tt.want)
 			}
 		})
 	}

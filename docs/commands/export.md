@@ -51,22 +51,22 @@ The export leaves out what the router builds again, and what isn't part of your 
 ```console
 $ switchboard export ~/Dropbox/switchboard
 exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 0 written, 31 as they were
-switchboard: couldn't copy the config, so the folder keeps the copy it has: the config gives a value shaped like a token, which a copy of it never holds
+switchboard: couldn't copy the config, so the folder keeps the copy it has: the config gives a value that may hold a secret, such as a token, which a copy of it never holds
 ```
 
 `export` copies the config that switchboard reads, so a new Mac can lay it down. The copy never
-holds a token. Your tokens live in files of their own, and the config names none of them. A config
-that can't be copied fails no export.
+holds a secret. Your tokens live in files of their own, and the config names none of them. A
+config that can't be copied fails no export.
 
 | If the config | Then |
 |---|---|
 | Has a token in a comment | The copy hides the token as `[redacted]`. |
-| Gives a token as a value, for example inside the `upstream` address | `export` copies no config, keeps the copy in the folder, and says why. |
+| Gives a secret as a value, for example a token, a password or a key in the `upstream` address | `export` copies no config, keeps the copy in the folder, and says why. |
 | Doesn't load | `export` copies no config, keeps the copy in the folder, and says why. |
 | Isn't there | `export` copies none, and says nothing. |
 
-The hourly export copies the config the router started from. If the router can't copy it, it
-warns once in `router.log`.
+The hourly export copies the config file the router reads, as the file stands at each export. If
+the router can't copy it, it warns once in `router.log`.
 
 ## How it writes
 

@@ -27,7 +27,7 @@ see [`export`](../commands/export.md) and [Backups and a new Mac](../several-mac
 | `config` | boolean | `true` if the folder holds a copy of the config, `config.toml`. Left out if it holds none. |
 
 An export writes `accounts.json` wherever the Mac has an accounts record. It writes `config.toml`
-if the config loads and holds no token as a value. Otherwise the folder keeps the copy it had.
+if the config loads and gives no secret as a value. Otherwise the folder keeps the copy it had.
 
 A switchboard from before the copy of the config reads a folder with `config` as it always did. The
 field leaves the version at `3`.

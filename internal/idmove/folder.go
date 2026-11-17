@@ -112,6 +112,10 @@ type Here struct {
 	Install  func() (string, error)
 	Accounts config.Accounts
 	Pools    config.Pools
+
+	// mapped are the pools the folders imported beside the one joined take
+	// in as pools here, as JoinFolders finds them.
+	mapped renames
 }
 
 // folderKind is how a Mac's folder's accounts are told, as classify tells.
@@ -142,18 +146,20 @@ type told struct {
 
 // classify tells how the accounts of the Mac's folder at dir, as export
 // writes one, are told, by its export.json and the accounts record it holds,
-// if any, a link to none holding none, and, of one carrying the record, the
-// copy of its Mac's config it holds, as theirConfig reads it. It fails, with
-// an error matching ErrStagedRecord, ErrUnsynced, ErrStagedConfig,
-// ErrConfigUnsynced or ErrBeforeIDs, where they can't be, as those say; and
-// where its export.json doesn't read, or this Mac's install id is needed and
-// can't be had.
+// if any, a link to none holding none, and the copy of its Mac's config it
+// holds, as theirConfig reads it. It fails, with an error matching
+// ErrStagedRecord, ErrUnsynced, ErrStagedConfig, ErrConfigUnsynced or
+// ErrBeforeIDs, where they can't be, as those say; and where its export.json
+// doesn't read, or this Mac's install id is needed and can't be had.
 func classify(dir string, here Here) (told, error) {
 	m, err := export.ReadManifest(dir)
 	if err != nil {
 		return told{}, fmt.Errorf("read the export.json of a folder to import: %w", err)
 	}
 	f := told{manifest: m}
+	if f.theirs, f.theirsKnown, err = theirConfig(dir, m); err != nil {
+		return f, err
+	}
 	data, err := os.ReadFile(identity.NewFile(dir).Path())
 	switch {
 	case err == nil:
@@ -161,8 +167,7 @@ func classify(dir string, here Here) (told, error) {
 		if f.record, err = identity.Decode(data); err != nil {
 			return f, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 		}
-		f.theirs, f.theirsKnown, err = theirConfig(dir, m)
-		return f, err
+		return f, nil
 	case !errors.Is(err, fs.ErrNotExist):
 		return f, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 	case m.Accounts:
@@ -184,24 +189,46 @@ func classify(dir string, here Here) (told, error) {
 
 // theirConfig returns the accounts the copy of its Mac's config in the Mac's
 // folder at dir configures, each in its pool, as config.Members reads them,
-// and reports whether the folder holds the copy, as m, its export.json, says
-// it does. It fails with ErrConfigUnsynced where m says it holds one it
-// doesn't, and with ErrStagedConfig where the copy doesn't read.
+// and reports whether the folder holds the copy, as configCopy reads it,
+// failing as it does, and with ErrStagedConfig where the copy doesn't read.
 func theirConfig(dir string, m export.Manifest) (config.Accounts, bool, error) {
-	data, err := os.ReadFile(export.ConfigFile(dir))
-	switch {
-	case errors.Is(err, fs.ErrNotExist) && m.Config:
-		return nil, false, ErrConfigUnsynced
-	case errors.Is(err, fs.ErrNotExist):
-		return nil, false, nil
-	case err != nil:
-		return nil, false, fmt.Errorf("%w: %w", ErrStagedConfig, err)
+	data, err := configCopy(dir, m)
+	if err != nil || data == nil {
+		return nil, false, err
 	}
 	theirs, err := config.Members(data)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: %w", ErrStagedConfig, err)
 	}
 	return theirs, true, nil
+}
+
+// ConfigCopy returns the copy of its Mac's config the Mac's folder at dir
+// holds, as export writes one, as configCopy reads it, by the folder's
+// export.json, failing where that doesn't read.
+func ConfigCopy(dir string) ([]byte, error) {
+	m, err := export.ReadManifest(dir)
+	if err != nil {
+		return nil, fmt.Errorf("read the export.json of a folder to import: %w", err)
+	}
+	return configCopy(dir, m)
+}
+
+// configCopy returns the copy of its Mac's config the Mac's folder at dir
+// holds: nil where it holds none, as m, its export.json, says it doesn't. It
+// fails with ErrConfigUnsynced where m says it holds one it doesn't, as a
+// sync not done leaves it, and with ErrStagedConfig where it can't be read.
+func configCopy(dir string, m export.Manifest) ([]byte, error) {
+	data, err := os.ReadFile(export.ConfigFile(dir))
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && m.Config:
+		return nil, ErrConfigUnsynced
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, fmt.Errorf("%w: %w", ErrStagedConfig, err)
+	}
+	return data, nil
 }
 
 // Refusal is why an import into the Mac here would refuse the Mac's folder
@@ -239,10 +266,13 @@ func Refused(err error) bool {
 // Its record's pools join record as identity's Join joins them, by the copy
 // of its Mac's config it holds, where it holds one: each of its Mac's pools
 // renamed onto the pool here holding its accounts, where Join finds one, the
-// rest kept apart, as Renames' Apart says; and one exported before pools,
-// as export.Manifest's BeforePools tells, has its lines, the events of the
-// kinds that name their pool, and its summaries given the first pool, as
-// FirstOf has it of here's pools and the one record notes.
+// rest kept apart, as Renames' Apart says. Its lines, the events of the
+// kinds that name their pool, and its summaries, where they name no pool,
+// are given its Mac's first pool, as they're read there: of one exported
+// before pools, as export.Manifest's BeforePools tells, this Mac's, as
+// FirstOf has it of here's pools and the one record notes, as no other was
+// noted then; of one exported since, the one its record notes, as it's
+// taken in, where it notes one.
 //
 // It fails, record as it was, as classify does, saying which folder, by its
 // install, of a folder that's refused; and with ErrNoFirstPool, of a folder
@@ -264,8 +294,58 @@ func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error)
 		unpooled = FirstOf(here.Pools, first.ID)
 	}
 	rename, err := joined(f, record, here)
+	if err != nil {
+		return Renames{}, err
+	}
+	if first, ok := f.record.FirstPool(); ok && unpooled == "" {
+		unpooled = rename.pools.of(first.ID)
+	}
 	rename.unpooled = unpooled
-	return rename, err
+	return rename, nil
+}
+
+// JoinFolders joins the accounts each of the folders at dirs names into
+// record, in their order, as JoinFolder joins one, and returns how each is
+// renamed, in the same order. A pool's id being random, it's one pool on
+// every Mac: so a pool one folder's join takes in as a pool here is taken in
+// as that one by each other folder's whose own Mac can't place it, as it
+// doesn't configure it, as of history relayed through a Mac that imported
+// it, or whose folder holds no copy of its config, unless two folders take
+// it in as different pools here. It fails, record as it was, as JoinFolder
+// does.
+func JoinFolders(dirs []string, record *identity.Record, here Here) ([]Renames, error) {
+	// A first round of joins, into a copy, finds what each folder takes its
+	// pools in as: Join never changes the record it's given but to replace
+	// it whole, so a copy of the value shares nothing it writes.
+	scratch := *record
+	mapped, clashed := make(renames), make(map[string]bool)
+	for _, dir := range dirs {
+		rename, err := JoinFolder(dir, &scratch, here)
+		if err != nil {
+			return nil, err
+		}
+		for id, to := range rename.pools {
+			if was, ok := mapped[id]; ok && !config.SamePool(was, to) {
+				clashed[id] = true
+			}
+			mapped[id] = to
+		}
+	}
+	for id := range clashed {
+		delete(mapped, id)
+	}
+	here.mapped = mapped
+	joined := *record
+	all := make([]Renames, len(dirs))
+	for i, dir := range dirs {
+		rename, err := JoinFolder(dir, &joined, here)
+		if err != nil {
+			return nil, err
+		}
+		all[i] = rename
+	}
+	*record = joined
+	return all, nil
 }
 
 // joined joins the accounts and pools the folder f names into record, as
@@ -284,7 +364,7 @@ func joined(f told, record *identity.Record, here Here) (Renames, error) {
 	own := installErr == nil && f.manifest.Install == install
 	as := identity.JoinAs{
 		Configured: here.Accounts, Pools: here.Pools, From: f.manifest.Install, Own: own, Labels: installErr == nil && !own,
-		Theirs: f.theirs, TheirsKnown: f.theirsKnown,
+		Theirs: f.theirs, TheirsKnown: f.theirsKnown, Mapped: here.mapped,
 	}
 	j, err := record.Join(f.record, as)
 	if err != nil {

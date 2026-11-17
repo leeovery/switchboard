@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 
 	"github.com/BurntSushi/toml"
 
@@ -15,31 +16,73 @@ import (
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
-// ErrTokenValue is what Copy fails with where the config gives a value shaped
-// like a token, as an upstream's address can carry one: a copy holds none,
-// and the config without it isn't the config.
-var ErrTokenValue = errors.New("the config gives a value shaped like a token, which a copy of it never holds")
+// ErrSecretValue is what Copy fails with where the config gives a value that
+// may hold a secret, as an upstream's address can carry a token, a key in its
+// query or credentials: a copy holds none, and the config without it isn't
+// the config.
+var ErrSecretValue = errors.New("the config gives a value that may hold a secret, such as a token, which a copy of it never holds")
 
 // Copy returns data, the text of the config file at path, which names it in
 // errors, as a copy of it is kept off this Mac, as an export carries one:
-// each thing in it shaped like a token hidden, as redact hides one, so a
-// token in a comment goes; failing where data isn't a config that loads, as
-// Parse reads one, so a copy laid down on another Mac loads there; and with
-// ErrTokenValue where hiding them changes the config it makes, as of a token
-// in a value.
+// failing where data isn't a config that loads, as Parse reads one, so a
+// copy laid down on another Mac loads there; with ErrSecretValue where a value
+// it gives may hold a secret, as heldSecret finds one; and else with each
+// thing in its text shaped like a token hidden, as redact hides one, so a
+// token in a comment goes, failing with ErrSecretValue where hiding one
+// changes the config it makes.
 func Copy(path string, data []byte, homeDir func() (string, error)) ([]byte, error) {
 	cfg, err := Parse(path, data, homeDir)
 	if err != nil {
 		return nil, err
+	}
+	if heldSecret(cfg, data) {
+		return nil, ErrSecretValue
 	}
 	hidden := []byte(redact.Text(string(data)))
 	if bytes.Equal(hidden, data) {
 		return data, nil
 	}
 	if without, err := Parse(path, hidden, homeDir); err != nil || !reflect.DeepEqual(without, cfg) {
-		return nil, ErrTokenValue
+		return nil, ErrSecretValue
 	}
 	return hidden, nil
+}
+
+// heldSecret reports whether cfg, loaded from data, gives a value that may
+// hold a secret: an upstream whose address may carry one, as
+// redact.HoldsSecret finds one, credentials or a query among them, as the
+// launcher judges a value it passes on; or any value or key shaped like a
+// token, read as TOML decodes it, so a token written with escapes, or split
+// across lines in a multi-line string, is found as the router would read it.
+func heldSecret(cfg *Config, data []byte) bool {
+	if redact.HoldsSecret(cfg.Upstream) {
+		return true
+	}
+	var decoded map[string]any
+	if _, err := toml.Decode(string(data), &decoded); err != nil {
+		return true
+	}
+	return holdsToken(decoded)
+}
+
+// holdsToken reports whether v, a value as TOML decodes one, holds anything
+// shaped like a token, in a string, or a table's key or value, however deep.
+func holdsToken(v any) bool {
+	switch v := v.(type) {
+	case string:
+		return redact.HoldsToken(v)
+	case map[string]any:
+		for key, value := range v {
+			if redact.HoldsToken(key) || holdsToken(value) {
+				return true
+			}
+		}
+	case []map[string]any:
+		return slices.ContainsFunc(v, func(table map[string]any) bool { return holdsToken(table) })
+	case []any:
+		return slices.ContainsFunc(v, holdsToken)
+	}
+	return false
 }
 
 // Members returns the accounts the text of a config file, data, configures,

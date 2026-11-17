@@ -100,7 +100,7 @@ func TestExportCopiesTheConfigOrSaysWhyNot(t *testing.T) {
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(`upstream = "https://gateway.example.com/sk-ant-oat01-fake_token-shaped"`+"\n"+copied))
 	want := result{
 		stdout: "exported 2 days to " + folder + ": 0 written, 2 as they were\n",
-		stderr: "switchboard: couldn't copy the config, so the folder keeps the copy it has: " + config.ErrTokenValue.Error() + "\n",
+		stderr: "switchboard: couldn't copy the config, so the folder keeps the copy it has: " + config.ErrSecretValue.Error() + "\n",
 	}
 	if got := run(t, deps, "export", dir); got != want {
 		t.Errorf("switchboard export of a config giving a token = %+v, want %+v", got, want)

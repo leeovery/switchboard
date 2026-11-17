@@ -179,8 +179,9 @@ const (
 
 // Hold holds organization, as the API named it of a token of the account
 // with the given id, to the account's, as the record has it, and returns the
-// other account it's the organization of, where that's what makes it
-// another subscription's.
+// other account it's the organization of, where it's another
+// subscription's and the record has one of it, so the token can be named as
+// that account's.
 func (r Record) Hold(id, organization string) (Holding, Entry) {
 	own, ok := r.ByID(id)
 	switch {
@@ -188,10 +189,9 @@ func (r Record) Hold(id, organization string) (Holding, Entry) {
 		return Unheld, Entry{}
 	case own.Organization == organization:
 		return HeldOwn, Entry{}
-	case own.Organization != "":
-		return HeldForeign, Entry{}
 	}
-	if other, held := r.ByOrganization(organization); held {
+	other, held := r.ByOrganization(organization)
+	if held || own.Organization != "" {
 		return HeldForeign, other
 	}
 	return HeldNew, Entry{}

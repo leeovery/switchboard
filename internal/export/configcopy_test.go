@@ -116,7 +116,7 @@ func TestAConfigThatCantBeCopiedLeavesTheFoldersCopy(t *testing.T) {
 		want   error
 	}{
 		{name: "one that doesn't load", config: "[[account]]\nid = 7\n", want: errors.New("any")},
-		{name: "one giving a token", config: `upstream = "https://gateway.example.com/sk-ant-oat01-fake_token-shaped"` + "\n" + copiedConfig, want: config.ErrTokenValue},
+		{name: "one giving a token", config: `upstream = "https://gateway.example.com/sk-ant-oat01-fake_token-shaped"` + "\n" + copiedConfig, want: config.ErrSecretValue},
 		{name: "one that's gone"},
 	}
 	for _, tt := range tests {
@@ -146,7 +146,7 @@ func TestAConfigThatCantBeCopiedLeavesTheFoldersCopy(t *testing.T) {
 				if err != nil || (r.Uncopied != nil) != (tt.want != nil) {
 					t.Fatalf("Export() = %+v, %v; want it exported, saying why the config wasn't copied: %v", r, err, tt.want != nil)
 				}
-				if errors.Is(tt.want, config.ErrTokenValue) && !errors.Is(r.Uncopied, tt.want) || r.Uncopied != nil && strings.Contains(r.Uncopied.Error(), "sk-ant-") {
+				if errors.Is(tt.want, config.ErrSecretValue) && !errors.Is(r.Uncopied, tt.want) || r.Uncopied != nil && strings.Contains(r.Uncopied.Error(), "sk-ant-") {
 					t.Errorf("Export() said the config wasn't copied as %v, want %v, without the token", r.Uncopied, tt.want)
 				}
 				wantConfigHeld(t, folder, before)

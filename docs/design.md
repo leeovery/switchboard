@@ -10070,14 +10070,19 @@ sync lag, duplicates and sessions claimed twice.
 - **A day's summary** is copied as it is, with its modification time, its stamp (see The request
   ledger), and passed over as a compressed day is, so a summary copied in stands against the day's
   file copied beside it.
-- **The config,** the file the command reads, or the router was started from, is copied as
+- **The config,** the file at the path the command reads, or the router reads, as it stands at
+  each export, is copied as
   `config.toml`, with its modification time, where the copy differs from the folder's
   (`config.Copy`): only one that loads, as the config is read, so a copy laid down on another Mac
-  loads there; and never a token. A config holds none where it's written as switchboard writes
+  loads there; and never a secret. A config holds none where it's written as switchboard writes
   it, tokens living in files of their own, but a comment can hold anything, and the upstream's
-  address can carry a gateway's: anything shaped like a token is hidden, as the logs hide one,
-  and where that changes the config it makes, as of a token in a value, no copy is made, as the
-  config without it isn't the config. A config that isn't copied, so, or that can't be read,
+  address can carry a gateway's credentials or key. So each value is judged as the config is
+  read, decoded, never by its text, as an escape or a line split inside a string can hide a
+  token from a search of the text: an upstream that may carry a secret, as the launcher judges a
+  value it passes on (`redact.HoldsSecret`: an `@` or a `?`, or anything shaped like a token), or
+  any value or key shaped like a token, and no copy is made, as the config without it isn't the
+  config. Then anything shaped like a token in the text, which only a comment can hold now, is
+  hidden, as the logs hide one. A config that isn't copied, so, or that can't be read,
   leaves the folder's copy as it was, as a backup keeps the last config that loaded, and is warned
   of, the router's once until an export no longer meets it; one that isn't there is none to copy,
   and nothing is said.
@@ -10116,25 +10121,50 @@ holds what an export writes, as an export cut short or a sync not done leaves on
 made it. A folder whose accounts can't be told, as Account identity says, is passed over, saying
 why, and the import carries on with the rest; so is one whose `export.json` says it holds the
 config where it doesn't, as a sync not done leaves it, `its config hasn't synced yet`, to import
-again once it has, and one whose copy doesn't read, as its pools can't be told without it. A
-`<dir>` holding no Mac's folder fails, saying so, and so does one whose every folder was passed
-over.
+again once it has, and one whose copy doesn't read, as its pools can't be told without it, of
+whatever kind the folder is (`idmove`'s `classify`, the one place that tells). A `<dir>` holding
+no Mac's folder fails, saying so, and so does one whose every folder was passed over.
 
-- **Onto a Mac with no config:** where nothing is at the config's path, a link included, and no
-  router answers, as on a new Mac, `import` lays the folder's config down as this Mac's
-  (`config.LayDown`), never in place of anything, and stops there, as the history waits for a
-  router to take it in: `laid down the config of mac-<id> at <path>: 3 accounts in 2 pools`, then
-  `next, run switchboard setup to give each account its token and start the router, then
-  switchboard import <dir> again to bring in the history`. The pools keep the ids the history
-  names, so the router started on them, which notes the config's first pool as this Mac's first
-  (see What's recorded), reads every line as this Mac's own; and setup finds each account without
-  its token, the one thing a config doesn't carry, its `t` making it. The config laid down is the
-  one copy `<dir>` holds, or the one every copy is, as Macs sharing a config hold it; where its
-  folders hold copies that differ, none is laid down, saying to import from the folder of the Mac
-  whose config to take, and where none holds one, as exports from before the copy, saying to run
-  setup, then import again. A copy is read as an export makes it, so one holding a token, as one
-  edited by hand might, has it hidden, or isn't laid down. Where a router answers, the Mac has a
-  config, the router's, wherever the command looks for one, and nothing is laid down.
+- **Onto a Mac with no config:** where nothing is at the config's path, the one the command
+  reads, `--config` included, and no router answers, as on a new Mac, `import` lays the folder's
+  config down there (`config.LayDown`), never in place of anything, and stops, as the history
+  waits for a router to take it in: `laid down the config of mac-<id> at <path>: 3 accounts in 2
+  pools`, then `next, run switchboard setup to give each account its token and start the router,
+  then switchboard import <dir> again to bring in the history`, each command carrying the
+  `--config` given, and each word quoted for the shell where it needs it, as a folder in iCloud
+  Drive's `Mobile Documents` does. The pools keep the ids the history names, so the router
+  started on them, which notes the config's first pool as this Mac's first (see What's
+  recorded), reads every line as this Mac's own; and setup finds each account without its
+  token, the one thing a config doesn't carry, its `t` making it.
+  - **The accounts record comes with it,** under the record's lock, the folder's joined to an
+    empty one as an import joins it (`idmove.JoinFolder`), so each configured account is
+    recorded with its organization, and none of the marks the folder's copy carries, `first`,
+    `configured`, `here` and `written`, which the router sets as it keeps the record in step.
+    Setup then refuses a token of another subscription given an account, as on the wrong row,
+    naming the account it's for, rather than recording it as that account's, which would
+    misfile the history the next import brings. The record is written, then the config laid
+    down, and where that fails the record is taken away again: one goes with the other. The
+    router's first start finds every account decided, so its move onto the ids asks for no
+    organization and changes nothing, and its move to pools notes the config's first pool.
+  - **What's refused,** laying nothing down: something at the config's path that isn't a
+    config that loads, as a link to one that's gone, saying what's there (`... is a link to
+    <target>, which isn't there: put it right, or move it aside, then import again`), rather
+    than that the router's down, as for a config that loads; a state directory holding an
+    accounts record, a history of this Mac's own, which another Mac's config would leave in
+    pools marked removed, saying to run setup, then import again; any folder in `<dir>` passed
+    over, each said as an import says them, as a config laid down then might be the wrong Mac's;
+    folders holding copies that differ, saying to import from the folder of the Mac whose config
+    to take; and none holding one, as exports from before the copy, saying first to upgrade that
+    Mac, if it still runs, and export again, as setup's config here would give the pools new ids
+    and its history would stay apart for good, else to run setup, then import again. The config
+    laid down is the one copy `<dir>` holds, or the one every copy is, as Macs sharing a config
+    hold it. A copy is read as an export makes it, so one holding a secret, as one edited by
+    hand might, isn't laid down, and a token in a comment is hidden.
+  - **A fence not here,** a folder a pool fences that isn't a directory on this Mac, as one
+    written in full in another home is, is warned of as `pool add` warns of one: `switchboard:
+    /Users/other/Code/acme isn't a directory, so no session starts in it yet: if it's on this Mac
+    by another name, fence the pool "Acme" anew with switchboard pool edit q7mt --dirs`. A
+    folder written from `~/` is the same folder in this home.
 - **Through the router:** the router is the history's one writer, so `import` needs it, failing
   without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
   removing any an import cut short left there first, so the router reads nothing outside the state
@@ -10193,18 +10223,35 @@ over.
   import reads the history as its own pools whatever ids its config gave them, each account being
   in one pool here. Else the pool stays apart, as before, added to the record as the other Mac
   keeps it and read with `--pool` and its id (see Reading a pool): its accounts are split across
-  pools here (`split`), none is configured here (`none_here`), or the folder holds no copy of the
-  config to go by (`no_config`), as one exported before the copy. One removed there has no
-  accounts to go by, and stays apart unsaid, as it would. Nothing already on the Mac changes,
-  its config and pools included, and the folder isn't touched. A line taken in apart stays apart,
-  as a line held stands against one alike but for its pool, so an import made before this, or of
-  a folder whose pool was apart then, keeps those lines in the pool they were taken in under.
+  pools here (`split`), none is configured here (`none_here`), the other Mac's config puts no
+  account in it (`empty`), this Mac's config has no pools (`no_pools_here`), or the folder holds
+  no copy of the config to go by (`no_config`), as one exported before the copy. One removed
+  there has no accounts to go by, and stays apart unsaid, as it would. Nothing already on the
+  Mac changes, its config and pools included, and the folder isn't touched.
+  - **One pool everywhere:** a pool's id is random, so it's one pool on every Mac. A pool one
+    folder of the import takes in as a pool here is taken in as that one by every other folder
+    whose own Mac can't place it, as it doesn't configure it, as of history relayed through a
+    Mac that imported it, or whose folder holds no copy of its config (`idmove.JoinFolders`, the
+    folders' records joined once into a copy to find each pool's, then again into the record);
+    unless two folders take it in as different pools here, when each folder's own stands.
+  - **Days taken in apart before** stay apart, as a line held stands against one alike but for
+    its pool: a pool an import before kept apart, which the record keeps as another Mac's, and
+    which is now taken in as a pool here, has its new days there and its old under its id, and
+    the import says so (`imported_before`): `switchboard: the pool "Client" (c1nt) of mac-<id>
+    goes to the pool here holding its accounts now, but the days an import took in before stay
+    under c1nt: read them with --pool c1nt`, at each import, as nothing heals them.
+  - **Work in no pool** in a folder exported since pools, a line, an event of the kinds that
+    name their pool, or a summary's day, is given that Mac's first pool, as its record notes it,
+    as the pool here it's taken in as, or its own id where it's kept apart: there it's read as
+    that pool's, never this Mac's first's. A folder from before pools gives it this Mac's first,
+    as no other was noted then.
 - **Then** the router runs a round at once, so Accounts, Trends and the data verbs have the days
   within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
   "lines": 1204, "summaries": 27, "apart": [{"install": "<id>", "pool": "c1nt", "label": "Client",
   "why": "split"}]}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
   repeated adds nothing, telling only of the days past keeping again, and `apart` each pool kept
-  apart, left out where none was, `why` one of the three words above, never reworded. The command
+  apart, or whose days imported before stay apart, left out where none was, `why` one of the six
+  words above, never reworded. The command
   prints `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days'
   summaries`, `summaries` every summary copied in, whichever days they're of, then each pool kept
   apart, as `switchboard: kept the pool "Client" (c1nt) of mac-<id> apart, as its accounts are in

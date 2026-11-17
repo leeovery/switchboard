@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 // thisFirst is the id of this Mac's first pool in the folder tests.
@@ -158,9 +159,9 @@ func TestAFolderFromBeforePoolsIsRefusedWhereThisMacNotesNoFirstPool(t *testing.
 }
 
 // A folder since pools has its record's pools joined to this Mac's, matched
-// by id, else added as the other Mac keeps them, and its lines' pools left
-// as they are.
-func TestAFolderSincePoolsJoinsItsPoolsAndGivesNoLineOne(t *testing.T) {
+// by id, else added as the other Mac keeps them, and its lines that name no
+// pool given its Mac's first, as they're read there, never this Mac's.
+func TestAFolderSincePoolsJoinsItsPoolsAndGivesALineInNoPoolItsMacsFirst(t *testing.T) {
 	f := newFolder(t, export.Manifest{Install: otherInstall, IDs: true, Accounts: true})
 	putPooledRecord(t, f.state, thisMac().Accounts, []identity.PoolEntry{
 		{ID: thisFirst, Label: "Everything", Added: now, Configured: true},
@@ -184,9 +185,13 @@ func TestAFolderSincePoolsJoinsItsPoolsAndGivesNoLineOne(t *testing.T) {
 	if !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {
 		t.Errorf("joined, the record's pools are\n%+v\nwant\n%+v: this Mac's first as it was, the other's added, never first", record.Pools, want)
 	}
-	for line, pool := range pooledLines(t, ledgerFiles(f.state), requestOf) {
-		if pool != "" {
-			t.Errorf("request line %s names pool %q, want it as it was, naming none", line, pool)
+	lines := pooledLines(t, ledgerFiles(f.state), requestOf)
+	if len(lines) == 0 {
+		t.Fatal("the folder holds no request lines")
+	}
+	for line, pool := range lines {
+		if pool != "z4z4" {
+			t.Errorf("request line %s names pool %q, want the other Mac's first, z4z4", line, pool)
 		}
 	}
 }
@@ -309,6 +314,144 @@ func TestAFolderWhosePoolsAccountsAreSplitHereKeepsItApart(t *testing.T) {
 	want := []identity.Apart{{Install: otherInstall, Pool: theirs, Label: "Default", Why: identity.ApartSplit}}
 	if _, held := record.PoolByID(theirs); !held || !slices.Equal(rename.Apart(), want) {
 		t.Errorf("joined, the record holds the other Mac's pool: %v, kept apart %+v; want it held, kept apart as %+v", held, rename.Apart(), want)
+	}
+}
+
+// A Mac a config is laid down on, its accounts record seeded from the
+// folder the config came from, as import lays one down, starts as any Mac
+// does once setup gives each account its token: the move onto the ids finds
+// every account decided, asking for no organization, and leaves the config
+// and every id as they were; and the move to pools notes the config's first
+// pool, the folder's, writing nothing in the config.
+func TestAMacSeededFromAnotherMacsFolderMovesAsItFirstStarts(t *testing.T) {
+	folder, theirs := otherMacsFolder(t, export.Manifest{Install: otherInstall, IDs: true, Accounts: true, Config: true})
+	laid := readFile(t, export.ConfigFile(folder))
+	f := fixture{config: filepath.Join(t.TempDir(), "config.toml"), state: t.TempDir()}
+	f.tokens = tokens.NewStore(f.state, os.Getuid())
+	writeFile(t, f.config, laid)
+	cfg, err := config.Load(f.config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = identity.NewFile(f.state).Update(func(r *identity.Record) error {
+		_, err := idmove.JoinFolder(folder, r, idmove.Here{Install: here.Install, Accounts: cfg.Accounts, Pools: cfg.Pools})
+		return err
+	})
+	if err != nil {
+		t.Fatalf("seeding the record: %v", err)
+	}
+	seeded := f.record(t)
+	f.token(t, workID, workToken)
+	f.token(t, personalID, personalToken)
+
+	asked := answering()
+	f.moved(t, asked)
+	if asked.asked != 0 || !idmove.Moved(f.state) {
+		t.Errorf("the move onto the ids asked for %d organizations, done: %v; want none asked, and it done", asked.asked, idmove.Moved(f.state))
+	}
+	if got := f.record(t); !slices.Equal(got.Accounts, seeded.Accounts) {
+		t.Errorf("moved, the record's accounts are %+v, want them as seeded, %+v", got.Accounts, seeded.Accounts)
+	}
+	if first := f.pooled(t); first != theirs || !idmove.PoolsMoved(f.state) {
+		t.Errorf("moved to pools, the first pool is %q, done: %v; want the config's first, %q, and it done", first, idmove.PoolsMoved(f.state), theirs)
+	}
+	if got := readFile(t, f.config); got != laid {
+		t.Errorf("moved, the config reads\n%s\nwant it as laid down\n%s", got, laid)
+	}
+}
+
+// placing writes the copy of its Mac's config in the Mac's folder at folder,
+// putting each account given in the pool given it.
+func placing(t *testing.T, folder string, pools map[string]string) {
+	t.Helper()
+	var text string
+	for _, id := range slices.Sorted(maps.Keys(pools)) {
+		text += "[[account]]\nid = \"" + id + "\"\npool = \"" + pools[id] + "\"\n\n"
+	}
+	writeFile(t, export.ConfigFile(folder), text)
+}
+
+// relayed is a copy of the Mac's folder at from, as a Mac that imported it,
+// with the install given, exports it again: its lines as they were, its
+// record keeping the pool with the given id as another Mac's, never
+// configured, and its own pool, b0b0, first, holding its accounts.
+func relayed(t *testing.T, from, install, pool string) string {
+	t.Helper()
+	folder := t.TempDir()
+	for _, name := range []string{"ledger", "history"} {
+		copyTree(t, filepath.Join(from, name), filepath.Join(folder, name))
+	}
+	theirs, err := identity.NewFile(from).Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	putPooledRecord(t, folder, theirs.Accounts, []identity.PoolEntry{
+		{ID: "b0b0", Label: "Bee", Added: now, First: true, Configured: true},
+		{ID: pool, Label: "Default", Added: now},
+	})
+	placing(t, folder, map[string]string{workID: "b0b0", personalID: "b0b0"})
+	asFolder(t, folder, export.Manifest{Install: install, IDs: true, Accounts: true, Config: true})
+	return folder
+}
+
+// A pool's history relayed through another Mac's folder, as a Mac that
+// imported it exports it again, is taken in as the pool here that the folder
+// of the Mac that configures it takes it in as, whichever comes first,
+// never kept apart; but where two folders take it in as different pools
+// here, the relayed history stays apart.
+func TestAPoolRelayedThroughAnotherMacIsTakenInAsItsOwnMacsFolderTakesItIn(t *testing.T) {
+	const relayer, clasher = "0a0a0a0a0a0a0a0a", "0c0c0c0c0c0c0c0c"
+	tests := []struct {
+		name string
+		// clash adds a third Mac's folder that configures the pool too,
+		// putting another account in it.
+		clash, relayedFirst bool
+		want                string
+	}{
+		{name: "its Mac's folder first", want: poolsHere},
+		{name: "the relayed folder first", relayedFirst: true, want: poolsHere},
+		{name: "two folders taking it in as different pools here", clash: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			own, theirs := otherMacsFolder(t, export.Manifest{Install: otherInstall, IDs: true, Accounts: true, Config: true})
+			placing(t, own, map[string]string{workID: theirs})
+			relay := relayed(t, own, relayer, theirs)
+			folders := []string{own, relay}
+			if tt.relayedFirst {
+				folders = []string{relay, own}
+			}
+			if tt.clash {
+				other := relayed(t, own, clasher, theirs)
+				putPooledRecord(t, other, nil, []identity.PoolEntry{{ID: theirs, Label: "Default", Added: now, First: true, Configured: true}})
+				placing(t, other, map[string]string{personalID: theirs})
+				folders = append(folders, other)
+			}
+			record, h := thisMacsOwn(t, own, func(id string) string {
+				if id == workID {
+					return poolsHere
+				}
+				return "x2x2"
+			})
+
+			renames, err := idmove.JoinFolders(folders, &record, h)
+			if err != nil {
+				t.Fatalf("JoinFolders: %v", err)
+			}
+			i := slices.Index(folders, relay)
+			if err := idmove.RenameFolder(t.Context(), relay, renames[i]); err != nil {
+				t.Fatalf("RenameFolder: %v", err)
+			}
+			want := cmp.Or(tt.want, theirs)
+			for line, pool := range pooledLines(t, ledgerFiles(relay), requestOf) {
+				if pool != want {
+					t.Errorf("the relayed request line %s names pool %q, want %q", line, pool, want)
+				}
+			}
+			if _, held := record.PoolByID(theirs); held != tt.clash {
+				t.Errorf("joined, the record holds the other Mac's pool: %v, want %v", held, tt.clash)
+			}
+		})
 	}
 }
 

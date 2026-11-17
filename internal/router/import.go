@@ -266,25 +266,23 @@ func apartIn(renames []idmove.Renames) []ApartPool {
 }
 
 // joinStaged joins the accounts each of folders names to the state
-// directory's accounts record, in the order staged, as idmove's JoinFolder
+// directory's accounts record, in the order staged, as idmove's JoinFolders
 // joins them, writing the record where that changed it, and returns how each
 // folder is renamed onto its ids, in the same order, this Mac being the
 // router's install, as export's InstallID names it, read only where a folder
 // needs it, and its accounts, as the config the record is kept in step with
 // makes them under the record's lock, as accountsRecord's followed gives
-// them. It fails, writing nothing, as JoinFolder does, as importStatus tells.
+// them. It fails, writing nothing, as JoinFolders does, as importStatus tells.
 func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
 	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(r.cfg.StateDir) })}
-	renames := make([]idmove.Renames, len(folders))
+	var renames []idmove.Renames
 	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
 		here.Accounts, here.Pools = r.upkeep.record.followed()
-		for i, folder := range folders {
-			rename, err := idmove.JoinFolder(folder, record, here)
-			if err != nil {
-				return fmt.Errorf("nothing was imported, as %w", err)
-			}
-			renames[i] = rename
+		joined, err := idmove.JoinFolders(folders, record, here)
+		if err != nil {
+			return fmt.Errorf("nothing was imported, as %w", err)
 		}
+		renames = joined
 		return nil
 	})
 	return renames, err

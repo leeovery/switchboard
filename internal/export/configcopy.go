@@ -24,7 +24,7 @@ func ConfigFile(folder string) string {
 
 // config writes a copy of the config file at path, read in the home
 // directory homeDir returns, into the Mac's folder at folder, as
-// config.Copy makes one, so it loads and holds nothing shaped like a token:
+// config.Copy makes one, so it loads and holds no secret:
 // where it differs from the one there, with the config file's modification
 // time, making the folder as x.mkdir does. A config that can't be read, or
 // copied so, isn't, the folder keeping the copy it has, as a backup keeps
