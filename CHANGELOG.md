@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-11-17
+
+🔧 Changed
+- Scrolling over the Projects list now follows your Mac's scroll direction setting — the chosen project moves the way your fingers move, whether natural or traditional scrolling is on.
+- The Projects page holds a steadier layout as you move between projects — the list, WORTH BY chart and sections no longer jump as the choice changes.
+- When rows run short on Projects, WORTH BY's chart squeezes first, then the list shrinks, before ON ACCOUNTS, BY MODEL and WORTH BY leave.
+
 ## [0.9.1] - 2026-11-16
 
 ✨ Added
