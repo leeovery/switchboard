@@ -59,11 +59,11 @@ func summedPrice(a, b *ledger.Picodollars) *ledger.Picodollars {
 // today being the day given, each as dayfile.Civil gives one, as its plans
 // are priced: its last day, and its share of a month, whole. Where they make
 // one of the dial's periods, it's that period, to its end, as a period still
-// running is priced whole, the longest where two begin on the one day, as
-// this week does with today on the week's first, the dial's own to begin
-// with; else the days from asked to today, a day each.
+// running is priced whole, the shortest where two begin on the one day, as
+// this week does with today on the week's first, so a day asked for is
+// priced a day; else the days from asked to today, a day each.
 func askedPeriod(asked, today time.Time, weekStarts time.Weekday) (last time.Time, whole monthPart) {
-	for _, p := range slices.Backward(periods) {
+	for _, p := range periods {
 		if asked.Equal(p.first(today, weekStarts)) {
 			return p.last(today, weekStarts), p.share()
 		}

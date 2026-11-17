@@ -8,6 +8,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -698,4 +700,88 @@ func onKey(key string) func(dashboard.Target) bool {
 
 func onStep(way int) func(dashboard.Target) bool {
 	return func(t dashboard.Target) bool { return t.On == dashboard.OnStep && t.Step == way }
+}
+
+// keyLineKeys are the keys the key line names by a word, an arrow or a
+// pair, as the terminal sends them, a pair as the way on: what a click on
+// one acts as. Any other key it names is a printable ASCII character.
+var keyLineKeys = map[string]tea.KeyPressMsg{
+	"tab":   {Code: tea.KeyTab},
+	"enter": {Code: tea.KeyEnter},
+	"esc":   {Code: tea.KeyEscape},
+	"end":   {Code: tea.KeyEnd},
+	"↑":     {Code: tea.KeyUp},
+	"↓":     {Code: tea.KeyDown},
+	"←":     leftKey,
+	"→":     rightKey,
+	"↑↓":    {Code: tea.KeyDown},
+	"←→":    rightKey,
+	"[ ]":   {Code: ']', Text: "]"},
+	"< >":   {Code: '>', Text: ">"},
+}
+
+// keyNamed is the key the key line names as given, as keyLineKeys has it,
+// failing the test where it names one no key is known by.
+func keyNamed(t *testing.T, name string) tea.KeyPressMsg {
+	t.Helper()
+	if press, ok := keyLineKeys[name]; ok {
+		return press
+	}
+	r, size := utf8.DecodeRuneInString(name)
+	if size == 0 || size != len(name) || r > unicode.MaxASCII || !unicode.IsPrint(r) {
+		t.Fatalf("the key line names a key %q no key is known by", name)
+	}
+	return tea.KeyPressMsg{Code: r, Text: name}
+}
+
+// A click on each key of the key line acts as its key does, on every tab,
+// on a phone's width and a wide terminal's, and on the pages whose key line
+// names an arrow: Projects' list and SESSIONS, and Accounts' Detail's
+// SESSIONS. Each key is clicked on a model and pressed on its twin, and
+// both must draw the one screen.
+func TestAClickOnEachKeyOfTheKeyLineActsAsItsKey(t *testing.T) {
+	t.Parallel()
+	type state struct {
+		name  string
+		build func(*testing.T) *harness
+	}
+	var states []state
+	for _, size := range []tea.WindowSizeMsg{{Width: 160, Height: 40}, {Width: 52, Height: 40}} {
+		for _, tab := range dashboard.Views() {
+			states = append(states, state{fmt.Sprintf("%s at %d wide", tab, size.Width), func(t *testing.T) *harness {
+				return clickedHarness(t, tab, size, "")
+			}})
+		}
+		projects := func(t *testing.T, keys ...tea.KeyPressMsg) *harness {
+			h := projectsHarness(t, dashboard.Projects)
+			h.start()
+			h.update(size)
+			h.keys(keys...)
+			return h
+		}
+		states = append(states,
+			state{fmt.Sprintf("Projects' list at %d wide", size.Width), func(t *testing.T) *harness { return projects(t) }},
+			state{fmt.Sprintf("Projects' SESSIONS at %d wide", size.Width), func(t *testing.T) *harness { return projects(t, rightKey) }},
+			state{fmt.Sprintf("Accounts' Detail's SESSIONS at %d wide", size.Width), func(t *testing.T) *harness {
+				shown := dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: true}
+				return accountsKeysHarness(t, routerDocument(three()...), true, shown, size.Width)
+			}},
+		)
+	}
+	for _, s := range states {
+		t.Run(s.name, func(t *testing.T) {
+			t.Parallel()
+			for _, target := range s.build(t).targets() {
+				if target.On != dashboard.OnKey {
+					continue
+				}
+				clicked, pressed := s.build(t), s.build(t)
+				clicked.click(target.X, target.Y)
+				pressed.keys(keyNamed(t, target.Key))
+				if got, want := clicked.view(), pressed.view(); got != want {
+					t.Errorf("a click on %q drew\n%s\nwant what its key draws\n%s", target.Key, got, want)
+				}
+			}
+		})
+	}
 }

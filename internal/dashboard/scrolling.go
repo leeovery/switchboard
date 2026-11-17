@@ -418,10 +418,17 @@ func (p rowsPaged) paste(c, whole *canvas, y, offset, width int, forms ...outFor
 // view, how many are, above and below, as outOfView says it in width cells,
 // on the row after the page, the view's first row being y.
 func (p rowsPaged) said(c *canvas, y, from, to, width int, forms ...outForm) {
-	page := p.page()
-	if above, below := from, p.content-to; p.says && above+below > 0 && page > 0 && page < p.rows-p.foot {
-		c.line(0, y+page, outOfView(above, below, width, forms...))
+	if at, ok := p.saysOn(); ok {
+		c.line(0, y+at, outOfView(from, p.content-to, width, forms...))
 	}
+}
+
+// saysOn is the row after the page, the page's first being 0, that says how
+// many rows are out of view, as says has it: reporting false where the rows
+// don't say it, or all of them fit.
+func (p rowsPaged) saysOn() (int, bool) {
+	page := p.page()
+	return page, p.says && page > 0 && page < p.rows-p.foot
 }
 
 // ScrollsRows reports whether the view shown of doc at now scrolls a row at a

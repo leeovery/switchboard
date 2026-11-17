@@ -5477,9 +5477,10 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the widest each says of all
   the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
   as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
-  each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
-  showing only with the session under it, and where no line fits, SESSIONS shows nothing, its
-  heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
+  each frame. Past its rows, its last says how many sessions are out of view, as the List's row
+  over the key line does, but where that would leave its sessions a single row. Where rows run
+  shorter than its least, a page of one line shows no rule, a rule showing only with the session
+  under it, and where no line fits, SESSIONS shows nothing, its heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
   ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
   and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days before today, read off the update loop once
@@ -6825,7 +6826,8 @@ so `v` never moves BY MONTH (settled 21 October 2026).
   family's colour, or in `text.muted` for a family with no colour of its own, as one the version
   table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two cells
   after a part month's bar, `so far`, or `from the 16th` for the month the ledger began recording
-  in, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families'
+  in, and for the first of the 12 months, from the day they begin, so a 13th row never reads as a
+  whole month, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families'
   dots, each with its name in `text.subtle`, `● Opus   ● Sonnet   ● Fable   ● Haiku`: the bars' key,
   headed by its column's `by model`, flowed onto as many rows as it takes from that column, a family
   never cut.

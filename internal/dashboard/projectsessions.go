@@ -127,21 +127,31 @@ func (s projectSessions) within(top, rows int) projectSessions {
 }
 
 // paged is how SESSIONS' lines page under its heads, a row at a time, each
-// day's rule shown with the first session under it, or not at all.
+// day's rule shown with the first session under it, or not at all; where
+// they don't all fit, its last row says how many sessions are out of view,
+// so long as that leaves them a row, as the List's does.
 func (s projectSessions) paged() rowsPaged {
-	return rowsPaged{rows: s.rows - 2, content: len(s.lines), heads: s.heads()}
+	return rowsPaged{rows: s.rows - 2, content: len(s.lines), heads: s.heads(), says: true}
 }
 
 // draw draws SESSIONS from its top: its heading, in text.muted; its heads,
-// as the List's; and its lines in view, as far as it's scrolled, as drawPage
-// draws them; nothing where no line fits under its heading and heads.
+// as the List's; its lines in view, as far as it's scrolled, as drawPage
+// draws them; and under them, where they don't all fit, how many sessions
+// are out of view, from listFrom, as the List says it; nothing where no
+// line fits under its heading and heads.
 func (s projectSessions) draw(c *canvas) {
-	if s.paged().page() == 0 {
+	paged := s.paged()
+	if paged.page() == 0 {
 		return
 	}
 	c.line(0, s.top, line{{"SESSIONS", headingInk}})
 	columnHeads(c, s.top+1, s.columns)
-	s.drawPage(c, s.top+2, s.paged(), s.scroll)
+	s.drawPage(c, s.top+2, paged, s.scroll)
+	if at, ok := paged.saysOn(); ok {
+		from, to := paged.shown(s.scroll)
+		above, below := s.outOfView(paged.top(from, to), to)
+		c.line(listFrom, s.top+2+at, outOfView(above, below, s.width-listFrom, sessionsOut...))
+	}
 }
 
 // targets are the sessions' rows in view, as sessionsByDay's targets has

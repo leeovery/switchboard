@@ -583,6 +583,57 @@ func TestSessionsOfALineShowsNoRuleAlone(t *testing.T) {
 	}
 }
 
+// Where SESSIONS' sessions don't all fit, its last row says how many are out
+// of view, as the List says them, from column 2, scrolled anywhere: the
+// sessions before the first it shows and after the last, its rules not
+// counted. Where they all fit, it says nothing.
+func TestSessionsSaysHowManySessionsAreOutOfView(t *testing.T) {
+	page := chosenPage(chosenSessions())
+	doc := framedDoc(nil, nil)
+	f := projectsFrame(t, 160, 24, projectRows(6), 0, &page)
+	paged := f.projectsLaying(doc, routedAt).sessions.paged()
+	if lines := paged.page(); lines < 2 || lines >= paged.content {
+		t.Fatalf("SESSIONS shows %d of its %d lines at 160×24, want some but not all, for the test to hold", lines, paged.content)
+	}
+	for scroll := range paged.most() + 1 {
+		f.Scroll = scroll
+		rows := textOf(f.page(doc, routedAt).rows(Look{}))
+		at := rowWith(rows, "SESSIONS") + 2
+		var shown []int
+		for _, row := range rows[at : at+paged.page()] {
+			if i := slices.IndexFunc(page.Sessions, func(s views.PeriodSession) bool { return strings.Contains(row, s.Session[:4]) }); i >= 0 {
+				shown = append(shown, i)
+			}
+		}
+		if len(shown) == 0 {
+			t.Fatalf("scrolled %d, SESSIONS shows no session:\n%s", scroll, strings.Join(rows[at:], "\n"))
+		}
+		want := "  " + outOfViewSaid(shown[0], len(page.Sessions)-1-shown[len(shown)-1])
+		if got := rows[at+paged.page()]; got != want {
+			t.Errorf("scrolled %d, SESSIONS' last row reads %q, want %q", scroll, got, want)
+		}
+	}
+	whole := projectsFrame(t, 173, 60, projectRows(3), 0, &page)
+	if rows := textOf(whole.page(doc, routedAt).rows(Look{})); rowWith(rows, "more session") >= 0 {
+		t.Errorf("with every session fitting, the frame reads\n%s\nwant nothing said of sessions out of view", strings.Join(rows, "\n"))
+	}
+}
+
+// outOfViewSaid is how the List says how many sessions are out of view,
+// above and below.
+func outOfViewSaid(above, below int) string {
+	counted := func(mark string, n int) string {
+		return fmt.Sprintf("%s %d more session%s", mark, n, map[bool]string{true: "s"}[n != 1])
+	}
+	switch {
+	case above == 0:
+		return counted("▼", below)
+	case below == 0:
+		return counted("▲", above)
+	}
+	return counted("▲", above) + " · " + counted("▼", below)
+}
+
 // Where no line of SESSIONS fits under its heading and heads, SESSIONS
 // shows nothing, no heading without what's under it.
 func TestSessionsWithoutRoomForALineShowsNothing(t *testing.T) {

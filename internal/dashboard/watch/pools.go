@@ -57,10 +57,14 @@ type Pooled struct {
 var ErrPoolsTold = errors.New("the pools can be told now")
 
 // ErrConfigUnread is what Config's Turn fails with, joined to why, where
-// the config can't be read: that holds till the config file changes, so the
-// pools told ask for the pool shown again only then, where a turn that
-// failed otherwise, as where the router's health didn't answer in time, is
-// asked again at the next read.
+// the config can't be read. That holds till the config file changes, so
+// after it the pools told, as ErrPoolsTold says, no longer call for the
+// pool shown again, as toldInVain has it, where after a turn that failed
+// otherwise, as where the router's health didn't answer in time, the next
+// read they fail calls for it. A config changed calls for it once, as
+// followConfig has it: a turn that change asked for, failing either way,
+// isn't asked again at the next read for it, but once the config changes
+// again.
 var ErrConfigUnread = errors.New("the config can't be read")
 
 // PoolAsk is which pool Config's Turn is asked for.

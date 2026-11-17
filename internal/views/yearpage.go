@@ -357,14 +357,17 @@ func (s yearSpan) running(month string) bool {
 	return strings.HasPrefix(s.today, month+"-")
 }
 
-// partWay is the day with the given date where the period's days held, or a
-// version's use, began on it: after the period's first day, in the month
-// given, as Month names it, and part-way through it. It's "" otherwise.
+// partWay is the day the month given, as Month names it, is counted from
+// where that's part-way through it: the later of the period's first day, as
+// the last 12 months' first month begins, and the day with the given date,
+// where the period's days held, or a version's use, began. It's "" for a
+// month counted from its 1st, or before or after it.
 func (s yearSpan) partWay(month, began string) string {
-	if began <= s.first || !strings.HasPrefix(began, month+"-") || strings.HasSuffix(began, "-01") {
+	from := max(began, s.first)
+	if !strings.HasPrefix(from, month+"-") || strings.HasSuffix(from, "-01") {
 		return ""
 	}
-	return began
+	return from
 }
 
 // keyCuts are the cuts as a key gives them, each rounded to the nearest

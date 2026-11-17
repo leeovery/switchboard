@@ -126,14 +126,18 @@ func (m Model) onPicker(x int) bool {
 	return m.picker.open && x >= m.size.Width-dashboard.PickerWidth(m.size.Width)
 }
 
-// namedPresses are the presses of the keys the key line names by a word or
-// by a pair. A pair, which moves either way, is pressed as the way on: ↓, ],
-// > and →.
+// namedPresses are the presses of the keys the key line names by a word, an
+// arrow or a pair. A pair, which moves either way, is pressed as the way on:
+// ↓, ], > and →.
 var namedPresses = map[string]tea.KeyPressMsg{
 	"tab":   {Code: tea.KeyTab},
 	"enter": {Code: tea.KeyEnter},
 	"esc":   {Code: tea.KeyEscape},
 	"end":   {Code: tea.KeyEnd},
+	"↑":     {Code: tea.KeyUp},
+	"↓":     {Code: tea.KeyDown},
+	"←":     {Code: tea.KeyLeft},
+	"→":     {Code: tea.KeyRight},
 	"↑↓":    {Code: tea.KeyDown},
 	"[ ]":   {Code: ']', Text: "]"},
 	"< >":   {Code: '>', Text: ">"},

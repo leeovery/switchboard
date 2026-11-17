@@ -159,10 +159,10 @@ func TestUnderACardIsTheCardInItsBoxAndElsewhereNothing(t *testing.T) {
 }
 
 // Under Projects' list, its projects shown and the line saying how many
-// more, where any are out of view, is the list; under SESSIONS' lines, the
-// view; and under its heads, its rule, every project's row and the chosen
-// project's head, nothing: of a list that runs past its rows, one that fits
-// whole, and one of a project alone.
+// more, where any are out of view, is the list; under SESSIONS' rows, its
+// first and the one under it, the view; and under its heads, its rule,
+// every project's row and the chosen project's head, nothing: of a list
+// that runs past its rows, one that fits whole, and one of a project alone.
 func TestUnderProjectsListIsTheListAndUnderSessionsTheView(t *testing.T) {
 	page := chosenPage(chosenSessions())
 	tests := []struct {
@@ -189,13 +189,13 @@ func TestUnderProjectsListIsTheListAndUnderSessionsTheView(t *testing.T) {
 					return y
 				}
 				first, every := rowOf("agentic-"), rowOf("all projects")
-				more := slices.IndexFunc(rows, func(r string) bool { return strings.Contains(r, " more") })
+				more := slices.IndexFunc(rows[:every], func(r string) bool { return strings.Contains(r, " more") })
 				if last := every - 2; (more >= 0) != tt.overflows || more >= 0 && more != last || more < 0 && last-first+1 != tt.projects {
 					t.Fatalf("the frame reads\n%s\nwant the projects, the line of how many more where any are out of view, the rule and every project's row", strings.Join(rows, "\n"))
 				}
 				want := map[int]Under{
 					first - 1: UnderNothing, every - 1: UnderNothing, every: UnderNothing, every + 2: UnderNothing,
-					rowOf("d28c "): UnderView, rowOf("5b19 "): UnderView,
+					rowOf("d28c "): UnderView, rowOf("d28c ") + 1: UnderView,
 				}
 				for y := first; y <= every-2; y++ {
 					want[y] = UnderProjectsList

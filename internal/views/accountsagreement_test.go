@@ -21,7 +21,9 @@ import (
 // served and its worth among them, each window's last run, told from the
 // days before the period too, and what its plan cost over the period and
 // its worth against it, the ledger begun part-way through the period or
-// not, as both price a young ledger's plans from its first day.
+// not, as both price a young ledger's plans from its first day. THIS WEEK
+// on its first day is the one period whose plans history can't be asked
+// for, as from its first day history prices today.
 func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
@@ -31,11 +33,12 @@ func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 			if len(rows) != len(history.Totals.Accounts) || len(rows) != len(history.Plans) {
 				t.Fatalf("the page has %d rows, history %d totals and %d plans", len(rows), len(history.Totals.Accounts), len(history.Plans))
 			}
+			priced := !isThisWeeksFirstDay(am)
 			for i, row := range rows {
 				if got, want := jsonOf(t, row.Totals), jsonOf(t, history.Totals.Accounts[i]); got != want {
 					t.Errorf("row %d counts\n%s\nhistory counts\n%s", i, got, want)
 				}
-				if got, want := jsonOf(t, row.Plan), jsonOf(t, history.Plans[i]); got != want {
+				if got, want := jsonOf(t, row.Plan), jsonOf(t, history.Plans[i]); priced && got != want {
 					t.Errorf("row %d's plan is\n%s\nhistory's\n%s", i, got, want)
 				}
 			}
@@ -99,22 +102,36 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 	}
 }
 
-// On a week's first day, Accounts' today is the one period history can't be
-// asked for by its first day: from it, history prices this week, the longer
-// that begins then, Accounts' own to begin with, and Accounts' today a day.
-// Their totals are alike.
-func TestOnAWeeksFirstDayHistoryFromTodayIsThisWeekNotAccountsToday(t *testing.T) {
+// On a week's first day, history from today prices a day, as Accounts'
+// today does, the shorter of the two periods that begin then, so a day asked
+// for is never priced a week; Accounts' THIS WEEK prices the week. Their
+// totals are alike.
+func TestOnAWeeksFirstDayHistoryFromTodayIsAccountsTodayNotThisWeek(t *testing.T) {
 	am := accountsMoment(t, onceItsReFiled)
-	am.Period = views.PeriodToday
-	page, _ := accountsAt(am)
-	history := historySince(am, am.Period.From(am.Now, am.WeekStarts))
-	if got, want := jsonOf(t, page.All.Totals), jsonOf(t, history.Totals.Accounts[len(history.Totals.Accounts)-1]); got != want {
-		t.Errorf("every account's today counts\n%s\nhistory's\n%s", got, want)
+	from := views.PeriodToday.From(am.Now, am.WeekStarts)
+	if !from.Equal(views.PeriodThisWeek.From(am.Now, am.WeekStarts)) {
+		t.Fatalf("on %s, today and this week begin apart", am.Now.Weekday())
 	}
-	got := []string{jsonOf(t, page.All.Plan.Cost), jsonOf(t, history.Plans[len(history.Plans)-1].Cost)}
-	if want := []string{"13.150684931506", "92.307692307692"}; !slices.Equal(got, want) {
-		t.Errorf("on %s, Accounts' today and history from today cost %v, want a day and this week, %v", am.Now.Weekday(), got, want)
+	history := historySince(am, from)
+	cost := map[string]string{"history": jsonOf(t, history.Plans[len(history.Plans)-1].Cost)}
+	for _, period := range []views.Period{views.PeriodToday, views.PeriodThisWeek} {
+		am.Period = period
+		page, _ := accountsAt(am)
+		if got, want := jsonOf(t, page.All.Totals), jsonOf(t, history.Totals.Accounts[len(history.Totals.Accounts)-1]); got != want {
+			t.Errorf("every account's %s counts\n%s\nhistory's\n%s", period.Name(), got, want)
+		}
+		cost[period.Name()] = jsonOf(t, page.All.Plan.Cost)
 	}
+	want := map[string]string{"history": "13.150684931506", "today": "13.150684931506", "this week": "92.307692307692"}
+	if !maps.Equal(cost, want) {
+		t.Errorf("on %s, the plans cost %v, want history from today a day, as Accounts' today, %v", am.Now.Weekday(), cost, want)
+	}
+}
+
+// isThisWeeksFirstDay reports whether am is of THIS WEEK on its first day,
+// whose plans history prices as today's.
+func isThisWeeksFirstDay(am viewstest.AccountsMoment) bool {
+	return am.Period == views.PeriodThisWeek && am.Period.From(am.Now, am.WeekStarts).Equal(views.PeriodToday.From(am.Now, am.WeekStarts))
 }
 
 // historySince is history at the moment am, asked for from the time given,

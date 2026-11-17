@@ -640,7 +640,7 @@ func TestProjectsHoldsTheTopRowOnceItsSessionsAreTaken(t *testing.T) {
 func TestProjectsRebuiltKeepsTheSelectionInView(t *testing.T) {
 	h := withDelta(projectsHarness(t, dashboard.Projects))
 	h.start()
-	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
+	h.update(tea.WindowSizeMsg{Width: 108, Height: 26})
 	h.deliver(h.press(">")...)
 	h.keys(rightKey)
 	var inView []string
@@ -649,8 +649,8 @@ func TestProjectsRebuiltKeepsTheSelectionInView(t *testing.T) {
 			inView = append(inView, tg.Session)
 		}
 	}
-	if len(inView) == 0 || len(inView) == len(deltaSessions) {
-		t.Fatalf("SESSIONS shows %d of delta's %d sessions at 108×24, want some, not all", len(inView), len(deltaSessions))
+	if len(inView) < 2 || len(inView) == len(deltaSessions) {
+		t.Fatalf("SESSIONS shows %d of delta's %d sessions at 108×26, want two at least, not all", len(inView), len(deltaSessions))
 	}
 	for range len(inView) - 1 {
 		h.keys(downKey)

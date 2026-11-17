@@ -80,6 +80,7 @@ same way the dashboard does.
 | If | Then |
 |---|---|
 | A period is still running | It's priced whole. |
+| You ask for today on the first day of a week | It's priced as a day, not a week. |
 | A month or week begins part-way into the days asked for | It's priced by its days from then. |
 | The days asked for start before the ledger does | The plans are priced from the first day the ledger holds. |
 | An account has no `plan` | It has no cost and no ratio. |
