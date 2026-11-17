@@ -67,6 +67,14 @@ func (l *requestLedger) roundNow(ctx context.Context) error {
 	return l.opened.Load().RoundNow(ctx)
 }
 
+// roundAgain has the ledger make its round at once, as ledger.Ledger's
+// RoundAgain does, where it's open. It never waits.
+func (l *requestLedger) roundAgain() {
+	if opened := l.opened.Load(); opened != nil {
+		opened.RoundAgain()
+	}
+}
+
 // tendNow has the ledger compress and prune its files at once where that's
 // due, as ledger.Ledger's TendNow does. The ledger must be open.
 func (l *requestLedger) tendNow(ctx context.Context) error {

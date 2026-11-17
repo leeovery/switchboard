@@ -62,6 +62,12 @@ func (w *Writer) TendNow(ctx context.Context) error {
 	return w.writer.TendNow(ctx)
 }
 
+// RoundAgain has the writer make its round at once, on Run's goroutine, as
+// dayfile.Writer's RoundAgain does. It never waits.
+func (w *Writer) RoundAgain() {
+	w.writer.RoundAgain()
+}
+
 // lines returns taken as the history's lines, each filed under the local day
 // it was read on. A reading that can't be put as a line, as one of a use that
 // isn't a number, goes unwritten, logged once.

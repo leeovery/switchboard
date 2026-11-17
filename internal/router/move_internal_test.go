@@ -194,7 +194,8 @@ func TestNoMoveOwedRunsNothing(t *testing.T) {
 // is owed: from its start, before settle and the history's writers run,
 // whatever Settle does, through a wait for the router to restart onto the
 // new ids, till that move's done; never while the move to pools after it
-// runs, nor with no move onto the ids owed.
+// runs, nor with no move onto the ids owed. Once that move's done, and only
+// then, it lets the rounds go, once.
 func TestTheHistoryIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -224,6 +225,11 @@ func TestTheHistoryIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
 					pools = tt.pools
 				}
 				m := newMoving(ids, pools)
+				released, heldAsReleased := 0, false
+				m.released = func() {
+					released++
+					heldAsReleased = heldAsReleased || m.holds()
+				}
 				if got := m.holds(); got != tt.held {
 					t.Errorf("as the router starts, holds() = %t, want %t", got, tt.held)
 				}
@@ -242,6 +248,16 @@ func TestTheHistoryIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
 				if got := m.holds(); got != tt.stays {
 					t.Errorf("once the moves have run, holds() = %t, want %t", got, tt.stays)
 				}
+				wantReleased := 0
+				if tt.held && !tt.stays {
+					wantReleased = 1
+				}
+				if released != wantReleased {
+					t.Errorf("the history's rounds were let go of %d times, want %d", released, wantReleased)
+				}
+				if heldAsReleased {
+					t.Error("as the history's rounds were let go of, holds() = true, want false")
+				}
 			})
 		})
 	}
@@ -249,7 +265,8 @@ func TestTheHistoryIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
 
 // While the move holds the history, the router's request ledger summarises
 // no day and prunes none, and its readings history prunes none; once the
-// move's done, their next rounds do both.
+// move's done, they make their rounds at once, doing both, never waiting on
+// the hourly tick.
 func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *testing.T) {
 	logstest.Capture(t)
 	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
@@ -278,24 +295,27 @@ func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *t
 	}()
 	kept := func() (summarised, pruned bool) {
 		t.Helper()
-		if err := r.ledger.roundNow(ctx); err != nil {
-			t.Fatal(err)
-		}
-		if err := r.history.tendNow(ctx); err != nil {
-			t.Fatal(err)
-		}
 		_, err := os.Stat(ledger.SummaryFile(dir, day))
 		_, gone := os.Stat(filepath.Join(history, "readings-"+old+".jsonl"))
 		return err == nil, errors.Is(gone, fs.ErrNotExist)
 	}
 
+	if err := r.ledger.roundNow(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.history.tendNow(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if summarised, pruned := kept(); summarised || pruned {
 		t.Errorf("while the move holds the history, a day was summarised %t, the readings past keeping pruned %t; want neither", summarised, pruned)
 	}
 	r.moving.run(ctx, func() idmove.History { return idmove.History{} }, nil)
-	if summarised, pruned := kept(); !summarised || !pruned {
-		t.Errorf("once the move's done, a day was summarised %t, the readings past keeping pruned %t; want both", summarised, pruned)
-	}
+	// Nothing asks for a round here: the writers' next tick is an hour off,
+	// so only the move's own kick makes one this soon.
+	waitFor(t, "the move's done and a day is summarised and the readings past keeping pruned", func() bool {
+		summarised, pruned := kept()
+		return summarised && pruned
+	})
 }
 
 // answeringPoolMover is a move to pools that answers each run with the next
