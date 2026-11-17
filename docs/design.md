@@ -1512,9 +1512,11 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
 - **A router draining across the upgrade** can file a few lines naming no pool after the move,
   read as the first pool's work (see What's recorded). One from before a day's plain file was
   held across processes (see Account identity) can lose a line it appends as the move renames
-  that day's file into place: it takes no hold. It needs a router started by hand
-  beside one still draining, as launchd starts the next only once the last has gone, and a
-  request ending in the milliseconds of the rename.
+  that day's file into place: it takes no hold. The usual upgrade can't: the router restarts in
+  place, `exec`ing the new build in the same process (see The router looking after itself), so
+  no two routers ever run. Nor can launchd's restarts, as it starts the next only once the last
+  has gone. It needs one of the two routers run by hand, the one still draining among them, and
+  a request ending in the milliseconds of the rename.
 - **A pool's id re-cased by a hand edit** lists the pool twice in the day's summary, once each
   spelling, and so in `history`'s JSON, each priced; every read of the pool takes both, as the
   config, the readers and a pool's read compare ids ignoring case.
@@ -2060,19 +2062,23 @@ formats below; the screens as signed off in Paper (see The screens, below).
     new ids and swapped in, a day's files at a time, holding off their writers as they hold one
     another off, so a stop part way loses nothing, and the move runs again from where it stopped:
     a new id is never an old one, so a file moved reads the same moved again. Another process's
-    writer is held off too: a day's plain file is held (`flock`), shared as it's appended to and
-    exclusive from the check before its rename till the file written anew is in its place, so a
-    router draining as another starts never appends to the file replaced. A router from before
-    the hold doesn't take it (see What pools can't hold). A day of the request ledger has its
-    lines renamed before its summary, its rounds held off meanwhile; where the move fails, or the
-    router stops, between the two, the rounds pass over a day whose summary still names an id the
-    move renames until the move has renamed it: summarised from lines under the new ids, knowing
-    a summary under the old, the day would count its work under both, and renaming the summary
-    would then add the two together. A day's compressed
-    file that's damaged is read up to its damage, its whole lines kept in its place, and the file
-    itself set aside beside it as `<name>.damaged`, then `.damaged-2` and on, till its day's past
-    keeping. The files the router builds from these, the days' digests, parts, heads and rows, are
-    built again.
+    writer is held off too: a day's plain file is held (`flock`), shared as it's appended to, and
+    exclusive from the check before its rename till the file written anew is in its place, and
+    as a compress reads it then removes it, so a router draining as another starts never appends
+    to a file replaced or removed. A router from before the hold doesn't take it (see What pools
+    can't hold). A day of the request ledger has its lines renamed before its summary, its
+    rounds held off meanwhile; where the move fails, or the router stops, between the two, a
+    round that summarises the day takes each account of the summary held under the id the move
+    renames it to, wherever the day's lines and readings no longer name the old id. Summarised
+    from lines under the new ids, knowing a summary under the old, the day would count its work
+    under both, and renaming the summary would then add the two together. Before the move
+    renames a day, the day's lines and summary name the same ids, and a round summarises it as
+    ever, the readings a prune takes among it. The router's rounds alone summarise a day so
+    while the move is owed: `history` and the dashboard read nothing of the ledger till it's
+    done, as for imports below. A day's compressed file that's damaged is read up to its damage,
+    its whole lines kept in its place, and the file itself set aside beside it as
+    `<name>.damaged`, then `.damaged-2` and on, till its day's past keeping. The files the router
+    builds from these, the days' digests, parts, heads and rows, are built again.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals by account the same before and after, and
     the dashboard and the verbs reading it whole.

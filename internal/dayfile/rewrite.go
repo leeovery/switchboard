@@ -192,8 +192,8 @@ func (f *Files) finishRewrite(date string, file dayFile, s *stagedRewrite, rewri
 	if !s.changed {
 		return Rewritten{Before: before, After: before}, true, nil
 	}
-	if f.renaming != nil && !file.compressed {
-		f.renaming(file)
+	if f.replacing != nil && !file.compressed {
+		f.replacing(file)
 	}
 	if err := os.Rename(s.tmp, f.path(file)); err != nil {
 		return Rewritten{}, false, err

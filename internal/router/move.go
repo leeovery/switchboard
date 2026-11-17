@@ -27,13 +27,13 @@ var errHistoryMoving = errors.New("import once it's done")
 // the history's files as it keeps them, failing with idmove.ErrUnanswered,
 // having changed nothing, where the API doesn't answer, to run again once
 // AskAgain's wait is up, given the wait before, zero the first time. Renames
-// reports, of an id, whether the move renames what names it, nil where it
-// renames none.
+// gives the id the move renames each id to, the id itself where it renames
+// none, nil where it renames none at all.
 type Mover interface {
 	Settle() error
 	RunBeside(ctx context.Context, history idmove.History) error
 	AskAgain(wait time.Duration) time.Duration
-	Renames() (func(id string) bool, error)
+	Renames() (func(id string) string, error)
 }
 
 // PoolMover moves the history to pools, once, after the move onto the ids,
@@ -60,6 +60,9 @@ type moving struct {
 	// router's start, where it has a move to make, until every move is done.
 	// Nil where none is owed.
 	stands atomic.Pointer[status.Moving]
+	// renamed is what the mover last gave of the ids the move renames, as
+	// renaming has it: nil before it gave any.
+	renamed atomic.Pointer[func(id string) string]
 }
 
 // newMoving returns the moving of mover's move onto the ids, then pools'
@@ -102,20 +105,24 @@ func (m *moving) standing(s status.Moving) {
 	m.stands.Store(&s)
 }
 
-// renaming reports, of an id, whether the move onto the ids renames what
-// names it, while that's owed, as the mover's Renames has it, for the
-// request ledger's rounds to pass over the days it hasn't renamed yet, as
-// ledger.Moving says: nil where it isn't owed, or renames none; and every id
-// where the mover can't tell, so no round summarises a day it may not have
-// reached.
-func (m *moving) renaming() func(id string) bool {
+// renaming gives the id the move onto the ids renames each id to, while
+// that's owed, as the mover's Renames gives them, for the request ledger's
+// rounds to know a day it renamed partway, as ledger.Moving says: nil where
+// it isn't owed, or renames none. Where the mover can't tell, as the config
+// can't be read for now, it gives what the mover last gave: the ids it
+// renames change only as the config takes the new ones.
+func (m *moving) renaming() func(id string) string {
 	if !m.idsOwed() {
 		return nil
 	}
 	renames, err := m.mover.Renames()
 	if err != nil {
-		return func(string) bool { return true }
+		if last := m.renamed.Load(); last != nil {
+			return *last
+		}
+		return nil
 	}
+	m.renamed.Store(&renames)
 	return renames
 }
 

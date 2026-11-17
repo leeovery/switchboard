@@ -131,13 +131,13 @@ type Option func(*options)
 
 // options are what the options given set: the Digester the ledger digests
 // its days with, nil for none, which a follower passes over; what gives the
-// first pool's id, as FirstPool says, nil for none; and what tells the ids a
-// move renames, as Moving says, nil for none, which a follower passes over
-// too.
+// first pool's id, as FirstPool says, nil for none; and what gives the ids a
+// move renames to, as Moving says, nil for none, which a follower passes
+// over too, as no reader follows the ledger while a move is owed.
 type options struct {
 	digester  Digester
 	firstPool func() string
-	moving    func() func(id string) bool
+	moving    func() func(id string) string
 }
 
 // optionsOf are what the options given set.

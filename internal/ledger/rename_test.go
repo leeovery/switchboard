@@ -11,8 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 )
 
 // renamedTo are the ids the rename tests' accounts are renamed to, by the
@@ -56,12 +59,9 @@ func openedIn(dir string, at time.Time, opts ...ledger.Option) *ledger.Ledger {
 	return ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, noReadings, caps, logs.For("router"), opts...)
 }
 
-// movingFrom is a move that renames the ids given, as Moving asks of one.
-func movingFrom(ids ...string) ledger.Option {
-	return ledger.Moving(func() func(id string) bool {
-		return func(id string) bool { return slices.Contains(ids, id) }
-	})
-}
+// moving is a move that renames the rename tests' ids as renamedTo does, as
+// Moving asks of one.
+var moving = ledger.Moving(func() func(id string) string { return renamedID })
 
 // requestsBy counts the requests of each account's day in the summary the
 // ledger in dir holds of the rename tests' day, by the account's id.
@@ -195,12 +195,11 @@ func TestADayWhoseRenameStoppedBetweenItsLinesAndItsSummaryCountsItsWorkOnceRena
 				t.Fatal(err)
 			}
 			tt.since(t, dir)
-			held := summaryIn(t, dir)
 
-			moving := movingFrom("work", "personal")
 			openedIn(dir, on(3, 11, 0), moving).SummariseEnded(on(3, 11, 0))
-			if got := summaryIn(t, dir); !bytes.Equal(got, held) {
-				t.Errorf("a round as the move was under way wrote the summary %s, want it passed over till the move renamed it, as %s", got, held)
+			if got := requestsBy(t, dir); !maps.Equal(got, tt.want) {
+				t.Errorf("summarised as the move was under way, the day's requests by account are %v, want each counted once, under its new id, %v",
+					got, tt.want)
 			}
 			l := openedIn(dir, on(3, 12, 0), moving)
 			if err := l.RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
@@ -208,20 +207,56 @@ func TestADayWhoseRenameStoppedBetweenItsLinesAndItsSummaryCountsItsWorkOnceRena
 			}
 			l.SummariseEnded(on(3, 12, 0))
 			if got := requestsBy(t, dir); !maps.Equal(got, tt.want) {
-				t.Errorf("the day's requests by account are %v, want each counted once, under its new id, %v", got, tt.want)
+				t.Errorf("renamed again, the day's requests by account are %v, want each counted once, under its new id, %v", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestARoundAsAMoveRunsSummarisesADayWhoseSummaryNamesNoIdItRenames(t *testing.T) {
-	dir := summarisedDay(t)
-	writeAt(t, dir, on(0, 12, 0), noReadings,
-		&ledger.Line{At: on(0, 12, 0), Request: "r4", Kind: ledger.KindMessage, Account: "work", Reason: "new", Status: 200, Attempts: 1})
+// As the move waits to rename the history, as for the router to restart
+// onto the new ids, a day's summary that no longer stands is summarised
+// again as ever, under the ids its lines still name, for the move to rename
+// with them.
+func TestARoundBeforeTheMoveRenamesADaysLinesSummarisesItUnderTheIDsTheyName(t *testing.T) {
+	dir := t.TempDir()
+	plainLines(t, dir)
+	markOfVersion(t, dir, ofVersion(summaryOf(date, 2, windowsRead{}, theTwo...), 5), 5)
 
-	openedIn(dir, on(3, 11, 0), movingFrom("spare")).SummariseEnded(on(3, 11, 0))
-	if got, want := requestsBy(t, dir), map[string]int{"": 1, "work": 2, "personal": 1}; !maps.Equal(got, want) {
-		t.Errorf("the day's requests by account are %v, want the line filed since counted, %v", got, want)
+	openedIn(dir, on(3, 11, 0), moving).SummariseEnded(on(3, 11, 0))
+	var summary ledger.Summary
+	if err := json.Unmarshal(summaryIn(t, dir), &summary); err != nil || summary.Version != 7 {
+		t.Fatalf("the day's summary is %s (%v), want it summarised again, as version 7", summaryIn(t, dir), err)
+	}
+	if got, want := requestsBy(t, dir), map[string]int{"work": 2}; !maps.Equal(got, want) {
+		t.Errorf("the day's requests by account are %v, want them under the id its lines name, %v", got, want)
+	}
+}
+
+// A day the move renamed partway, whose readings a prune is about to take,
+// is summarised again with them before the prune, as any day is, its work
+// under its new id alone.
+func TestADayRenamedPartwayIsSummarisedWithTheReadingsAPruneTakes(t *testing.T) {
+	_, dir, history := stateDirs(t)
+	summarisedUnderVersionFive(t, dir, 0, 1)
+	holdReadings(t, history, dayOf(0), workRead(on(0, 9, 0), "5h", 0.4, on(0, 13, 0), quota.StatusAllowed))
+	// The move renamed the readings, then the day's lines, then stopped.
+	for _, files := range []*dayfile.Files{readings.Files(history, logs.For("router")), ledger.Files(dir, logs.For("router"))} {
+		if _, err := files.Rewrite(dayOf(0), renamedLine); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	at := on(10, 10, 0)
+	l := ledger.Open(dir, dayfile.Forever, func() time.Time { return at }, historyIn(history), caps, logs.For("router"), moving)
+	l.SummariseBeforePrune(at, 8*24*time.Hour)
+	var summary ledger.Summary
+	if err := json.Unmarshal([]byte(heldSummary(t, dir, dayOf(0))), &summary); err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Accounts) != 1 || summary.Accounts[0].Account != "wk7q" || summary.Accounts[0].Highest["5h"] != 0.4 ||
+		len(summary.Accounts[0].Models) != 1 || summary.Accounts[0].Models[0].Requests() != 1 {
+		t.Errorf("before the prune, the day's summary is %s, want it summarised again with its readings, its one request wk7q's alone",
+			heldSummary(t, dir, dayOf(0)))
 	}
 }
 

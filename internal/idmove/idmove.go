@@ -644,17 +644,11 @@ func (r renames) none() bool {
 	return len(r) == 0
 }
 
-// has reports whether id, in any case, is one to rename.
-func (r renames) has(id string) bool {
-	_, ok := r[strings.ToLower(id)]
-	return ok
-}
-
-// Renames reports, of an id, whether the move renames what names it, as the
-// files it writes anew rename it: one the record has moved that the config
-// no longer configures. It's nil where there's none, as before the config
-// takes the new ids, or once the move is done.
-func (m *Mover) Renames() (func(id string) bool, error) {
+// Renames gives the id the move renames each id to, as the files it writes
+// anew rename it, the id itself where it renames none: an id the record has
+// moved that the config no longer configures. It's nil where there's none,
+// as before the config takes the new ids, or once the move is done.
+func (m *Mover) Renames() (func(id string) string, error) {
 	if Moved(m.StateDir) {
 		return nil, nil
 	}
@@ -662,7 +656,7 @@ func (m *Mover) Renames() (func(id string) bool, error) {
 	if err != nil || rename.none() {
 		return nil, err
 	}
-	return rename.has, nil
+	return rename.of, nil
 }
 
 // renames are the ids the record has moved that the config no longer

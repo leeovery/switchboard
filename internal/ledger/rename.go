@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -30,32 +31,56 @@ type Renaming struct {
 	Unpooled string
 }
 
-// Moving has the ledger's rounds pass over a day whose summary names an
-// account by an id a move of the accounts onto new ids renames, as moving
-// reports of each, asked once a round, none where it gives nil: the move
-// renames a day's lines before its summary, and a round summarising the day
-// between the two, from lines under the new ids, knowing no less than a
-// summary under the old, would count its work under both, which the move's
-// rename of the summary would then sum. RenameDay holds the rounds off
-// while it runs; this holds them off where it failed, or the router stopped,
-// between the two, till the move renames the summary.
-func Moving(moving func() func(id string) bool) Option {
+// Moving has the ledger's rounds know the move of the accounts onto new ids,
+// as moving gives the id the move renames each to, the id itself where it
+// renames none, asked once a round, none where it gives nil. The move
+// renames a day's lines, and the readings, before the day's summary: a round
+// summarising the day between the two, where it failed, or the router
+// stopped, finds its lines and readings under the new ids, and its summary
+// under the old, which, knowing it as it stands, would count the day's work
+// under both, and the move's rename of the summary would then add the two
+// together. So the summary's day of an account the day's lines and
+// readings no longer name is taken under its new id, as movedOn has it.
+func Moving(moving func() func(id string) string) Option {
 	return func(o *options) { o.moving = moving }
 }
 
-// renamedByMove reports, of an id, whether a move renames it, as Moving has
-// the ledger ask: nil where none does.
-func (l *Ledger) renamedByMove() func(id string) bool {
+// renamedByMove gives the id a move renames each to, as Moving has the
+// ledger ask: nil where none does.
+func (l *Ledger) renamedByMove() func(id string) string {
 	if l.moving == nil {
 		return nil
 	}
 	return l.moving()
 }
 
-// names reports whether any of the summary's accounts' days is of an
-// account by an id renamed reports true of: none where it's nil.
-func (s Summary) names(renamed func(id string) bool) bool {
-	return renamed != nil && slices.ContainsFunc(s.Accounts, func(a AccountDay) bool { return a.Account != "" && renamed(a.Account) })
+// movedOn returns s, a day's summary held, as made, the day summarised
+// afresh from its lines and readings, is to know it, where a move renames
+// ids as renamed gives them: each account's day s holds under an id the move
+// renames that made has no day of, its lines and readings renamed, under the
+// new id, two days of one account then merged into one, as mergedDays merges
+// them. A day made still has, its lines not yet renamed, stays as it is, for
+// the move to rename with them. It's s as it is where renamed is nil.
+func (s Summary) movedOn(made Summary, renamed func(id string) string) Summary {
+	if renamed == nil {
+		return s
+	}
+	accounts, moved := slices.Clone(s.Accounts), false
+	for i, a := range accounts {
+		if to := renamed(a.Account); a.Account != "" && to != a.Account && !made.hasDayOf(a.Account) {
+			accounts[i].Account, moved = to, true
+		}
+	}
+	if moved {
+		s.Accounts = mergedBy(accounts, func(a AccountDay) string { return a.Account }, mergedDays, strings.Compare)
+	}
+	return s
+}
+
+// hasDayOf reports whether the summary has a day of the account with the
+// given id, in any case.
+func (s Summary) hasDayOf(id string) bool {
+	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool { return strings.EqualFold(a.Account, id) })
 }
 
 // RenameDay renames the local day with the given date: each of its lines as
@@ -63,9 +88,9 @@ func (s Summary) names(renamed func(id string) bool) bool {
 // then its summary, as rename has it, as renameSummary renames it. It holds
 // summarising throughout, so no round summarises the day from lines of one
 // form, knowing no less than a summary of the other, which would count its
-// work twice, as Moving holds them off where it stops between the two; and
-// the day's files only as Rewrite holds them. A summary that doesn't read as
-// one is left as it is, for a round to summarise again, as it would.
+// work twice, as Moving has a round know where it stops between the two;
+// and the day's files only as Rewrite holds them. A summary that doesn't read
+// as one is left as it is, for a round to summarise again, as it would.
 func (l *Ledger) RenameDay(date string, line func([]byte) []byte, rename Renaming) error {
 	l.summarising.Lock()
 	defer l.summarising.Unlock()

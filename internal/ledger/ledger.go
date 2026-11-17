@@ -171,9 +171,9 @@ type Ledger struct {
 	// digesting is the ledger's digesting of its days, nil where it was
 	// opened to digest none.
 	digesting *digesting
-	// moving tells the ids a move renames, as Moving says: nil where the
+	// moving gives the ids a move renames to, as Moving says: nil where the
 	// ledger was opened without.
-	moving func() func(id string) bool
+	moving func() func(id string) string
 }
 
 // Open returns the ledger in dir, which keeps a day's lines for keep once the
@@ -276,11 +276,11 @@ func (l *Ledger) SummariseEnded(now time.Time) {
 // now, as writeSummary says, is logged, as written says, and left to a later
 // round, counting for none of those it summarises again: one that can't be
 // opened, or can't be told to stand, is left to the next pass, as failed
-// says. A day whose summary names an id a move renames, as Moving says, is
-// passed over until the move has renamed it. It lists the ledger's directory
-// and the history's once each, the history's before it reads any of its
-// files; and where the history can't be listed, it summarises no day, as
-// listedReadings says. It's safe to call from any goroutine, holding
+// says. A day a move renames is summarised knowing its summary as Moving
+// says. It lists the ledger's directory and the history's once each, the
+// history's before it reads any of its files; and where the history can't
+// be listed, it summarises no day, as listedReadings says. It's safe to call
+// from any goroutine, holding
 // summarising for its own part alone. It kicks the ledger's digesting as it
 // ends, where it digests its days and leaves none for a later call, as
 // digesting.kick says, so no pass finds a day still to be summarised again.
@@ -340,14 +340,12 @@ func (l *Ledger) summariseSome(now time.Time, kept string) (more bool) {
 			continue
 		}
 		stands, summary, err := l.days.standing(date, held.reach)
-		day := dueDay{date: date, held: summary, asOf: now, reach: held.reach(date)}
+		day := dueDay{date: date, held: summary, asOf: now, reach: held.reach(date), renamed: renamed}
 		switch {
 		case errors.Is(err, errLeftAsItIs):
 			left[date] = l.warnLeft(date, err)
 		case err != nil:
 			l.fail(date, err)
-		case !stands && summary != nil && summary.names(renamed):
-			// Left for the move to rename first, as Moving says.
 		case !stands && (summary == nil || pruned):
 			whole = append(whole, day)
 		case !stands:
@@ -503,12 +501,14 @@ func (l *Ledger) ended(now time.Time, held readingsHeld) []string {
 // dueDay is a local day to be summarised, by its date, as of asOf, as
 // Summarise says, and the summary held of it, which the day's summary
 // replaces: nil for none. reach is how far the readings history holds the
-// readings its summary reads, as readingsHeld.reach says.
+// readings its summary reads, as readingsHeld.reach says; and renamed gives
+// the id a move renames each to, as Moving says, nil where none does.
 type dueDay struct {
-	date  string
-	held  *Summary
-	asOf  time.Time
-	reach reach
+	date    string
+	held    *Summary
+	asOf    time.Time
+	reach   reach
+	renamed func(id string) string
 }
 
 // errReadingsUnread is the error of a day of no lines whose readings couldn't
@@ -956,11 +956,12 @@ func (d days) stamp(date string, stat dayfile.DayStat, version int) {
 // ReadDay counts, and the readings history, as history reads it ahead, where
 // the day's reach says its summary reads them, as Summarise makes it,
 // knowing no less than the summary held of it, which it replaces, where
-// there's one, as made says, the two fitted as fitted says; warning of how
-// many of the lines couldn't be read as one, where any couldn't. Where one of the
-// day's files can't be opened, it fails, giving the summary of those that
-// could be all the same; and with fs.ErrNotExist where the day has none,
-// giving the summary of its readings alone.
+// there's one, as made says, taken as a move renaming its ids has it, as
+// movedOn says, the two fitted as fitted says; warning of how many of the
+// lines couldn't be read as one, where any couldn't. Where one of the day's
+// files can't be opened, it fails, giving the summary of those that could be
+// all the same; and with fs.ErrNotExist where the day has none, giving the
+// summary of its readings alone.
 func (d days) summarise(day dueDay, history *ahead) (Summary, error) {
 	var lines, unread int
 	var read error
@@ -978,8 +979,13 @@ func (d days) summarise(day dueDay, history *ahead) (Summary, error) {
 	if unread > 0 {
 		d.logger.Warn("request ledger lines unread", "day", day.date, "lines", unread)
 	}
-	made, held := d.fitted(summary, day.held)
-	return made.made(lines, held), read
+	held := day.held
+	if held != nil {
+		moved := held.movedOn(summary, day.renamed)
+		held = &moved
+	}
+	made, fit := d.fitted(summary, held)
+	return made.made(lines, fit), read
 }
 
 // lineIn returns the line a line of the ledger holds, reporting false for one

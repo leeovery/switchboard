@@ -2,6 +2,9 @@ package views_test
 
 import (
 	"encoding/json"
+	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -51,18 +54,47 @@ func TestHistorysDaysAreTheSummariesPricedWithTheirWorthByFamily(t *testing.T) {
 	}
 }
 
-func TestHistorysDaysLeaveOutWhatTheSummaryKeepsToKnowWhenToSummariseItAgain(t *testing.T) {
+// A day gives every field its type and the summary's have, one added since
+// among them, but for what the summary keeps to know when to summarise the
+// day again; and so does each account's day.
+func TestHistorysDaysGiveEveryFieldButWhatTheSummaryKeepsForItself(t *testing.T) {
 	work := account("work", sent("claude-opus-5-5", 1, inputUsage))
-	work.Highest, work.ReadBefore = map[string]float64{"7d": 0.4}, []string{"7d"}
+	work.Pool, work.Sessions, work.SessionIDs, work.MovedOn, work.MovedOff = "b2n8", 1, []string{"s1"}, 1, 1
+	work.Pools = []ledger.PoolDay{{Pool: "b2n8", Models: []ledger.ModelDay{sent("claude-opus-5-5", 1, inputUsage)}, Sessions: 1}}
+	work.Highest, work.Rise = map[string]float64{"7d": 0.4}, map[string]float64{"7d": 0.1}
+	work.Resets = []ledger.Reset{{Window: "7d", At: onAt("2026-10-07", "10:00"), Before: 0.3}}
+	work.Limits = []ledger.Limit{{Window: "7d", At: onAt("2026-10-07", "11:00"), ResetsAt: onAt("2026-10-08", "10:00")}}
+	work.MinutesAtCap, work.MinutesAtLimit, work.ReadBefore = new(5), new(3), []string{"7d"}
 	summary := day("2026-10-07", work)
 	summary.Version, summary.Lines, summary.Bytes = 7, 12, ledger.Bytes{Plain: 3000, Compressed: 400}
+	in := input(daysFrom("2026-10-07", summary))
+	in.PoolLabel = func(string) string { return "Default" }
 
-	got := jsonOf(t, views.NewHistory(input(daysFrom("2026-10-07", summary))).Days)
-	want := `[{"day":"2026-10-07","accounts":[{"account":"work","sessions":0,"moved_on":0,"moved_off":0,"highest":{"7d":0.4},"models":[` +
-		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":0,"usage":{"input_tokens":1000000},"worth":4}]}],` +
-		`"by_family":[{"family":"opus","worth":4}]}]`
-	if got != want {
-		t.Errorf("the days are\n%s\nwant\n%s\nwithout the summary's version, lines, bytes or windows read before", got, want)
+	var days []map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(jsonOf(t, views.NewHistory(in).Days)), &days); err != nil || len(days) == 0 {
+		t.Fatalf("the days don't read as JSON objects: %v", err)
+	}
+	checkFields(t, "the day", days[0], reflect.TypeFor[views.Day](), "version", "lines", "bytes")
+	var accounts []map[string]json.RawMessage
+	if err := json.Unmarshal(days[0]["accounts"], &accounts); err != nil || len(accounts) != 1 {
+		t.Fatalf("the day's accounts are %s (%v), want work's day", days[0]["accounts"], err)
+	}
+	checkFields(t, "work's day", accounts[0], reflect.TypeFor[ledger.PricedAccount](), "read_before")
+}
+
+// checkFields checks object, a value of type of as JSON gives it, gives
+// every field of's fields are given as, those of the structs it embeds
+// among them, but those left out, and none of those.
+func checkFields(t *testing.T, what string, object map[string]json.RawMessage, of reflect.Type, leftOut ...string) {
+	t.Helper()
+	for _, f := range reflect.VisibleFields(of) {
+		name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+		if !f.IsExported() || name == "" || name == "-" {
+			continue
+		}
+		if _, given := object[name]; given == slices.Contains(leftOut, name) {
+			t.Errorf("%s gives %s %t, want %t", what, name, given, !given)
+		}
 	}
 }
 
