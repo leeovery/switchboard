@@ -260,6 +260,59 @@ func TestADayRenamedPartwayIsSummarisedWithTheReadingsAPruneTakes(t *testing.T) 
 	}
 }
 
+// The move renames the readings history's newest days as the router starts
+// on the new ids, and the day's lines and summary only in its history step:
+// a round between the two takes the day's lines under the old id, and the
+// readings, renamed, under the new, while the summary held under the old
+// knows the rise those readings gave. The summary renamed counts it once.
+func TestARoundBetweenTheMovesRenameOfTheReadingsAndOfTheLinesLeavesTheRiseCountedOnce(t *testing.T) {
+	_, dir, history := stateDirs(t)
+	holdLines(t, dir, date, asked("r1", on(0, 9, 0)), asked("r2", on(0, 9, 30)))
+	holdReadings(t, history, date, workRead(on(0, 9, 0), "5h", 0.25, on(0, 13, 0), quota.StatusAllowed),
+		workRead(on(0, 10, 0), "5h", 0.5, on(0, 13, 0), quota.StatusAllowed))
+	opened := func(at time.Time, opts ...ledger.Option) *ledger.Ledger {
+		return ledger.Open(dir, 400*24*time.Hour, func() time.Time { return at }, historyIn(history), caps, logs.For("router"), opts...)
+	}
+	summary := func() ledger.Summary {
+		var s ledger.Summary
+		if err := json.Unmarshal(summaryIn(t, dir), &s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	opened(on(1, 10, 0)).SummariseEnded(on(1, 10, 0))
+	before := summary()
+	if len(before.Accounts) != 1 || before.Accounts[0].Rise["5h"] == 0 {
+		t.Fatalf("before the move, the day's summary is %s, want work's rise", summaryIn(t, dir))
+	}
+	rise := before.Accounts[0].Rise["5h"]
+
+	// The router starts on the new ids, renaming the readings, and files a
+	// line under its new id before the history step.
+	if _, err := readings.Files(history, logs.For("router")).Rewrite(date, renamedLine); err != nil {
+		t.Fatal(err)
+	}
+	r4 := asked("r4", on(0, 23, 0))
+	r4.Account = "wk7q"
+	holdLines(t, dir, date, r4)
+	opened(on(1, 11, 0), moving).SummariseEnded(on(1, 11, 0))
+	if s := summary(); len(s.Accounts) != 2 || s.Accounts[0].Rise["5h"] != rise || s.Accounts[1].Rise["5h"] != rise {
+		t.Fatalf("between the two, the day's summary is %s, want the rise %v under both ids, work's known and wk7q's read", summaryIn(t, dir), rise)
+	}
+
+	l := opened(on(1, 12, 0), moving)
+	if err := l.RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
+		t.Fatalf("RenameDay() = %v", err)
+	}
+	l.SummariseEnded(on(1, 12, 0))
+	if s := summary(); len(s.Accounts) != 1 || s.Accounts[0].Account != "wk7q" || s.Accounts[0].Rise["5h"] != rise {
+		t.Errorf("renamed, the day's summary is %s, want wk7q's rise %v, counted once", summaryIn(t, dir), rise)
+	}
+	if got, want := requestsBy(t, dir), map[string]int{"wk7q": 3}; !maps.Equal(got, want) {
+		t.Errorf("renamed, the day's requests by account are %v, want every one, once, %v", got, want)
+	}
+}
+
 func TestRenamingADayOfASummaryAloneRenamesItsSummary(t *testing.T) {
 	dir := summarisedDay(t)
 	if err := os.Remove(dayFile(dir, on(0, 10, 0))); err != nil {

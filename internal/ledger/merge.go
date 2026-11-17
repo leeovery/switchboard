@@ -9,9 +9,9 @@ import (
 )
 
 // mergedWritten merges two days of one account as a summary writes them,
-// as mergedDays merges them: a field neither knows of, as a later version
-// wrote it, isn't kept.
-func mergedWritten(a, b json.RawMessage) (json.RawMessage, error) {
+// as merge merges them: a field neither knows of, as a later version wrote
+// it, isn't kept.
+func mergedWritten(a, b json.RawMessage, merge func(a, b AccountDay) AccountDay) (json.RawMessage, error) {
 	var dayA, dayB AccountDay
 	if err := json.Unmarshal(a, &dayA); err != nil {
 		return nil, err
@@ -19,27 +19,47 @@ func mergedWritten(a, b json.RawMessage) (json.RawMessage, error) {
 	if err := json.Unmarshal(b, &dayB); err != nil {
 		return nil, err
 	}
-	return json.Marshal(mergedDays(dayA, dayB))
+	return json.Marshal(merge(dayA, dayB))
 }
 
 // mergedDays merges two days of one account into one, as a summary renamed
-// names them, a's account its: their work in every pool together, and in
-// each pool, as mergedWork merges it; each window's highest use the higher
-// of the two, and its rises summed; the resets and limits of both, in the
-// order they came, each once, as limitsKnowing and resetsKnowing have them;
-// the minutes summed; and the windows read before of both. A window's rises,
-// resets and minutes that one of them never read, as its readings were under
-// the other's id, are the other's.
+// names them, a's account its, each read of readings of its own, as of two
+// ids the account had in two cases: their work in every pool together, and
+// in each pool, as mergedWork merges it; each window's highest use the
+// higher of the two, and its rises summed; the resets and limits of both,
+// in the order they came, each once, as limitsKnowing and resetsKnowing
+// have them; the minutes summed; and the windows read before of both. A
+// window's rises, resets and minutes that one of them never read, as its
+// readings were under the other's id, are the other's.
 func mergedDays(a, b AccountDay) AccountDay {
+	return mergedOf(a, b, func(a, b map[string]float64) map[string]float64 {
+		return mergedMaps(a, b, func(x, y float64) float64 { return x + y })
+	}, summedMinutes)
+}
+
+// mergedSameReadings merges two days of one account into one, as mergedDays
+// merges them, but for what the two read of the same readings, as of a day
+// under the id a move renamed onto the day under the new id, which read the
+// day's readings once the move renamed them: each window's rise and minutes
+// the larger of the two, as the readings read once give them. Their work, of
+// lines of their own, is summed all the same.
+func mergedSameReadings(a, b AccountDay) AccountDay {
+	return mergedOf(a, b, higher, more)
+}
+
+// mergedOf merges two days of one account into one, as mergedDays says, but
+// for each window's rises, as rises merges them, and the minutes, as minutes
+// merges each count.
+func mergedOf(a, b AccountDay, rises func(a, b map[string]float64) map[string]float64, minutes func(a, b *int) *int) AccountDay {
 	return AccountDay{
 		Account:        a.Account,
 		Work:           mergedWork(a.Work, b.Work),
 		Highest:        mergedMaps(a.Highest, b.Highest, func(x, y float64) float64 { return max(x, y) }),
-		Rise:           mergedMaps(a.Rise, b.Rise, func(x, y float64) float64 { return x + y }),
+		Rise:           rises(a.Rise, b.Rise),
 		Resets:         resetsKnowing(a.Resets, b.Resets),
 		Limits:         limitsKnowing(slices.Clone(a.Limits), b.Limits),
-		MinutesAtCap:   summedMinutes(a.MinutesAtCap, b.MinutesAtCap),
-		MinutesAtLimit: summedMinutes(a.MinutesAtLimit, b.MinutesAtLimit),
+		MinutesAtCap:   minutes(a.MinutesAtCap, b.MinutesAtCap),
+		MinutesAtLimit: minutes(a.MinutesAtLimit, b.MinutesAtLimit),
 		ReadBefore:     unionOf(a.ReadBefore, b.ReadBefore),
 	}.pooled(mergedBy(slices.Concat(a.poolDays(), b.poolDays()), PoolDay.key, mergedPool, strings.Compare))
 }
