@@ -191,22 +191,30 @@ type Day struct {
 	ByFamily []FamilyWorth `json:"by_family,omitempty"`
 }
 
-// MarshalJSON gives the day's date, its accounts' days and its worth by
-// family, but none of what the summary keeps to know when to summarise the
-// day again: its version, the lines and bytes of the day's files it was made
-// from, the whole day's whatever pool is read, and each account's windows
-// read in the week before. They say how the summary was made, not what the
-// day did, so the verb promises none of them.
+// MarshalJSON gives the day as its fields have it, a field added to it or
+// to the summary among them, but for what the summary keeps to know when to
+// summarise the day again: its version, the lines and bytes of the day's
+// files it was made from, the whole day's whatever pool is read, and each
+// account's windows read in the week before. They say how the summary was
+// made, not what the day did, so the verb promises none of them.
 func (d Day) MarshalJSON() ([]byte, error) {
+	type day Day
 	accounts := make([]dayAccount, len(d.Accounts))
 	for i, a := range d.Accounts {
 		accounts[i] = dayAccount{PricedAccount: a}
 	}
+	// The fields below, shallower than the day's of the same names, take
+	// their places: Version, Lines and Bytes are left out as nil, and
+	// Accounts gives each account's day as dayAccount does, ByFamily after
+	// it, as the day gives them.
 	return json.Marshal(struct {
-		Day      string        `json:"day"`
+		day
+		Version  *int          `json:"version,omitempty"`
+		Lines    *int          `json:"lines,omitempty"`
+		Bytes    *ledger.Bytes `json:"bytes,omitempty"`
 		Accounts []dayAccount  `json:"accounts,omitempty"`
 		ByFamily []FamilyWorth `json:"by_family,omitempty"`
-	}{Day: d.Day, Accounts: accounts, ByFamily: d.ByFamily})
+	}{day: day(d), Accounts: accounts, ByFamily: d.ByFamily})
 }
 
 // dayAccount is an account's day as a Day's JSON gives it: priced, but for

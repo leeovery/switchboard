@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,23 +26,23 @@ import (
 // answeringMover is a move onto the accounts' ids that answers each run with
 // the next of its answers, nil once they've run out, counting its runs; has
 // the API asked again after wait more than the wait before, noting each wait
-// before it's handed; and renames the ids renames gives, or fails to tell
-// them with unread.
+// before it's handed; and renames each id renames maps to the id it maps it
+// to, or, once unread is set, fails to tell them with it.
 type answeringMover struct {
 	answers []error
 	runs    int
 	ranAt   []time.Time
 	wait    time.Duration
 	waited  []time.Duration
-	renames []string
+	renames map[string]string
 	unread  error
 }
 
-func (m *answeringMover) Renames() (func(id string) bool, error) {
+func (m *answeringMover) Renames() (func(id string) string, error) {
 	if m.unread != nil || m.renames == nil {
 		return nil, m.unread
 	}
-	return func(id string) bool { return slices.Contains(m.renames, id) }, nil
+	return func(id string) string { return cmp.Or(m.renames[id], id) }, nil
 }
 
 func (m *answeringMover) Settle() error {
@@ -198,19 +199,26 @@ func TestNoMoveOwedRunsNothing(t *testing.T) {
 }
 
 // While the move onto the ids is owed, the ids it renames are its mover's,
-// every id where its mover can't tell; none once it's done, or where none
-// is owed.
+// those it last gave where it can't tell them for now; none once it's done,
+// or where none is owed.
 func TestTheIDsTheMoveRenamesAreItsMoversWhileItsOwed(t *testing.T) {
+	renames := map[string]string{"work": "b6s7"}
+	unreadable := errors.New("the config can't be read")
 	tests := []struct {
 		name  string
 		mover *answeringMover
-		done  bool
-		want  map[string]bool
+		// thenUnread, where it's set, has the mover unable to tell them once
+		// it has, as with the config unreadable for now.
+		thenUnread error
+		done       bool
+		want       map[string]string
 	}{
-		{name: "owed", mover: &answeringMover{renames: []string{"work"}}, want: map[string]bool{"work": true, "b6s7": false}},
+		{name: "owed", mover: &answeringMover{renames: renames}, want: map[string]string{"work": "b6s7", "side": "side"}},
 		{name: "owed, renaming none yet", mover: &answeringMover{}},
-		{name: "owed, its mover unable to tell", mover: &answeringMover{unread: errors.New("the config can't be read")}, want: map[string]bool{"work": true, "b6s7": true}},
-		{name: "done", mover: &answeringMover{renames: []string{"work"}}, done: true},
+		{name: "owed, its mover unable to tell for now", mover: &answeringMover{renames: renames}, thenUnread: unreadable,
+			want: map[string]string{"work": "b6s7", "side": "side"}},
+		{name: "owed, its mover never able to tell", mover: &answeringMover{unread: unreadable}},
+		{name: "done", mover: &answeringMover{renames: renames}, done: true},
 		{name: "none owed"},
 	}
 	for _, tt := range tests {
@@ -223,30 +231,34 @@ func TestTheIDsTheMoveRenamesAreItsMoversWhileItsOwed(t *testing.T) {
 			if tt.done {
 				m.run(t.Context(), func() idmove.History { return idmove.History{} }, nil)
 			}
-			renames := m.renaming()
-			if (renames != nil) != (tt.want != nil) {
-				t.Fatalf("renaming() = %v, want one: %v", renames != nil, tt.want != nil)
+			renamed := m.renaming()
+			if tt.thenUnread != nil {
+				tt.mover.unread = tt.thenUnread
+				renamed = m.renaming()
+			}
+			if (renamed != nil) != (tt.want != nil) {
+				t.Fatalf("renaming() = %v, want one: %v", renamed != nil, tt.want != nil)
 			}
 			for id, want := range tt.want {
-				if got := renames(id); got != want {
-					t.Errorf("renaming()(%q) = %v, want %v", id, got, want)
+				if got := renamed(id); got != want {
+					t.Errorf("renaming()(%q) = %q, want %q", id, got, want)
 				}
 			}
 		})
 	}
 }
 
-// The router's ledger passes over a day whose summary names an id the move
-// onto the ids renames, its lines renamed already, as the move left them
-// stopping before it renamed the summary: summarised from them, knowing the
-// summary, its work would count under both ids.
-func TestTheRoutersLedgerPassesOverADayTheMoveOntoTheIDsHasntRenamed(t *testing.T) {
+// The router's ledger takes a day the move onto the ids renamed partway, its
+// lines renamed, its summary not, as the move left it stopping between the
+// two, under the new ids alone: summarised from the lines, knowing the
+// summary as it stands, its work would count under both ids.
+func TestTheRoutersLedgerTakesADayTheMoveRenamedPartwayUnderTheNewIDs(t *testing.T) {
 	logstest.Capture(t)
 	day := start.AddDate(0, 0, -1)
 	date := dayfile.DateOf(day)
 	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 	cfg.StateDir = t.TempDir()
-	cfg.Move = &answeringMover{renames: []string{"work"}}
+	cfg.Move = &answeringMover{renames: map[string]string{"work": "b6s7"}}
 	dir := ledger.Dir(cfg.StateDir)
 	var lines strings.Builder
 	for _, request := range []string{"r1", "r2"} {
@@ -270,8 +282,12 @@ func TestTheRoutersLedgerPassesOverADayTheMoveOntoTheIDsHasntRenamed(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) != held {
-		t.Errorf("a round wrote the day's summary %s, want it passed over till the move renames it, as %s", data, held)
+	var summary ledger.Summary
+	if err := json.Unmarshal(data, &summary); err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Accounts) != 1 || summary.Accounts[0].Account != "b6s7" || summary.Lines != 2 {
+		t.Errorf("a round wrote the day's summary %s, held before as %s, want it summarised again, its work under b6s7 alone", data, held)
 	}
 }
 

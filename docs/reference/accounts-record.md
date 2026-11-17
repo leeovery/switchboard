@@ -107,6 +107,10 @@ this Mac's config makes. The two differ in these fields:
 | `configured` | Never there | Set on each account and pool the Mac configures |
 | `here` and `written` | As above | Left out |
 
+A pool the record keeps as `here`, and not removed, counts as one the Mac configures in the copy.
+That holds even if the config doesn't name the pool, for example a config put back from before pools.
+The copy labels such a pool with the label the config last wrote, or with the pool id if there's none.
+
 Every other field is the same in both. See [Export folders](export-folder.md).
 
 ## A config from before pools

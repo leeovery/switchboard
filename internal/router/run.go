@@ -119,9 +119,9 @@ func (r *Router) socket() (string, error) {
 
 // openLedger keeps the request ledger in dir from now on, a day's summary
 // from before pools giving its work the first pool, as idmove.FirstPool
-// says, its rounds passing over the days the move onto the ids hasn't
-// renamed, as ledger.Moving says, and the router's events beside it, as long
-// as the ledger's lines, those heard before filed as they now stand.
+// says, its rounds knowing a day the move onto the ids renamed partway, as
+// ledger.Moving says, and the router's events beside it, as long as the
+// ledger's lines, those heard before filed as they now stand.
 func (r *Router) openLedger(dir string) {
 	r.ledger.open(dir, ledger.HistoryIn(r.history.files), idmove.FirstPool(r.cfg.StateDir, func() config.Pools { return r.state.pools.current().pools }),
 		ledger.Moving(r.moving.renaming))

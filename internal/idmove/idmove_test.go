@@ -380,11 +380,11 @@ func TestTheMoveRenamesTheOldIDsFromWhenTheConfigTakesTheNewTillItsDone(t *testi
 	}
 	renames, err := m.Renames()
 	if renames == nil || err != nil {
-		t.Fatalf("once the config takes the new ids, Renames() = %v, %v; want the old ids", renames != nil, err)
+		t.Fatalf("once the config takes the new ids, Renames() = %v, %v; want the old ids renamed", renames != nil, err)
 	}
-	for id, want := range map[string]bool{work: true, strings.ToUpper(work): true, personal: true, workID: false, personalID: false} {
+	for id, want := range map[string]string{work: workID, strings.ToUpper(work): workID, personal: personalID, workID: workID, personalID: personalID} {
 		if got := renames(id); got != want {
-			t.Errorf("renames(%q) = %v, want %v", id, got, want)
+			t.Errorf("renames(%q) = %q, want %q", id, got, want)
 		}
 	}
 	restarted := f.mover(answering())

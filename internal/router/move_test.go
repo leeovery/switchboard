@@ -48,7 +48,7 @@ func (m *fakeMover) AskAgain(time.Duration) time.Duration {
 	return time.Hour
 }
 
-func (m *fakeMover) Renames() (func(id string) bool, error) {
+func (m *fakeMover) Renames() (func(id string) string, error) {
 	return nil, nil
 }
 

@@ -20,26 +20,32 @@ const compareBuffer = 32 << 10
 
 // compress moves the lines of the plain file of the local day with the given
 // date into the day's compressed file, as addPlain adds them, and then
-// removes the plain file. One that fails leaves the plain file.
+// removes the plain file, holding it exclusive throughout against other
+// processes, as openHeld holds it, so none appends to it between the read
+// and the remove. One that fails leaves the plain file.
 func (f *Files) compress(date string) error {
-	if err := f.addPlain(date); err != nil {
-		return err
-	}
-	return os.Remove(f.path(plainFile(date)))
-}
-
-// addPlain adds the lines of the plain file of the local day with the given
-// date to the day's compressed file: it writes that afresh, whole, as the one
-// there, if any, followed by the plain file's lines it doesn't hold yet, as
-// compressedDay.holds says, as adding gives them, a gzip member of their own;
-// or leaves it as it is, where it holds them all. It streams the files, and
-// holds neither whole.
-func (f *Files) addPlain(date string) error {
-	plain, err := os.Open(f.path(plainFile(date)))
+	path := f.path(plainFile(date))
+	plain, err := openHeld(path, true, os.Open)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = plain.Close() }()
+	if err := f.addPlain(date, plain); err != nil {
+		return err
+	}
+	if f.replacing != nil {
+		f.replacing(plainFile(date))
+	}
+	return os.Remove(path)
+}
+
+// addPlain adds the lines of plain, the plain file of the local day with the
+// given date, open to read, to the day's compressed file: it writes that
+// afresh, whole, as the one there, if any, followed by the plain file's lines
+// it doesn't hold yet, as compressedDay.holds says, as adding gives them, a
+// gzip member of their own; or leaves it as it is, where it holds them all.
+// It streams the files, and holds neither whole.
+func (f *Files) addPlain(date string, plain *os.File) error {
 	info, err := plain.Stat()
 	if err != nil {
 		return err
