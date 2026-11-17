@@ -1134,12 +1134,16 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
 pool recorded at the time: the requests and the Log, sessions, Projects, what work was worth, and
-Accounts' totals. So an account moved out keeps its work in the pool it left, and is named there by
-its label, as a removed account is shown, with where it is now in place of when it was removed: in
-text.faint on the screens that draw a removed account so, and in the verbs' text as `work (now in
-Acme)` (`status.MovedOf`, read through the names of every view and verb). `history`'s totals give
-it a column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
-Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
+Accounts' totals. A moved account's window facts in a day's summary, its limits and minutes at its
+cap, go by the pool at the time on the days it worked, and by the pool it's in now on its idle
+days, as the summary keeps no pool for a day an account sent nothing (the owner's call, 17
+November 2026; recording one is in the Backlog). So an account moved out keeps its work in the
+pool it left, and is named there by its label, as a removed account is shown, with where it is now
+in place of when it was removed: in text.faint on the screens that draw a removed account so, and
+in the verbs' text as `work (now in Acme)` (`status.MovedOf`, read through the names of every
+view and verb). `history`'s totals give it a column of its own there, and its JSON lists it under
+`moved`, with its pool's id and label. Accounts' Tokens draws one, kept as
+`accounts-tokens-moved-160`.
 
 ### Reading a pool
 
@@ -5478,11 +5482,13 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
   as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
   each frame. Past its rows, its last says how many sessions are out of view, as the List's row
-  over the key line does, but where that would leave its sessions a single row. Where rows run
-  shorter than its least, a page of one line shows no rule, a rule showing only with the session
-  under it, and where no line fits, SESSIONS shows nothing, its heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
-  ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
-  and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
+  over the key line does, but only where that leaves its page four rows, a rule over each of two
+  sessions, so it never costs a session at SESSIONS' least, however far it's scrolled. Where
+  rows run shorter than its least, a page of one line shows no rule, a rule showing only with the
+  session under it, and where no line fits, SESSIONS shows nothing, its heading never alone. BY
+  MODEL draws a version as Compare's BY MODEL does, ON ACCOUNTS its names as Detail's column of
+  names, marks and all. The chosen row is lit where `↑` and `↓` act, in the list or SESSIONS, the
+  other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days before today, read off the update loop once
   Projects or Sessions' List first shows, one read serving both, from the period's first day, and
   again only where the dial reaches further back; and today's, folded off the loop at every read of
@@ -12459,4 +12465,5 @@ was dropped binds a later choice, the design proper says so.
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Pausing an account whose subscription is cancelled: kept whole and out of routing until it's resumed | after Account identity and Pools: the owner, 11 November 2026 | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
 | The dashboard's `--pool` for a pool the config no longer has, its recorded work read by its id, as the verbs read it | later: found with Pools' second phase, 13 November 2026 | [dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md) |
+| An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1, the owner's call on 17 November 2026 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
 | A refused read's hold in the Log: an event as it starts and lifts, naming the cause, in place of a move that says `has no room` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |

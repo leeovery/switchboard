@@ -18,7 +18,7 @@ switchboard  ~/Code/switchboard                                                 
 SESSIONS
   session                        on        model       state        started    requests   worth
 ↑ d28c switchboard               side      opus-5-5    asking       12:02           445  $48.20
-
-  ▼ 7 more sessions
+  ended yesterday  ─────────────────────────────────────────────────────────────────────────────────────────
+▸ b9c4 switchboard               side      opus-5-5    ended 18:46  13:20           595  $73.00
 
 tab views   ↑↓ project   → its sessions   < > period: this week   p pin   ? help  q quit

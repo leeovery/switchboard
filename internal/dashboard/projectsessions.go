@@ -126,12 +126,19 @@ func (s projectSessions) within(top, rows int) projectSessions {
 	return s
 }
 
+// outLeast are the fewest rows SESSIONS' page keeps over the row saying how
+// many sessions are out of view: a rule over each of two sessions, so the
+// row never costs a session where two would show without it, however far
+// SESSIONS is scrolled.
+const outLeast = 4
+
 // paged is how SESSIONS' lines page under its heads, a row at a time, each
 // day's rule shown with the first session under it, or not at all; where
 // they don't all fit, its last row says how many sessions are out of view,
-// so long as that leaves them a row, as the List's does.
+// as the List's does, so long as that leaves its page outLeast rows.
 func (s projectSessions) paged() rowsPaged {
-	return rowsPaged{rows: s.rows - 2, content: len(s.lines), heads: s.heads(), says: true}
+	rows := s.rows - 2
+	return rowsPaged{rows: rows, content: len(s.lines), heads: s.heads(), says: rows > outLeast}
 }
 
 // draw draws SESSIONS from its top: its heading, in text.muted; its heads,

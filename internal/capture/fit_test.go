@@ -257,10 +257,8 @@ type paged struct {
 	rows    []string
 }
 
-// mostPages is the furthest the sweep pages a view either way: past the
-// end of the 12 months' Projects, whose SESSIONS, at its least, pages its
-// 500 sessions and their days' rules a session at a time.
-const mostPages = 1000
+// mostPages is the furthest the sweep pages a view either way.
+const mostPages = 400
 
 // walk are a view's pages at a size: paged down from the top as far as PgDn
 // takes it, the top's first; then paged up from there as far as PgUp takes
