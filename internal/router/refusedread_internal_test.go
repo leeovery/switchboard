@@ -3,6 +3,7 @@ package router
 import (
 	"errors"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -573,6 +574,7 @@ func TestARefusalKeptByARouterStartedWithoutItsTokenHoldsOnceItsBack(t *testing.
 // as its text says, and is saved again with why. One from before the hold,
 // keeping no start, holds nothing, as its router held nothing, and neither
 // does a refusal this router doesn't know: the account's next read judges it.
+// A launch with the router down reads the file alike, as KeptRefusals has it.
 func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 	probed, began := start.Add(2*time.Hour), start.Add(time.Hour)
 	tests := []struct {
@@ -639,6 +641,10 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 				Readings: map[string]savedReading{"work": kept},
 			})
 			f := newTestFile(at(start.Add(3*time.Hour)), resolve(workReserved(), testTokens.Read, unrecorded))
+			read, err := KeptRefusalsIn(filepath.Dir(path))
+			if got := read.Of("work", mustToken(t, workToken)); err != nil || got != tt.want {
+				t.Errorf("a launch with the router down reads work's read refused as %q (%v), want %q, as the router loads it", got, err, tt.want)
+			}
 
 			f.load(path)
 			u := f.state.usage["work"]
@@ -657,6 +663,72 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 			f.save()
 			if got := readState(t, path).Readings["work"]; got.RefusedRead != tt.want || !got.RefusedSince.Equal(tt.since) {
 				t.Errorf("the file saved again keeps work refused %q since %v, want %q since %v", got.RefusedRead, got.RefusedSince, tt.want, tt.since)
+			}
+		})
+	}
+}
+
+// A launch with the router down reads a read refused off the state file as a
+// router started again would hold the account back by it: on the token the
+// file kept it of alone, as a token replaced since starts afresh; of the
+// account it was refused alone; and never where there's no file.
+func TestALaunchReadsARefusalTheStateFileKeepsOnItsTokenAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	saving := newTestFile(at(start), testAccounts())
+	saving.load(path)
+	probesEnd(saving.state, "side", []error{errSubscriptionEnded})
+	saving.save()
+	tests := []struct {
+		name  string
+		dir   string
+		id    string
+		token string
+		want  claude.ReadRefusal
+	}{
+		{name: "its token as kept", dir: filepath.Dir(path), id: "side", token: sideToken, want: claude.SubscriptionEnded},
+		{name: "another token since", dir: filepath.Dir(path), id: "side", token: renewedToken},
+		{name: "another account", dir: filepath.Dir(path), id: "work", token: workToken},
+		{name: "another account, on the token kept of the one refused", dir: filepath.Dir(path), id: "work", token: sideToken},
+		{name: "no file", dir: t.TempDir(), id: "side", token: sideToken},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			kept, err := KeptRefusalsIn(tt.dir)
+			if got := kept.Of(tt.id, mustToken(t, tt.token)); err != nil || got != tt.want {
+				t.Errorf("Of(%q) = %q (error %v), want %q", tt.id, got, err, tt.want)
+			}
+		})
+	}
+}
+
+// A state file a launch can't read keeps no refusal, and fails saying why,
+// left as it is: only the router, as it starts, sets a corrupt one aside.
+func TestALaunchLeavesAStateFileItCantReadAsItIs(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantError string
+	}{
+		{name: "not JSON", content: "{\"version\": 1, \"readi", wantError: "unexpected end of JSON input"},
+		{name: "a version unknown", content: `{"version": 2, "readings": {"side": {"refused_read": "subscription_ended"}}}`, wantError: "version 2, where 1 is known"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "state.json")
+			if err := os.WriteFile(path, []byte(tt.content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			kept, err := KeptRefusalsIn(dir)
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) || !strings.Contains(err.Error(), path) {
+				t.Errorf("KeptRefusalsIn() error = %v, want one naming %s, saying %q", err, path, tt.wantError)
+			}
+			if got := kept.Of("side", mustToken(t, sideToken)); got != "" {
+				t.Errorf("Of(side) = %q, want none", got)
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != tt.content {
+				t.Errorf("the state file holds %q (%v), want it left as it was", data, err)
 			}
 		})
 	}

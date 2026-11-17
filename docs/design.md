@@ -501,8 +501,10 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   before the hold keeps no start, and holds nothing, as its router held nothing, till the account's
   next read judges it. A router from before reads the file all the same, passing over
   `refused_read`, and judges the error's text, as it did; and a document from one gives the error
-  alone, which status reads as a read that failed otherwise. An account removed goes as any other,
-  its history kept.
+  alone, which status reads as a read that failed otherwise. A session started while the account
+  is held doesn't start on its token as Claude Code's own while another's will do, as the router's
+  document says it, or with the router down its state file (see Launching). An account removed
+  goes as any other, its history kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -566,7 +568,8 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
   session resumed later gets the same token, so its earlier artifacts stay within reach. While the
   primary's token isn't usable, a routed session gets `--account`'s, else the first account's with a
   usable token. Not routed, `run` gives Claude Code `--account`'s token, else the primary's, else
-  the first account's with a usable token: see Launching.
+  the first account's with a usable token. Each passes over an account the router holds back, its
+  last read refused, or doesn't route yet, while another will do: see Launching.
 - `accounts`, `status` and the dashboard mark the primary.
 
 With pools, each pool has a primary of its own, kept so within the pool (see The primary, a pool
@@ -813,8 +816,10 @@ within, where it's started within one, and the session keeps that pool for its w
 
 ### Launching in a pool
 
-- **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, it starts on
-  the token of the pool's first account with a usable token. If no account in the pool has one, the
+- **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, or the router
+  holds the primary back or doesn't route it yet, as one the config made the primary since the
+  router started, it starts on the token of the pool's first account with a usable token that the
+  router would send on (see Launching). If no account in the pool has a usable token, the
   launch refuses, saying so: `switchboard: pool Acme has no account with a usable token — not
   starting claude`, as Claude Code's own login would go out on whatever account it's signed into;
   but a config of one pool, unfenced, starts unaided, as before pools, as no session there can
@@ -862,7 +867,8 @@ within, where it's started within one, and the session keeps that pool for its w
   through it goes nowhere outside its pool, where going direct would go past the fences. It routes
   the session once it takes its pools up, as while `run` waits for it.
 - **Direct,** as `when_router_down` or `SWITCHBOARD_WHEN_ROUTER_DOWN` say, goes out on `--account`'s
-  token, else the pool's primary's, else the token of the pool's first account with a usable token.
+  token, else the pool's primary's, else the token of the pool's first account with a usable token,
+  passing over one the router's state file keeps held back (see Launching).
   It never uses an account outside the pool. Where the router's state directory can't be located,
   the config read, a config with pools goes as with the router down, direct on the pool's tokens
   or stopped, and refuses where none is usable, rather than start unaided, but for a config of one
@@ -10882,7 +10888,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   tokens; and the token-year notifications told, an account's against the token they were told
   for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
   the id an export names the Mac's folder by, `import/`, while an import runs, and `import.lock`,
-  which `import` holds while it stages and waits (see Export and import). `state.json` is
+  which `import` holds while it stages and waits (see Export and import). `run`, with the router
+  down, reads the reads refused from `state.json`, writing nothing (see Launching). `state.json` is
   versioned, the
   version changing only when a router couldn't read what another wrote: an older file, without
   readings, loads as having none, one whose readings lack `restarted_at` as windows that run a whole
@@ -11490,7 +11497,8 @@ verbs).
   `ANTHROPIC_BASE_URL` pointing at the proxy, where the router says it listens, not where the config
   says, which may have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever
   account the conversation goes to, or, while the primary's isn't usable, `--account`'s, else the
-  first account's with a usable token, and with `--account`, the pin header added to any
+  first account's with a usable token, each passing over an account the router holds back (see
+  Passing over an account held back, below), and with `--account`, the pin header added to any
   `ANTHROPIC_CUSTOM_HEADERS` already set. The directory header is added too, naming the directory
   `run` started in, which Claude Code starts in as well, the home directory at its start shown as
   `~`, as `~/Code/api`, unless `run` can't read it, as when it's been removed since, or the router's
@@ -11527,12 +11535,33 @@ verbs).
   stepping aside, local or `--direct`, so no launch passes it on. Any other value of it stops,
   saying it takes `stop` or `direct`; a router that can be routed through, healthy or not, routes
   whatever it says. Going direct, `run` connects directly, on `--account`'s token, else the
-  primary's, else the first account's with a usable token, without the base URL, the pin, the
+  primary's, else the first account's with a usable token, the last two passing over an account
+  the router's state file keeps held back (below), without the base URL, the pin, the
   directory or the project, and says why in a line on stderr: `switchboard: the router isn't
   running — connecting directly on work · Work`. Either way, and with `--direct`, a pin, a
   directory or a project inherited from the environment, as from a session this one is started
   within, goes: what this launch pins is the only pin, and the directory and project it names the
   only ones. `--direct` removes the token and the base URL, so Claude Code uses its own login.
+- **Passing over an account held back:** Claude Code's own token carries what never reaches the
+  router and what passes through it untouched (see What doesn't go through the router), so an
+  account the router wouldn't send on is none to start on while another will do. Routed, once the
+  router has answered, `run` asks it for its status document of the session's pool, as `status`
+  asks it, 5 seconds at most, and passes over an account the document doesn't name, which the router
+  doesn't route yet, as one `accounts add --primary` made the primary since it started, taken up
+  only as it restarts, whose token it couldn't tell for an account's, so every request would pass
+  it by unrouted and unrecorded; and one whose `refused_read` is set, held back from every request
+  till a read comes back clean (see 401s and 403s), as what went out on its token would be refused
+  too. With the router down, going direct, `run` reads `state.json`, leaving it as it is, a corrupt
+  one included, by the rule the router loads it by, and passes over an account it keeps a read
+  refused of on the token the account's file holds now: one replaced since starts afresh, as it does
+  for the router. It takes the next in the order above: the primary, `--account`'s, then each
+  account with a usable token in the config's order; a pin direct is never passed over, as the
+  whole session is to go out on it, the command line's choice. Where every account is passed over,
+  as when every account of the pool is held, or nothing's known, as where the document or the file
+  can't be had, it chooses as before. The log says each account passed over and why, at info:
+  `passing over an account for Claude Code's own token`. A command saying which account's token the
+  sessions start on, as `accounts edit` does, goes by the config alone. (The v1 release review, 17
+  November 2026.)
 - **Without the config:** where `run` can't read its config, as when an upgrade's rules refuse the
   one the running router took, and the router holds its restart (see The router looking after
   itself), it locates the state directory, as it can without a config, and asks the router as it
@@ -11542,8 +11571,9 @@ verbs).
   for 5 seconds at most. Claude Code's own token is the primary's, as the document names it, read
   from its token file, `<state dir>/tokens/<id>`, which needs no config, or, while that isn't
   usable, `--account`'s, else the first account's in the document with a usable token, the order
-  Routed uses; `--account` must name an account the document names, with a usable token, as it must
-  a configured one, and adds the pin header. The directory header, the hints, the mark of what `run`
+  Routed uses, passing over an account held back as Routed does; `--account` must name an account
+  the document names, with a usable token, as it must a configured one, and adds the pin header.
+  The directory header, the hints, the mark of what `run`
   set and the log's `starting claude` line are as Routed says, but that the line goes at warn, with
   the config's error as `config_error`; and `run` says in a line on stderr that it can't read the
   config, and why, and is routing through the running router: `switchboard: couldn't read the

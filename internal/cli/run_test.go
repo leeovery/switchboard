@@ -2,6 +2,8 @@ package cli_test
 
 import (
 	"cmp"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"maps"
@@ -328,6 +330,45 @@ func TestRunWithoutThePrimarysToken(t *testing.T) {
 			}
 			if !slices.Equal(paused, tt.wantPaused) {
 				t.Errorf("paused %v, want %v", paused, tt.wantPaused)
+			}
+		})
+	}
+}
+
+// With the router down, a session going direct passes over the primary
+// where the router's state file keeps its last read refused on the token its
+// file holds, as the router, started again, would hold it back from every
+// request: once the token is replaced, the router starts afresh on it, and so
+// does the launch.
+func TestRunWithTheRouterDownPassesOverAPrimaryTheStateFileKeepsRefused(t *testing.T) {
+	refusedOn := sha256.Sum256([]byte("test-token-work"))
+	kept := `{"version": 1, "sessions": [], "tokens": {"work": {"sha256": "` + hex.EncodeToString(refusedOn[:]) + `"}},` +
+		` "readings": {"work": {"probe_error": "HTTP 403 · OAuth authentication is currently not allowed for this organization",` +
+		` "refused_read": "subscription_ended", "refused_since": "2026-11-17T09:00:00Z"}}}`
+	tests := []struct {
+		name        string
+		token       string
+		wantAccount string
+		wantToken   string
+	}{
+		{name: "on the token kept refused", token: "test-token-work", wantAccount: "side · Side", wantToken: "test-token-side"},
+		{name: "on a token since replaced", token: "test-token-work-renewed", wantAccount: "work · Work", wantToken: "test-token-work-renewed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_WHEN_ROUTER_DOWN": "direct"})
+			writeToken(t, srv.deps, "work", tt.token)
+			if err := os.WriteFile(filepath.Join(stateDir(t, srv.deps), "state.json"), []byte(kept), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			handed := recordHandOffs(t, &srv.deps)
+
+			got := run(t, srv.deps, "run")
+			if want := (result{stderr: "switchboard: the router isn't running — connecting directly on " + tt.wantAccount + "\n"}); got != want {
+				t.Errorf("switchboard run = %+v, want %+v", got, want)
+			}
+			if token := handed.only(t).env["CLAUDE_CODE_OAUTH_TOKEN"]; token != tt.wantToken {
+				t.Errorf("handed over on %q, want %q", token, tt.wantToken)
 			}
 		})
 	}

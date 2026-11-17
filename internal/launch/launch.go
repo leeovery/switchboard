@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"log/slog"
 	"path/filepath"
 	"slices"
@@ -108,11 +109,19 @@ type Route struct {
 	// file is looked at again.
 	Pause  func(time.Duration)
 	Router Router
-	// Document asks the router for its status document, as
-	// *router.Client's Status does, whose accounts RunUnread starts on in
-	// place of the config's, where the router doesn't report its pools: nil,
-	// there's none to be had. Run asks for none.
-	Document func(ctx context.Context) (status.Document, error)
+	// Document asks the router for its status document of the pool with the
+	// given id, as *router.Client's StatusOf does: of the session's pool, for
+	// how its accounts stand, which a routed launch chooses Claude Code's own
+	// token by (see choose); and, naming none, for the accounts RunUnread
+	// starts on in place of the config's, where the router doesn't report its
+	// pools. nil: there's none to be had.
+	Document func(ctx context.Context, pool string) (status.Document, error)
+	// Refused is why the API refused the last read of the account with the
+	// given id, on token, as the router's state file keeps it, as
+	// router.KeptRefusals has it, which a launch with the router down chooses
+	// Claude Code's token by, as the router, started again, would hold the
+	// account back (see choose). nil keeps none.
+	Refused func(id string, token tokens.Token) claude.ReadRefusal
 	// Patience is how long the router is waited for, as Patience.Ask waits.
 	Patience Patience
 	// Account is the id of the account to pin the session to, or "" to leave
@@ -142,10 +151,15 @@ type Route struct {
 // starts nothing, failing with ErrNotStarted, or sends them straight to the
 // API, on the pinned account's token, else the primary's; either way, Stderr
 // hears why. Routed or direct, failing those, it starts on the first
-// account's with a usable token, and with none, Unaided. A pin that can't be
-// kept, to an account not configured or without a usable token, fails: it's
-// the command line's mistake. It starts from the environment as the user set
-// it (see own), and marks what it sets there (see setEnv).
+// account's with a usable token, and with none, Unaided. Of those, but for a
+// pin direct, Claude Code's own token passes over an account the router
+// doesn't route yet, or holds back from every request, its last read
+// refused, as the router's status document of the session's pool says, or,
+// with the router down, its state file, while another's will do (see
+// choose). A pin that can't be kept, to an account not configured or
+// without a usable token, fails: it's the command line's mistake. It starts
+// from the environment as the user set it (see own), and marks what it sets
+// there (see setEnv).
 //
 // In a config with pools, the session is in the pool the directory it starts
 // in is in, for its whole life (see placed), and every account above is that
@@ -193,7 +207,7 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 			return err
 		}
 	}
-	c, err := r.choose(in.accounts, pin, state.routable())
+	c, err := r.choose(in.accounts, pin, state.routable(), r.standing(ctx, state, in))
 	if err != nil {
 		return l.tokenless(in, err, func() error {
 			return l.unaided(path, args, cantTakePart{couldnt: "no account has a usable token", err: err}, !state.routable(), in.pools)
@@ -252,7 +266,8 @@ func routerUnpooled(from poolsSource) string {
 // the config file writes, where it writes one (see routersConfig). Claude
 // Code's own token is the primary's of the session's pool, as the router names
 // it, while that's usable, else the pinned account's, else the first's with a
-// usable token. Stderr hears that the config can't be read, and why, and that
+// usable token, passing over one the router holds back, as Run does. Stderr
+// hears that the config can't be read, and why, and that
 // claude starts through the running router. A pin that can't be kept fails,
 // as Run's does, and the session's pool is decided, and refused, as Run
 // decides it. Where the router can't be routed through, or none of the
@@ -297,14 +312,14 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 		return aside(cant.besides(routerUnsaid), false)
 	}
 	r.from = fromRouter
-	return l.routeUnread(path, args, r, state, cant, aside)
+	return l.routeUnread(ctx, path, args, r, state, cant, aside)
 }
 
 // routeUnread starts Claude Code, at path, with args, through the router in
 // state, on the config of what the router routes for, r's, as RunUnread says,
 // the config unread as cant says why, or, where none of its accounts has a
 // usable token, as aside starts it unaided.
-func (l Launcher) routeUnread(path string, args []string, r Route, state routerState, cant cantTakePart, aside func(cantTakePart, bool) error) error {
+func (l Launcher) routeUnread(ctx context.Context, path string, args []string, r Route, state routerState, cant cantTakePart, aside func(cantTakePart, bool) error) error {
 	in, err := l.placed(r)
 	if err != nil {
 		return err
@@ -313,7 +328,7 @@ func (l Launcher) routeUnread(path string, args []string, r Route, state routerS
 	if err != nil {
 		return err
 	}
-	c, err := r.choose(in.accounts, pin, true)
+	c, err := r.choose(in.accounts, pin, true, r.standing(ctx, state, in))
 	if err != nil {
 		logger.Warn("no account the router routes for has a usable token", "error", err)
 		return l.tokenless(in, err, func() error { return aside(cant.besides(routerTokenless), false) })
@@ -498,7 +513,7 @@ func (l Launcher) RouterUnfound(r Route, args []string, err error) error {
 	if stopped := l.goDirect(r.Config.WhenRouterDown, state); stopped != nil {
 		return stopped
 	}
-	c, err := r.choose(in.accounts, pin, false)
+	c, err := r.choose(in.accounts, pin, false, standing{kept: r.Refused})
 	switch {
 	case err == nil:
 		return l.connectDirectly(path, args, state, c, in)
@@ -850,12 +865,13 @@ func stateOf(h router.Health, err error) routerState {
 }
 
 // OwnAccount is the account whose token a routed session that isn't pinned
-// starts on, as Claude Code's own, as choose chooses it: the primary while
-// its token is usable, else the first with a usable token. It reports false
-// when no account has one. r's Config is to configure one pool's accounts
-// alone, as a session starts on its own pool's.
+// starts on, as Claude Code's own, as choose chooses it from the config
+// alone, knowing nothing of how the accounts stand with the router: the
+// primary while its token is usable, else the first with a usable token. It
+// reports false when no account has one. r's Config is to configure one
+// pool's accounts alone, as a session starts on its own pool's.
 func (r Route) OwnAccount() (config.Account, bool) {
-	c, err := r.choose(r.Config.Accounts, choice{}, true)
+	c, err := r.choose(r.Config.Accounts, choice{}, true, standing{})
 	return c.account, err == nil
 }
 
@@ -874,7 +890,7 @@ func (r Route) routersConfig(ctx context.Context, h router.Health) (*config.Conf
 	if r.Document == nil {
 		return nil, errors.New("the router can't be asked for its status document")
 	}
-	doc, err := r.Document(ctx)
+	doc, err := r.Document(ctx, "")
 	if err != nil {
 		return nil, err
 	}
@@ -902,23 +918,62 @@ type choice struct {
 	why     string
 }
 
-// choose picks the account of accounts whose token Claude Code starts on.
-// Routed, it's the primary's, whatever account the conversation goes to,
-// else pin's; direct, it's pin's, the whole session going out on it, else
-// the primary's. Either way, failing those, it's the first with a usable
-// token. It fails, saying why of each account, when there's none.
-func (r Route) choose(accounts config.Accounts, pin choice, routed bool) (choice, error) {
-	pinned := pin.account.ID != ""
-	if pinned && !routed {
+// choose picks the account of accounts, one pool's, whose token Claude Code
+// starts on. Routed, it's the primary's, whatever account the conversation
+// goes to, else pin's; direct, it's pin's, the whole session going out on
+// it, else the primary's. Either way, failing those, it's the first with a
+// usable token. A pin direct aside, it passes over each account known has
+// something against, as the router doesn't route it yet, or its last read
+// was refused, while another will do, the log saying so: what goes out on
+// Claude Code's own token, such as artifacts, uploads and what never reaches
+// the router, would pass the router by, or be refused. Where every one is
+// passed over, it picks as if nothing were known. It fails, saying why of
+// each account, when none has a usable token.
+func (r Route) choose(accounts config.Accounts, pin choice, routed bool, known standing) (choice, error) {
+	if pin.account.ID != "" && !routed {
 		return pin, nil
 	}
-	if primary, ok := r.primary(accounts); ok {
-		return primary, nil
+	var passed []choice
+	for c := range r.inTurn(accounts, pin) {
+		why := known.against(c.account.ID, c.token)
+		if why == "" {
+			return c, nil
+		}
+		logger.Info("passing over an account for Claude Code's own token", "account", c.account.ID, "chosen", c.why, "reason", why)
+		passed = append(passed, c)
 	}
-	if pinned {
-		return pin, nil
+	if len(passed) > 0 {
+		return passed[0], nil
 	}
 	return r.first(accounts)
+}
+
+// inTurn yields the accounts of accounts, one pool's, that Claude Code can
+// start on, each with its usable token, in the turn choose takes them, each
+// once: the primary; pin's, where it's pinned; then each in the config's
+// order.
+func (r Route) inTurn(accounts config.Accounts, pin choice) iter.Seq[choice] {
+	return func(yield func(choice) bool) {
+		var offered []string
+		offer := func(c choice) bool {
+			offered = append(offered, c.account.ID)
+			return yield(c)
+		}
+		if primary, ok := r.primary(accounts); ok && !offer(primary) {
+			return
+		}
+		if pin.account.ID != "" && !slices.Contains(offered, pin.account.ID) && !offer(pin) {
+			return
+		}
+		for _, a := range accounts {
+			if slices.Contains(offered, a.ID) {
+				continue
+			}
+			if token, err := r.Token(a.ID); err == nil && !offer(choice{account: a, token: token, why: "the first with a token"}) {
+				return
+			}
+		}
+	}
 }
 
 // pinned is the account the session is pinned to, which must be configured,

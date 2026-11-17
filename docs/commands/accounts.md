@@ -211,6 +211,9 @@ run by the service restarts itself once no request is in flight, and
 `switchboard service restart` does it now. A router run by hand with `serve` only logs that a
 restart is due.
 
+Until the router restarts, `claude` doesn't start Claude Code on a new account's token, even one
+added with `--primary`. It takes the next account the router routes, so the session is routed.
+
 ## Examples
 
 Work is `b6s7`, personal is `h8rc` and side is `q4tx`.

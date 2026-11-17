@@ -145,6 +145,12 @@ func (c *Client) Status(ctx context.Context) (status.Document, error) {
 	return doc, err
 }
 
+// StatusOf asks for the router's status document of the pool with the given
+// id, as InPool names it, "" naming none, as Status asks.
+func (c *Client) StatusOf(ctx context.Context, pool string) (status.Document, error) {
+	return c.InPool(pool).Status(ctx)
+}
+
 // Moving asks how the router's move of the accounts and their history onto
 // the ids switchboard makes stands, as its health answer says, which is no
 // pool's, or, from a router from before pools, its status document: zero

@@ -33,6 +33,9 @@ The [primary](../glossary.md) is the account whose token Claude Code holds in a 
 | The router runs, and the primary has no usable token | The token of `<id>`. |
 | The router is down, and the session goes direct | The token of `<id>`. |
 
+When the router runs, a primary whose subscription has ended counts as having no usable token here.
+So does a primary whose token Anthropic refused, or one added since the router started.
+
 Requests outside the conversation, such as uploads and artifacts, aren't routed. They pass through
 the router on the token Claude Code holds, whichever account the conversation is on.
 

@@ -15,6 +15,8 @@ The router sends nothing on that account until a read of it comes back clean:
 - Sessions on the account move to the other accounts.
 - A pin to the account yields.
 - `Σ pool` counts no room on the account.
+- New sessions don't start on its token, even if it's the primary. Claude Code holds the next
+  account's token instead.
 
 If every account in a pool reads so, no account there can take a request. What you see turns on the
 account Claude Code itself signs in with:

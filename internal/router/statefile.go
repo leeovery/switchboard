@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens"
 )
 
 const (
@@ -231,6 +233,50 @@ func (r savedReading) refusal() claude.ReadRefusal {
 		return claude.RefusedReadIn(r.ProbeError)
 	}
 	return ""
+}
+
+// KeptRefusals is what the router's state file keeps of the accounts' reads
+// refused: why the API refused each one's last read, and the hash of the
+// token the account held, which a router started again holds the account
+// back by while it holds that token, as recall takes them in. A launch with
+// the router down passes over an account so held, as Of has it. The zero
+// KeptRefusals keeps none.
+type KeptRefusals struct {
+	readings map[string]savedReading
+	tokens   map[string]savedTokens
+}
+
+// KeptRefusalsIn reads what the state file in stateDir keeps of the
+// accounts' reads refused, as KeptRefusals has it, leaving the file as it
+// is: none where there's no file. It fails where the file can't be read, or
+// isn't one this router reads, as when it's corrupt, which the router sets
+// aside as it starts.
+func KeptRefusalsIn(stateDir string) (KeptRefusals, error) {
+	path := filepath.Join(stateDir, stateFileName)
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return KeptRefusals{}, nil
+	case err != nil:
+		return KeptRefusals{}, err
+	}
+	saved, err := parseState(data)
+	if err != nil {
+		return KeptRefusals{}, fmt.Errorf("read the state file %s: %w", path, err)
+	}
+	return KeptRefusals{readings: saved.Readings, tokens: saved.Tokens}, nil
+}
+
+// Of is why the API refused the last read of the account with the given id,
+// which a router started again, the account's file holding token, would hold
+// it back by: as the file keeps it, as savedReading's refusal reads it, where
+// the file keeps it of token; none where it keeps it of another, as the
+// router starts afresh on a token replaced since.
+func (k KeptRefusals) Of(id string, token tokens.Token) claude.ReadRefusal {
+	if !sameToken(k.tokens[id].SHA256, hash(token.Reveal())) {
+		return ""
+	}
+	return k.readings[id].refusal()
 }
 
 // load takes in the state file at path, as the router starts, the pools as
