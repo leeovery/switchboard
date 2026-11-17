@@ -12,9 +12,9 @@ import (
 
 // A turn of the wheel over a session's page, the screen drawn after it, as
 // Bubble Tea draws it after every message, costs what's on screen, never
-// the session's history: over a page of a hundred times the turns, or a
-// turn open of a hundred times the requests, it allocates no more than
-// historyAllowance more than over a small one, as the page's story is laid
+// the session's history: over a page of 5,000 turns, or a turn open of
+// 20,000 requests, it allocates no more than historyAllowance more than over
+// one of 50, as the page's story is laid
 // once a width, not once a frame, and its turns' rows are made only as they
 // show. It counts the bytes allocated, not the time taken, so a busy machine
 // never fails it.
@@ -22,24 +22,25 @@ func TestANotchOnASessionsPageCostsWhatsOnScreenNotItsHistory(t *testing.T) {
 	tests := []struct {
 		name  string
 		lines func(n int) []ledger.Line
+		big   int
 		open  bool
 	}{
-		{name: "over its turns", lines: func(n int) []ledger.Line { return promptedLines(n, start.Add(-time.Duration(n)*time.Minute)) }},
-		{name: "over its turn open's requests", lines: oneTurnLines, open: true},
+		{name: "over its turns", lines: func(n int) []ledger.Line { return promptedLines(n, start.Add(-time.Duration(n)*time.Minute)) }, big: 5000},
+		{name: "over its turn open's requests", lines: oneTurnLines, big: 20_000, open: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			small, big := notchCost(t, tt.lines(50), tt.open), notchCost(t, tt.lines(5000), tt.open)
+			small, big := notchCost(t, tt.lines(50), tt.open), notchCost(t, tt.lines(tt.big), tt.open)
 			if big > small+historyAllowance {
-				t.Errorf("a notch allocates %d bytes over a page of 50, and %d over one of 5,000; want no more than %d more", small, big, historyAllowance)
+				t.Errorf("a notch allocates %d bytes over a page of 50, and %d over one of %d; want no more than %d more", small, big, tt.big, historyAllowance)
 			}
 		})
 	}
 }
 
 // historyAllowance is the most bytes a notch may allocate over a page of a
-// hundred times the history beyond what it allocates over a small one: the
-// wider numbers it says, a few kilobytes, measured 17 Nov 2026. Laying the
+// hundred times the history, or more, beyond what it allocates over a small
+// one: the wider numbers it says, a few kilobytes, measured 17 Nov 2026. Laying the
 // story once a frame added 46 KB at a hundred times the history, and making
 // every turn's row before drawing those in view 300 KB.
 const historyAllowance = 16 << 10
@@ -67,6 +68,9 @@ func notchCost(t *testing.T, lines []ledger.Line, open bool) uint64 {
 	if open {
 		h.keys(enterKey)
 		h.settle()
+		if got := len(h.shownPage().Requests); got != len(lines) {
+			t.Fatalf("the turn opened %d requests, want its %d", got, len(lines))
+		}
 	}
 	_ = h.model.View()
 	notch := func(button tea.MouseButton) {

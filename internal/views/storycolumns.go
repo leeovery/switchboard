@@ -1,6 +1,7 @@
 package views
 
 import (
+	"math"
 	"slices"
 	"sort"
 	"time"
@@ -295,25 +296,60 @@ func (sc storyScale) opening(t time.Time) int {
 }
 
 // rates are the requests a minute of each column, of requests sent at the
-// times given, as StoryColumns.Rates has them.
+// times given, as StoryColumns.Rates has them: each column's counted of the
+// times by when its minutes fall, as sentOver has it, so laying a story
+// costs its columns, never its requests.
 func (sc storyScale) rates(sent SentTimes) []float64 {
-	perMinute := make([]int, sc.total+1)
-	for t := range sent.All() {
-		if u := sc.unfolded(t); !sc.hides(t) && u >= 0 && u <= sc.total {
-			perMinute[u]++
-		}
-	}
 	n := len(sc.edges) - 1
 	rates := make([]float64, sc.drawn(n-1)+1)
 	for b := range n {
 		lo, hi := sc.edges[b], sc.edges[b+1]
-		var sum float64
-		for m := int(lo); float64(m) < hi; m++ {
-			sum += float64(perMinute[m]) * (min(float64(m+1), hi) - max(float64(m), lo))
-		}
-		rates[sc.drawn(b)] = sum / (hi - lo)
+		rates[sc.drawn(b)] = sc.sentOver(sent, lo, hi) / (hi - lo)
 	}
 	return rates
+}
+
+// sentOver is how many of sent were sent in the unfolded minutes from lo to
+// hi, each counting in the minute it was sent, a minute lo or hi cuts by its
+// share within them.
+func (sc storyScale) sentOver(sent SentTimes, lo, hi float64) float64 {
+	first, last := int(lo), int(math.Ceil(hi))-1
+	if first == last {
+		return float64(sc.sentIn(sent, first, first+1)) * (hi - lo)
+	}
+	return float64(sc.sentIn(sent, first, first+1))*(float64(first+1)-lo) + float64(sc.sentIn(sent, first+1, last)) +
+		float64(sc.sentIn(sent, last, last+1))*(hi-float64(last))
+}
+
+// sentIn is how many of sent were sent in the unfolded minutes from u to
+// before v, those a fold hides left out: those after its first time and
+// before its last, as hides has it, which only a fold merged of several
+// holds.
+func (sc storyScale) sentIn(sent SentTimes, u, v int) int {
+	if v <= u {
+		return 0
+	}
+	from, to := sc.startOf(u), sc.startOf(v)
+	n := sent.before(to) - sent.before(from)
+	for _, f := range sc.folds {
+		if f.To.After(from) && f.From.Before(to) {
+			n -= max(0, min(sent.before(to), sent.before(f.To))-max(sent.before(from), sent.before(f.From.Add(1))))
+		}
+	}
+	return n
+}
+
+// startOf is when the unfolded minute u starts: after the folds before it,
+// the minutes each folds away.
+func (sc storyScale) startOf(u int) time.Time {
+	gone := 0
+	for j, f := range sc.folds {
+		if u <= sc.minute(f.From)-gone {
+			break
+		}
+		gone += sc.folded[j]
+	}
+	return sc.start.Add(time.Duration(u+gone) * time.Minute)
 }
 
 // stretched are s's stretches as its columns on sc draw them, its newest

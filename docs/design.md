@@ -8554,13 +8554,15 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   changes what it shows, or as the clock turns what it says, as at the minute, a seat's lapse or a
   cache going cold; never at each tenth of a second, nor as an answer streams on, which its rows
   count as they're drawn. Drawing a session's page costs what's on screen, never its history: its
-  story is laid across the width once each time it's built, not at each frame, and only the rows
-  of its turns in view are made, so a turn of the wheel over a session of 300,000 requests costs
-  what one over a session of minutes does (17 November 2026). The Log places and tables each line
-  once, as its read grows, each day's rows held in chunks of 256 rows that tabling a line copies
-  one of, never the table; a change to the stream's rows, those of requests whose lines are yet to
-  come, builds those rows alone and lays them over the lines tabled, each where it sits among
-  them, copying none of the lines and never placing or tabling one afresh; and a line's row is told again only as its session's story tells
+  story is laid across the width once each time it's built, not at each frame, each column's rate
+  counted by when its minutes fall among the requests' times, by halves, never request by request;
+  and only the rows of its turns in view are made, so a turn of the wheel over a session of 300,000
+  requests costs what one over a session of minutes does (17 November 2026). The Log places and
+  tables each line once, as its read grows, each day's rows held in chunks of 256 rows that
+  tabling a line copies one of, never the table; a change to the stream's rows, those of requests
+  whose lines are yet to come, builds those rows alone and lays them over the lines tabled, each
+  where it sits among them, copying none of the lines and never placing or tabling one afresh;
+  and a line's row is told again only as its session's story tells
   otherwise of it (see What the dashboard holds of the ledger, below). Its Events are built again
   as a look tells of an event anew, or of one otherwise, or as a line comes, as a move's cost is
   its session's story, never at a look telling what the last told; its panel builds its figures as
