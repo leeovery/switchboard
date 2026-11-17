@@ -109,6 +109,9 @@ func TestPoolAddMakesAPoolUnderAnIDSwitchboardMakes(t *testing.T) {
 	}{
 		{name: "fenced", accounts: unfencedBesideFenced, args: []string{"/work/client", "/work/other"}, said: "fenced to /work/client and /work/other; sessions running in its directories keep the pool they started in, and its accounts, till they're resumed", dirs: []string{"/work/client", "/work/other"}},
 		{name: "unfenced, where every pool is fenced", accounts: fencedAccounts, said: "unfenced; " + outsideGoToIt + ", and " + verbsReadIt},
+		{name: "fenced, beside one pool alone, fenced", args: []string{"/work/client"}, dirs: []string{"/work/client"},
+			accounts: "[[account]]\nid = \"work\"\npool = \"q7mt\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\ndirs = [\"/work/acme\"]\n",
+			said:     "fenced to /work/client; " + runningKeep + "; " + verbsNeedPool},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"unicode"
 
+	"golang.org/x/text/cases"
 	"golang.org/x/text/unicode/norm"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -502,12 +504,36 @@ func within(path, dir string) bool {
 }
 
 // sameFolder reports whether a and b name one folder, as within compares
-// them: alike ignoring case, as they are, or with every accent apart (NFD).
-// NFD, not NFC: NFC composes only one case of some pairs, such as J and
-// U+030C, whose lower case composes to U+01F0 and upper case doesn't, so
-// folding after NFC would miss names folding alone matches.
+// them: by Unicode's canonical caseless match, as folded has them, which
+// takes ß for SS and a name with its accents composed for one with them
+// apart, as macOS does, and keeps fullwidth and compatibility forms apart, as
+// it does too.
 func sameFolder(a, b string) bool {
-	return strings.EqualFold(a, b) || strings.EqualFold(norm.NFD.String(a), norm.NFD.String(b))
+	return a == b || folded(a) == folded(b)
+}
+
+// folded is name as Unicode's canonical caseless match compares it: NFD,
+// fully case folded, then NFD again, as folding can leave marks out of
+// order. Not NFC, which composes only one case of some pairs, nor Go's simple
+// folding, which misses ß and SS and matches U+0345 where macOS doesn't. Each
+// letter is then the least of those simple folding takes for it, as
+// x/text's folding swaps Cherokee's cases rather than folding them to one.
+func folded(name string) string {
+	// A Caser keeps state as it folds, so each name has one of its own.
+	return norm.NFD.String(strings.Map(leastOfCase, norm.NFD.String(cases.Fold().String(norm.NFD.String(name)))))
+}
+
+// leastOfCase is the least of the letters simple case folding takes r for,
+// r among them: one letter for every case of it. A mark is never taken, as
+// U+0345, which folds with iota, would be ordered among the marks before it.
+func leastOfCase(r rune) rune {
+	least := r
+	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+		if f < least && !unicode.Is(unicode.Mn, f) {
+			least = f
+		}
+	}
+	return least
 }
 
 // folders returns the folder names of path, from the root.

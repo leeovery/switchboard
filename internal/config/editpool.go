@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -180,8 +181,10 @@ func (d *Draft) SetPoolLabel(id, given string) error {
 // SetPoolDirs sets the directories of the pool with the given id, ignoring
 // case, in place of those it has, each an absolute path or one starting ~/,
 // written as given on one line: none takes them out, leaving it unfenced.
-// Directories that are those it has, as placed finds them, however written,
-// change nothing. It fails, matching ErrNotConfigured, when no pool has the
+// Directories written as it writes them already, cleaned, as of a / at
+// their end, change nothing; the same directories in another form, as from
+// ~/ where it writes them whole, are written, so a fence can be made to
+// travel. It fails, matching ErrNotConfigured, when no pool has the
 // id, and, as the config it would make does, for a directory a pool can't
 // have, one that overlaps another, or a second pool unfenced.
 func (d *Draft) SetPoolDirs(id string, dirs []string) error {
@@ -190,7 +193,7 @@ func (d *Draft) SetPoolDirs(id string, dirs []string) error {
 		return PoolNotConfigured(id)
 	}
 	dirs = dirsGiven(dirs)
-	if slices.Equal(d.placed(dirs), d.placed(d.file.Pools[i].Dirs)) {
+	if slices.Equal(cleaned(dirs), cleaned(d.file.Pools[i].Dirs)) {
 		return nil
 	}
 	if d.dirsSpanLines(i) {
@@ -215,20 +218,15 @@ func (d *Draft) FromHome(dirs []string) []string {
 	return written
 }
 
-// placed returns dirs as the config finds them, as expandIn finds each, one
-// starting ~/ in the home directory the draft's homeDir returns, left as it
-// is where that can't be found, for telling whether two lists name the same
-// directories.
-func (d *Draft) placed(dirs []string) []string {
-	home, err := findHome(d.homeDir)
-	found := make([]string, len(dirs))
+// cleaned returns dirs each cleaned, as filepath.Clean cleans it, for
+// telling whether two lists write the same directories, a / at the end of
+// one aside.
+func cleaned(dirs []string) []string {
+	clean := make([]string, len(dirs))
 	for i, dir := range dirs {
-		found[i] = dir
-		if err == nil || !strings.HasPrefix(dir, homePrefix) {
-			found[i] = expandIn(home, dir)
-		}
+		clean[i] = filepath.Clean(dir)
 	}
-	return found
+	return clean
 }
 
 // dirsSpanLines reports whether the [[pool]] table of the pool at i writes

@@ -175,7 +175,7 @@ started in, and that pool's accounts, till it's resumed.
 			if err := poolAddedSays(cmd.OutOrStdout(), added); err != nil {
 				return err
 			}
-			warnUnmade(cmd.ErrOrStderr(), a.Root, added)
+			warnUnmade(cmd.ErrOrStderr(), a.Root, added.Pool)
 			return nil
 		},
 	}
@@ -184,17 +184,25 @@ started in, and that pool's accounts, till it's resumed.
 // poolAddedSays writes to out that the pool added was, by its label and the
 // id switchboard made for it, fenced or not as fenceSaid says; of one
 // fenced, that the sessions running in its directories keep the pool they
-// started in till they're resumed, as runningKeepTheirPool says; and of one
-// unfenced, that the sessions outside every fence go to it, and the verbs
-// read it without --pool. A pool added unfenced is added where every pool is
-// fenced, and beside another, so the verbs read none without --pool before
-// it, and it after.
-func poolAddedSays(out io.Writer, added config.Pool) error {
-	running := "; " + outsideGoToIt + ", and " + verbsReadIt
-	if added.Fenced() {
+// started in till they're resumed, as runningKeepTheirPool says; of one
+// unfenced, that the sessions outside every fence go to it; and where the
+// pool the verbs act on without --pool is another now, as verbsSaid says.
+func poolAddedSays(out io.Writer, added accounts.AddedPool) error {
+	var running string
+	var outside []string
+	if added.Pool.Fenced() {
 		running = "; " + runningKeepTheirPool
+	} else {
+		outside = append(outside, outsideGoToIt)
 	}
-	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added), running)
+	if verbs := verbsSaid(added.Before(), added.Pools, added.Pool); verbs != "" {
+		outside = append(outside, verbs)
+	}
+	if len(outside) > 0 {
+		running += "; " + strings.Join(outside, ", and ")
+	}
+	p := added.Pool
+	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(prose.Clean(p.Label)), p.ID, fenceSaid(p), running)
 	return err
 }
 
@@ -359,8 +367,8 @@ func poolEditedSays(e accounts.EditedPool) string {
 // started outside every fence, and for the verbs: unfencing it, that those
 // sessions go to it now; fencing the one pool that was unfenced, that none
 // starts outside every fence; and where the pool the verbs act on without
-// --pool, as config.Pools' Implicit gives it, is another now, which: "" where
-// it changed nothing for them.
+// --pool is another now, as verbsSaid says: "" where it changed nothing for
+// them.
 func outsideSaid(e accounts.EditedPool) string {
 	var said []string
 	switch _, unfenced := e.Pools.Unfenced(); {
@@ -369,15 +377,27 @@ func outsideSaid(e accounts.EditedPool) string {
 	case !e.Was.Fenced() && !unfenced:
 		said = append(said, noneOutside)
 	}
-	was, _ := e.Before().Implicit()
-	switch now, ok := e.Pools.Implicit(); {
-	case config.SamePool(was.ID, now.ID):
-	case ok && config.SamePool(now.ID, e.Now.ID):
-		said = append(said, verbsReadIt)
-	case !ok:
-		said = append(said, verbsNeedPool)
+	if verbs := verbsSaid(e.Before(), e.Pools, e.Now); verbs != "" {
+		said = append(said, verbs)
 	}
 	return strings.Join(said, ", and ")
+}
+
+// verbsSaid says, where the pool the verbs act on without --pool, as
+// config.Pools' Implicit gives it, is another among the pools after a change
+// than before it, that it's p now, or that there's none, so they need
+// --pool: "" where it's the one it was.
+func verbsSaid(before, after config.Pools, p config.Pool) string {
+	was, _ := before.Implicit()
+	switch now, ok := after.Implicit(); {
+	case config.SamePool(was.ID, now.ID):
+		return ""
+	case !ok:
+		return verbsNeedPool
+	case config.SamePool(now.ID, p.ID):
+		return verbsReadIt
+	}
+	return ""
 }
 
 // warnUnmade warns w of each of p's directories that isn't a directory on

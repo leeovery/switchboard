@@ -497,9 +497,10 @@ func TestReadPoolsReadsThemAsLoadReadsAConfigsOwn(t *testing.T) {
 }
 
 // A pool covers each of its directories and everything beneath them,
-// compared a whole folder name at a time, ignoring case, and taking a name
-// with its accents composed for the same name with them apart, as macOS
-// does; the unfenced pool covers none.
+// compared a whole folder name at a time, as macOS compares names: ignoring
+// case, fully folded, as ß is SS, taking a name with its accents composed for
+// the same name with them apart, and keeping fullwidth and compatibility
+// forms apart; the unfenced pool covers none.
 func TestPoolCovers(t *testing.T) {
 	acme := config.Pool{ID: "q7mt", Dirs: []string{"/Users/test/Code/acme", "/Volumes/Acme"}}
 	// Café is written with its é composed, as a name is typed, and apart, an
@@ -529,6 +530,14 @@ func TestPoolCovers(t *testing.T) {
 		{name: "J and a caron inside U+01F0", pool: inFolder("\u01f0"), dir: "/Users/test/Code/J\u030c/api", want: true},
 		{name: "U+0130 inside i and a dot above", pool: inFolder("i\u0307"), dir: "/Users/test/Code/\u0130", want: true},
 		{name: "W and a ring inside w and a ring", pool: inFolder("w\u030a"), dir: "/Users/test/Code/W\u030a", want: true},
+		{name: "SS inside \u00df", pool: inFolder("stra\u00dfe"), dir: "/Users/test/Code/STRASSE/api", want: true},
+		{name: "fi inside the ligature \ufb01", pool: inFolder("\ufb01les"), dir: "/Users/test/Code/Files", want: true},
+		{name: "alpha and iota inside alpha with iota beneath", pool: inFolder("\u1fb3"), dir: "/Users/test/Code/\u03b1\u03b9", want: true},
+		{name: "alpha, iota and a grave apart from alpha, a grave and iota beneath", pool: inFolder("\u1fb2"), dir: "/Users/test/Code/\u03b1\u1f76"},
+		{name: "U+0345 before another mark, apart from iota", pool: inFolder("\u1f76"), dir: "/Users/test/Code/\u0300\u0345"},
+		{name: "a Cherokee letter in its other case", pool: inFolder("\u13d4"), dir: "/Users/test/Code/\uaba4", want: true},
+		{name: "a fullwidth letter, apart", pool: inFolder("a"), dir: "/Users/test/Code/\uff21"},
+		{name: "U+0130, apart from i", pool: inFolder("i"), dir: "/Users/test/Code/\u0130"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

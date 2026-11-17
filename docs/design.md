@@ -615,15 +615,20 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
 - **A fenced pool has one or more directories,** each one covering everything beneath it. Two
   pools' directories can't overlap: no directory may be the same as, inside or around another
   pool's. Directories are compared one whole folder name at a time, so `~/Code/acme` doesn't cover
-  `~/Code/acme-api`, as macOS compares them: without regard to case, and taking a name with its
-  accents composed for the same name with them apart, as a name typed and one Finder made can
-  differ. Names alike as they are, or with every accent apart (Unicode's NFD), are one: not NFC,
-  which composes only one case of some pairs. The standard library has no Unicode normalisation,
-  so `golang.org/x/text`, the Go team's own, does it. A directory inside the home is written from
+  `~/Code/acme-api`, as macOS compares them: by Unicode's canonical caseless match (NFD, full case
+  folding, NFD again), so `ß` is `SS` and a name with its accents composed is the same name with
+  them apart, as a name typed and one Finder made can differ, while fullwidth and compatibility
+  forms stay apart, as macOS holds them. Not NFC, which composes only one case of some pairs, nor
+  Go's simple folding alone, which misses `ß` and matches U+0345 where macOS doesn't; each letter
+  is folded on to the least of its cases, as `golang.org/x/text`'s folding swaps Cherokee's cases
+  rather than joining them. The standard library has no Unicode normalisation or full folding, so
+  `golang.org/x/text`, the Go team's own, does both. A directory inside the home is written from
   `~/` by every verb that writes one, though a shell gives it whole, so a config shared by Macs
   with different homes fences the same directories on each; a home at the root writes none so,
-  and the router's heal writes them back as the config last wrote them. Directories given that
-  are those a pool has, however written, change nothing.
+  and the router's heal writes them back as the config last wrote them. Directories given as a
+  pool writes them already, a `/` at the end aside, change nothing; given in another form, as
+  from `~/` where the pool writes them whole, they're written, so an old fence can be made to
+  travel.
 - **At most one pool is unfenced,** having no directories: two would leave a session outside every
   fence with two pools to be in. So any start directory belongs to exactly one fenced pool, else to
   the unfenced pool, else, where every pool is fenced, to none, and a session there doesn't start.
@@ -1264,7 +1269,8 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   won't start outside every fence now, but within a session or in a worktree of a repository
   inside one; `pool add` and `pool edit`, as they make a pool unfenced, that the sessions started
   outside every fence go to it now; and each, where the pool the verbs act on without `--pool`
-  changes, which it is now, or that they need `--pool`, `accounts add` among them. An account
+  changes, as `pool add` beside one pool alone, fenced, changes it, which it is now, or that they
+  need `--pool`, `accounts add` among them. An account
   moved to another pool is its new pool's primary only with `--primary`: without it, the pool
   keeps its primary, `accounts edit` marking it where the config marks none, so the account moved
   doesn't take it by coming first in the config's order, and saying so. The pool it leaves takes

@@ -177,24 +177,26 @@ label = "Default"
 			want: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["~/Archive/client"]`),
 		},
 		{
-			name:   "fencing a pool to the directory it's fenced to, written whole, given from ~/, leaving it as it is",
+			name:   "fencing a pool to the directory it's fenced to, written whole, given from ~/, writing it from ~/ so it travels",
 			config: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["/Users/test/Archive/client"]`),
 			edit: func(d *config.Draft) error {
 				return d.SetPoolDirs("h4w2", d.FromHome([]string{"/Users/test/Archive/client"}))
 			},
-			want: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["/Users/test/Archive/client"]`),
+			want: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["~/Archive/client"]`),
 		},
 		{
-			name:   "fencing a pool whose directories are written across lines to those it has, leaving it as it is",
+			name:   "fencing a pool whose directories are written across lines to them as written, a / at the end, leaving it as it is",
 			config: pooledWith(t, `dirs = ["/Volumes/Client"]`, "dirs = [\n  \"/Users/test/Archive/client\",\n]"),
-			edit:   func(d *config.Draft) error { return d.SetPoolDirs("h4w2", []string{"~/Archive/client/"}) },
+			edit:   func(d *config.Draft) error { return d.SetPoolDirs("h4w2", []string{"/Users/test/Archive/client/"}) },
 			want:   pooledWith(t, `dirs = ["/Volumes/Client"]`, "dirs = [\n  \"/Users/test/Archive/client\",\n]"),
 		},
 		{
-			name:   "fencing a pool to the directory it's fenced to, given whole, leaving it as it is",
+			name:   "fencing a pool to the directory it's fenced to, given whole as a verb gives it, leaving it as it is",
 			config: pooled,
-			edit:   func(d *config.Draft) error { return d.SetPoolDirs("q7mt", []string{"/Users/test/Code/acme"}) },
-			want:   pooled,
+			edit: func(d *config.Draft) error {
+				return d.SetPoolDirs("q7mt", d.FromHome([]string{"/Users/test/Code/acme/"}))
+			},
+			want: pooled,
 		},
 		{
 			name:   "fencing a pool in place of its directories, keeping the comment beside them",

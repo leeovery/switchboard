@@ -142,8 +142,8 @@ func (e EditedPool) Changed() bool {
 // for a label that's none or another pool's; with an UnfencedError where it
 // would be a second pool unfenced; and as the config file's edits do, as for
 // directories that overlap another pool's.
-func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
-	var added config.Pool
+func (r Registry) AddPool(label string, dirs []string) (AddedPool, error) {
+	var added AddedPool
 	err := r.Record.Change(func(record *identity.Record, _ func() error) error {
 		draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 		if err != nil {
@@ -156,14 +156,27 @@ func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
 		if err := draft.Save(); err != nil {
 			return err
 		}
-		added, _ = draft.Config().Pools.ByID(id)
+		added.Pools = draft.Config().Pools
+		added.Pool, _ = added.Pools.ByID(id)
 		return nil
 	})
 	if err != nil {
-		return config.Pool{}, err
+		return AddedPool{}, err
 	}
-	poolAdded(added)
+	poolAdded(added.Pool)
 	return added, nil
+}
+
+// AddedPool is a pool AddPool added, and every pool as the add left them.
+type AddedPool struct {
+	Pool  config.Pool
+	Pools config.Pools
+}
+
+// Before returns the pools as they were before the add: Pools, but the pool
+// added.
+func (a AddedPool) Before() config.Pools {
+	return slices.DeleteFunc(slices.Clone(a.Pools), func(p config.Pool) bool { return config.SamePool(p.ID, a.Pool.ID) })
 }
 
 // poolAdded logs a pool added, by AddPool, or made with an account added or

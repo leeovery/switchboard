@@ -59,6 +59,10 @@ session starts in it yet: if it's mistyped, fence
 the pool anew with switchboard pool edit q7mt --dirs
 ```
 
+If your only pool is fenced, a second fenced pool means commands need `--pool` to read one, and
+`add` says so. An unfenced pool added beside fenced ones takes every session started outside the
+fences, and commands read it without `--pool`.
+
 `add` refuses a pool if:
 
 - another pool has the same label, ignoring case;
@@ -93,6 +97,8 @@ nothing.
 - **With several pools all fenced,** a command that reads a pool needs `--pool`, and so does
   `accounts add`. With one pool, every command reads it without `--pool`.
 - **`--dirs` replaces every folder.** To add a folder, give the old ones again beside it.
+- **A folder written as a full path** in your home is written from `~/` if you give it again with
+  `--dirs`. Older versions of `add` wrote full paths, which match on no Mac with another home.
 - **Folders the config writes across several lines** can't be changed in place. Edit them by hand.
 
 ## `remove`: take a pool away
