@@ -100,13 +100,17 @@ func ledgerDates(l *ledger.Ledger) ([]string, error) {
 }
 
 // rewritingLines rewrites a line as rename has it, n saying where it names
-// accounts and gives its pool: each account it names renamed, then, where it
-// names no pool, given the pool rename gives the work of the requests that
-// named none.
+// accounts and pools and gives its pool: each account it names renamed, and
+// each pool, then, where it names no pool, given the pool rename gives the
+// work of the requests that named none.
 func rewritingLines(n names, rename ledger.Renaming) func([]byte) []byte {
+	pools := names{values: n.pools}
 	return func(line []byte) []byte {
 		if rename.Account != nil {
 			line, _ = n.renamed(line, rename.Account)
+		}
+		if rename.Pool != nil {
+			line, _ = pools.renamed(line, rename.Pool)
 		}
 		if rename.Unpooled != "" {
 			line, _ = n.pool.pooled(line, rename.Unpooled)

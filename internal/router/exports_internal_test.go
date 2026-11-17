@@ -333,6 +333,36 @@ func TestAnExportIntoAFolderNotThereWritesNothing(t *testing.T) {
 	}
 }
 
+// The router's export carries a copy of the config file it was started from,
+// read in its home directory, and export.json says the folder holds it.
+func TestTheRoutersExportCarriesItsConfig(t *testing.T) {
+	logstest.Capture(t)
+	state, dir := t.TempDir(), t.TempDir()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	const text = "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"\ndirs = [\"~/Code\"]\n"
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+	cfg.StateDir, cfg.Export, cfg.ConfigFile = state, config.Export{Dir: dir}, Watch(path)
+	cfg.HomeDir = func() (string, error) { return "/Users/test", nil }
+	x := newExports(cfg, tended, noRestart, noMove)
+
+	x.exportNow(t.Context())
+
+	id, err := export.InstallID(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder := export.Folder(dir, id)
+	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != text {
+		t.Errorf("the folder's config holds %q (%v), want the router's config", got, err)
+	}
+	if m, err := export.ReadManifest(folder); err != nil || !m.Config {
+		t.Errorf("the folder's export.json reads %+v (%v), want it to say it holds the config", m, err)
+	}
+}
+
 func TestAnExportIntoAFolderInTheHomeDirectory(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -400,6 +430,11 @@ func TestWhatAnExportPassesOverIsWarnedOfOnceAndFailsNoExport(t *testing.T) {
 				"level=WARN", `msg="can't remove a file an export cut short left; trying again at each round"`,
 				"path=" + folder + "/ledger/.requests-2026-09-26.jsonl.gz.123", `error="permission denied"`,
 			},
+		},
+		{
+			name:   "a config it couldn't copy",
+			met:    export.Result{Uncopied: config.ErrTokenValue},
+			warned: []string{"level=WARN", `msg="can't copy the config into the export, so the folder keeps the copy it has; trying again at each round"`, `error="` + config.ErrTokenValue.Error() + `"`},
 		},
 	}
 	steps := []struct {

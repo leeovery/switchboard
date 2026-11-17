@@ -76,6 +76,40 @@ func TestExportLabelsTheAccountsConfigured(t *testing.T) {
 	}
 }
 
+// The config is exported as a copy beside the history; one that can't be
+// copied, as one giving a value shaped like a token, isn't, and export says
+// why, without the token, the history exported all the same.
+func TestExportCopiesTheConfigOrSaysWhyNot(t *testing.T) {
+	const copied = "[[account]]\nid = \"b6s7\"\nlabel = \"Work\"\n"
+	deps := exportDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(copied))
+	dir := t.TempDir()
+	folder := macsFolder(t, deps, dir)
+
+	if got := run(t, deps, "export", dir); got.code != 0 || got.stderr != "" {
+		t.Fatalf("switchboard export = %+v, want it done, saying nothing of the config", got)
+	}
+	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != copied {
+		t.Errorf("the folder's config holds %q (%v), want the config", got, err)
+	}
+
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(`upstream = "https://gateway.example.com/sk-ant-oat01-fake_token-shaped"`+"\n"+copied))
+	want := result{
+		stdout: "exported 2 days to " + folder + ": 0 written, 2 as they were\n",
+		stderr: "switchboard: couldn't copy the config, so the folder keeps the copy it has: " + config.ErrTokenValue.Error() + "\n",
+	}
+	if got := run(t, deps, "export", dir); got != want {
+		t.Errorf("switchboard export of a config giving a token = %+v, want %+v", got, want)
+	}
+	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != copied {
+		t.Errorf("the folder's config holds %q (%v), want the copy it had", got, err)
+	}
+}
+
 func TestExportCountsADayAsOne(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	markMoved(t, stateDir(t, deps))

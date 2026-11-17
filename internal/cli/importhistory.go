@@ -13,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/export"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
@@ -68,8 +69,11 @@ var (
 
 // importHistory imports the Macs' folders in dir, taken from the working
 // directory where it's relative, as importThrough does, holding the
-// import's lock throughout, and says what it took in. It's refused at once,
-// with export.ErrImportRunning, where another holds the lock.
+// import's lock throughout, and says what it took in, then each pool it kept
+// apart, as apartSaid says. It's refused at once, with
+// export.ErrImportRunning, where another holds the lock. Where no router
+// runs on a Mac with no config, it lays down the config of the Mac's folder
+// in dir instead, as restore does.
 func (a *app) importHistory(ctx context.Context, out, errOut io.Writer, dir string) error {
 	dir, err := a.absolute(dir)
 	if err != nil {
@@ -88,20 +92,37 @@ func (a *app) importHistory(ctx context.Context, out, errOut io.Writer, dir stri
 	}
 	defer unlock()
 	imported, err := importThrough(ctx, router.NewClient(router.SocketPath(state)), errOut, state, dir)
+	if errors.Is(err, errNoRouterToAsk) {
+		return a.restore(out, dir)
+	}
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(out, importedSaid(imported))
-	return err
+	if _, err := fmt.Fprintln(out, importedSaid(imported)); err != nil {
+		return err
+	}
+	for _, p := range imported.Apart {
+		if _, err := fmt.Fprintln(errOut, "switchboard: "+apartSaid(p)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
+// errNoRouterToAsk is what importThrough fails with where no router answers
+// on its control socket, as none runs, before it stages anything.
+var errNoRouterToAsk = fmt.Errorf("%w", errRouterDown)
 
 // importThrough has the router whose state directory is state import the
 // Macs' folders in dir, and returns what it took in: having asked it first
-// whether it's running an import, refusing, touching nothing, where it is;
-// then staging the folders foldersIn finds, as export.Stage stages them;
-// then asking it to take them in, and waiting for its answer.
+// whether it's running an import, refusing, touching nothing, where it is,
+// and failing with errNoRouterToAsk where none runs; then staging the
+// folders foldersIn finds, as export.Stage stages them; then asking it to
+// take them in, and waiting for its answer.
 func importThrough(ctx context.Context, client *router.Client, errOut io.Writer, state, dir string) (router.Imported, error) {
 	switch running, err := client.ImportRunning(ctx); {
+	case errors.Is(err, router.ErrNotRunning):
+		return router.Imported{}, errNoRouterToAsk
 	case err != nil:
 		return router.Imported{}, fromImport(err)
 	case running:
@@ -167,6 +188,19 @@ func foldersIn(errOut io.Writer, state, dir string) ([]string, error) {
 		return nil, fmt.Errorf("there's nothing to import in %s: each Mac's folder in it was passed over", dir)
 	}
 	return folders, nil
+}
+
+// apartSaid says a pool an import kept apart, why, as identity.ApartSplit
+// and its kin say, and how to read it: `kept the pool "Acme" (q7mt) of
+// mac-0123456789abcdef apart, as its accounts are in more than one pool here:
+// read it with --pool q7mt`.
+func apartSaid(p router.ApartPool) string {
+	because := map[string]string{
+		identity.ApartSplit:    ", as its accounts are in more than one pool here",
+		identity.ApartNoneHere: ", as none of its accounts is configured here",
+		identity.ApartNoConfig: ", as its folder holds no copy of that Mac's config to match its accounts by",
+	}[p.Why]
+	return "kept the pool " + prose.Quoted(p.Label) + " (" + p.Pool + ") of " + export.FolderName(p.Install) + " apart" + because + ": read it with --pool " + p.Pool
 }
 
 // importedSaid says what an import took in, as imported counts it: "imported

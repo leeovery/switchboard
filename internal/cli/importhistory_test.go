@@ -241,14 +241,21 @@ func TestImportTakesARelativeFolderFromTheWorkingDirectory(t *testing.T) {
 	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
+// Without the router, on a Mac with a config, import stages nothing, and
+// leaves the config as it is, whatever config the folder holds.
 func TestImportWithoutTheRouterStagesNothing(t *testing.T) {
 	deps, state := importDeps(t)
+	path := hasConfig(t, deps)
+	folder := withConfig(t, macFolder(t, t.TempDir(), "0123456789abcdef"), laidConfig)
 
-	if got, want := run(t, deps, "import", importFolder(t, t.TempDir())), (result{stderr: routerDown, code: 1}); got != want {
+	if got, want := run(t, deps, "import", folder), (result{stderr: routerDown, code: 1}); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)
 	}
 	if _, err := os.Stat(router.ImportDir(state)); !os.IsNotExist(err) {
 		t.Errorf("%s: %v, want nothing staged for a router that isn't there", router.ImportDir(state), err)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != ownConfig {
+		t.Errorf("the config holds %q (%v), want it as it was", got, err)
 	}
 }
 

@@ -1,8 +1,8 @@
-# `switchboard export`: a copy of your record, kept off this Mac
+# `switchboard export`: a copy of your record and config, kept off this Mac
 
-`export` copies this Mac's record into a folder of its own inside `<dir>`. Keep `<dir>` where
-Dropbox or iCloud Drive syncs it, and your record outlives the Mac. Switchboard only writes the
-folder: keeping it safe, or carrying it to another Mac, is up to you.
+`export` copies the record and the config of this Mac into a folder of its own inside `<dir>`.
+Keep `<dir>` where Dropbox or iCloud Drive syncs it, and your record outlives the Mac. Switchboard
+only writes the folder: keeping it safe, or carrying it to another Mac, is up to you.
 
 ```console
 $ switchboard export \
@@ -19,7 +19,7 @@ if it isn't there. To have the router export every hour, set `dir` under `[expor
 [configuration](../configuration.md).
 
 Why you'd export, and how to restore onto a new Mac, is in
-[Several Macs and backups](../several-macs.md).
+[Backups and a new Mac](../several-macs.md).
 
 ## Each Mac's folder
 
@@ -30,6 +30,7 @@ through a config kept in a dotfiles repository, never write over each other.
 |---|---|
 | `export.json` | Whose folder it is, when it was last exported to, and its format. |
 | `accounts.json` | The accounts record, which names each account by id and label. |
+| `config.toml` | A copy of the config, without any token. |
 | `ledger/requests-<date>.jsonl.gz` | The request ledger, one file a day. |
 | `ledger/events-<date>.jsonl.gz` | The router's events, one file a day. |
 | `ledger/day-<date>.json` | Each day's summary. |
@@ -42,8 +43,30 @@ The export leaves out what the router builds again, and what isn't part of your 
 
 - the digests, parts, heads and rows the router makes from the lines;
 - `state.json` and `prefs.json`;
-- the config and the tokens;
+- the tokens, which `setup` makes on each Mac;
 - the logs.
+
+## The copy of the config
+
+```console
+$ switchboard export ~/Dropbox/switchboard
+exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 0 written, 31 as they were
+switchboard: couldn't copy the config, so the folder keeps the copy it has: the config gives a value shaped like a token, which a copy of it never holds
+```
+
+`export` copies the config that switchboard reads, so a new Mac can lay it down. The copy never
+holds a token. Your tokens live in files of their own, and the config names none of them. A config
+that can't be copied fails no export.
+
+| If the config | Then |
+|---|---|
+| Has a token in a comment | The copy hides the token as `[redacted]`. |
+| Gives a token as a value, for example inside the `upstream` address | `export` copies no config, keeps the copy in the folder, and says why. |
+| Doesn't load | `export` copies no config, keeps the copy in the folder, and says why. |
+| Isn't there | `export` copies none, and says nothing. |
+
+The hourly export copies the config the router started from. If the router can't copy it, it
+warns once in `router.log`.
 
 ## How it writes
 
@@ -94,5 +117,5 @@ the install id comes with it. The new Mac then exports into the folder of the ol
 ## Related
 
 - [`import`](import.md): bring the folders back in, on this Mac or another.
-- [Several Macs and backups](../several-macs.md): backups, new Macs and two Macs at once.
+- [Backups and a new Mac](../several-macs.md): backups, new Macs and two Macs at once.
 - [Your record](../your-record.md): what your record holds.

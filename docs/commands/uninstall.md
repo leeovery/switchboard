@@ -65,7 +65,7 @@ directory, wherever the environment puts them. Nothing asks first, because the f
 | The config can't be read, so it can't tell where the export folder is | Keeps the config and the state directory, and says why. |
 
 `uninstall` never touches the export folder, wherever it is. See
-[Several Macs](../several-macs.md) for exports.
+[Backups and a new Mac](../several-macs.md) for exports.
 
 Your accounts' setup tokens stay valid on Anthropic's side until their year is out,
 whether or not their files are removed. `uninstall` says so.
@@ -117,4 +117,4 @@ brew uninstall switchboard
 
 - [Setup](setup.md): what `uninstall` takes away.
 - [Service](service.md): remove only the service.
-- [Several Macs and backups](../several-macs.md): keep a copy of your record before `--all`.
+- [Backups and a new Mac](../several-macs.md): keep a copy of your record before `--all`.

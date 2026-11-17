@@ -96,12 +96,13 @@ func whyPassed(folder string) error {
 
 // holdsExport reports whether folder holds what an export writes but
 // export.json, as stagedFiles finds it: the accounts record, or a day's
-// file. One whose files can't be listed holds none.
+// file. A config.toml alone isn't one, as a folder of anything else may hold
+// one. One whose files can't be listed holds none.
 func holdsExport(folder string) bool {
 	paths, err := stagedFiles(folder)
 	return err == nil && slices.ContainsFunc(paths, func(path string) bool {
 		_, err := os.Lstat(path)
-		return err == nil && filepath.Base(path) != manifestFile
+		return err == nil && path != ConfigFile(folder) && filepath.Base(path) != manifestFile
 	})
 }
 
@@ -154,10 +155,10 @@ func stageFolder(folder, dst string) error {
 // stagedFiles returns where the files to stage of the Mac's folder at folder
 // are: each day's compressed file of each kind of line, as Files' Compressed
 // finds them, each day's summary, as ledger.SummaryDates finds them, the
-// accounts record, which copyFile passes over where there's none, and
-// export.json, for the router to tell whose folder it is and how it was
-// exported; passing over anything else, as a temporary file an export cut
-// short left.
+// accounts record and the copy of the config, which copyFile passes over
+// where there's none, and export.json, for the router to tell whose folder it
+// is and how it was exported; passing over anything else, as a temporary file
+// an export cut short left.
 func stagedFiles(folder string) ([]string, error) {
 	var paths []string
 	for _, files := range linesIn(folder, slog.New(slog.DiscardHandler)) {
@@ -177,5 +178,5 @@ func stagedFiles(folder string) ([]string, error) {
 	for _, date := range dates {
 		paths = append(paths, ledger.SummaryFile(dir, date))
 	}
-	return append(paths, identity.NewFile(folder).Path(), filepath.Join(folder, manifestFile)), nil
+	return append(paths, identity.NewFile(folder).Path(), ConfigFile(folder), filepath.Join(folder, manifestFile)), nil
 }

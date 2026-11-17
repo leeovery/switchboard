@@ -35,12 +35,26 @@ func ImportDir(stateDir string) string {
 // Imported is what POST /import answers: how many folders staged it read; the
 // days it took in, each date counted once across every kind of line and
 // folder, as ImportedDays says; how many lines it added to days the state
-// directory held; and how many summaries it copied in.
+// directory held; how many summaries it copied in; and the pools of the
+// folders' Macs it kept apart, as ApartPool says, left out where it kept
+// none.
 type Imported struct {
 	Folders   int          `json:"folders"`
 	Days      ImportedDays `json:"days"`
 	Lines     int          `json:"lines"`
 	Summaries int          `json:"summaries"`
+	Apart     []ApartPool  `json:"apart,omitempty"`
+}
+
+// ApartPool is a pool a folder's Mac configures that an import kept apart,
+// its history read with --pool and its id, rather than in the pool here
+// holding its accounts, as there's none: the install of the Mac, the pool's
+// id and label there, and why, as identity.ApartSplit and its kin say.
+type ApartPool struct {
+	Install string `json:"install"`
+	Pool    string `json:"pool"`
+	Label   string `json:"label"`
+	Why     string `json:"why"`
 }
 
 // ImportedDays are the days an import took in, by how: merged, where any
@@ -145,17 +159,18 @@ func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 
 // importStatus is the status POST /import answers err with: 409 while another
 // import runs, where an accounts record staged disagrees with the Mac's, and
-// where a folder's hasn't synced yet; 422 where one doesn't read, and where a
-// folder another Mac exported before switchboard made ids has none; 400 with
-// nothing staged, 503 while the router can't import, as it stops or while
-// the history waits on a move, onto the accounts' ids or to pools, and 500
-// otherwise, as where a day couldn't be taken in, or the Mac's record notes
-// no first pool to give a folder exported before pools.
+// where a folder's record or config hasn't synced yet; 422 where either
+// doesn't read, and where a folder another Mac exported before switchboard
+// made ids has no record; 400 with nothing staged, 503 while the router
+// can't import, as it stops or while the history waits on a move, onto the
+// accounts' ids or to pools, and 500 otherwise, as where a day couldn't be
+// taken in, or the Mac's record notes no first pool to give a folder
+// exported before pools.
 func importStatus(err error) int {
 	switch {
-	case errors.Is(err, export.ErrImportRunning), errors.Is(err, identity.ErrConflict), errors.Is(err, idmove.ErrUnsynced):
+	case errors.Is(err, export.ErrImportRunning), errors.Is(err, identity.ErrConflict), errors.Is(err, idmove.ErrUnsynced), errors.Is(err, idmove.ErrConfigUnsynced):
 		return http.StatusConflict
-	case errors.Is(err, idmove.ErrStagedRecord), errors.Is(err, idmove.ErrBeforeIDs):
+	case errors.Is(err, idmove.ErrStagedRecord), errors.Is(err, idmove.ErrStagedConfig), errors.Is(err, idmove.ErrBeforeIDs):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, errNothingStaged):
 		return http.StatusBadRequest
@@ -204,8 +219,9 @@ func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 // the days taken in are summarised: each first summary, and eight of those
 // summarised again, as days whose lines merged or of an older version, before
 // it returns, the rest in the rounds the ledger makes at once after, and the
-// days digested once none is left. It fails with
-// errNothingStaged where dir holds no folder, and as importFolder does.
+// days digested once none is left; and answers with the pools of the folders'
+// Macs the join kept apart. It fails with errNothingStaged where dir holds no
+// folder, and as importFolder does.
 func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 	folders, err := stagedFolders(dir)
 	switch {
@@ -231,9 +247,22 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 		return Imported{}, fmt.Errorf("summarise the days imported: %w", err)
 	}
 	imported := took.imported(len(folders))
+	imported.Apart = apartIn(renames)
 	logger.Info("imported", "folders", imported.Folders, "added", imported.Days.Added, "merged", imported.Days.Merged,
-		"past_keep", imported.Days.PastKeep, "lines", imported.Lines, "summaries", imported.Summaries)
+		"past_keep", imported.Days.PastKeep, "lines", imported.Lines, "summaries", imported.Summaries, "apart", len(imported.Apart))
 	return imported, nil
+}
+
+// apartIn are the pools the Macs of the folders renamed as renames say kept
+// apart, folder by folder.
+func apartIn(renames []idmove.Renames) []ApartPool {
+	var apart []ApartPool
+	for _, rename := range renames {
+		for _, p := range rename.Apart() {
+			apart = append(apart, ApartPool{Install: p.Install, Pool: p.Pool, Label: p.Label, Why: p.Why})
+		}
+	}
+	return apart
 }
 
 // joinStaged joins the accounts each of folders names to the state

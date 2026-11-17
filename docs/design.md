@@ -1120,10 +1120,14 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals the same before and after, and the
     dashboard and the verbs reading it whole.
-- **Export and import:** an export carries the pools in the accounts record, and `export.json` is
-  version 3, so a switchboard from before pools refuses a folder whose lines name them. Taking a
-  folder in, its pools join this Mac's record as its accounts do: matched by id, else added as the
-  other Mac keeps them, their labels and removals with them. A folder from before pools, of version
+- **Export and import:** an export carries the pools in the accounts record, and the config that
+  says which accounts each holds, and `export.json` is version 3, so a switchboard from before
+  pools refuses a folder whose lines name them. An import onto a Mac with no config lays that
+  config down, so the pools keep their ids. Taking a folder in beside a config of this Mac's own,
+  its pools join this Mac's record as its accounts do: matched by id where this Mac configures
+  the pool or has had it; else taken in as the pool here holding their accounts, the folder's
+  lines given its id; else added as the other Mac keeps them, their labels and removals with
+  them (see Import, in Export and import). A folder from before pools, of version
   2 or 1, has its lines, the events that name their pool and its summaries given this Mac's first
   pool as `import` takes them in. So each Mac gives the days from before pools its own first pool, and a request line or
   an event alike but for its pool is one as an import merges a day, the line held standing: a
@@ -2440,7 +2444,9 @@ show.
      approving it in the browser signed in to Side.`; `Personal has no plan set, so its usage
      can't be valued. Press e to set one.`; a token's year within 30 days, with `t`. With two
      accounts or more, and none the primary, a note says one must be, and `p` marks it: `enter`
-     waits for one.
+     waits for one. So on a config `import` laid down (see Export and import), every account
+     there, its label, plan, pool and primary the config's, has the one note, its token's, and
+     `t` on each is all setup asks.
    - **A first run,** with no account: `No accounts yet. Add each Claude subscription you want
      switchboard to route across.`, and the add card open at once (frame 1). There's nothing to set
      up without an account, so `enter` waits for one. Once there's one, the line is `Add each Claude
@@ -3115,8 +3121,8 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
-| `export <dir>` | Copy the history, the request ledger's lines and summaries, the readings history and the router's events, into a folder of this Mac's own in `<dir>`, needing no router: see Export and import |
-| `import <dir>` | Bring in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>` is, adding to days the Mac holds already, through the router: see Export and import |
+| `export <dir>` | Copy the history, the request ledger's lines and summaries, the readings history and the router's events, with a copy of the config holding no token, into a folder of this Mac's own in `<dir>`, needing no router: see Export and import |
+| `import <dir>` | Bring in the history of each Mac's folder in `<dir>`, or of the one folder `<dir>` is, adding to days the Mac holds already, through the router; on a Mac with no config and no router, as a new one, laying down the config a folder holds instead: see Export and import |
 | `serve [--log-level <level>]` | Run the router in the foreground, normally started by the service. `--log-level` (debug, info, warn or error) overrides `SWITCHBOARD_LOG_LEVEL` |
 | `pin <id>... [--move] [--force]`, `pin auto [--force] [--pool <id>]` | Set the pin of the accounts' pool to the accounts given, replacing any before, or clear a pool's pin: see Pinning, and Pinning in a pool. It needs the router |
 | `pin <id> --session <session>`, `pin auto --session <session>` | Set or clear one running session's own pin, `<session>` being its id or as much of it as is unique. It needs the router |
@@ -9979,6 +9985,14 @@ more: what keeps the folder safe, or carries it to another Mac, is the folder's 
 Switchboard never talks to a cloud. Export and import are built, and the export on a schedule
 (see On a schedule).
 
+Their usual use is a backup, or a new Mac taking over from the old one, not another Mac's work
+beside this one's (the owner's call, 17 November 2026). So the export carries the config, and an
+import onto a Mac with none lays it down, its pools under the ids the history names, setup then
+asking for nothing but each account's token: a restore or a takeover matches by construction, as
+an account's id comes from its organization and a pool's from the config. Taking in a Mac's
+history beside this one's own comes second, its pools read as the pools here holding their
+accounts (see Import).
+
 Each Mac's history is its own: no history is read across several Macs at once (the owner's call,
 10 November 2026). A Mac records the requests it routes; usage and limits are Anthropic's, read off
 every answer and probe, so another Mac's use on the same accounts shows in the bars and routing
@@ -9987,14 +10001,15 @@ Mac's. Reading each other's exports would mend that only while two Macs run at o
 sync lag, duplicates and sessions claimed twice.
 
 - **What goes:** what can't be built again, the request ledger's lines, the days' summaries, the
-  readings history and the router's events. Not the files the router builds from them, the days'
+  readings history and the router's events; and a copy of the config, which names the accounts
+  and pools the history does, and holds no token, tokens living in files of their own (see
+  Export). Not the files the router builds from them, the days'
   digests, parts, heads and rows, which a round builds again (see The request ledger); nor
   `state.json`, of this Mac's sessions and of readings a new Mac's first probes take afresh; nor
-  `prefs.json`, the config, the tokens or the logs, which stay as they are: the config is the
-  user's, written by hand and theirs to keep; `prefs.json` is a settings file, which a tool that
-  restores settings carries like any app's; and tokens are never backed up, as `setup` makes them on
-  each Mac (see Setup). A day comes to about 2.5–3 MB compressed, about 1 GB a year (measured on
-  3 November 2026).
+  `prefs.json`, the tokens or the logs, which stay as they are: `prefs.json` is a settings file,
+  which a tool that restores settings carries like any app's; and tokens are never backed up, as
+  `setup` makes them on each Mac (see Setup). A day comes to about 2.5–3 MB compressed, about 1 GB
+  a year (measured on 3 November 2026).
 - **A folder a Mac:** `export <dir>` writes into a folder of the Mac's own in `<dir>`,
   `mac-<install id>`, so Macs whose config is one file, as a dotfiles repository keeps it, and so
   names one `<dir>`, never write each other's files. The install's id is `<state dir>/install-id`,
@@ -10004,10 +10019,13 @@ sync lag, duplicates and sessions claimed twice.
   Assistant restores one, carries the other's id and exports to its folder: removing the file
   gives it a new id, and a folder of its own, at its next export.
 - **What a Mac's folder holds:** `export.json`, `{"version": 3, "install": "<id>", "exported_at":
-  "<RFC 3339 time, UTC>", "ids": true, "accounts": true}`, rewritten at each export, `version` 3
-  since pools (see Pools), `ids` and `accounts` as Account identity says; `accounts.json`, the
+  "<RFC 3339 time, UTC>", "ids": true, "accounts": true, "config": true}`, rewritten at each
+  export, `version` 3 since pools (see Pools), `ids` and `accounts` as Account identity says, and
+  `config` where the folder holds the copy of the config, left out where it holds none, a reader
+  from before it passing it over, as the version stays; `accounts.json`, the
   accounts record, written first, so the
-  days a sync carries are never ahead of the record that names their accounts; `ledger/`,
+  days a sync carries are never ahead of the record that names their accounts; `config.toml`, the
+  copy of the config, written next, as the days' pools are the config's; `ledger/`,
   `requests-<local date>.jsonl.gz`, `events-<local date>.jsonl.gz` and `day-<local date>.json`;
   and `history/`, `readings-<local date>.jsonl.gz`: the state directory's own names, each day's
   lines in one compressed file. `<dir>` and the folders are made as they're needed, 0700, the
@@ -10034,6 +10052,17 @@ sync lag, duplicates and sessions claimed twice.
 - **A day's summary** is copied as it is, with its modification time, its stamp (see The request
   ledger), and passed over as a compressed day is, so a summary copied in stands against the day's
   file copied beside it.
+- **The config,** the file the command reads, or the router was started from, is copied as
+  `config.toml`, with its modification time, where the copy differs from the folder's
+  (`config.Copy`): only one that loads, as the config is read, so a copy laid down on another Mac
+  loads there; and never a token. A config holds none where it's written as switchboard writes
+  it, tokens living in files of their own, but a comment can hold anything, and the upstream's
+  address can carry a gateway's: anything shaped like a token is hidden, as the logs hide one,
+  and where that changes the config it makes, as of a token in a value, no copy is made, as the
+  config without it isn't the config. A config that isn't copied, so, or that can't be read,
+  leaves the folder's copy as it was, as a backup keeps the last config that loaded, and is warned
+  of, the router's once until an export no longer meets it; one that isn't there is none to copy,
+  and nothing is said.
 - **Every file** is written beside where it goes, as `.<its name>.<digits>`, and renamed into
   place, so a sync never carries one half written. An export cut short, as by a router stopping,
   leaves the file it was writing so named: each export, the router's or the command's, first
@@ -10053,9 +10082,11 @@ sync lag, duplicates and sessions claimed twice.
   stops it at once, and `export.json` is written only once every file has been.
 
 It reads the files as `history` does, so it needs no router and runs beside one, and prints
-`exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full, then each day it
-passed over, as `switchboard: couldn't export the request ledger of 2026-10-30: …`, and fails
-where there was one. A `<dir>` that can't be made or written, or that's a file, fails, saying so.
+`exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full, then why it didn't
+copy the config, where it didn't, as `switchboard: couldn't copy the config, so the folder keeps
+the copy it has: …`, which fails no export, then each day it passed over, as `switchboard:
+couldn't export the request ledger of 2026-10-30: …`, and fails where there was one. A `<dir>`
+that can't be made or written, or that's a file, fails, saying so.
 
 ### Import
 
@@ -10065,9 +10096,27 @@ be brought back to the Mac it came from. A folder without one is passed over, sa
 holds what an export writes, as an export cut short or a sync not done leaves one, and an
 `export.json` of a version newer than this switchboard's is refused, saying a newer switchboard
 made it. A folder whose accounts can't be told, as Account identity says, is passed over, saying
-why, and the import carries on with the rest. A `<dir>` holding no Mac's folder fails, saying so,
-and so does one whose every folder was passed over.
+why, and the import carries on with the rest; so is one whose `export.json` says it holds the
+config where it doesn't, as a sync not done leaves it, `its config hasn't synced yet`, to import
+again once it has, and one whose copy doesn't read, as its pools can't be told without it. A
+`<dir>` holding no Mac's folder fails, saying so, and so does one whose every folder was passed
+over.
 
+- **Onto a Mac with no config:** where nothing is at the config's path, a link included, and no
+  router answers, as on a new Mac, `import` lays the folder's config down as this Mac's
+  (`config.LayDown`), never in place of anything, and stops there, as the history waits for a
+  router to take it in: `laid down the config of mac-<id> at <path>: 3 accounts in 2 pools`, then
+  `next, run switchboard setup to give each account its token and start the router, then
+  switchboard import <dir> again to bring in the history`. The pools keep the ids the history
+  names, so the router started on them, which notes the config's first pool as this Mac's first
+  (see What's recorded), reads every line as this Mac's own; and setup finds each account without
+  its token, the one thing a config doesn't carry, its `t` making it. The config laid down is the
+  one copy `<dir>` holds, or the one every copy is, as Macs sharing a config hold it; where its
+  folders hold copies that differ, none is laid down, saying to import from the folder of the Mac
+  whose config to take, and where none holds one, as exports from before the copy, saying to run
+  setup, then import again. A copy is read as an export makes it, so one holding a token, as one
+  edited by hand might, has it hidden, or isn't laid down. Where a router answers, the Mac has a
+  config, the router's, wherever the command looks for one, and nothing is laid down.
 - **Through the router:** the router is the history's one writer, so `import` needs it, failing
   without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
   removing any an import cut short left there first, so the router reads nothing outside the state
@@ -10114,12 +10163,34 @@ and so does one whose every folder was passed over.
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
+- **Pools, onto a Mac with a config of its own:** each pool of the folder's Mac is taken in as
+  the pool here holding its accounts (`identity.Join`, the owner's call, 17 November 2026,
+  reversing "the other Mac's first pool is never this one's"): one this Mac configures, or has
+  had, as its record's `here` and `written` say, is matched by its id, as its history is this
+  Mac's own; any other goes by the accounts the folder's copy of the config puts in it, each
+  matched as Account identity matches it, and those this Mac configures counted alone. Where
+  they're all in one pool here, every request line, every event that names its pool and every
+  summary of the folder names that pool, as it's taken in, two pools taken in as one merged in a
+  summary, and the folder's pool isn't added to the record; so a Mac that ran setup before the
+  import reads the history as its own pools whatever ids its config gave them, each account being
+  in one pool here. Else the pool stays apart, as before, added to the record as the other Mac
+  keeps it and read with `--pool` and its id (see Reading a pool): its accounts are split across
+  pools here (`split`), none is configured here (`none_here`), or the folder holds no copy of the
+  config to go by (`no_config`), as one exported before the copy. One removed there has no
+  accounts to go by, and stays apart unsaid, as it would. Nothing already on the Mac changes,
+  its config and pools included, and the folder isn't touched. A line taken in apart stays apart,
+  as a line held stands against one alike but for its pool, so an import made before this, or of
+  a folder whose pool was apart then, keeps those lines in the pool they were taken in under.
 - **Then** the router runs a round at once, so Accounts, Trends and the data verbs have the days
   within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
-  "lines": 1204, "summaries": 27}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
-  repeated adds nothing, telling only of the days past keeping again. The command prints
-  `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days' summaries`,
-  `summaries` every summary copied in, whichever days they're of.
+  "lines": 1204, "summaries": 27, "apart": [{"install": "<id>", "pool": "c1nt", "label": "Client",
+  "why": "split"}]}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
+  repeated adds nothing, telling only of the days past keeping again, and `apart` each pool kept
+  apart, left out where none was, `why` one of the three words above, never reworded. The command
+  prints `imported 1 folder: 27 days added, 3 merged, 12 past keeping left out, 27 days'
+  summaries`, `summaries` every summary copied in, whichever days they're of, then each pool kept
+  apart, as `switchboard: kept the pool "Client" (c1nt) of mac-<id> apart, as its accounts are in
+  more than one pool here: read it with --pool c1nt`.
 
 ### On a schedule
 
@@ -11263,7 +11334,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, project, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `project` the project that directory is in, as its line will give it, left out alike, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
-| `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
+| `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries", "apart"}`, `apart` the pools of the folders' Macs kept apart, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; with `"spaced": true`, leave an account held back by a read refused to its backoff, as a choice does, rather than probe it however lately it was; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets, spaced |
 | `POST /restart` | Restart now, as `service restart` asks: answer as `GET /health` does, with `in_place`, whether it means to replace itself in place rather than exit for launchd to start it again, as when it doesn't know its binary; then finish the requests in flight, within 30 seconds, those it cuts off then given 5 more to unwind, and restart as the router restarts itself (see The router looking after itself). A 409, saying why, from a router run by hand, which nothing would start again, while its config file doesn't make a valid config, which it couldn't start again from, by its own rules but after an upgrade, when the new binary judges it, while its binary isn't there, as for a moment mid-upgrade, while its binary, asked first, refuses to start, with why it refused, where either file changed as the config was read or the binary asked, naming which, to be tried again (see The router looking after itself), and while an export of the history runs, naming its folder, to be tried again once it ends, the folder given as `exporting` beside `error` too, for a caller to tell a router up and answering (see On a schedule). A router restarting already takes it, asking nothing, as the restart it makes. `service restart` waits 15 seconds for the answer, the binary's 10 among them |
 

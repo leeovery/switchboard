@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,6 +37,12 @@ var (
 	// ErrUnsynced is a folder whose export.json says it holds the accounts
 	// record, which it doesn't, as one a sync hasn't carried whole yet.
 	ErrUnsynced = errors.New("its accounts record hasn't synced yet: import it again once it has")
+	// ErrConfigUnsynced is a folder whose export.json says it holds a copy
+	// of its Mac's config, which it doesn't, as one a sync hasn't carried
+	// whole yet: its pools can't be told without it.
+	ErrConfigUnsynced = errors.New("its config hasn't synced yet: import it again once it has")
+	// ErrStagedConfig is the folder's copy of its Mac's config not reading.
+	ErrStagedConfig = errors.New("its config doesn't read")
 )
 
 // ErrNoFirstPool is what joining a folder exported before pools fails with
@@ -44,11 +51,21 @@ var ErrNoFirstPool = errors.New("this Mac's accounts record notes no first pool 
 
 // Renames are how a folder staged to import has the accounts it names
 // renamed onto the ids of this Mac's accounts record, as JoinFolder works
-// them out, each a step after the one before; and, of a folder exported
-// before pools, the pool its lines are given, this Mac's first.
+// them out, each a step after the one before; its Mac's pools renamed onto
+// the pools here holding their accounts, as identity's Join takes them in;
+// of a folder exported before pools, the pool its lines are given, this
+// Mac's first; and its Mac's pools kept apart.
 type Renames struct {
 	steps    []renames
+	pools    renames
 	unpooled string
+	apart    []identity.Apart
+}
+
+// Apart are the pools the folder's Mac configures that its join kept apart,
+// as identity's Joined says.
+func (r Renames) Apart() []identity.Apart {
+	return r.apart
 }
 
 // Of renames id, as each step has it in turn.
@@ -61,18 +78,21 @@ func (r Renames) Of(id string) string {
 
 // renaming is how the folder's history is renamed, as the ledger and
 // rewritingLines rename it: its accounts renamed only where a step renames
-// one.
+// one, and its pools only where one's renamed.
 func (r Renames) renaming() ledger.Renaming {
 	rename := ledger.Renaming{Unpooled: r.unpooled}
 	if !r.namesNone() {
 		rename.Account = r.Of
+	}
+	if !r.pools.none() {
+		rename.Pool = r.pools.of
 	}
 	return rename
 }
 
 // none reports whether nothing is renamed, nor any line given a pool.
 func (r Renames) none() bool {
-	return r.namesNone() && r.unpooled == ""
+	return r.namesNone() && r.pools.none() && r.unpooled == ""
 }
 
 // namesNone reports whether no step renames an account.
@@ -109,19 +129,25 @@ const (
 )
 
 // told is a Mac's folder as classify tells it: its kind, its export.json,
-// and, where it carries one, its Mac's accounts record.
+// and, where it carries one, its Mac's accounts record; and the accounts its
+// Mac configures, each in its pool, as its copy of its Mac's config gives
+// them, known where theirsKnown says it holds the copy.
 type told struct {
-	kind     folderKind
-	manifest export.Manifest
-	record   identity.Record
+	kind        folderKind
+	manifest    export.Manifest
+	record      identity.Record
+	theirs      config.Accounts
+	theirsKnown bool
 }
 
 // classify tells how the accounts of the Mac's folder at dir, as export
 // writes one, are told, by its export.json and the accounts record it holds,
-// if any, a link to none holding none. It fails, with an error matching
-// ErrStagedRecord, ErrUnsynced or ErrBeforeIDs, where they can't be, as
-// those say; and where its export.json doesn't read, or this Mac's install
-// id is needed and can't be had.
+// if any, a link to none holding none, and, of one carrying the record, the
+// copy of its Mac's config it holds, as theirConfig reads it. It fails, with
+// an error matching ErrStagedRecord, ErrUnsynced, ErrStagedConfig,
+// ErrConfigUnsynced or ErrBeforeIDs, where they can't be, as those say; and
+// where its export.json doesn't read, or this Mac's install id is needed and
+// can't be had.
 func classify(dir string, here Here) (told, error) {
 	m, err := export.ReadManifest(dir)
 	if err != nil {
@@ -135,7 +161,8 @@ func classify(dir string, here Here) (told, error) {
 		if f.record, err = identity.Decode(data); err != nil {
 			return f, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 		}
-		return f, nil
+		f.theirs, f.theirsKnown, err = theirConfig(dir, m)
+		return f, err
 	case !errors.Is(err, fs.ErrNotExist):
 		return f, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 	case m.Accounts:
@@ -155,20 +182,45 @@ func classify(dir string, here Here) (told, error) {
 	return f, nil
 }
 
+// theirConfig returns the accounts the copy of its Mac's config in the Mac's
+// folder at dir configures, each in its pool, as config.Members reads them,
+// and reports whether the folder holds the copy, as m, its export.json, says
+// it does. It fails with ErrConfigUnsynced where m says it holds one it
+// doesn't, and with ErrStagedConfig where the copy doesn't read.
+func theirConfig(dir string, m export.Manifest) (config.Accounts, bool, error) {
+	data, err := os.ReadFile(export.ConfigFile(dir))
+	switch {
+	case errors.Is(err, fs.ErrNotExist) && m.Config:
+		return nil, false, ErrConfigUnsynced
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, fmt.Errorf("%w: %w", ErrStagedConfig, err)
+	}
+	theirs, err := config.Members(data)
+	if err != nil {
+		return nil, false, fmt.Errorf("%w: %w", ErrStagedConfig, err)
+	}
+	return theirs, true, nil
+}
+
 // Refusal is why an import into the Mac here would refuse the Mac's folder
 // at dir, as export writes one, as JoinFolder refuses it: an error matching
-// ErrStagedRecord, ErrUnsynced or ErrBeforeIDs, or nil where it wouldn't. It
-// fails, too, as classify does.
+// one of those Refused reports, or nil where it wouldn't. It fails, too, as
+// classify does.
 func Refusal(dir string, here Here) error {
 	_, err := classify(dir, here)
 	return err
 }
 
 // Refused reports whether err, as Refusal or JoinFolder gives it, is a
-// folder refused, as ErrStagedRecord, ErrUnsynced and ErrBeforeIDs are,
-// rather than one that couldn't be told.
+// folder refused, as ErrStagedRecord, ErrUnsynced, ErrStagedConfig,
+// ErrConfigUnsynced and ErrBeforeIDs are, rather than one that couldn't be
+// told.
 func Refused(err error) bool {
-	return errors.Is(err, ErrStagedRecord) || errors.Is(err, ErrUnsynced) || errors.Is(err, ErrBeforeIDs)
+	return slices.ContainsFunc([]error{ErrStagedRecord, ErrUnsynced, ErrStagedConfig, ErrConfigUnsynced, ErrBeforeIDs}, func(refused error) bool {
+		return errors.Is(err, refused)
+	})
 }
 
 // JoinFolder joins the accounts the folder at dir names into record, the
@@ -184,11 +236,13 @@ func Refused(err error) bool {
 //   - this Mac's own, exported before switchboard made ids, is renamed by
 //     the former ids record keeps.
 //
-// Its record's pools join record as identity's Join joins them; and one
-// exported before pools, as export.Manifest's BeforePools tells, has its
-// lines, the events of the kinds that name their pool, and its summaries
-// given the first pool, as FirstOf has it of here's pools and the one record
-// notes.
+// Its record's pools join record as identity's Join joins them, by the copy
+// of its Mac's config it holds, where it holds one: each of its Mac's pools
+// renamed onto the pool here holding its accounts, where Join finds one, the
+// rest kept apart, as Renames' Apart says; and one exported before pools,
+// as export.Manifest's BeforePools tells, has its lines, the events of the
+// kinds that name their pool, and its summaries given the first pool, as
+// FirstOf has it of here's pools and the one record notes.
 //
 // It fails, record as it was, as classify does, saying which folder, by its
 // install, of a folder that's refused; and with ErrNoFirstPool, of a folder
@@ -228,12 +282,15 @@ func joined(f told, record *identity.Record, here Here) (Renames, error) {
 	// refused.
 	install, installErr := here.Install()
 	own := installErr == nil && f.manifest.Install == install
-	as := identity.JoinAs{Configured: here.Accounts, Pools: here.Pools, From: f.manifest.Install, Own: own, Labels: installErr == nil && !own}
-	mapped, err := record.Join(f.record, as)
+	as := identity.JoinAs{
+		Configured: here.Accounts, Pools: here.Pools, From: f.manifest.Install, Own: own, Labels: installErr == nil && !own,
+		Theirs: f.theirs, TheirsKnown: f.theirsKnown,
+	}
+	j, err := record.Join(f.record, as)
 	if err != nil {
 		return Renames{}, err
 	}
-	return Renames{steps: []renames{formerIDs(f.record), renames(mapped)}}, nil
+	return Renames{steps: []renames{formerIDs(f.record), renames(j.Accounts)}, pools: renames(j.Pools), apart: j.Apart}, nil
 }
 
 // formerIDs are the ids record's accounts had before switchboard made ids,
@@ -383,9 +440,9 @@ func scanStaged(path string, most int, line func([]byte) []byte) (stagedScan, er
 
 // summaryRenamed reports whether the request ledger's summary of the day
 // with the given date in dir is renamed as rename has it: it names an
-// account renamed, or it has work in no pool to give one, as any summary
-// may, so is renamed whenever rename gives one; none where there's no
-// summary.
+// account renamed, or a pool, or it has work in no pool to give one, as any
+// summary may, so is renamed whenever rename gives one; none where there's
+// no summary.
 func summaryRenamed(dir, date string, rename ledger.Renaming) (bool, error) {
 	data, err := os.ReadFile(ledger.SummaryFile(dir, date))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -395,8 +452,13 @@ func summaryRenamed(dir, date string, rename ledger.Renaming) (bool, error) {
 		return false, err
 	}
 	renamed := rename.Unpooled != ""
-	if rename.Account != nil {
-		summaryNames.visit(data, func(id string, _ bool) { renamed = renamed || rename.Account(id) != id })
+	for _, named := range []struct {
+		names  names
+		rename func(id string) string
+	}{{summaryNames, rename.Account}, {names{values: summaryNames.pools}, rename.Pool}} {
+		if named.rename != nil {
+			named.names.visit(data, func(id string, _ bool) { renamed = renamed || named.rename(id) != id })
+		}
 	}
 	return renamed, nil
 }

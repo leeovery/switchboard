@@ -71,6 +71,6 @@ If an export fails, see [Troubleshooting](troubleshooting/exports.md).
 
 ## Related
 
-- [Several Macs](several-macs.md): export the record, and import it on another Mac.
+- [Backups and a new Mac](several-macs.md): export the record, and import it on another Mac.
 - [Dashboard](dashboard.md): what Trends, Sessions and the Log show.
 - [Claude and switchboard](claude-and-switchboard.md): how Claude reads the record for you.

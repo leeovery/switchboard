@@ -22,12 +22,33 @@ func (l *Ledger) Files() *dayfile.Files {
 }
 
 // Renaming is how RenameDay and RenameSummary rename a day's summary: each
-// account's id as Account gives it, nil leaving every one as it is; and the
-// work of the requests that named no pool given the pool Unpooled, by its
-// id, as the pool they were in after all, "" leaving it in none.
+// account's id as Account gives it, nil leaving every one as it is; each
+// pool's id as Pool gives it, nil leaving every one as it is, as an import
+// gives another Mac's pool the pool here holding its accounts; and the work
+// of the requests that named no pool given the pool Unpooled, by its id, as
+// the pool they were in after all, "" leaving it in none.
 type Renaming struct {
 	Account  func(id string) string
+	Pool     func(id string) string
 	Unpooled string
+}
+
+// pooling is how r gives each pool of an account's day its id: work in no
+// pool the pool Unpooled names, and each pool's as Pool gives it; nil where
+// it gives none another.
+func (r Renaming) pooling() func(id string) string {
+	if r.Unpooled == "" && r.Pool == nil {
+		return nil
+	}
+	return func(id string) string {
+		switch {
+		case id == "":
+			return r.Unpooled
+		case r.Pool == nil:
+			return id
+		}
+		return r.Pool(id)
+	}
 }
 
 // Moving has the ledger's rounds pass over a day whose summary names an
@@ -266,32 +287,33 @@ func renamedAccounts(accounts json.RawMessage, rename Renaming) (json.RawMessage
 }
 
 // renamedDay returns an account's day as a summary writes it, renamed as
-// rename has it: its account, as renamedAccount renames it, then its work in
-// no pool, as pooledDay pools it; and reports whether that changed it.
+// rename has it: its account, as renamedAccount renames it, then its pools,
+// as pooledDay gives them theirs; and reports whether that changed it.
 func renamedDay(written json.RawMessage, rename Renaming) (accountDay, bool, error) {
 	id := rename.Account
 	if id == nil {
 		id = func(id string) string { return id }
 	}
 	day, renamed, err := renamedAccount(written, id)
-	if err != nil || rename.Unpooled == "" {
+	pool := rename.pooling()
+	if err != nil || pool == nil {
 		return day, renamed, err
 	}
-	day, pooled, err := pooledDay(day, rename.Unpooled)
+	day, pooled, err := pooledDay(day, pool)
 	return day, renamed || pooled, err
 }
 
-// pooledDay returns an account's day as a summary writes it, its work in no
-// pool given the pool with the given id, as unpooledIn gives it, and
-// reports whether that changed it: written anew, where it did, as an
-// AccountDay marshals, so a field it doesn't know of, as a later version
-// wrote it, isn't kept.
-func pooledDay(day accountDay, pool string) (accountDay, bool, error) {
+// pooledDay returns an account's day as a summary writes it, each pool's
+// work in the pool pool gives its id, as repooled gives it, and reports
+// whether that changed it: written anew, where it did, as an AccountDay
+// marshals, so a field it doesn't know of, as a later version wrote it,
+// isn't kept.
+func pooledDay(day accountDay, pool func(id string) string) (accountDay, bool, error) {
 	var a AccountDay
 	if err := json.Unmarshal(day.written, &a); err != nil {
 		return accountDay{}, false, err
 	}
-	pooled, changed := a.unpooledIn(pool)
+	pooled, changed := a.repooled(pool)
 	if !changed {
 		return day, false, nil
 	}

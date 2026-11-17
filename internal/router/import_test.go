@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/export"
@@ -325,7 +327,7 @@ func TestAnImportTakesInADayOfEachKindOfLine(t *testing.T) {
 				}
 				stageLines(t, folder(cfg, 1), kind, date, kind.linesOf(date, tt.staged...)...)
 
-				if got := importNow(t, cfg); got != tt.want {
+				if got := importNow(t, cfg); !reflect.DeepEqual(got, tt.want) {
 					t.Errorf("Import() = %+v, want %+v", got, tt.want)
 				}
 				if got, want := held(t, kind.files(cfg.StateDir), date), kind.linesOf(date, tt.wantHeld...); !slices.Equal(got, want) {
@@ -358,7 +360,7 @@ func TestAnImportCountsADayOnceAcrossItsKindsAndFolders(t *testing.T) {
 	stageLines(t, folder(cfg, 1), requestLines, empty)
 
 	want := router.Imported{Folders: 2, Days: router.ImportedDays{Added: 1, Merged: 1, PastKeep: 1}, Lines: 1}
-	if got := importNow(t, cfg); got != want {
+	if got := importNow(t, cfg); !reflect.DeepEqual(got, want) {
 		t.Errorf("Import() = %+v, want %+v: each day once, as merged where any kind of it merged, else added where any was, else past keeping", got, want)
 	}
 }
@@ -387,7 +389,7 @@ func TestASummaryOfADayPastKeepingIsCopiedIn(t *testing.T) {
 	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), date), []byte(staged), stamped(stagedOn))
 
 	want := router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}, Summaries: 1}
-	if got := importNow(t, cfg); got != want {
+	if got := importNow(t, cfg); !reflect.DeepEqual(got, want) {
 		t.Errorf("Import() = %+v, want %+v", got, want)
 	}
 	if got := stateOf(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)); got.data != staged || got.modified != stamped(stagedOn).UnixNano() {
@@ -467,7 +469,7 @@ func TestASummaryOfADayTheMacHoldsLinesOfButNoSummaryYetIsntCopiedIn(t *testing.
 	lines := stageLines(t, folder(cfg, 1), requestLines, date, requestLines.linesOf(date, 1, 2)...)
 	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), date), []byte(summaryOf(date, 2, len(lines))), stamped(stagedOn))
 
-	if got, want := importNow(t, cfg), (router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 1}); got != want {
+	if got, want := importNow(t, cfg), (router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 1}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Import() = %+v, want %+v, no summary copied in", got, want)
 	}
 	if _, err := os.Stat(ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)); !errors.Is(err, fs.ErrNotExist) {
@@ -490,7 +492,7 @@ func TestADayTheMacHeldLinesOfIsSummarisedAgainFromThemAll(t *testing.T) {
 		return err == nil
 	})
 	imported, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context())
-	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 1}); err != nil || imported != want {
+	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 1}); err != nil || !reflect.DeepEqual(imported, want) {
 		t.Fatalf("Import() = %+v, %v, want %+v", imported, err, want)
 	}
 	data := stateOf(t, summary).data
@@ -578,7 +580,7 @@ func TestADayWhoseOwnCompressedFileIsDamagedIsPassedOverAndTheFolderTakenIn(t *t
 	stageLines(t, folder(cfg, 1), eventLines, other, eventLines.linesOf(other, 1)...)
 	stageLines(t, folder(cfg, 1), requestLines, other, requestLines.linesOf(other, 1)...)
 
-	if got, want := importNow(t, cfg), (router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}}); got != want {
+	if got, want := importNow(t, cfg), (router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Import() = %+v, want %+v: the day damaged counted nowhere, the folder's other day added", got, want)
 	}
 	if got := stateOf(t, ownFile); got != was {
@@ -655,14 +657,14 @@ func TestImportingTheSameFolderAgainAddsNothing(t *testing.T) {
 	runRouter(t, cfg)
 	client := router.NewClient(router.SocketPath(cfg.StateDir))
 	first, err := client.Import(t.Context())
-	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{Added: 2, PastKeep: 1}, Summaries: 1}); err != nil || first != want {
+	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{Added: 2, PastKeep: 1}, Summaries: 1}); err != nil || !reflect.DeepEqual(first, want) {
 		t.Fatalf("Import() = %+v, %v, want %+v", first, err, want)
 	}
 	before := daysStaged()
 
 	stage()
 	second, err := client.Import(t.Context())
-	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}}); err != nil || second != want {
+	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}}); err != nil || !reflect.DeepEqual(second, want) {
 		t.Errorf("Import() again = %+v, %v, want %+v: nothing new, but the day past keeping left out again", second, err, want)
 	}
 	if after := daysStaged(); !maps.Equal(after, before) {
@@ -695,7 +697,7 @@ func TestImportingSummariesOfNoRequestAgainCopiesNoneAgain(t *testing.T) {
 
 	stage()
 	second, err := client.Import(t.Context())
-	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}}); err != nil || second != want {
+	if want := (router.Imported{Folders: 1, Days: router.ImportedDays{PastKeep: 1}}); err != nil || !reflect.DeepEqual(second, want) {
 		t.Errorf("Import() again = %+v, %v, want %+v: no summary of no request copied over another", second, err, want)
 	}
 	for path, was := range summaries {
@@ -789,6 +791,47 @@ func TestAnotherMacsFolderTakenInAgainAfterItsMoveToPoolsCountsEachDayOnce(t *te
 			t.Errorf("once imported again, work's requests upstream on %s are %d in all, %d in this Mac's first pool, %d in the other's; want 2, 2, 0",
 				date, whole, here, there)
 		}
+	}
+}
+
+// Another Mac's folder holding its config, as a Mac taking over from it
+// imports, has its first pool's lines taken in as the pool here holding that
+// pool's accounts, whatever id each Mac gave its pool; and a pool of its
+// none of whose accounts this Mac configures kept apart, its lines naming it
+// still, and the answer saying so.
+func TestAnotherMacsFolderHoldingItsConfigIsTakenInAsThePoolHereHoldingItsAccounts(t *testing.T) {
+	const firstHere, firstThere, client = "q7mt", "b2n8", "c1nt"
+	cfg := importConfig(t)
+	cfg.Accounts, cfg.Pools = config.Accounts{{ID: "work", Label: "Work", Pool: firstHere}}, config.Pools{{ID: firstHere, Label: "Default"}}
+	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{{ID: firstHere, Added: stagedOn, First: true, Here: true}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	staged, date := folder(cfg, 1), dateOf(10)
+	stageManifest(t, staged, export.Manifest{Install: otherInstall, IDs: true, Accounts: true, Config: true})
+	data, err := identity.Record{
+		Accounts: []identity.Entry{{ID: "work", Organization: "test-org-work", Added: stagedOn, Configured: true}, {ID: "x9x9", Organization: "test-org-client", Added: stagedOn, Configured: true}},
+		Pools:    []identity.PoolEntry{{ID: firstThere, Label: "Default", Added: stagedOn, First: true, Configured: true}, {ID: client, Label: "Client", Added: stagedOn, Configured: true}},
+	}.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, identity.NewFile(staged).Path(), data, stagedOn)
+	theirConfig := "[[account]]\nid = \"work\"\npool = \"" + firstThere + "\"\n\n[[account]]\nid = \"x9x9\"\npool = \"" + client + "\"\n"
+	put(t, export.ConfigFile(staged), []byte(theirConfig), stagedOn)
+	lines := requestLines.linesOf(date, 1, 2)
+	model := `"model":"` + opus + `"`
+	stageLines(t, staged, requestLines, date, pooledAfter(lines[0], model, firstThere), pooledAfter(lines[1], model, client))
+
+	want := router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}, Apart: []router.ApartPool{{Install: otherInstall, Pool: client, Label: "Client", Why: identity.ApartNoneHere}}}
+	if got := importNow(t, cfg); !reflect.DeepEqual(got, want) {
+		t.Errorf("Import() = %+v, want %+v", got, want)
+	}
+	wantHeld(t, cfg, date, []string{pooledAfter(lines[0], model, firstHere), pooledAfter(lines[1], model, client)})
+	if _, held := readRecord(t, cfg.StateDir).PoolByID(firstThere); held {
+		t.Errorf("once imported, the record holds the other Mac's first pool, want it taken in as %s alone", firstHere)
 	}
 }
 

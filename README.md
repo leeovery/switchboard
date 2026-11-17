@@ -41,7 +41,7 @@ resumes on a cold cache.
 - **Resets arrive one at a time.** Give switchboard your working day, and it starts the 5-hour
   window of each account at a different time. [Staggered resets](docs/staggered-resets.md)
 
-Also: [Notifications](docs/notifications.md) · [Room for the Claude app](docs/room-for-the-claude-app.md) · [Pinning and moving](docs/pinning-and-moving.md) · [Several Macs and backups](docs/several-macs.md)
+Also: [Notifications](docs/notifications.md) · [Room for the Claude app](docs/room-for-the-claude-app.md) · [Pinning and moving](docs/pinning-and-moving.md) · [Backups and a new Mac](docs/several-macs.md)
 
 **With one account,** everything but the replay still works, because a replay needs a second
 account to move to.

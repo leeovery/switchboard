@@ -42,7 +42,7 @@ removed ones included. It's how your record names an account long after you remo
 - It's kept for good, at a few hundred bytes an account.
 - Once the move onto account ids is done, the router keeps it in step with the config. An account
   added or removed on another Mac that shares the config is added, or marked removed, here too.
-  See [Several Macs](../several-macs.md).
+  See [Backups and a new Mac](../several-macs.md).
 
 ## Account fields
 

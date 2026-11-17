@@ -49,8 +49,8 @@ which routes nothing in a pool the config no longer has. The pool's record stays
 switchboard requests --pool q7mt
 ```
 
-`requests`, `history`, `sessions` and `events` read it with `--pool`. They read a pool brought in
-from another Mac the same way, shown as `pool Client (not configured here)`.
+`requests`, `history`, `sessions` and `events` read it with `--pool`. They read a pool of another
+Mac that `import` kept apart the same way, shown as `pool Client (not configured here)`.
 
 ## `status` says it probed directly
 
