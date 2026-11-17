@@ -10440,7 +10440,13 @@ time=2026-09-28T14:12:00.123+01:00 level=WARN msg="probe failed" component=statu
   ledger's are: lines dropped for the queue's falling behind, once until it catches up; a write that
   fails, once until one succeeds; a file read short; and a file that couldn't be compressed or
   pruned.
-- **Redaction:** nothing logs a token or an account's label; accounts appear by id. As a
+- **Redaction:** nothing logs a token or an account's label; accounts appear by id. The
+  upstream's address shows with its credentials, query and fragment, any of which can carry a
+  gateway's key, each `[redacted]` (`redact.URL`), wherever it's shown: the router's `listening`
+  line, an error of the config's, the router's failing to parse it, and a probe's error, which
+  quotes the address its request went to, as Go's HTTP client hides its password alone, and
+  which reaches `router.log`, the status document and `accounts` and setup. A request the
+  router fails to send names no address, as Go's transport quotes none. As a
   backstop, the handler replaces anything shaped like a token (`sk-ant-…`) in the message or in
   any attribute's text, and the whole value of any attribute keyed `Authorization`, with
   `[redacted]`. What the standard library's `log` package is given goes through it too, to the
@@ -10991,7 +10997,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/notify` | Posting desktop notifications, through switchboard's own app where a release embeds it (writing it out, registering it, asking macOS once) and through `osascript` otherwise, and the wording and warning threshold the router's and the dashboard's share; the app's Swift source, `Info.plist` and icon in `internal/notify/app` |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
-| `internal/redact` | Hiding secrets: a token held, and anything shaped like a Claude token, as `[redacted]`, and telling text that holds one |
+| `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 

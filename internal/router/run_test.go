@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -92,6 +93,48 @@ func TestRun(t *testing.T) {
 			t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 		}
 	}
+}
+
+// The upstream's credentials, query and fragment, any of which can carry a
+// key, reach no log line, error or answer of the router's: its address is
+// shown with them hidden as it starts, and as it fails to parse, and a
+// request to it that fails says nothing of them.
+func TestTheRouterShowsNoSecretOfItsUpstream(t *testing.T) {
+	leaked := func(text string) bool {
+		return strings.Contains(text, "user:") || strings.Contains(text, ":pw") || strings.Contains(text, "key=k") || strings.Contains(text, "#f")
+	}
+	t.Run("as it starts", func(t *testing.T) {
+		log := logstest.Capture(t)
+		stop := runRouter(t, runConfig(t, "https://user:pw@gw.example.com/v1?key=k#f"))
+		if err := stop(); err != nil {
+			t.Fatalf("Run() = %v", err)
+		}
+		if !log.Has("msg=listening", "upstream=https://[redacted]@gw.example.com/v1?[redacted]") || leaked(log.String()) {
+			t.Errorf("log reads\n%s\nwant the upstream shown with its secrets hidden", log)
+		}
+	})
+	t.Run("as it fails to parse", func(t *testing.T) {
+		_, err := router.New(testConfig("https://user:pw@gw example.com/v1?key=k#f"))
+		if want := `upstream: parse "https://[redacted]@gw example.com/v1?[redacted]": invalid character " " in host name`; err == nil || err.Error() != want {
+			t.Errorf("New() = %v, want %q", err, want)
+		}
+	})
+	t.Run("as a request to it fails", func(t *testing.T) {
+		log := logstest.Capture(t)
+		gone := httptest.NewServer(http.NotFoundHandler())
+		gone.Close()
+		upstream := strings.Replace(gone.URL, "://", "://user:pw@", 1) + "/v1?key=k#f"
+		proxy := serveProxy(t, newRouter(t, upstream))
+
+		resp := send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
+		if body := readAll(t, resp); resp.StatusCode != http.StatusBadGateway || leaked(body) {
+			t.Errorf("answered %d, %s, want a 502 that says nothing of the upstream's secrets", resp.StatusCode, body)
+		}
+		waitForLine(t, log, "level=ERROR", `msg="upstream request failed"`)
+		if leaked(log.String()) {
+			t.Errorf("log reads\n%s\nwant nothing of the upstream's secrets", log)
+		}
+	})
 }
 
 func TestARouterStartsWithoutAUsableTokenAndTakesOneUpAsItComes(t *testing.T) {

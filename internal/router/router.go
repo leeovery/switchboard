@@ -24,6 +24,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -341,7 +342,7 @@ func New(cfg Config) (*Router, error) {
 	accounts := resolve(cfg.Accounts, cfg.Token, cfg.Taken)
 	upstream, err := url.Parse(cfg.Upstream)
 	if err != nil {
-		return nil, fmt.Errorf("upstream: %w", err)
+		return nil, fmt.Errorf("upstream: %w", redact.URLError(err))
 	}
 	changes := newChanges()
 	pools := newMembership(recordIn(cfg.StateDir), movedIn(cfg.StateDir), func(id string) string { return accounts.idNow(cfg.Formerly, id) }, cfg.HomeDir)

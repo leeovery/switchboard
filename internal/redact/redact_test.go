@@ -1,6 +1,9 @@
 package redact_test
 
 import (
+	"errors"
+	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/redact"
@@ -81,4 +84,74 @@ func TestText(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An address shows with whatever can carry a key hidden: its credentials,
+// its query and its fragment.
+func TestURL(t *testing.T) {
+	tests := []struct {
+		address string
+		want    string
+		why     string
+	}{
+		{address: "https://user:pw@gw.example.com/v1?key=k#f", want: "https://[redacted]@gw.example.com/v1?[redacted]", why: "credentials, a query and a fragment"},
+		{address: "https://user:xxxxx@gw.example.com/v1/messages", want: "https://[redacted]@gw.example.com/v1/messages", why: "credentials, their password hidden already"},
+		{address: "https://gw.example.com/v1#key=k", want: "https://gw.example.com/v1#[redacted]", why: "a fragment"},
+		{address: "https://gw.example.com/v1?a=b@c", want: "https://gw.example.com/v1?[redacted]", why: "an @ in a query, hidden with it"},
+		{address: "user:pw@gw.example.com", want: "[redacted]@gw.example.com", why: "credentials without a scheme"},
+		{address: "https://gw.example.com/a@b", want: "https://[redacted]@b", why: "an @ in a path, the cost of reading every @ as the credentials'"},
+		{address: "https://api.anthropic.com", want: "https://api.anthropic.com", why: "nothing to hide"},
+		{address: "", want: "", why: "nothing"},
+	}
+	for _, tt := range tests {
+		if got := redact.URL(tt.address); got != tt.want {
+			t.Errorf("URL(%q) = %q, want %q: %s", tt.address, got, tt.want, tt.why)
+		}
+	}
+}
+
+// An error quoting a URL, as a URL's parse and an HTTP client's request fail
+// with, quotes it as URL shows it, and so does a wrap made of it after; any
+// other is as it was.
+func TestURLError(t *testing.T) {
+	const address = "https://user:pw@gw.example.com/v1?key=k#f"
+	refused := errors.New("refused")
+	unparsed := parseError(t, "https://user:pw@gw example.com/v1?key=k#f")
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "a request's", err: &url.Error{Op: "Post", URL: address, Err: refused}, want: `Post "https://[redacted]@gw.example.com/v1?[redacted]": refused`},
+		{name: "a parse's", err: unparsed, want: `parse "https://[redacted]@gw example.com/v1?[redacted]": invalid character " " in host name`},
+		{name: "another error", err: refused, want: "refused"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := redact.URLError(tt.err)
+			if got.Error() != tt.want {
+				t.Errorf("URLError() = %q, want %q", got, tt.want)
+			}
+			if !errors.Is(got, tt.err) {
+				t.Errorf("URLError() = %v, want it still the error given", got)
+			}
+			if wrapped, want := fmt.Errorf("probe: %w", got), "probe: "+tt.want; wrapped.Error() != want {
+				t.Errorf("wrapped after, URLError() reads %q, want %q", wrapped, want)
+			}
+		})
+	}
+	if redact.URLError(nil) != nil {
+		t.Error("URLError(nil) isn't nil")
+	}
+}
+
+// parseError is the error parsing address, a URL that doesn't parse, fails
+// with.
+func parseError(t *testing.T, address string) error {
+	t.Helper()
+	_, err := url.Parse(address)
+	if err == nil {
+		t.Fatalf("url.Parse(%q) parsed", address)
+	}
+	return err
 }

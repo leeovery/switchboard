@@ -5,10 +5,12 @@
 // hidden; and setup tells with it an answer that's a token pasted where it
 // shows, which it never takes. It tells too whether a value may hold a
 // secret before it's passed on, as the launcher asks of each value it keeps
-// in a session's environment.
+// in a session's environment; and it hides the parts of an address that can
+// carry a key, wherever the upstream's is shown.
 package redact
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -52,4 +54,38 @@ func Text(text string, secrets ...string) string {
 		return text
 	}
 	return tokenShaped.ReplaceAllString(text, Placeholder)
+}
+
+// URL returns address with its credentials, query and fragment, any of
+// which can carry a key, each replaced by Placeholder: everything after the
+// first ? or #, and everything before the last @ that comes before them,
+// from the end of the scheme's ://. It goes by the text alone, as the
+// address may be no URL that parses, so an @ in a path hides the host too.
+func URL(address string) string {
+	shown, after := address, ""
+	if i := strings.IndexAny(shown, "?#"); i >= 0 {
+		shown, after = shown[:i], shown[i:i+1]+Placeholder
+	}
+	if at := strings.LastIndexByte(shown, '@'); at >= 0 {
+		from := 0
+		if i := strings.Index(shown[:at], "://"); i >= 0 {
+			from = i + len("://")
+		}
+		shown = shown[:from] + Placeholder + shown[at:]
+	}
+	return shown + after
+}
+
+// URLError returns err, where it's a *url.Error, with its URL shown as URL
+// shows it: a URL's parse, and an HTTP client's request, fail with one
+// quoting the URL whole, its query and fragment included, the client's
+// hiding the password alone. It's given the error as the call made it,
+// as a wrap writes its text once, as it's made, the URL whole in it. It
+// changes the error in place, as each is made afresh by the one call that
+// fails with it, so nothing that unwraps one later finds the URL whole.
+func URLError(err error) error {
+	if failed, ok := err.(*url.Error); ok {
+		failed.URL = URL(failed.URL)
+	}
+	return err
 }

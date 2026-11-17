@@ -20,6 +20,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/redact"
 )
 
 const (
@@ -481,5 +482,5 @@ func (r *Router) logStart(proxy, control net.Addr) {
 		logger.Warn("no account has a usable token yet; nothing will be routed until one has")
 	}
 	logger.Info("listening", "address", proxy.String(), "control", control.String(),
-		"upstream", r.upstream.Redacted(), slog.Group("token_set", tokens...))
+		"upstream", redact.URL(r.upstream.String()), slog.Group("token_set", tokens...))
 }
