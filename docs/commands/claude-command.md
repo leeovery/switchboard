@@ -51,6 +51,7 @@ and uploads still go through. The router won't send on these accounts:
 
 - an account whose subscription has ended, until a read of it comes back clean;
 - an account whose token Anthropic refused, or whose token belongs to another subscription;
+- an account the router has no usable token for;
 - an account added since the router started, until the router restarts.
 
 If every account is skipped, Claude Code takes the token it would take with none skipped.

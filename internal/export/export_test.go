@@ -669,6 +669,33 @@ func TestAFolderMissingIsMadeWhereTheFolderItGoesInIsThere(t *testing.T) {
 	}
 }
 
+// An export with NoParents reaches a folder that's there, or one whose
+// folder is there, as it makes it; never one whose folder isn't there, as
+// one under another Mac's home, nor one in a file.
+func TestAFolderIsReachableWhereItOrTheFolderItGoesInIsThere(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "a-file")
+	writeFile(t, file, []byte("a file\n"), exportNow)
+	tests := []struct {
+		name string
+		dir  string
+		want bool
+	}{
+		{name: "there", dir: root, want: true},
+		{name: "missing, its folder there", dir: filepath.Join(root, "backups"), want: true},
+		{name: "missing, its folder missing", dir: filepath.Join(root, "unmounted", "backups")},
+		{name: "a file", dir: file},
+		{name: "in a file", dir: filepath.Join(file, "backups")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := export.Reachable(tt.dir); got != tt.want {
+				t.Errorf("Reachable(%s) = %t, want %t", tt.dir, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAFolderWhoseFolderIsntThereIsMadeWithItWithoutNoParents(t *testing.T) {
 	state, dir := t.TempDir(), filepath.Join(t.TempDir(), "unmounted", "backups")
 

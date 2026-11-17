@@ -10243,7 +10243,9 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   config down there (`config.LayDown`), never in place of anything, and stops, as the history
   waits for a router to take it in: `laid down the config of mac-<id> at <path>: 3 accounts in 2
   pools`, then `next, run switchboard setup to give each account its token and start the router,
-  then switchboard import <dir> again to bring in the history`, each command carrying the
+  then switchboard import <dir> again to bring in the history, once the router has started and
+  finished moving, which takes moments`, as the import before the router's first moves are done
+  is refused (see Moving to ids made, once), each command carrying the
   `--config` given, and each word quoted for the shell where it needs it, as a folder in iCloud
   Drive's `Mobile Documents` does. The pools keep the ids the history names, so the router
   started on them, which notes the config's first pool as this Mac's first (see What's
@@ -10293,6 +10295,11 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
     /Users/other/Code/acme isn't a directory, so no session starts in it yet: if it's on this Mac
     by another name, fence the pool "Acme" anew with switchboard pool edit q7mt --dirs`. A
     folder written from `~/` is the same folder in this home.
+  - **An export folder not here,** an `[export] dir` the router can't export into on this Mac,
+    as it exports with no parents made (`export.Reachable`: neither the folder nor the folder it
+    goes in is there), is warned of alike: `switchboard: /Users/other/Dropbox/switchboard isn't
+    on this Mac, so the router exports nothing each hour until [export] dir in the config names
+    a folder that is`.
 - **Through the router:** the router is the history's one writer, so `import` needs it, failing
   without it as Commands says. The command copies the folders' files into `<state dir>/import/`,
   removing any an import cut short left there first, so the router reads nothing outside the state

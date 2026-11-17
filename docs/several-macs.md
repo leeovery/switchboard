@@ -42,19 +42,22 @@ Install switchboard on the new Mac, but don't run `setup` yet. Run `import` firs
 ```console
 $ switchboard import ~/Dropbox/switchboard
 laid down the config of mac-0123456789abcdef at /Users/you/.config/switchboard/config.toml: 3 accounts in 2 pools
-next, run switchboard setup to give each account its token and start the router, then switchboard import /Users/you/Dropbox/switchboard again to bring in the history
+next, run switchboard setup to give each account its token and start the router, then switchboard import /Users/you/Dropbox/switchboard again to bring in the history, once the router has started and finished moving, which takes moments
 ```
 
 The new Mac has no config, so `import` lays down the config from the folder. Then:
 
 1. Run `switchboard setup`. The Accounts step lists every account without a token, because the
    export holds none. Press `t` on each account to make its token.
-2. Run `switchboard import ~/Dropbox/switchboard` again. It prints what it took in, such as
-   `imported 1 folder: 27 days added, 3 merged`.
+2. Run `switchboard import ~/Dropbox/switchboard` again, once the router has started and
+   finished moving, which takes moments. Until then, `import` answers `import once it's done`.
+   Then `import` prints what it took in, such as `imported 1 folder: 27 days added, 3 merged`.
 
-The config keeps `[export] dir`, so the new Mac goes on exporting. The same steps restore a
-backup onto this Mac if the config and the record are lost. If only the config is lost, `import`
-lays down the config from the folder of this Mac, and keeps its record as it is.
+If `[export] dir` names a folder on the new Mac, such as one starting `~/`, the new Mac goes on
+exporting. If not, `import` warns, and the router exports nothing until you change `[export] dir`.
+The same steps restore a backup onto this Mac if the config and the record are lost. If only the
+config is lost, `import` lays down the config from the folder of this Mac, and keeps its record as
+it is.
 
 If `<dir>` holds the folders of several other Macs, `import` names them and lays down nothing.
 Point it at the folder of the Mac whose config you want.

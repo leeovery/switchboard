@@ -107,7 +107,7 @@ func macFolder(t *testing.T, dir, install string) string {
 // line given: "switchboard import <dir>".
 func laidDown(path, install, again string) string {
 	return "laid down the config of mac-" + install + " at " + path + ": 2 accounts in 2 pools\n" +
-		"next, run switchboard setup to give each account its token and start the router, then " + again + " again to bring in the history\n"
+		"next, run switchboard setup to give each account its token and start the router, then " + again + " again to bring in the history, once the router has started and finished moving, which takes moments\n"
 }
 
 // laidCopy is the config laid down from a folder holding laidConfig: its
@@ -460,12 +460,48 @@ func TestImportLaysTheConfigDownWhereConfigSaysAndSaysToRunWithIt(t *testing.T) 
 	path := filepath.Join(t.TempDir(), "elsewhere.toml")
 
 	got := run(t, deps, "import", "--config", path, dir)
-	next := "next, run switchboard setup --config " + path + " to give each account its token and start the router, then switchboard import --config " + path + " '" + dir + "' again to bring in the history\n"
+	next := "next, run switchboard setup --config " + path + " to give each account its token and start the router, then switchboard import --config " + path + " '" + dir + "' again to bring in the history, once the router has started and finished moving, which takes moments\n"
 	if got.code != 0 || !strings.HasSuffix(got.stdout, next) || !strings.Contains(got.stderr, "switchboard pool edit --config "+path+" q7mt --dirs") {
 		t.Errorf("switchboard import --config = %+v, want it to say to run\n%s", got, next)
 	}
 	wantLaid(t, path)
 	wantNoConfig(t, deps)
+}
+
+// A config laid down whose export folder the router can't export into on
+// this Mac, as one under another Mac's home, is warned of after its fences,
+// naming the folder as the config writes it: the router exports nothing each
+// hour until [export] dir names one that is. One that's there, or whose
+// folder is, as it's made there, is not.
+func TestImportWarnsOfAnExportFolderNotOnThisMac(t *testing.T) {
+	tests := []struct {
+		name string
+		// dir is the export folder the config writes, given a temporary
+		// folder of the test's.
+		dir  func(tmp string) string
+		warn bool
+	}{
+		{name: "under another home", dir: func(tmp string) string { return filepath.Join(tmp, "other", "Dropbox", "switchboard") }, warn: true},
+		{name: "in this home, its folder not there", dir: func(string) string { return "~/Dropbox/switchboard" }, warn: true},
+		{name: "in this home, its folder there", dir: func(string) string { return "~/switchboard" }},
+		{name: "there", dir: func(tmp string) string { return tmp }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := newMacDeps(t)
+			dir, exportDir := t.TempDir(), tt.dir(t.TempDir())
+			withConfig(t, macFolder(t, dir, "0123456789abcdef"), laidConfig+"\n[export]\ndir = \""+exportDir+"\"\n")
+
+			got := run(t, deps, "import", dir)
+			want := unfencedAcme
+			if tt.warn {
+				want += "switchboard: " + exportDir + " isn't on this Mac, so the router exports nothing each hour until [export] dir in the config names a folder that is\n"
+			}
+			if got.code != 0 || got.stderr != want {
+				t.Errorf("switchboard import = %+v, want it to warn\n%s", got, want)
+			}
+		})
+	}
 }
 
 // Import says each pool of another Mac's it kept apart, why, and how to read

@@ -33,7 +33,8 @@ var errOwnHistory = errors.New("this Mac has no config, but its state directory 
 // each account's organization is known, and setup refuses a token of
 // another subscription given it, naming the account it's for. Then it says
 // what it laid down, warns of each folder a pool fences that isn't one here,
-// as of another home's, and says what to run next, as the history waits for
+// as of another home's, and of an export folder the router can't export
+// into here, and says what to run next, as the history waits for
 // a router to take it in.
 //
 // It lays nothing down, failing, where something is at the config's path,
@@ -76,7 +77,10 @@ func (a *app) restore(out, errOut io.Writer, state, dir string) error {
 	if err := a.sayUnfenced(errOut, cfg.Pools); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(out, "next, run %s to give each account its token and start the router, then %s again to bring in the history\n",
+	if err := a.sayExportAway(errOut, cfg.Export); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(out, "next, run %s to give each account its token and start the router, then %s again to bring in the history, once the router has started and finished moving, which takes moments\n",
 		a.command("setup"), a.command("import", dir))
 	return err
 }
@@ -295,6 +299,20 @@ func (a *app) sayUnfenced(errOut io.Writer, pools config.Pools) error {
 		}
 	}
 	return nil
+}
+
+// sayExportAway warns on errOut where the folder exp names isn't one the
+// router can export into on this Mac, as one in another home isn't, no
+// export running each hour until [export] dir names one that is.
+func (a *app) sayExportAway(errOut io.Writer, exp config.Export) error {
+	if !exp.On() {
+		return nil
+	}
+	if folder, err := exp.Folder(a.HomeDir); err == nil && export.Reachable(folder) {
+		return nil
+	}
+	_, err := fmt.Fprintf(errOut, "switchboard: %s isn't on this Mac, so the router exports nothing each hour until [export] dir in the config names a folder that is\n", exp.Dir)
+	return err
 }
 
 // command is the switchboard command line of the subcommand sub, as "pool

@@ -26,7 +26,7 @@ Why you'd import, and how to restore onto a new Mac, is in
 ```console
 $ switchboard import ~/Dropbox/switchboard
 laid down the config of mac-0123456789abcdef at /Users/you/.config/switchboard/config.toml: 3 accounts in 2 pools
-next, run switchboard setup to give each account its token and start the router, then switchboard import /Users/you/Dropbox/switchboard again to bring in the history
+next, run switchboard setup to give each account its token and start the router, then switchboard import /Users/you/Dropbox/switchboard again to bring in the history, once the router has started and finished moving, which takes moments
 ```
 
 If this Mac has no config and no router runs, `import` lays down the copy of the config that an
@@ -50,7 +50,8 @@ switchboard import \
 
 Each account is recorded with its subscription. So `switchboard setup` asks only for each
 token, and refuses a token made for another account. If a pool fences a folder that isn't on this
-Mac, `import` warns, and names the command that fences the pool anew.
+Mac, `import` warns, and names the command that fences the pool anew. If `[export] dir` names a
+folder that isn't on this Mac, `import` warns that the router exports nothing until you change it.
 
 `import` never writes over anything at the config path. It lays down nothing in these cases:
 
