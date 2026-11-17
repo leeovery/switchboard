@@ -182,11 +182,15 @@ started in, and that pool's accounts, till it's resumed.
 }
 
 // poolAddedSays writes to out that the pool added was, by its label and the
-// id switchboard made for it, fenced or not as fenceSaid says, and of one
+// id switchboard made for it, fenced or not as fenceSaid says; of one
 // fenced, that the sessions running in its directories keep the pool they
-// started in till they're resumed, as runningKeepTheirPool says.
+// started in till they're resumed, as runningKeepTheirPool says; and of one
+// unfenced, that the sessions outside every fence go to it, and the verbs
+// read it without --pool. A pool added unfenced is added where every pool is
+// fenced, and beside another, so the verbs read none without --pool before
+// it, and it after.
 func poolAddedSays(out io.Writer, added config.Pool) error {
-	var running string
+	running := "; " + outsideGoToIt + ", and " + verbsReadIt
 	if added.Fenced() {
 		running = "; " + runningKeepTheirPool
 	}
@@ -198,6 +202,25 @@ func poolAddedSays(out io.Writer, added config.Pool) error {
 // takes in keep the pool they started in, as a session's pool is decided as
 // it starts: their work goes on that pool's accounts till they're resumed.
 const runningKeepTheirPool = "sessions running in its directories keep the pool they started in, and its accounts, till they're resumed"
+
+// What pool add and edit say a pool's fence changed for the sessions started
+// outside every fence, and for the verbs.
+const (
+	// outsideGoToIt says that the sessions started outside every fence go to
+	// the pool, unfenced.
+	outsideGoToIt = "sessions started outside every fence go to it now"
+	// noneOutside says that no session starts outside every fence, every
+	// pool fenced, but one started within a session, which takes its pool,
+	// or in a worktree of a repository inside a fence, which is in its pool.
+	noneOutside = "every pool is fenced now, so claude won't start in a folder outside every fence, " +
+		"unless it's started within a session, or in a worktree of a repository inside a fence"
+	// verbsReadIt says that the verbs read and act on the pool without
+	// --pool, as config.Pools' Implicit gives it.
+	verbsReadIt = "the verbs read and act on it without --pool"
+	// verbsNeedPool says that the verbs read and act on no pool without
+	// --pool, as config.Pools' Implicit gives none.
+	verbsNeedPool = "the verbs, accounts add among them, need --pool to read or act on a pool"
+)
 
 // poolRemovedSays writes to out that the pool removed was, by its id and
 // label, and that its history stays, read by its id.
@@ -333,21 +356,28 @@ func poolEditedSays(e accounts.EditedPool) string {
 }
 
 // outsideSaid says what an edit of a pool's fence changed for the sessions
-// started outside every fence: unfencing it, that they use it now; fencing
-// the one pool that was unfenced, that claude won't start outside a fence,
-// and, of several pools, that a verb reading one needs --pool, as there's
-// none it reads without; "" where it changed nothing for them.
+// started outside every fence, and for the verbs: unfencing it, that those
+// sessions go to it now; fencing the one pool that was unfenced, that none
+// starts outside every fence; and where the pool the verbs act on without
+// --pool, as config.Pools' Implicit gives it, is another now, which: "" where
+// it changed nothing for them.
 func outsideSaid(e accounts.EditedPool) string {
-	_, unfenced := e.Pools.Unfenced()
-	switch {
+	var said []string
+	switch _, unfenced := e.Pools.Unfenced(); {
 	case e.Was.Fenced() && !e.Now.Fenced():
-		return "sessions started outside every fence use it now"
-	case e.Was.Fenced() || unfenced:
-		return ""
-	case len(e.Pools) > 1:
-		return "every pool is fenced now, so claude won't start outside them, and a verb that reads a pool needs --pool"
+		said = append(said, outsideGoToIt)
+	case !e.Was.Fenced() && !unfenced:
+		said = append(said, noneOutside)
 	}
-	return "every pool is fenced now, so claude won't start outside it"
+	was, _ := e.Before().Implicit()
+	switch now, ok := e.Pools.Implicit(); {
+	case config.SamePool(was.ID, now.ID):
+	case ok && config.SamePool(now.ID, e.Now.ID):
+		said = append(said, verbsReadIt)
+	case !ok:
+		said = append(said, verbsNeedPool)
+	}
+	return strings.Join(said, ", and ")
 }
 
 // warnUnmade warns w of each of p's directories that isn't a directory on

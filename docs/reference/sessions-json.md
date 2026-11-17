@@ -25,7 +25,7 @@ switchboard sessions --json | jq \
 |---|---|---|
 | `schema` | number | `1`. See [Reading the JSON](reading-the-json.md). |
 | `source` | string | `router` if the router listed its sessions, or `ledger` if the list is read from the ledger alone. See below. |
-| `pool` and `pool_label` | string | The pool listed. Left out if the config has no pools. |
+| `pool` and `pool_label` | string | The pool listed. Left out before the router has made the first pool. |
 | `generated_at` | time | When the list was built. |
 | `prices_as_of` | string | The date the prices were read. |
 | `sessions` | list of objects | Each session. See below. |
@@ -34,8 +34,11 @@ switchboard sessions --json | jq \
 The list holds the sessions the router lists, oldest started first, then those that ended today,
 latest ended first.
 
-`source` is `ledger` if the router isn't running, can't be asked, or isn't asked, for a pool it
-doesn't route. Then no session is marked `running`.
+`source` is `ledger`, and no session is marked `running`, in three cases:
+
+- the router isn't running;
+- the router can't be asked, for example because it's from before pools;
+- the pool is one the router doesn't route, such as a removed pool, so switchboard doesn't ask.
 
 Once the config has pools, it lists the sessions of one pool, each by the pool its requests were
 routed within. A session from before pools is in the first pool.

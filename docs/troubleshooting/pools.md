@@ -28,8 +28,8 @@ ending `— not starting claude`.
 | `the router routes no account of pool Acme yet: any the config gives it waits for the router to restart` | Wait for the router to restart itself, or run `switchboard service restart`. |
 
 `no pool covers` means every pool is fenced, and none holds the folder. To leave your first pool
-unfenced, run `switchboard pool edit d3wn --unfence`. A git worktree belongs in the same fence as its
-repository, or outside every fence with it. The own-login refusal comes from `--direct`, or from a
+unfenced, run `switchboard pool edit d3wn --unfence`. A git worktree belongs in the same fence as
+its repository, or outside every fence with it. The own-login refusal comes from `--direct`, or from a
 start without switchboard, inside a fence. Without switchboard, the message starts with why.
 
 More on the rows above:

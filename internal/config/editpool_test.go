@@ -3,6 +3,7 @@ package config_test
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -152,26 +153,42 @@ label = "Default"
 			want:   pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs  = ["~/Code/acme", "/Volumes/Acme"]`),
 		},
 		{
-			name:   "adding a pool fenced to directories in the home given whole, as a shell gives ~/Code/side, writing them from ~/",
+			name:   "adding a pool fenced to directories in the home, as a verb gives them, from ~/",
 			config: pooled,
 			edit: func(d *config.Draft) error {
-				return d.AddPool(config.NewPool{ID: "m5r1", Label: "Side", Dirs: []string{"/Users/test/Code/side/", "/users/TEST/Code/web/../api", "/Users/testing/side"}})
+				return d.AddPool(config.NewPool{ID: "m5r1", Label: "Side", Dirs: d.FromHome([]string{"/Users/test/Code/side/", "/Users/testing/side"})})
 			},
-			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid    = \"m5r1\"  # do not edit: links the pool to its history\nlabel = \"Side\"\ndirs  = [\"~/Code/side\", \"~/Code/api\", \"/Users/testing/side\"]\n"),
+			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid    = \"m5r1\"  # do not edit: links the pool to its history\nlabel = \"Side\"\ndirs  = [\"~/Code/side\", \"/Users/testing/side\"]\n"),
 		},
 		{
-			name:   "adding a pool fenced to the home directory itself, writing it whole",
-			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"  # do not edit: links the pool to its history\ndirs = [\"/Volumes/Work\"]\n",
+			name:   "adding a pool fenced to a directory in the home given whole, as a heal restores one, writing it as given",
+			config: pooled,
 			edit: func(d *config.Draft) error {
-				return d.AddPool(config.NewPool{ID: "m5r1", Label: "Home", Dirs: []string{"/Users/test"}})
+				return d.AddPool(config.NewPool{ID: "m5r1", Label: "Side", Dirs: []string{"/Users/test/Code/side"}})
 			},
-			want: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"  # do not edit: links the pool to its history\ndirs = [\"/Volumes/Work\"]\n\n[[pool]]\nid    = \"m5r1\"  # do not edit: links the pool to its history\nlabel = \"Home\"\ndirs  = [\"/Users/test\"]\n",
+			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid    = \"m5r1\"  # do not edit: links the pool to its history\nlabel = \"Side\"\ndirs  = [\"/Users/test/Code/side\"]\n"),
 		},
 		{
 			name:   "fencing a pool to a directory in the home given whole, writing it from ~/",
 			config: pooled,
-			edit:   func(d *config.Draft) error { return d.SetPoolDirs("h4w2", []string{"/Users/test/Archive/client"}) },
-			want:   pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["~/Archive/client"]`),
+			edit: func(d *config.Draft) error {
+				return d.SetPoolDirs("h4w2", d.FromHome([]string{"/Users/test/Archive/client"}))
+			},
+			want: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["~/Archive/client"]`),
+		},
+		{
+			name:   "fencing a pool to the directory it's fenced to, written whole, given from ~/, leaving it as it is",
+			config: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["/Users/test/Archive/client"]`),
+			edit: func(d *config.Draft) error {
+				return d.SetPoolDirs("h4w2", d.FromHome([]string{"/Users/test/Archive/client"}))
+			},
+			want: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["/Users/test/Archive/client"]`),
+		},
+		{
+			name:   "fencing a pool whose directories are written across lines to those it has, leaving it as it is",
+			config: pooledWith(t, `dirs = ["/Volumes/Client"]`, "dirs = [\n  \"/Users/test/Archive/client\",\n]"),
+			edit:   func(d *config.Draft) error { return d.SetPoolDirs("h4w2", []string{"~/Archive/client/"}) },
+			want:   pooledWith(t, `dirs = ["/Volumes/Client"]`, "dirs = [\n  \"/Users/test/Archive/client\",\n]"),
 		},
 		{
 			name:   "fencing a pool to the directory it's fenced to, given whole, leaving it as it is",
@@ -276,6 +293,34 @@ label = "Default"
 
 // A pool not configured is told apart from an account not configured, which
 // it matches too.
+// A verb writes a directory in the home from ~/, as a shell gives it whole;
+// any other as it's given; and every one as given where the home is the
+// root, which every directory is inside.
+func TestFromHome(t *testing.T) {
+	tests := []struct {
+		name, home string
+		dirs, want []string
+	}{
+		{name: "in the home", home: testHome, dirs: []string{"/Users/test/Code/side"}, want: []string{"~/Code/side"}},
+		{name: "in the home, cleaned and compared as fences are", home: testHome, dirs: []string{"/users/TEST/Code/web/../api/"}, want: []string{"~/Code/api"}},
+		{name: "beside the home, its name running on", home: testHome, dirs: []string{"/Users/testing/side"}, want: []string{"/Users/testing/side"}},
+		{name: "the home itself", home: testHome, dirs: []string{"/Users/test"}, want: []string{"/Users/test"}},
+		{name: "from ~/ already, and outside the home", home: testHome, dirs: []string{"~/Code/side", "/Volumes/Side"}, want: []string{"~/Code/side", "/Volumes/Side"}},
+		{name: "the home the root", home: "/", dirs: []string{"/Users/test/Code/side", "/Volumes/Side"}, want: []string{"/Users/test/Code/side", "/Volumes/Side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			draft, err := config.Edit(writeConfig(t, pooled), homeAt(tt.home))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := draft.FromHome(tt.dirs); !slices.Equal(got, tt.want) {
+				t.Errorf("FromHome(%q) in %s = %q, want %q", tt.dirs, tt.home, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAnAccountNotConfiguredIsNoPoolNotConfigured(t *testing.T) {
 	if err := config.NotConfigured("side"); errors.Is(err, config.ErrPoolNotConfigured) {
 		t.Errorf("NotConfigured() = %v, want no ErrPoolNotConfigured", err)

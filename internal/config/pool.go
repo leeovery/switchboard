@@ -41,9 +41,9 @@ func (p Pool) Fenced() bool {
 }
 
 // Covers reports whether one of the pool's directories is dir or holds it,
-// both absolute and clean, compared a whole folder name at a time and
-// ignoring case. It reads no files: links are resolved by the caller, where
-// they're to be.
+// both absolute and clean, compared as within compares them: a whole folder
+// name at a time, ignoring case and how accents are written. It reads no
+// files: links are resolved by the caller, where they're to be.
 func (p Pool) Covers(dir string) bool {
 	return slices.ContainsFunc(p.Dirs, func(fence string) bool { return within(dir, fence) })
 }
@@ -502,9 +502,12 @@ func within(path, dir string) bool {
 }
 
 // sameFolder reports whether a and b name one folder, as within compares
-// them.
+// them: alike ignoring case, as they are, or with every accent apart (NFD).
+// NFD, not NFC: NFC composes only one case of some pairs, such as J and
+// U+030C, whose lower case composes to U+01F0 and upper case doesn't, so
+// folding after NFC would miss names folding alone matches.
 func sameFolder(a, b string) bool {
-	return strings.EqualFold(norm.NFC.String(a), norm.NFC.String(b))
+	return strings.EqualFold(a, b) || strings.EqualFold(norm.NFD.String(a), norm.NFD.String(b))
 }
 
 // folders returns the folder names of path, from the root.

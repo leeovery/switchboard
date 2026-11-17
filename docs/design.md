@@ -616,11 +616,14 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
   pools' directories can't overlap: no directory may be the same as, inside or around another
   pool's. Directories are compared one whole folder name at a time, so `~/Code/acme` doesn't cover
   `~/Code/acme-api`, as macOS compares them: without regard to case, and taking a name with its
-  accents composed for the same name with them apart (Unicode's NFC), as a name typed and one
-  Finder made can differ. The standard library has no Unicode normalisation, so
-  `golang.org/x/text`, the Go team's own, does it. A directory inside the home is written from
+  accents composed for the same name with them apart, as a name typed and one Finder made can
+  differ. Names alike as they are, or with every accent apart (Unicode's NFD), are one: not NFC,
+  which composes only one case of some pairs. The standard library has no Unicode normalisation,
+  so `golang.org/x/text`, the Go team's own, does it. A directory inside the home is written from
   `~/` by every verb that writes one, though a shell gives it whole, so a config shared by Macs
-  with different homes fences the same directories on each.
+  with different homes fences the same directories on each; a home at the root writes none so,
+  and the router's heal writes them back as the config last wrote them. Directories given that
+  are those a pool has, however written, change nothing.
 - **At most one pool is unfenced,** having no directories: two would leave a session outside every
   fence with two pools to be in. So any start directory belongs to exactly one fenced pool, else to
   the unfenced pool, else, where every pool is fenced, to none, and a session there doesn't start.
@@ -1258,15 +1261,17 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   running in its directories keep the pool they started in till they're resumed (see What pools
   can't hold); they warn of a directory that isn't one on this Mac, making the pool all the same,
   as it may be made later. `pool edit` says, as it fences the one unfenced pool, that `claude`
-  won't start outside a fence now, nor a verb read a pool of several without `--pool`; and, as it
-  unfences one, that the sessions started outside every fence use it now. An account moved to
-  another pool is its new pool's primary only with `--primary`: without it, the pool keeps its
-  primary, `accounts edit` marking it where the config marks none, so the account moved doesn't
-  take it by coming first in the config's order, and saying so. The pool it leaves takes its next
-  account as its primary where it was the primary, and `accounts edit` says which, that the
-  sessions running on the moved account's token, where it has a usable one, are refused now it has
-  left, and which account's token they start on resumed, as a launch in that pool would choose it;
-  or, where it was the pool's last account, that the pool has no accounts now. `accounts remove`
+  won't start outside every fence now, but within a session or in a worktree of a repository
+  inside one; `pool add` and `pool edit`, as they make a pool unfenced, that the sessions started
+  outside every fence go to it now; and each, where the pool the verbs act on without `--pool`
+  changes, which it is now, or that they need `--pool`, `accounts add` among them. An account
+  moved to another pool is its new pool's primary only with `--primary`: without it, the pool
+  keeps its primary, `accounts edit` marking it where the config marks none, so the account moved
+  doesn't take it by coming first in the config's order, and saying so. The pool it leaves takes
+  its next account as its primary where it was the primary, and `accounts edit` says which, that
+  the sessions running on the moved account's token, where it has a usable one, are refused now it
+  has left, and which account's token they start on resumed, as a launch in that pool would choose
+  it; or, where it was the pool's last account, that the pool has no accounts now. `accounts remove`
   says the same of the removed account's pool: its primary now, by the pool, or that it has no
   accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it

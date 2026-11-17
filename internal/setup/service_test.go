@@ -572,9 +572,9 @@ func TestTheServiceStepLeavesAServiceWhoseRouterCouldntStartInstalledAfresh(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.unstartable = errors.New("no config file at <the config>\n\nCreate one like this:\n\n[[account]]")
+	w.unstartable = errors.New("no config file at <the config>: run switchboard setup, which adds your accounts and writes it")
 
-	want := "! Left as it is: its plist had no ProcessType" + leftAsItIs + "no config file at <the config>\n\nCreate one like this:\n\n[[account]]\n" + routerPID(4243)
+	want := "! Left as it is: its plist had no ProcessType" + leftAsItIs + "no config file at <the config>: run switchboard setup, which adds your accounts and writes it\n" + routerPID(4243)
 	if told := w.service(t); told != want {
 		t.Errorf("the service step said\n%s\nwant\n%s", told, want)
 	}

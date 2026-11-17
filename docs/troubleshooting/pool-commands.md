@@ -86,6 +86,12 @@ start it, then add the pool again:
 switchboard service install
 ```
 
+If the router is running, its log says what holds it up:
+
+```bash
+switchboard logs router
+```
+
 ## `pool remove` is refused
 
 The pool still has accounts, which it names, or it's the last pool. Move or remove each account

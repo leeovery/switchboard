@@ -18,8 +18,9 @@ var (
 	// it first starts, on a new install as on one from before pools, and the
 	// pools it routes for, as the move left them, as it starts on a config
 	// that lost them; a pool added before would take every account in.
-	ErrNoPools = errors.New("the config names no pools yet: the router writes the first, Default, into it as it starts, and pools are added after: " +
-		"start the router with switchboard service install, where it isn't running, then add the pool again")
+	ErrNoPools = errors.New("the config names no pools yet: the router writes them into it as it starts, and pools are added after: " +
+		"start the router with switchboard service install where it isn't running; where it is, switchboard logs router says what holds it up; " +
+		"then add the pool again")
 	// ErrNoPoolLabel is what adding a pool without a label fails with: every
 	// pool has one.
 	ErrNoPoolLabel = errors.New("a pool needs a label")
@@ -115,6 +116,16 @@ func (c PoolChange) Asks() bool {
 type EditedPool struct {
 	Was, Now config.Pool
 	Pools    config.Pools
+}
+
+// Before returns the pools as they were before the edit: Pools, the pool
+// edited as it was.
+func (e EditedPool) Before() config.Pools {
+	before := slices.Clone(e.Pools)
+	if i := slices.IndexFunc(before, func(p config.Pool) bool { return config.SamePool(p.ID, e.Was.ID) }); i >= 0 {
+		before[i] = e.Was
+	}
+	return before
 }
 
 // Changed reports whether the edit changed the pool, as the config reads it.
@@ -218,7 +229,8 @@ func (r Registry) EditPool(id string, change PoolChange) (EditedPool, error) {
 	return edited, nil
 }
 
-// apply makes the change to the pool with the given id in the draft.
+// apply makes the change to the pool with the given id in the draft, its
+// directories written as the draft's FromHome writes them.
 func (c PoolChange) apply(draft *config.Draft, id string) error {
 	if c.Label != nil {
 		if err := draft.SetPoolLabel(id, *c.Label); err != nil {
@@ -226,7 +238,7 @@ func (c PoolChange) apply(draft *config.Draft, id string) error {
 		}
 	}
 	if c.Dirs != nil {
-		return draft.SetPoolDirs(id, *c.Dirs)
+		return draft.SetPoolDirs(id, draft.FromHome(*c.Dirs))
 	}
 	return nil
 }

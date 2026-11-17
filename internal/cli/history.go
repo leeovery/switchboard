@@ -25,7 +25,7 @@ import (
 const historyDays = 30
 
 // historyDocument is what history --json prints: the pool it's of, by its id
-// and label, none in a config with no pools; the date of the prices the days
+// and label, none before the router has made the first pool; the date of the prices the days
 // are priced at, whether the config's prices stand in place of any of them,
 // and History's blocks.
 type historyDocument struct {

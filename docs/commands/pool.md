@@ -51,10 +51,12 @@ A folder inside your home is written from `~/`, even if your shell gave it as a 
 config copied to a Mac with another home fences the same folders there.
 
 If a folder isn't there, `add` makes the pool anyway, because you may make the folder later. It
-warns you, in case the name is mistyped:
+warns you, in case the name is mistyped. The warning is one line, broken here to fit:
 
 ```text
-switchboard: ~/Code/acmee isn't a directory, so no session starts in it yet: if it's mistyped, fence the pool anew with switchboard pool edit q7mt --dirs
+switchboard: ~/Code/acmee isn't a directory, so no
+session starts in it yet: if it's mistyped, fence
+the pool anew with switchboard pool edit q7mt --dirs
 ```
 
 `add` refuses a pool if:
@@ -66,8 +68,9 @@ switchboard: ~/Code/acmee isn't a directory, so no session starts in it yet: if 
 
 The router writes the first pool, `Default`, into the config when it first starts. That happens
 after setup on a new Mac, and after an upgrade from before pools. Until then, `add` asks you to
-start the router with `switchboard service install`. If you put back a config from before pools,
-the router gives the pools back to it.
+start the router with `switchboard service install`. If the router is running,
+`switchboard logs router` says what holds it up. If you put back a config from before pools, the
+router gives the pools back to it.
 
 A new pool has no accounts. Until you add one, a session started in its folders refuses to start.
 Add an account with `accounts add --pool`, or move one in with `accounts edit --pool`. See
@@ -83,9 +86,12 @@ nothing.
 - **The label and folders** are refused for the same reasons as on `add`, and `edit` warns of a
   folder that isn't there.
 - **`--unfence`** is refused if another pool is unfenced already. Once it's done, `edit` says that
-  sessions started outside every fence use the pool now.
-- **Fencing the unfenced pool** leaves every pool fenced. `edit` says so: `claude` then won't start
-  outside the fences, and a command that reads a pool needs `--pool`.
+  sessions started outside every fence go to the pool now. With several pools, the commands read
+  it without `--pool` from then on.
+- **Fencing the unfenced pool** leaves every pool fenced, and `edit` says so. `claude` then starts
+  outside the fences only within a session, or in a worktree of a repository inside a fence.
+- **With several pools all fenced,** a command that reads a pool needs `--pool`, and so does
+  `accounts add`. With one pool, every command reads it without `--pool`.
 - **`--dirs` replaces every folder.** To add a folder, give the old ones again beside it.
 - **Folders the config writes across several lines** can't be changed in place. Edit them by hand.
 

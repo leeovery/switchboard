@@ -1090,8 +1090,8 @@ func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 	}{
 		{
 			name:     "without a config",
-			err:      errors.New("no config file at " + config + "\n\nCreate one like this:\n\n[[account]]\nid = \"work\"\n"),
-			wantSaid: "switchboard: couldn't read the config (no config file at " + config + ") — starting claude without it\n",
+			err:      errors.New("no config file at " + config + ": run switchboard setup, which adds your accounts and writes it"),
+			wantSaid: "switchboard: couldn't read the config (no config file at " + config + ": run switchboard setup, which adds your accounts and writes it) — starting claude without it\n",
 		},
 		{
 			name:     "with an invalid config",

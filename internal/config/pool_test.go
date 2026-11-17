@@ -156,6 +156,16 @@ func TestLoadThePoolsRules(t *testing.T) {
 			want:   []string{`pool "q7mt"'s dirs "~/Code/Acme" holds pool "b2n8"'s "~/code/acme/api": no directory may be the same as, inside or around another pool's`},
 		},
 		{
+			name:   "two pools' directories alike but for how their accents are written",
+			config: accountIn("k3f9", "q7mt") + poolTOML("q7mt", "~/Code/caf\u00e9") + poolTOML("b2n8", "~/Code/CAFE\u0301/api"),
+			want:   []string{"pool \"q7mt\"'s dirs \"~/Code/caf\u00e9\" holds pool \"b2n8\"'s \"~/Code/CAFE\u0301/api\": no directory may be the same as, inside or around another pool's"},
+		},
+		{
+			name:   "two pools' directories alike but for a case NFC composes alone",
+			config: accountIn("k3f9", "q7mt") + poolTOML("q7mt", "~/Code/\u01f0") + poolTOML("b2n8", "~/Code/J\u030c"),
+			want:   []string{"pool \"q7mt\"'s dirs \"~/Code/\u01f0\" is the same as pool \"b2n8\"'s \"~/Code/J\u030c\": no directory may be the same as, inside or around another pool's"},
+		},
+		{
 			name:   "a directory from ~ and the same one written whole",
 			config: accountIn("k3f9", "q7mt") + poolTOML("q7mt", "~/Code/acme") + poolTOML("b2n8", "/Users/test/Code/acme"),
 			want:   []string{`pool "q7mt"'s dirs "~/Code/acme" is the same as pool "b2n8"'s "/Users/test/Code/acme": no directory may be the same as, inside or around another pool's`},
@@ -513,6 +523,12 @@ func TestPoolCovers(t *testing.T) {
 		{name: "a name apart inside one written composed", pool: composed, dir: "/Users/test/Code/cafe\u0301/api", want: true},
 		{name: "a name apart inside one composed, ignoring case", pool: composed, dir: "/Users/test/Code/CAFE\u0301", want: true},
 		{name: "a name without its accent", pool: composed, dir: "/Users/test/Code/cafe"},
+		{name: "a composed name in another case", pool: composed, dir: "/Users/test/Code/CAF\u00c9", want: true},
+		// NFC composes the lower case of these pairs alone, so folding after
+		// it misses them: j and its caron compose to U+01F0, but J's don't.
+		{name: "J and a caron inside U+01F0", pool: inFolder("\u01f0"), dir: "/Users/test/Code/J\u030c/api", want: true},
+		{name: "U+0130 inside i and a dot above", pool: inFolder("i\u0307"), dir: "/Users/test/Code/\u0130", want: true},
+		{name: "W and a ring inside w and a ring", pool: inFolder("w\u030a"), dir: "/Users/test/Code/W\u030a", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -521,6 +537,12 @@ func TestPoolCovers(t *testing.T) {
 			}
 		})
 	}
+}
+
+// inFolder is a pool fenced to the folder named in ~/Code, as /Users/test is
+// the home.
+func inFolder(name string) config.Pool {
+	return config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/" + name}}
 }
 
 func TestPoolsImplicit(t *testing.T) {

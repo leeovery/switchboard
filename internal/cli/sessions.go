@@ -19,7 +19,7 @@ import (
 
 // sessionsDocument is what sessions --json prints of today's sessions: where
 // they were read from, as sessionsSource says; the pool they're of, by its id
-// and label, none in a config with no pools; and the List.
+// and label, none before the router has made the first pool; and the List.
 type sessionsDocument struct {
 	Source    string `json:"source"`
 	Pool      string `json:"pool,omitempty"`
@@ -31,7 +31,7 @@ type sessionsDocument struct {
 const (
 	// sessionsFromRouter marks a list the router's sessions went into, as it
 	// answered, those running marked so.
-	sessionsFromRouter = status.SourceRouter
+	sessionsFromRouter = "router"
 	// sessionsFromLedger marks a list of the ledger's sessions alone, none
 	// running, as where the router isn't running, can't be asked, or isn't
 	// asked, of a pool it doesn't route.

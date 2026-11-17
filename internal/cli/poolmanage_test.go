@@ -108,7 +108,7 @@ func TestPoolAddMakesAPoolUnderAnIDSwitchboardMakes(t *testing.T) {
 		dirs           []string
 	}{
 		{name: "fenced", accounts: unfencedBesideFenced, args: []string{"/work/client", "/work/other"}, said: "fenced to /work/client and /work/other; sessions running in its directories keep the pool they started in, and its accounts, till they're resumed", dirs: []string{"/work/client", "/work/other"}},
-		{name: "unfenced, where every pool is fenced", accounts: fencedAccounts, said: "unfenced"},
+		{name: "unfenced, where every pool is fenced", accounts: fencedAccounts, said: "unfenced; " + outsideGoToIt + ", and " + verbsReadIt},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -217,8 +217,9 @@ func TestPoolAddAndEditRefuse(t *testing.T) {
 		{name: "directories inside another pool's", accounts: unfencedBesideFenced, args: []string{"pool", "add", "Client", "/work/acme/api"},
 			want: "no directory may be the same as, inside or around another pool's"},
 		{name: "a pool added to a config from before pools", accounts: personalAndSide, args: []string{"pool", "add", "Client", "/work/client"},
-			want: "the config names no pools yet: the router writes the first, Default, into it as it starts, and pools are added after: " +
-				"start the router with switchboard service install, where it isn't running, then add the pool again"},
+			want: "the config names no pools yet: the router writes them into it as it starts, and pools are added after: " +
+				"start the router with switchboard service install where it isn't running; where it is, switchboard logs router says what holds it up; " +
+				"then add the pool again"},
 		{name: "unfencing a second pool", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--unfence"},
 			want: "Default (b2n8) is unfenced already, and only one pool can be"},
 		{name: "relabelling as another pool shows", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--label", "DEFAULT"},
@@ -264,13 +265,18 @@ func TestPoolEditChangesALabelAndTheDirectories(t *testing.T) {
 		{name: "the directories, replaced", accounts: unfencedBesideFenced, args: []string{"--dirs", "/work/client", "--dirs", "/work/other"},
 			said: "edited pool q7mt: fenced to /work/client and /work/other (was fenced to /work/acme); sessions running in its directories keep the pool they started in, and its accounts, till they're resumed", label: "Acme", dirs: []string{"/work/client", "/work/other"}},
 		{name: "unfenced, where every other pool is fenced", accounts: fencedAccounts, args: []string{"--unfence"},
-			said: "edited pool q7mt: unfenced (was fenced to /work/acme); sessions started outside every fence use it now", label: "Acme"},
+			said: "edited pool q7mt: unfenced (was fenced to /work/acme); " + outsideGoToIt + ", and " + verbsReadIt, label: "Acme"},
+		{name: "unfenced, the only pool", accounts: "[[account]]\nid = \"work\"\npool = \"q7mt\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\ndirs = [\"/work/acme\"]\n",
+			args: []string{"--unfence"}, label: "Acme",
+			said: "edited pool q7mt: unfenced (was fenced to /work/acme); " + outsideGoToIt},
 		{name: "fencing the one pool unfenced, of several", accounts: strings.Replace(fencedAccounts, `dirs  = ["/work/acme"]`, "", 1),
 			args: []string{"--dirs", "/work/acme"}, label: "Acme", dirs: []string{"/work/acme"},
-			said: "edited pool q7mt: fenced to /work/acme (was unfenced); " + runningKeep + "; every pool is fenced now, so claude won't start outside them, and a verb that reads a pool needs --pool"},
+			said: "edited pool q7mt: fenced to /work/acme (was unfenced); " + runningKeep + "; " + noneOutside + ", and " + verbsNeedPool},
 		{name: "fencing the only pool", accounts: "[[account]]\nid = \"work\"\npool = \"q7mt\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\n",
 			args: []string{"--dirs", "/work/acme"}, label: "Acme", dirs: []string{"/work/acme"},
-			said: "edited pool q7mt: fenced to /work/acme (was unfenced); " + runningKeep + "; every pool is fenced now, so claude won't start outside it"},
+			said: "edited pool q7mt: fenced to /work/acme (was unfenced); " + runningKeep + "; " + noneOutside},
+		{name: "fencing the directories it has, given again", accounts: unfencedBesideFenced, args: []string{"--dirs", "/work/acme/"}, label: "Acme", dirs: []string{"/work/acme"},
+			said: "pool q7mt has every value given already, so nothing changed"},
 		{name: "fencing a fenced pool anew, another unfenced", accounts: unfencedBesideFenced, args: []string{"--dirs", "/work/client"}, label: "Acme", dirs: []string{"/work/client"},
 			said: "edited pool q7mt: fenced to /work/client (was fenced to /work/acme); " + runningKeep},
 		{name: "nothing new", accounts: unfencedBesideFenced, args: []string{"--label", "Acme"}, said: "pool q7mt has every value given already, so nothing changed",
@@ -290,9 +296,18 @@ func TestPoolEditChangesALabelAndTheDirectories(t *testing.T) {
 	}
 }
 
-// runningKeep is what pool add and edit say of the sessions running in the
-// directories a fence takes in.
-const runningKeep = "sessions running in its directories keep the pool they started in, and its accounts, till they're resumed"
+// What pool add and edit say of the sessions a fence changes, and of the
+// verbs: those running in the directories it takes in; those started
+// outside every fence, going to the pool unfenced, or starting nowhere,
+// every pool fenced; and the verbs, reading the pool without --pool, or none.
+const (
+	runningKeep   = "sessions running in its directories keep the pool they started in, and its accounts, till they're resumed"
+	outsideGoToIt = "sessions started outside every fence go to it now"
+	noneOutside   = "every pool is fenced now, so claude won't start in a folder outside every fence, " +
+		"unless it's started within a session, or in a worktree of a repository inside a fence"
+	verbsReadIt   = "the verbs read and act on it without --pool"
+	verbsNeedPool = "the verbs, accounts add among them, need --pool to read or act on a pool"
+)
 
 func TestPoolRemoveRemovesAPoolWithNoAccountsAlone(t *testing.T) {
 	const empty = "\n[[pool]]\nid    = \"h4w2\"\nlabel = \"Handed back\"\ndirs  = [\"/work/old\"]\n"

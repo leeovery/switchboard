@@ -269,13 +269,15 @@ func expandIn(home, path string) string {
 
 // writtenFrom returns path, written from ~/ where it's an absolute path
 // inside home, as within finds it inside, and not home itself; else as it
-// is. It's expandIn turned round: expandIn finds it again.
+// is, as for every path where home is the root, or none, as every path is
+// inside the root and would be written for another Mac's home. It's expandIn
+// turned round: expandIn finds it again.
 func writtenFrom(home, path string) string {
-	clean := filepath.Clean(path)
-	if !filepath.IsAbs(clean) || !within(clean, home) {
+	clean, at := filepath.Clean(path), folders(home)
+	if len(at) == 0 || !filepath.IsAbs(clean) || !within(clean, home) {
 		return path
 	}
-	rest := folders(clean)[len(folders(home)):]
+	rest := folders(clean)[len(at):]
 	if len(rest) == 0 {
 		return path
 	}
