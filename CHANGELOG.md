@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-11-17
+
+Restore your config, accounts and history onto a new Mac with `switchboard import`.
+
+✨ Added
+- `switchboard import` on a Mac with no config lays down the config from an exported folder — setup then only asks for each account's token, and pools keep the ids the history names.
+- Export now copies the config, with comments and secrets left out, into the Mac's folder — it is skipped, with a warning, where the config holds a token or credentials.
+- Import maps each exported pool onto the pool here holding its accounts, and says which pools it kept apart and how to read them with `--pool`.
+- `history --json` and `sessions --json` now report the pool they are of, and `sessions --json` says whether sessions came from the router or the ledger.
+- `pool add` and `pool edit` warn about fence directories that don't exist on this Mac.
+- `pool add` and `pool edit` say what the change means for sessions started outside every fence and for which pool the verbs act on without `--pool`.
+- Pricing for Claude Fable 5.2 added, with prices re-checked as of 17 November.
+
+🔧 Changed
+- `claude` now starts on an account the router routes and doesn't hold back, passing over one that is held back or not yet routed — the same applies with the router down, using its saved state.
+- An account whose last usage read was refused (subscription ended or token refused) is held back from requests, and requests report it as "read refused".
+- Pool directories added or edited by verb are written from `~/` where inside your home, so a config travels between Macs.
+- Folder matching for pool fences ignores differences in how accents are written, as macOS does.
+- Pasting a token that belongs to another configured account now names that account and the command to give it the token.
+- A missing config now points you to `switchboard setup` instead of printing an example config.
+- Removing an account says what happens to its pool's primary, or that the pool has no accounts left, and notes that sessions may have started on another account's token.
+- `pool add` before the router has made pools gives clearer steps to start the router and retry.
+- Giving a pool's label to a pool command says to use its id.
+- The dashboard's project SESSIONS page shows how many sessions are out of view.
+- Dashboard key-line arrows can be clicked.
+- `status --session` no longer fills the log with a repeated warning when the config can't be loaded.
+
+🐛 Fixed
+- Lines appended to a day's history file by one router while another is draining are no longer lost during rewrites or compression.
+- History rounds are held while the move onto account ids runs, so a day is no longer summarised half-renamed.
+- Upstream addresses with credentials, queries or fragments are hidden in error messages and logs.
+- The year view's BY MONTH marks the first of the 12 months as starting part-way through it where it does.
+- A day asked for in history is priced as one day, not as a whole week or month, where periods begin on the same day.
+- `history --json` no longer drops the files' lines and bytes except for a pool of several, and leaves out summary internals.
+
 ## [0.9.3] - 2026-11-17
 
 🔧 Changed
