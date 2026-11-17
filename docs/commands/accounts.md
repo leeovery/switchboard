@@ -139,10 +139,12 @@ marks no primary, the first account counts as one, and `--primary` on it marks i
 `--primary=false` is refused: give `--primary` to another account instead.
 
 Sessions already running keep the token they started on until they restart. That's the token of the
-former primary, or for a pinned session, of its pinned account. So artifacts and uploads from those
-sessions still go out on that account, and `edit` says so. Sessions started direct, while the
-router was down, aren't touched. If the new primary has no usable token,
-`edit` warns on stderr, because new sessions then start on another account's token.
+former primary, or for a pinned session, of its pinned account. A session that started while the
+router held that account back took the next account's token instead. Artifacts and uploads from
+those sessions still go out on the account whose token they hold, and `edit` says so.
+
+Sessions started direct, while the router was down, aren't touched. If the new primary has no
+usable token, `edit` warns on stderr, because new sessions then start on another account's token.
 
 Sign your browser into the first pool's primary, because artifacts open in a browser signed into
 it.

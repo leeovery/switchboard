@@ -63,8 +63,8 @@ func (d Document) weekAhead(id string, w quota.Window, policy score.Policy) (for
 // empty, with its next reset; its room ending at its floor, as floor has it;
 // its size by its plan, as the price table's Sizes has every account's; the
 // router's fast rate of its week; and its taking requests, new sessions and
-// the use it holds alike, while its token is usable and it isn't turned away
-// as the document was built, as turnedAway says, held so for the whole play.
+// the use it holds alike, while it takes them as the document was built, as
+// Takes says, held so for the whole play.
 // The pool's use goes to the pool's pin's accounts while one holds, at the
 // Demand's day rate, held on each account as its hold curve has it.
 func (d Document) forecastPool(policy score.Policy) (forecast.Pool, bool) {
@@ -82,7 +82,7 @@ func (d Document) forecastPool(policy score.Policy) (forecast.Pool, bool) {
 		week, _ := a.WindowAt(policy.Perishable, at, policy)
 		accounts[i] = forecast.Account{
 			ID: a.ID, Week: week, Reserve: a.Reserve, Floor: d.floor(a), Size: float64(sizes[i]),
-			Fast: a.fast(policy.Perishable), Takes: a.TokenSet && !a.turnedAway(at),
+			Fast: a.fast(policy.Perishable), Takes: a.Takes(at),
 		}
 	}
 	return forecast.Pool{

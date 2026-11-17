@@ -274,7 +274,7 @@ func (s *secret) recall(saved savedTokens, now time.Time) bool {
 	case replaced:
 		s.former = append(s.former, formerToken{SHA256: saved.SHA256, ReplacedAt: now.UTC()})
 	}
-	if saved.Foreign == s.held {
+	if sameToken(saved.Foreign, s.held) {
 		s.foreign = saved.Foreign
 	}
 	return replaced

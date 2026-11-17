@@ -556,7 +556,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if err != nil {
 		if !taken.tokenGone {
 			u.probed, u.ended = at, at
-			u.failed(redact.Text(err.Error()), refusalOf(err), at)
+			u.failed(redact.Text(err.Error()), quota.RefusalOf(err), at)
 			u.misses = min(u.misses+1, backingOff)
 			s.routine()
 		}

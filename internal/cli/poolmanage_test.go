@@ -325,9 +325,10 @@ func TestAccountsEditSaysWhatMovingAnAccountLeftOfItsPool(t *testing.T) {
 		want           string
 	}{
 		{name: "its primary, each with a token", accounts: inAcme, tokens: []string{"side", "work", "spare"},
-			want: now + refused + ": resume them, and they start on work's\n"},
+			want: now + refused + ": resume them, and they start on work's, or the next account's there if the router holds work back\n"},
 		{name: "its primary, the next without one", accounts: inAcme, tokens: []string{"side", "spare"},
-			want: now + refused + ": resume them, and they start on spare's, the first account there with a usable token, as work has none\n"},
+			want: now + refused + ": resume them, and they start on spare's, the first account there with a usable token, as work has none" +
+				", or the next account's there if the router holds spare back\n"},
 		{name: "its primary, none left with one", accounts: inAcme, tokens: []string{"side"},
 			want: now + refused + ", and no account left there has a usable token to resume them on (switchboard accounts token work)\n"},
 		{name: "its primary, without a token, so none started on it", accounts: inAcme, tokens: []string{"work"}, want: now + "\n"},

@@ -3,6 +3,8 @@ package quota_test
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"math"
 	"reflect"
 	"regexp"
@@ -21,6 +23,35 @@ func TestTheRefusalsOfAReadKeepTheirWords(t *testing.T) {
 		if string(refused) != want {
 			t.Errorf("a refusal is given as %q, want %q, as the reference fixes it", refused, want)
 		}
+	}
+}
+
+// refusedProbe is a probe's failure that says the API refused the read.
+type refusedProbe struct{ refused quota.ReadRefusal }
+
+func (e refusedProbe) Error() string                  { return "HTTP 403" }
+func (e refusedProbe) RefusedRead() quota.ReadRefusal { return e.refused }
+
+// A failure says why the API refused the read by its RefusedRead, wrapped or
+// not; one that has none says nothing of a refusal, whatever its text.
+func TestRefusalOf(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want quota.ReadRefusal
+	}{
+		{name: "a probe's failure", err: refusedProbe{quota.SubscriptionEnded}, want: quota.SubscriptionEnded},
+		{name: "wrapped", err: fmt.Errorf("probe work: %w", refusedProbe{quota.TokenRefused}), want: quota.TokenRefused},
+		{name: "a probe's failure the API didn't refuse", err: refusedProbe{}},
+		{name: "another error, its text a refusal's", err: errors.New("HTTP 401 · invalid x-api-key")},
+		{name: "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := quota.RefusalOf(tt.err); got != tt.want {
+				t.Errorf("RefusalOf(%v) = %q, want %q", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 

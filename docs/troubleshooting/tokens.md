@@ -66,7 +66,8 @@ signed in to the wrong account.
 
 The router sends nothing on that account. Its sessions go to the other accounts, and what Claude
 Code sends to other paths passes through as before. If no other account can take a request, Claude
-Code gets a 503 saying the same.
+Code gets a 503 saying the same. New sessions don't start on that token, even if the account is the
+primary.
 
 | If the token was meant | Then |
 |---|---|

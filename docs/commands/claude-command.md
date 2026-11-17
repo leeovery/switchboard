@@ -46,11 +46,12 @@ Claude Code starts with `ANTHROPIC_BASE_URL` pointing at the router, and the rou
 account for each conversation request. Claude Code holds the
 [primary](../glossary.md)'s token, or if that isn't usable, the first usable one.
 
-Claude Code skips an account the router won't send on, and takes the next usable one. So artifacts
-and uploads still go through. The router won't send on these accounts:
+Claude Code skips an account the router won't send on, and takes the next usable one, trying the
+primary the router started with first. So artifacts and uploads still go through. The router won't
+send on these accounts:
 
-- an account whose subscription has ended or whose token Anthropic refused, until a read of it
-  comes back clean;
+- an account whose subscription has ended, until a read of it comes back clean;
+- an account whose token Anthropic refused, or whose token belongs to another subscription;
 - an account added since the router started, until the router restarts.
 
 If every account is skipped, Claude Code holds the primary's token as before.
@@ -89,6 +90,8 @@ switchboard: the router isn't running — connecting directly on b6s7 · Work
 
 - **The token** is `--account`'s, or else the primary's, or else the first usable one. It skips
   an account the router held back when it stopped, unless you named that account with `--account`.
+  That's an account whose last read Anthropic refused, or whose token belongs to another
+  subscription.
 - **A direct session isn't routed or recorded,** and it can spend the reserve you keep on the primary.
 - **`SWITCHBOARD_WHEN_ROUTER_DOWN=stop`** stops one launch, whatever the config says. Any other
   value stops it too, and says so.

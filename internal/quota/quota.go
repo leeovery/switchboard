@@ -6,6 +6,7 @@ package quota
 
 import (
 	"cmp"
+	"errors"
 	"maps"
 	"math"
 	"slices"
@@ -158,6 +159,21 @@ const (
 	// TokenRefused is the API refusing the token.
 	TokenRefused ReadRefusal = "token_refused"
 )
+
+// RefusalOf is why the API refused the read that failed with err, as the
+// failure says it, by a RefusedRead method a provider's probe error has,
+// wrapped or not: none where it doesn't say, as of an error that isn't a
+// probe's.
+func RefusalOf(err error) ReadRefusal {
+	refused, ok := errors.AsType[interface {
+		error
+		RefusedRead() ReadRefusal
+	}](err)
+	if !ok {
+		return ""
+	}
+	return refused.RefusedRead()
+}
 
 // Verdict is what a response to a request says of the account it went out on.
 type Verdict int

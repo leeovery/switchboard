@@ -16,7 +16,6 @@ import (
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/launch"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -195,7 +194,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		return l.RouterUnfound(r, args, err)
 	}
 	r.Router, r.Document = client, client.StatusOf
-	r.Moved, r.Kept, r.Refused = a.poolsMoved(), a.keptPools, a.keptRefusals()
+	r.Moved, r.Kept, r.Held = a.poolsMoved(), a.keptPools, a.keptHolds()
 	return l.Run(ctx, r, args)
 }
 
@@ -304,26 +303,28 @@ func (a *app) poolsMoved() bool {
 	return err == nil && idmove.PoolsMoved(dir)
 }
 
-// keptRefusals returns why the API refused the last read of each account,
-// on the token given, as the router's state file keeps it, as
-// router.KeptRefusals has it, one a file from before kept by its text read
-// as the router the CLI runs reads it, which launch.Route's Refused gives:
-// the file read once, as it's first asked of, none where it can't be, as
-// where the state directory can't be located.
-func (a *app) keptRefusals() func(id string, token tokens.Token) quota.ReadRefusal {
-	kept := sync.OnceValue(func() router.KeptRefusals {
+// keptHolds returns what the router's state file keeps holding each account
+// back from every request, of the token given, as router.KeptHolds has it,
+// for launch.Route's Held: a read refused, or a token another
+// subscription's. The file is read on the first call alone, so a launch with
+// the router running, which never asks, never reads it. A refusal in a file
+// from before, kept by its text alone, is read by Claude's provider, as the
+// router this CLI runs reads it. Where the file can't be read, or the state
+// directory can't be located, nothing is held.
+func (a *app) keptHolds() func(id string, token tokens.Token) router.KeptHold {
+	kept := sync.OnceValue(func() router.KeptHolds {
 		dir, err := config.StateDir(a.Getenv, a.HomeDir)
 		if err != nil {
-			logger.Debug("can't find the state file for the reads it keeps refused", "error", err)
-			return router.KeptRefusals{}
+			logger.Debug("can't find the state file for what holds accounts back", "error", err)
+			return router.KeptHolds{}
 		}
-		refusals, err := router.KeptRefusalsIn(dir, claude.Provider{}.RefusedReadIn)
+		holds, err := router.KeptHoldsIn(dir, claude.Provider{}.RefusedReadIn)
 		if err != nil {
-			logger.Info("can't read the state file for the reads it keeps refused", "error", err)
+			logger.Info("can't read the state file for what holds accounts back", "error", err)
 		}
-		return refusals
+		return holds
 	})
-	return func(id string, token tokens.Token) quota.ReadRefusal {
+	return func(id string, token tokens.Token) router.KeptHold {
 		return kept().Of(id, token)
 	}
 }

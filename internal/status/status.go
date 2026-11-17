@@ -6,7 +6,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
 	"maps"
 	"slices"
 	"sync"
@@ -711,25 +710,9 @@ func pressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes f
 }
 
 // Prober reads an account's usage with its token. Where the API refuses the
-// read, its failure says why, as a readRefusal.
+// read, its failure says why, as quota.RefusalOf reads it.
 type Prober interface {
 	Probe(ctx context.Context, token string) (quota.Probe, error)
-}
-
-// readRefusal is a probe's failure that says why the API refused the read.
-type readRefusal interface {
-	error
-	RefusedRead() quota.ReadRefusal
-}
-
-// refusalOf is why the API refused the read that failed with err, as its
-// failure says it, a readRefusal: none where it doesn't say.
-func refusalOf(err error) quota.ReadRefusal {
-	refused, ok := errors.AsType[readRefusal](err)
-	if !ok {
-		return ""
-	}
-	return refused.RefusedRead()
 }
 
 // Collector builds a status document by probing every account.
@@ -962,7 +945,7 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	probed, err := c.Prober.Probe(ctx, token.Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if err != nil {
-		account.Error, account.RefusedRead = err.Error(), refusalOf(err)
+		account.Error, account.RefusedRead = err.Error(), quota.RefusalOf(err)
 		logger.Warn("probe failed", "account", account.ID, "duration", took, "error", err)
 		return
 	}
@@ -1036,4 +1019,12 @@ func (a Account) tokenRefused(now time.Time) bool {
 // read, as refusedRead says, which holds till a read comes back clean.
 func (a Account) turnedAway(now time.Time) bool {
 	return a.tokenRefused(now) || a.refusedRead() != 0
+}
+
+// Takes reports whether the account can take requests at now, whatever its
+// windows read: the router has a usable token of the account's own for it,
+// as TokenSet says, which one of another subscription's isn't, and it isn't
+// turned away, as turnedAway says.
+func (a Account) Takes(now time.Time) bool {
+	return a.TokenSet && !a.turnedAway(now)
 }

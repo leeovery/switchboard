@@ -573,7 +573,7 @@ func TestARefusalKeptByARouterStartedWithoutItsTokenHoldsOnceItsBack(t *testing.
 // as its text says, and is saved again with why. One from before the hold,
 // keeping no start, holds nothing, as its router held nothing, and neither
 // does a refusal this router doesn't know: the account's next read judges it.
-// A launch with the router down reads the file alike, as KeptRefusals has it.
+// A launch with the router down reads the file alike, as KeptHolds has it.
 func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 	probed, began := start.Add(2*time.Hour), start.Add(time.Hour)
 	tests := []struct {
@@ -640,8 +640,8 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 				Readings: map[string]savedReading{"work": kept},
 			})
 			f := newTestFile(at(start.Add(3*time.Hour)), resolve(workReserved(), testTokens.Read, unrecorded))
-			read, err := KeptRefusalsIn(filepath.Dir(path), f.refusalIn)
-			if got := read.Of("work", mustToken(t, workToken)); err != nil || got != tt.want {
+			read, err := KeptHoldsIn(filepath.Dir(path), f.refusalIn)
+			if got := read.Of("work", mustToken(t, workToken)).RefusedRead; err != nil || got != tt.want {
 				t.Errorf("a launch with the router down reads work's read refused as %q (%v), want %q, as the router loads it", got, err, tt.want)
 			}
 
@@ -692,9 +692,44 @@ func TestALaunchReadsARefusalTheStateFileKeepsOnItsTokenAlone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kept, err := KeptRefusalsIn(tt.dir, saving.refusalIn)
-			if got := kept.Of(tt.id, mustToken(t, tt.token)); err != nil || got != tt.want {
-				t.Errorf("Of(%q) = %q (error %v), want %q", tt.id, got, err, tt.want)
+			kept, err := KeptHoldsIn(tt.dir, saving.refusalIn)
+			if got := kept.Of(tt.id, mustToken(t, tt.token)); err != nil || got != (KeptHold{RefusedRead: tt.want}) {
+				t.Errorf("Of(%q) = %+v (error %v), want its read refused as %q, its token its own", tt.id, got, err, tt.want)
+			}
+		})
+	}
+}
+
+// A launch with the router down reads a token kept as another
+// subscription's as the router, started again, takes it in: of the token the
+// file kept it of alone, as a token replaced since is the account's own till
+// a probe finds otherwise.
+func TestALaunchReadsAForeignTokenTheStateFileKeepsAsTheRouterLoadsIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+		want  bool
+	}{
+		{name: "the token kept", token: sideToken, want: true},
+		{name: "another token since", token: renewedToken},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			putState(t, path, savedState{
+				Version: stateVersion,
+				Tokens:  map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash, Foreign: sideHash}},
+			})
+			as := resolve(testConfigured, tokenstest.Files{"work": workToken, "side": tt.token}.Read, unrecorded)
+			f := newTestFile(at(start), as)
+
+			kept, err := KeptHoldsIn(filepath.Dir(path), f.refusalIn)
+			if got := kept.Of("side", mustToken(t, tt.token)); err != nil || got != (KeptHold{Foreign: tt.want}) {
+				t.Errorf("Of(side) = %+v (error %v), want its token another subscription's: %v", got, err, tt.want)
+			}
+			f.load(path)
+			if side, _ := as.byID("side"); side.hasToken() == tt.want {
+				t.Errorf("the router loads side as having a token of its own: %v, want %v, as a launch reads it", side.hasToken(), !tt.want)
 			}
 		})
 	}
@@ -719,12 +754,12 @@ func TestALaunchLeavesAStateFileItCantReadAsItIs(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			kept, err := KeptRefusalsIn(dir, newTestFile(at(start), testAccounts()).refusalIn)
+			kept, err := KeptHoldsIn(dir, newTestFile(at(start), testAccounts()).refusalIn)
 			if err == nil || !strings.Contains(err.Error(), tt.wantError) || !strings.Contains(err.Error(), path) {
-				t.Errorf("KeptRefusalsIn() error = %v, want one naming %s, saying %q", err, path, tt.wantError)
+				t.Errorf("KeptHoldsIn() error = %v, want one naming %s, saying %q", err, path, tt.wantError)
 			}
-			if got := kept.Of("side", mustToken(t, sideToken)); got != "" {
-				t.Errorf("Of(side) = %q, want none", got)
+			if got := kept.Of("side", mustToken(t, sideToken)); got != (KeptHold{}) {
+				t.Errorf("Of(side) = %+v, want nothing held", got)
 			}
 			if data, err := os.ReadFile(path); err != nil || string(data) != tt.content {
 				t.Errorf("the state file holds %q (%v), want it left as it was", data, err)

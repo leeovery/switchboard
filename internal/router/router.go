@@ -97,25 +97,10 @@ type Provider interface {
 // says which models reported each window. It sends them over transport: the
 // router's own, which its requests go upstream on, with their pings, and
 // which a wake renews for both, as a sleep can leave its connections dead.
-// Where the API refuses the read, its failure says why, as a readRefusal.
+// Where the API refuses the read, its failure says why, as quota.RefusalOf
+// reads it.
 type Prober interface {
 	Probe(ctx context.Context, token string, transport http.RoundTripper) (quota.Probe, error)
-}
-
-// readRefusal is a probe's failure that says why the API refused the read.
-type readRefusal interface {
-	error
-	RefusedRead() quota.ReadRefusal
-}
-
-// refusalOf is why the API refused the read that failed with err, as its
-// failure says it, a readRefusal: none where it doesn't say.
-func refusalOf(err error) quota.ReadRefusal {
-	refused, ok := errors.AsType[readRefusal](err)
-	if !ok {
-		return ""
-	}
-	return refused.RefusedRead()
 }
 
 // Config is what a router is built from.

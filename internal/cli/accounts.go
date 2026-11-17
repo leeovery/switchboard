@@ -594,7 +594,9 @@ func (a *app) editChange(cmd *cobra.Command, flags editFlags) (accounts.Change, 
 // nothing where no account has a usable token. Sessions started directly,
 // while the router was down, are untouched by the move. Where there are
 // pools, it tells of the sessions of the account's pool alone, and of its
-// accounts, as no session starts on another pool's.
+// accounts, as no session starts on another pool's. As the router's word on
+// each account as they started can't be had, it says too that any started
+// while the router held that account back started on the next one's.
 func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
 	before := e.Before
 	if len(before.Pools) > 0 {
@@ -607,11 +609,12 @@ func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (toke
 		return ""
 	}
 	const (
-		running = "sessions running through the router"
-		outside = ", so what they send outside the conversation, such as artifacts and uploads, still goes out "
+		running  = "sessions running through the router"
+		outside  = ", so what they send outside the conversation, such as artifacts and uploads, still goes out "
+		heldBack = "; any started while the router held that account back started on the next one's instead"
 	)
 	if own.ID == e.FormerPrimary {
-		return "\n" + running + " keep " + own.ID + "'s token as Claude Code's own until they restart" + outside + "on " + own.ID
+		return "\n" + running + " keep " + own.ID + "'s token as Claude Code's own until they restart" + outside + "on " + own.ID + heldBack
 	}
 	pinned := otherWithAToken(before.Accounts, own.ID, readToken)
 	switch {
@@ -619,14 +622,14 @@ func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (toke
 		return ""
 	case own.ID == e.Now.ID:
 		return "\n" + e.FormerPrimary + " has no usable token, so " + running + " pinned to another account " +
-			"started on their pinned account's token as Claude Code's own, and keep it until they restart" + outside + "there"
+			"started on their pinned account's token as Claude Code's own, and keep it until they restart" + outside + "there" + heldBack
 	}
 	var orPinned string
 	if pinned {
 		orPinned = ", or, pinned, on their pinned account's token"
 	}
 	return "\n" + e.FormerPrimary + " has no usable token, so " + running + " started on " + own.ID +
-		"'s, the first account with one" + orPinned + ", as Claude Code's own, and keep it until they restart" + outside + "there"
+		"'s, the first account with one" + orPinned + ", as Claude Code's own, and keep it until they restart" + outside + "there" + heldBack
 }
 
 // otherWithAToken reports whether an account of among, but the one with the
@@ -783,8 +786,10 @@ func emptiedSays(left accounts.Left) string {
 // account is now; and, where its token is usable, so sessions may have
 // started on it, that those running on it are refused once it has left, and
 // which account's token they start on resumed, as a launch in the pool
-// would choose it now (launch.Route's OwnAccount). Or that the pool has no
-// accounts now. It's "" where the edit moved it from no pool's primary.
+// would choose it now (launch.Route's OwnAccount), or the next one's, where
+// the router holds that one back then, as the router isn't asked. Or that
+// the pool has no accounts now. It's "" where the edit moved it from no
+// pool's primary.
 func (a *app) leftSays(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
 	if e.Left.Primary == "" {
 		return emptiedSays(e.Left)
@@ -800,10 +805,17 @@ func (a *app) leftSays(e accounts.Edited, readToken func(id string) (tokens.Toke
 	case !ok:
 		return said + ", and no account left there has a usable token to resume them on (switchboard accounts token " + e.Left.Primary + ")"
 	case own.ID == e.Left.Primary:
-		return said + ": resume them, and they start on " + own.ID + "'s"
+		return said + ": resume them, and they start on " + own.ID + "'s" + orNextThere(own.ID)
 	}
 	return said + ": resume them, and they start on " + own.ID + "'s, the first account there with a usable token, as " +
-		e.Left.Primary + " has none"
+		e.Left.Primary + " has none" + orNextThere(own.ID)
+}
+
+// orNextThere follows the account with the given id that sessions start on
+// resumed, as the config and the tokens alone choose it: a launch passes it
+// over where the router holds it back then.
+func orNextThere(id string) string {
+	return ", or the next account's there if the router holds " + id + " back"
 }
 
 // leftConfig is the config of the pool the account an edit moved left, as

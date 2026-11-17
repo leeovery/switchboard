@@ -27,11 +27,12 @@ const (
 )
 
 // naming returns r, its status document naming accounts, in their order, the
-// one whose id is primary the primary, none where it's "".
+// one whose id is primary the primary, none where it's "", each with a usable
+// token of its own and nothing holding it back.
 func (r *fakeRouter) naming(primary string, accounts ...config.Account) *fakeRouter {
 	r.doc = status.Document{Primary: primary}
 	for _, a := range accounts {
-		r.doc.Accounts = append(r.doc.Accounts, status.Account{ID: a.ID, Label: a.Label, Primary: a.ID == primary})
+		r.doc.Accounts = append(r.doc.Accounts, status.Account{ID: a.ID, Label: a.Label, Primary: a.ID == primary, TokenSet: true})
 	}
 	return r
 }

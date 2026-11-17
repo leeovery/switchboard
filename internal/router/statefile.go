@@ -257,50 +257,64 @@ func (r savedReading) refusal(readIn func(text string) quota.ReadRefusal) quota.
 	return ""
 }
 
-// KeptRefusals is what the router's state file keeps of the accounts' reads
-// refused: why the API refused each one's last read, and the hash of the
-// token the account held, which a router started again holds the account
-// back by while it holds that token, as recall takes them in. A launch with
-// the router down passes over an account so held, as Of has it. The zero
-// KeptRefusals keeps none.
-type KeptRefusals struct {
+// KeptHolds is what the router's state file keeps of what holds each account
+// back from every request, which a router started again holds it back by
+// while the account holds the token it was found of, as recall takes them
+// in: why the API refused its last read, and the hash of the token it held
+// then; and the hash of a token a probe found another subscription's. A
+// launch with the router down passes over an account so held, as Of has it.
+// The zero KeptHolds keeps none.
+type KeptHolds struct {
 	readings map[string]savedReading
 	tokens   map[string]savedTokens
 }
 
-// KeptRefusalsIn reads what the state file in stateDir keeps of the
-// accounts' reads refused, as KeptRefusals has it, each as the router reads
-// it as it loads the file, readIn reading one a file from before kept by its
+// KeptHold is what holds an account back from every request, as the state
+// file keeps it of the token the account holds: why the API refused its
+// last read, none where it didn't; and whether the token is another
+// subscription's. The zero KeptHold holds nothing.
+type KeptHold struct {
+	RefusedRead quota.ReadRefusal
+	Foreign     bool
+}
+
+// KeptHoldsIn reads what the state file in stateDir keeps of what holds each
+// account back, as KeptHolds has it, a read refused as the router reads it
+// as it loads the file, readIn reading one a file from before kept by its
 // text alone, as the provider's RefusedReadIn does; and leaves the file as it
 // is: none where there's no file. It fails where the file can't be read, or
 // isn't one this router reads, as when it's corrupt, which the router sets
 // aside as it starts.
-func KeptRefusalsIn(stateDir string, readIn func(text string) quota.ReadRefusal) (KeptRefusals, error) {
+func KeptHoldsIn(stateDir string, readIn func(text string) quota.ReadRefusal) (KeptHolds, error) {
 	path := filepath.Join(stateDir, stateFileName)
 	data, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return KeptRefusals{}, nil
+		return KeptHolds{}, nil
 	case err != nil:
-		return KeptRefusals{}, err
+		return KeptHolds{}, err
 	}
 	saved, err := parseState(data)
 	if err != nil {
-		return KeptRefusals{}, fmt.Errorf("read the state file %s: %w", path, err)
+		return KeptHolds{}, fmt.Errorf("read the state file %s: %w", path, err)
 	}
 	saved.readRefusals(readIn)
-	return KeptRefusals{readings: saved.Readings, tokens: saved.Tokens}, nil
+	return KeptHolds{readings: saved.Readings, tokens: saved.Tokens}, nil
 }
 
-// Of is why the API refused the last read of the account with the given id,
-// which a router started again, the account's file holding token, would hold
-// it back by: as the file keeps it, where it keeps it of token; none where it
-// keeps it of another, as the router starts afresh on a token replaced since.
-func (k KeptRefusals) Of(id string, token tokens.Token) quota.ReadRefusal {
-	if !sameToken(k.tokens[id].SHA256, hash(token.Reveal())) {
-		return ""
+// Of is what holds the account with the given id back, which a router
+// started again, the account's file holding token, would hold it back by: a
+// read refused, or the token another subscription's, each as the file keeps
+// it, where it keeps it of token; nothing it keeps of another, as the router
+// starts afresh on a token replaced since.
+func (k KeptHolds) Of(id string, token tokens.Token) KeptHold {
+	held, kept := hash(token.Reveal()), k.tokens[id]
+	var hold KeptHold
+	if sameToken(kept.SHA256, held) {
+		hold.RefusedRead = k.readings[id].RefusedRead
 	}
-	return k.readings[id].RefusedRead
+	hold.Foreign = sameToken(kept.Foreign, held)
+	return hold
 }
 
 // load takes in the state file at path, as the router starts, the pools as

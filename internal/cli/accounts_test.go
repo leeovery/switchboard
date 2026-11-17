@@ -473,8 +473,13 @@ var primaryFromPersonal = keepingTheFormer("personal")
 // with the given id, which has a usable token.
 func keepingTheFormer(former string) string {
 	return "sessions running through the router keep " + former + "'s token as Claude Code's own until they restart, " +
-		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + former + "\n"
+		"so what they send outside the conversation, such as artifacts and uploads, still goes out on " + former + heldThen + "\n"
 }
+
+// heldThen is what accounts edit says, after what the sessions running keep,
+// of those that started while the router held that account back, which
+// started on another's.
+const heldThen = "; any started while the router held that account back started on the next one's instead"
 
 // onTheFirst is what accounts edit says of the sessions running through the
 // router, once it's made another account the primary in place of former,
@@ -487,7 +492,7 @@ func onTheFirst(former, first string, pinned bool) string {
 	}
 	return former + " has no usable token, so sessions running through the router started on " + first +
 		"'s, the first account with one" + orPinned + ", as Claude Code's own, " +
-		"and keep it until they restart, so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
+		"and keep it until they restart, so what they send outside the conversation, such as artifacts and uploads, still goes out there" + heldThen + "\n"
 }
 
 // onTheirPins is what accounts edit says of the sessions running through the
@@ -497,7 +502,7 @@ func onTheFirst(former, first string, pinned bool) string {
 func onTheirPins(former string) string {
 	return former + " has no usable token, so sessions running through the router pinned to another account " +
 		"started on their pinned account's token as Claude Code's own, and keep it until they restart, " +
-		"so what they send outside the conversation, such as artifacts and uploads, still goes out there\n"
+		"so what they send outside the conversation, such as artifacts and uploads, still goes out there" + heldThen + "\n"
 }
 
 func TestAccountsEdit(t *testing.T) {

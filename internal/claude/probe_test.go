@@ -860,24 +860,11 @@ func TestAProbesErrorSaysWhetherTheAPIRefusedItsTokenOrItsLogin(t *testing.T) {
 			if err == nil {
 				t.Fatal("Probe() succeeded, want an error")
 			}
-			if got := refusedRead(err); got != tt.want {
+			if got := quota.RefusalOf(err); got != tt.want {
 				t.Errorf("Probe() error %q says the API refused the read as %q, want %q", err, got, tt.want)
 			}
 		})
 	}
-}
-
-// refusedRead is why a probe's error says the API refused the read: none
-// where it doesn't say.
-func refusedRead(err error) quota.ReadRefusal {
-	r, ok := errors.AsType[interface {
-		error
-		RefusedRead() quota.ReadRefusal
-	}](err)
-	if !ok {
-		return ""
-	}
-	return r.RefusedRead()
 }
 
 // ownReply is a reply of status without a body, with Anthropic's id for it,
