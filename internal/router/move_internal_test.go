@@ -27,19 +27,18 @@ import (
 // answeringMover is a move onto the accounts' ids that answers each run with
 // the next of its answers, nil once they've run out, counting its runs; has
 // the API asked again after wait more than the wait before, noting each wait
-// before it's handed; and settles as settled and unsettled say.
+// before it's handed; and settles failing with unsettled.
 type answeringMover struct {
 	answers   []error
 	runs      int
 	ranAt     []time.Time
 	wait      time.Duration
 	waited    []time.Duration
-	settled   bool
 	unsettled error
 }
 
-func (m *answeringMover) Settle() (bool, error) {
-	return m.settled, m.unsettled
+func (m *answeringMover) Settle() error {
+	return m.unsettled
 }
 
 func (m *answeringMover) RunBeside(context.Context, idmove.History) error {
@@ -191,36 +190,59 @@ func TestNoMoveOwedRunsNothing(t *testing.T) {
 	}
 }
 
-// The router holds the history's rounds from its start on the ids the move
-// renames onto, or on a Settle that can't tell, till the move's done; never
-// on the old ids, nor with no move owed.
-func TestTheHistoryIsHeldFromTheRoutersStartOnTheNewIDsTillTheMoveIsDone(t *testing.T) {
+// The router holds the history's rounds for as long as the move onto the ids
+// is owed: from its start, before settle and the history's writers run,
+// whatever Settle does, through a wait for the router to restart onto the
+// new ids, till that move's done; never while the move to pools after it
+// runs, nor with no move onto the ids owed.
+func TestTheHistoryIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
 	tests := []struct {
 		name  string
-		mover *answeringMover
-		held  bool
+		ids   *answeringMover
+		pools *answeringPoolMover
+		// held is whether the rounds are held as the router starts, and
+		// stays whether they still are once the moves have run.
+		held, stays bool
 	}{
-		{name: "starting on the new ids", mover: &answeringMover{settled: true}, held: true},
-		{name: "starting on the new ids, its files unmoved", mover: &answeringMover{settled: true, unsettled: errors.New("the disk is full")}, held: true},
-		{name: "unable to tell", mover: &answeringMover{unsettled: errors.New("the config can't be read")}, held: true},
-		{name: "starting on the old ids", mover: &answeringMover{}},
+		{name: "the move onto the ids owed", ids: &answeringMover{}, held: true},
+		{name: "its Settle failing", ids: &answeringMover{unsettled: errors.New("the config can't be read")}, held: true},
+		{name: "the move failing, then done", ids: &answeringMover{answers: []error{errors.New("the disk is full")}}, held: true},
+		{name: "on the old ids, waiting to restart onto the new", ids: &answeringMover{answers: []error{idmove.ErrAwaitingRestart}}, held: true, stays: true},
+		{name: "the move to pools owed after it", ids: &answeringMover{}, pools: &answeringPoolMover{}, held: true},
+		{name: "the move to pools owed alone", pools: &answeringPoolMover{}},
 		{name: "no move owed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var mover Mover
-			if tt.mover != nil {
-				mover = tt.mover
-			}
-			m := newMoving(mover, nil)
-			m.settle()
-			if got := m.holds(); got != tt.held {
-				t.Errorf("as the router starts, holds() = %t, want %t", got, tt.held)
-			}
-			m.run(t.Context(), func() idmove.History { return idmove.History{} }, nil)
-			if m.holds() {
-				t.Error("once the move's done, holds() = true, want false")
-			}
+			synctest.Test(t, func(t *testing.T) {
+				var ids Mover
+				var pools PoolMover
+				if tt.ids != nil {
+					ids = tt.ids
+				}
+				if tt.pools != nil {
+					pools = tt.pools
+				}
+				m := newMoving(ids, pools)
+				if got := m.holds(); got != tt.held {
+					t.Errorf("as the router starts, holds() = %t, want %t", got, tt.held)
+				}
+				m.settle()
+				if got := m.holds(); got != tt.held {
+					t.Errorf("once settled, holds() = %t, want %t", got, tt.held)
+				}
+				heldInPools := false
+				m.run(t.Context(), func() idmove.History { return idmove.History{} }, func() bool {
+					heldInPools = heldInPools || m.holds()
+					return true
+				})
+				if heldInPools {
+					t.Error("while the move to pools ran, holds() = true, want false")
+				}
+				if got := m.holds(); got != tt.stays {
+					t.Errorf("once the moves have run, holds() = %t, want %t", got, tt.stays)
+				}
+			})
 		})
 	}
 }
@@ -233,7 +255,7 @@ func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *t
 	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 	cfg.StateDir = t.TempDir()
 	cfg.Ledger.Keep, cfg.History.Keep = 24*time.Hour, 24*time.Hour
-	cfg.Move = &answeringMover{settled: true}
+	cfg.Move = &answeringMover{}
 	day, old := dayfile.DateOf(start.AddDate(0, 0, -1)), dayfile.DateOf(start.AddDate(0, 0, -30))
 	line, err := json.Marshal(ledger.Line{At: start.AddDate(0, 0, -1).UTC(), Request: "r1", Kind: ledger.KindMessage, Session: "one", Model: opus,
 		Account: "work", Reason: "sticky", Status: 200, Attempts: 1})
@@ -244,7 +266,6 @@ func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *t
 	writeFile(t, filepath.Join(dir, "requests-"+day+".jsonl"), string(line)+"\n")
 	writeFile(t, filepath.Join(history, "readings-"+old+".jsonl"), "\n")
 	r := newTestRouterOf(t, cfg)
-	r.moving.settle()
 	r.openHistory()
 	r.openLedger(dir)
 	ctx, cancel := context.WithCancel(t.Context())

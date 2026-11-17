@@ -68,7 +68,7 @@ func (f fixture) lives(t *testing.T, stop func(step string) error) {
 		m := f.mover(answering())
 		m.Routing = f.configuredIDs(t)
 		m.StopAfter(stop)
-		if _, err := m.Settle(); err != nil {
+		if err := m.Settle(); err != nil {
 			t.Fatalf("Settle() = %v", err)
 		}
 		if stop(fmt.Sprintf("settled in life %d", life)) != nil {

@@ -299,28 +299,25 @@ func (m *Mover) stopped(name string) error {
 // two days, which it takes the recent rates up from, each account under the
 // id the accounts record has for the one it had, once the config no longer
 // configures that one. Nothing else runs on them then, so nothing's held. It
-// reports whether there are such ids, as of a router starting on the ids the
-// move renames onto, the history then named by both till the move's done,
-// whether or not it could move those files; and does nothing once the move
-// is done.
-func (m *Mover) Settle() (bool, error) {
+// does nothing once the move is done.
+func (m *Mover) Settle() error {
 	if Moved(m.StateDir) {
-		return false, nil
+		return nil
 	}
 	rename, err := m.renames()
 	if err != nil || rename.none() {
-		return false, err
+		return err
 	}
 	if err := m.renameState(rename); err != nil {
-		return true, err
+		return err
 	}
 	files := readings.Files(readings.Dir(m.StateDir), logger)
 	for _, date := range files.Newest(m.now(), 2) {
 		if _, err := files.Rewrite(date, rewritingLines(readingNames, ledger.Renaming{Account: rename.of})); err != nil {
-			return true, err
+			return err
 		}
 	}
-	return true, nil
+	return nil
 }
 
 // standing reads the config's accounts, as the config file stands, and the

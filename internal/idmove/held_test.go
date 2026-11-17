@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
@@ -23,11 +24,11 @@ import (
 
 // heldLives runs the move of the fixture's install as lives does, each
 // router holding its request ledger's rounds as the router does: from its
-// start on the ids the move renames onto, as Settle reports it, or on a
-// Settle that fails, till the move's done. during is told of each step as
-// lives' stop is, and of "starting life n" just before the nth router
-// settles, given what makes a round of that router's ledger, nil before it
-// has one; where it fails, that router stops there.
+// start till the move's done, whatever ids it starts on, and whether or not
+// it could settle the move. during is told of each step as lives' stop is,
+// and of "starting life n" just before the nth router settles, given what
+// makes a round of that router's ledger, nil before it has one; where it
+// fails, that router stops there.
 func (f fixture) heldLives(t *testing.T, during func(step string, round func()) error) {
 	t.Helper()
 	for life := 1; !idmove.Moved(f.state); life++ {
@@ -39,8 +40,10 @@ func (f fixture) heldLives(t *testing.T, during func(step string, round func()) 
 		if during(fmt.Sprintf("starting life %d", life), nil) != nil {
 			continue
 		}
-		settled, unsettled := m.Settle()
-		h := f.historyOf(ledger.Holding(func() bool { return (settled || unsettled != nil) && !idmove.Moved(f.state) }))
+		if err := m.Settle(); err != nil {
+			t.Logf("Settle() = %v, the router starting all the same", err)
+		}
+		h := f.historyOf(ledger.Holding(func() bool { return !idmove.Moved(f.state) }))
 		f.live(t, m, h, life, during)
 	}
 }
@@ -108,9 +111,11 @@ func (b *betweenLinesAndSummary) during(step string, _ func()) error {
 }
 
 // lateLine files a line under work's new id on yesterday, as a request that
-// arrived before midnight and ended once the router started on the new ids
-// is filed, as the first router on them has settled, so yesterday's summary
-// no longer stands; and, where round is set, has that router make a round.
+// arrived before midnight and ended once the router could route on that id
+// is filed: as the first router started on the new ids has settled, or, on
+// a Mac whose config another Mac moved, once the move has given work's
+// token file its new id. So yesterday's summary no longer stands; and,
+// where round is set, that router makes a round.
 type lateLine struct {
 	t     *testing.T
 	f     fixture
@@ -119,7 +124,11 @@ type lateLine struct {
 }
 
 func (l *lateLine) during(step string, round func()) error {
-	if l.filed || !strings.HasPrefix(step, "settled in life") || !slices.Contains(l.f.configuredIDs(l.t), workID) {
+	routable := strings.HasPrefix(step, "settled in life") || step == "give"
+	if l.filed || !routable || !slices.Contains(l.f.configuredIDs(l.t), workID) {
+		return nil
+	}
+	if _, err := l.f.tokens.Read(workID); err != nil {
 		return nil
 	}
 	file, err := os.OpenFile(filepath.Join(ledger.Dir(l.f.state), "requests-"+yesterday+".jsonl"), os.O_WRONLY|os.O_APPEND, 0o600)
@@ -137,18 +146,61 @@ func (l *lateLine) during(step string, round func()) error {
 	return nil
 }
 
-// acrossMidnight has work's 5-hour window read late on the day before
-// yesterday and again in yesterday's first hour, before it resets, at the
-// uses given, rejected at a use of 1, and the summaries of both days made
-// again: yesterday's rise is from the use it began the day at, and a window
-// rejected as the day began reaches no limit in it.
-func acrossMidnight(late, early float64) func(t *testing.T, f fixture) {
+// midMove has the router make a round once the move has told of step, as
+// the hour's round comes while it runs.
+type midMove struct {
+	step    string
+	rounded bool
+}
+
+func (m *midMove) during(step string, round func()) error {
+	if !m.rounded && step == m.step && round != nil {
+		round()
+		m.rounded = true
+	}
+	return nil
+}
+
+// sideID is an account the history alone names, by an id switchboard
+// doesn't make, unknown to the accounts record.
+const sideID = "side-1"
+
+// historyAlone lays the fixture's install out as one whose move onto the ids
+// is owed though no configured id changes: its accounts configured,
+// recorded and named in its history by the ids switchboard makes, as
+// they're set up so, and the history naming an account it alone names,
+// sideID, on yesterday, its window read across midnight as acrossMidnight
+// reads it.
+func historyAlone(t *testing.T, f fixture) {
+	t.Helper()
+	f.moved(t, answering())
+	if err := os.Remove(filepath.Join(f.state, "accounts.moved")); err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewFile(f.state).Update(func(r *identity.Record) error {
+		for i := range r.Accounts {
+			r.Accounts[i].Was = ""
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	appendDay(t, f.requestLines(), yesterday, line(yesterday, "r9", sideID, status.ReasonNew, "", nil))
+	acrossMidnight(sideID, 0.2, 0.4)(t, f)
+}
+
+// acrossMidnight has the account's 5-hour window read late on the day
+// before yesterday and again in yesterday's first hour, before it resets,
+// at the uses given, rejected at a use of 1, and the summaries of both days
+// made again: yesterday's rise is from the use it began the day at, and a
+// window rejected as the day began reaches no limit in it.
+func acrossMidnight(account string, late, early float64) func(t *testing.T, f fixture) {
 	return func(t *testing.T, f fixture) {
 		t.Helper()
 		const dayBefore = "2026-11-06"
 		resets := time.Date(2026, 11, 7, 2, 0, 0, 0, time.Local)
 		read := func(at time.Time, use float64) string {
-			r := readings.Reading{At: at, Account: work, Key: "five_hour", Utilization: use, ResetsAt: resets, Status: quota.StatusAllowed,
+			r := readings.Reading{At: at, Account: account, Key: "five_hour", Utilization: use, ResetsAt: resets, Status: quota.StatusAllowed,
 				Source: readings.FromAnswer}
 			if use >= 1 {
 				r.Status = quota.StatusRejected
@@ -157,8 +209,8 @@ func acrossMidnight(late, early float64) func(t *testing.T, f fixture) {
 		}
 		files := readingsFiles(f.state)
 		putDay(t, files, dayBefore, false, read(time.Date(2026, 11, 6, 23, 30, 0, 0, time.Local), late))
-		putDay(t, files, yesterday, false, read(time.Date(2026, 11, 7, 0, 30, 0, 0, time.Local), early), reading(yesterday, work, 0.5),
-			reading(yesterday, personal, 0.3))
+		kept := strings.TrimSuffix(readFile(t, filepath.Join(files.Dir, files.Prefix+"-"+yesterday+".jsonl")), "\n")
+		putDay(t, files, yesterday, false, read(time.Date(2026, 11, 7, 0, 30, 0, 0, time.Local), early), kept)
 		for _, date := range []string{dayBefore, yesterday} {
 			if err := os.Remove(ledger.SummaryFile(ledger.Dir(f.state), date)); err != nil && !errors.Is(err, os.ErrNotExist) {
 				t.Fatal(err)
@@ -166,6 +218,15 @@ func acrossMidnight(late, early float64) func(t *testing.T, f fixture) {
 		}
 		f.historyOf().Ledger.SummariseEnded(now)
 	}
+}
+
+// midMoveDuring files lateLine's line quietly, then has the router make a
+// round once the move has renamed the readings and the request ledger's
+// days before yesterday, before yesterday's: the moment as heldLives's
+// during, and whether the move came to it.
+func midMoveDuring(t *testing.T, f fixture) (func(string, func()) error, func() bool) {
+	l, m := &lateLine{t: t, f: f}, &midMove{step: ledgerDay(longAgo)}
+	return together(l.during, m.during), func() bool { return l.filed && m.rounded }
 }
 
 // together makes each of the moments durings make, in turn, at each step.
@@ -180,14 +241,15 @@ func together(durings ...func(step string, round func()) error) func(step string
 	}
 }
 
-// A router holds its rounds from its start on the new ids till the move's
-// done, so no round summarises a day the move has renamed only in part: at
-// each of the moves's hard moments, each day's every request, rise and limit
-// is counted once, under its account's new id.
+// A router holds its rounds from its start till the move's done, whatever
+// ids it starts on, so no round summarises a day the move has renamed only
+// in part: at each of the move's hard moments, each day's every request,
+// rise and limit is counted once, under its account's new id.
 func TestARouterHoldingItsRoundsThroughTheMoveCountsEachDayOnce(t *testing.T) {
 	// Each moment files lateLine's line, so yesterday's summary no longer
 	// stands, and a round would summarise the day again: the next router's
-	// first, of a move stopped, else one as the line's filed.
+	// first, of a move stopped, else one as the line's filed, or one as the
+	// move runs.
 	tests := []struct {
 		name string
 		// lay lays out more of the fixture's history before the move.
@@ -224,7 +286,7 @@ func TestARouterHoldingItsRoundsThroughTheMoveCountsEachDayOnce(t *testing.T) {
 		},
 		{
 			name: "yesterday summarised again as the move runs, its window read across midnight",
-			lay:  acrossMidnight(0.2, 0.4),
+			lay:  acrossMidnight(work, 0.2, 0.4),
 			during: func(t *testing.T, f fixture) (func(string, func()) error, func() bool) {
 				l := &lateLine{t: t, f: f, round: true}
 				return l.during, func() bool { return l.filed }
@@ -232,11 +294,24 @@ func TestARouterHoldingItsRoundsThroughTheMoveCountsEachDayOnce(t *testing.T) {
 		},
 		{
 			name: "yesterday summarised again so, its window rejected across midnight",
-			lay:  acrossMidnight(1, 1),
+			lay:  acrossMidnight(work, 1, 1),
 			during: func(t *testing.T, f fixture) (func(string, func()) error, func() bool) {
 				l := &lateLine{t: t, f: f, round: true}
 				return l.during, func() bool { return l.filed }
 			},
+		},
+		{
+			name: "on a Mac joining the config another Mac moved, a round made as the move runs",
+			lay: func(t *testing.T, f fixture) {
+				writeFile(t, f.config, movedConfig)
+				acrossMidnight(work, 0.2, 0.4)(t, f)
+			},
+			during: midMoveDuring,
+		},
+		{
+			name:   "no configured id changing, an account the history alone names renamed, a round made as the move runs",
+			lay:    historyAlone,
+			during: midMoveDuring,
 		},
 	}
 	for _, tt := range tests {
