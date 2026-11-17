@@ -184,19 +184,24 @@ func (d *Draft) SetPoolLabel(id, given string) error {
 // Directories written as it writes them already, cleaned, as of a / at
 // their end, change nothing; the same directories in another form, as from
 // ~/ where it writes them whole, are written, so a fence can be made to
-// travel. It fails, matching ErrNotConfigured, when no pool has the
-// id, and, as the config it would make does, for a directory a pool can't
-// have, one that overlaps another, or a second pool unfenced.
+// travel, but where it writes them across lines, which can't be changed in
+// place, they change nothing too, the same directories as placed finds them.
+// It fails, matching ErrNotConfigured, when no pool has the id, and, as the
+// config it would make does, for a directory a pool can't have, one that
+// overlaps another, or a second pool unfenced.
 func (d *Draft) SetPoolDirs(id string, dirs []string) error {
 	i := d.poolIndex(id)
 	if i < 0 {
 		return PoolNotConfigured(id)
 	}
-	dirs = dirsGiven(dirs)
-	if slices.Equal(cleaned(dirs), cleaned(d.file.Pools[i].Dirs)) {
+	dirs, was := dirsGiven(dirs), d.file.Pools[i].Dirs
+	if slices.Equal(cleaned(dirs), cleaned(was)) {
 		return nil
 	}
 	if d.dirsSpanLines(i) {
+		if slices.Equal(d.placed(dirs), d.placed(was)) {
+			return nil
+		}
 		return fmt.Errorf("%s writes its dirs across lines, which editing %s as text can't change: set them by hand", poolNamed(d.file.Pools[i].ID), d.path)
 	}
 	return d.setPoolKey(i, "dirs", writtenDirs(dirs), func(p *filePool) { p.Dirs = dirs })
@@ -227,6 +232,21 @@ func cleaned(dirs []string) []string {
 		clean[i] = filepath.Clean(dir)
 	}
 	return clean
+}
+
+// placed returns dirs as the config finds them, each as expandIn finds it,
+// one starting ~/ in the home directory the draft's homeDir returns, left as
+// it is where that can't be found.
+func (d *Draft) placed(dirs []string) []string {
+	home, err := findHome(d.homeDir)
+	found := make([]string, len(dirs))
+	for i, dir := range dirs {
+		found[i] = dir
+		if err == nil || !strings.HasPrefix(dir, homePrefix) {
+			found[i] = expandIn(home, dir)
+		}
+	}
+	return found
 }
 
 // dirsSpanLines reports whether the [[pool]] table of the pool at i writes

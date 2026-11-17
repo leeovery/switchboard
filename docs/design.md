@@ -628,7 +628,9 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
   and the router's heal writes them back as the config last wrote them. Directories given as a
   pool writes them already, a `/` at the end aside, change nothing; given in another form, as
   from `~/` where the pool writes them whole, they're written, so an old fence can be made to
-  travel.
+  travel, and `pool edit` says they're rewritten alone, as they hold the same; but where the
+  pool writes them across lines, which can't be changed in place, the same directories change
+  nothing, and the rest of the edit is made.
 - **At most one pool is unfenced,** having no directories: two would leave a session outside every
   fence with two pools to be in. So any start directory belongs to exactly one fenced pool, else to
   the unfenced pool, else, where every pool is fenced, to none, and a session there doesn't start.

@@ -244,11 +244,17 @@ func fenceSaid(p config.Pool) string {
 	if !p.Fenced() {
 		return "unfenced"
 	}
+	return "fenced to " + dirsListed(p)
+}
+
+// dirsListed lists p's directories as the config writes them:
+// "~/Code/acme and /Volumes/Acme".
+func dirsListed(p config.Pool) string {
 	dirs := make([]string, len(p.WrittenDirs))
 	for i, d := range p.WrittenDirs {
 		dirs[i] = prose.Clean(d)
 	}
-	return "fenced to " + prose.List(dirs)
+	return prose.List(dirs)
 }
 
 // poolEditFlags are pool edit's flags, of which it's given one or more.
@@ -341,7 +347,9 @@ func poolChangeOf(given func(name string) bool, label string, dirs []string, unf
 // now, then as it was, and where it fenced it anew, that the sessions
 // running in its directories keep their pool, as runningKeepTheirPool
 // says, and what its fence changed for the sessions outside every fence, as
-// outsideSaid has it; or that it changed nothing.
+// outsideSaid has it; where it wrote its directories in another form alone,
+// as from ~/, that they're rewritten, as they hold the same; or that it
+// changed nothing.
 func poolEditedSays(e accounts.EditedPool) string {
 	if !e.Changed() {
 		return "pool " + e.Now.ID + " has every value given already, so nothing changed"
@@ -351,7 +359,11 @@ func poolEditedSays(e accounts.EditedPool) string {
 		changed = append(changed, nowAndWas("label", prose.Quoted(prose.Clean(e.Now.Label)), prose.Quoted(prose.Clean(e.Was.Label))))
 	}
 	var running string
-	if !slices.Equal(e.Was.WrittenDirs, e.Now.WrittenDirs) {
+	switch {
+	case slices.Equal(e.Was.WrittenDirs, e.Now.WrittenDirs):
+	case slices.Equal(e.Was.Dirs, e.Now.Dirs):
+		changed = append(changed, "directories rewritten as "+dirsListed(e.Now)+" (was "+dirsListed(e.Was)+"), the same directories")
+	default:
 		changed = append(changed, fenceSaid(e.Now)+" (was "+fenceSaid(e.Was)+")")
 		if e.Now.Fenced() {
 			running = "; " + runningKeepTheirPool

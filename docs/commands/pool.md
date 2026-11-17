@@ -98,8 +98,10 @@ nothing.
   `accounts add`. With one pool, every command reads it without `--pool`.
 - **`--dirs` replaces every folder.** To add a folder, give the old ones again beside it.
 - **A folder written as a full path** in your home is written from `~/` if you give it again with
-  `--dirs`. Older versions of `add` wrote full paths, which match on no Mac with another home.
+  `--dirs`, and `edit` says it's rewritten. Older versions of `add` wrote full paths, which match
+  on no Mac with another home.
 - **Folders the config writes across several lines** can't be changed in place. Edit them by hand.
+  Given again as they are, they change nothing, and the rest of the edit goes ahead.
 
 ## `remove`: take a pool away
 

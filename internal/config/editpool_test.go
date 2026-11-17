@@ -185,10 +185,12 @@ label = "Default"
 			want: pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["~/Archive/client"]`),
 		},
 		{
-			name:   "fencing a pool whose directories are written across lines to them as written, a / at the end, leaving it as it is",
+			name:   "fencing a pool whose directories are written across lines to them, as a verb gives them from ~/, leaving it as it is",
 			config: pooledWith(t, `dirs = ["/Volumes/Client"]`, "dirs = [\n  \"/Users/test/Archive/client\",\n]"),
-			edit:   func(d *config.Draft) error { return d.SetPoolDirs("h4w2", []string{"/Users/test/Archive/client/"}) },
-			want:   pooledWith(t, `dirs = ["/Volumes/Client"]`, "dirs = [\n  \"/Users/test/Archive/client\",\n]"),
+			edit: func(d *config.Draft) error {
+				return d.SetPoolDirs("h4w2", d.FromHome([]string{"/Users/test/Archive/client/"}))
+			},
+			want: pooledWith(t, `dirs = ["/Volumes/Client"]`, "dirs = [\n  \"/Users/test/Archive/client\",\n]"),
 		},
 		{
 			name:   "fencing a pool to the directory it's fenced to, given whole as a verb gives it, leaving it as it is",

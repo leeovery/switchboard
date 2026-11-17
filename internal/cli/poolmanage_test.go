@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -164,6 +165,67 @@ func TestPoolAddAndEditWriteADirectoryInTheHomeFromIt(t *testing.T) {
 	}
 	if p, _ := inHome().Pools.ByID("q7mt"); !slices.Equal(p.WrittenDirs, []string{"~/Code/acme"}) {
 		t.Errorf("the config writes q7mt's dirs as %q, want ~/Code/acme", p.WrittenDirs)
+	}
+}
+
+// pool edit --dirs given a fence's own directories, whole, as a shell gives
+// them, writes them from ~/ where the config writes them whole on one line,
+// saying they're rewritten alone, as they hold the same; and where it writes
+// them across lines, which it can't change in place, leaves them, the rest of
+// the edit made, refusing only directories that differ.
+func TestPoolEditGivenAFencesOwnDirectoriesWrittenWhole(t *testing.T) {
+	tests := []struct {
+		name string
+		// written is how the config writes Acme's dirs, %s the home.
+		written string
+		args    []string
+		said    string
+		// refused is what's said where the edit is refused.
+		refused string
+		// dirs is how the config writes Acme's dirs after, %s the home.
+		dirs string
+	}{
+		{
+			name: "written on one line", written: `dirs = ["%s/Code/acme"]`, args: []string{"--dirs", "%s/Code/acme"},
+			said: "edited pool q7mt: directories rewritten as ~/Code/acme (was %s/Code/acme), the same directories", dirs: `dirs = ["~/Code/acme"]`,
+		},
+		{
+			name: "written across lines, with a label", written: "dirs = [\n  \"%s/Code/acme\",\n]", args: []string{"--dirs", "%s/Code/acme", "--label", "Client"},
+			said: `edited pool q7mt: label "Client" (was "Acme")`, dirs: "dirs = [\n  \"%s/Code/acme\",\n]",
+		},
+		{
+			name: "written across lines, given others", written: "dirs = [\n  \"%s/Code/acme\",\n]", args: []string{"--dirs", "%s/Code/client", "--label", "Client"},
+			refused: `pool "q7mt" writes its dirs across lines`, dirs: "dirs = [\n  \"%s/Code/acme\",\n]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, path := accountsDeps(t, "http://127.0.0.1:1", unfencedBesideFenced)
+			home, err := deps.HomeDir()
+			if err != nil {
+				t.Fatal(err)
+			}
+			in := func(s string) string { return strings.ReplaceAll(s, "%s", home) }
+			config := strings.Replace(readFile(t, path), `dirs  = ["/work/acme"]`, in(tt.written), 1)
+			if err := os.WriteFile(path, []byte(config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			args := make([]string, len(tt.args))
+			for i, a := range tt.args {
+				args[i] = in(a)
+			}
+
+			got := run(t, deps, append([]string{"pool", "edit", "q7mt"}, args...)...)
+			switch {
+			case tt.refused != "" && (got.code == 0 || !strings.Contains(got.stderr, tt.refused)):
+				t.Errorf("switchboard pool edit q7mt %s = %+v, want it refused, saying %q", strings.Join(args, " "), got, tt.refused)
+			case tt.refused == "" && got != (result{stdout: in(tt.said) + "\n"}):
+				t.Errorf("switchboard pool edit q7mt %s = %+v, want it to say %q", strings.Join(args, " "), got, in(tt.said))
+			}
+			if !strings.Contains(readFile(t, path), in(tt.dirs)) {
+				t.Errorf("the config reads\n%s\nwant Acme's dirs written\n%s", readFile(t, path), in(tt.dirs))
+			}
+		})
 	}
 }
 
