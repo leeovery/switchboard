@@ -278,16 +278,27 @@ sometime = "a key a newer switchboard reads"
 }
 
 // Laying a config down writes it, its folder made, where nothing is at its
-// path, leaving nothing beside it.
+// path, leaving nothing beside it, each id marked, as switchboard marks
+// those it writes, so none is edited.
 func TestLayingAConfigDownWritesItWhereThereIsNone(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "switchboard")
 	path := filepath.Join(dir, "config.toml")
+	const marked = `[[account]]
+id    = "b6s7"  # do not edit: links the account to its history
+label = "Work"
+pool  = "b2n8"
+
+[[pool]]
+id    = "b2n8"  # do not edit: links the pool to its history
+label = "Default"
+dirs  = ["~/Code"]
+`
 
 	if err := config.LayDown(path, []byte(copiedConfig)); err != nil {
 		t.Fatalf("LayDown() = %v", err)
 	}
-	if got, err := os.ReadFile(path); err != nil || string(got) != copiedConfig {
-		t.Errorf("the config laid down holds %q (%v), want the copy", got, err)
+	if got, err := os.ReadFile(path); err != nil || string(got) != marked {
+		t.Errorf("the config laid down holds %q (%v), want the copy, its ids marked, %q", got, err, marked)
 	}
 	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o644 {
 		t.Errorf("the config laid down: %v, %v; want it 0644, as a config switchboard writes is", info, err)

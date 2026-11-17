@@ -235,16 +235,19 @@ func ConfigCopy(dir string) ([]byte, error) {
 }
 
 // configCopy returns the copy of its Mac's config the Mac's folder at dir
-// holds: nil where it holds none, as m, its export.json, says it doesn't. It
-// fails with ErrConfigUnsynced where m says it holds one it doesn't, as a
-// sync not done leaves it, and with ErrStagedConfig where it can't be read.
+// holds: nil where m, its export.json, says it holds none, whatever's there,
+// as a copy a sync carried no removal of yet, or one an older switchboard
+// left behind, isn't the folder's. It fails with ErrConfigUnsynced where m
+// says it holds one it doesn't, as a sync not done leaves it, and with
+// ErrStagedConfig where it can't be read.
 func configCopy(dir string, m export.Manifest) ([]byte, error) {
+	if !m.Config {
+		return nil, nil
+	}
 	data, err := os.ReadFile(export.ConfigFile(dir))
 	switch {
-	case errors.Is(err, fs.ErrNotExist) && m.Config:
-		return nil, ErrConfigUnsynced
 	case errors.Is(err, fs.ErrNotExist):
-		return nil, nil
+		return nil, ErrConfigUnsynced
 	case err != nil:
 		return nil, fmt.Errorf("%w: %w", ErrStagedConfig, err)
 	}

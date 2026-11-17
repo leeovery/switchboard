@@ -32,7 +32,8 @@ next, run switchboard setup to give each account its token and start the router,
 If this Mac has no config and no router runs, `import` lays down the copy of the config that an
 export keeps in the folder. With `--config`, it lays the config down at that path. It takes in no
 history yet. The accounts and pools keep their ids, so the history lands where it was. The copy
-holds the values of the config alone, without the comments.
+holds the values of the config alone, without the comments. `import` writes `# do not edit`
+beside each id, as switchboard does in any config it writes.
 
 | If `<dir>` holds | Then `import` lays down |
 |---|---|
@@ -132,17 +133,16 @@ The answer of the router gives the reason as `why`.
 | Holds no account on the other Mac | It stays apart. | `empty` |
 | Comes onto a Mac whose config has no pools | It stays apart. | `no_pools_here` |
 | Comes from a folder with no copy of the config | It stays apart, unless another folder in the import places it. | `no_config` |
-| Was kept apart by an earlier import | New days go to the pool here. Days imported before stay apart. | `imported_before` |
+| Was kept apart by an earlier import | New days go to the pool here. Any days imported before stay apart. | `imported_before` |
 
-A pool id names one pool on every Mac. So `import` places a pool the same way from every folder,
-whatever their order. It counts every account that the configs in the import put in the pool. A
-pool that reaches you through a second Mac's folder goes where the folder of its own Mac puts it.
-Work that names no pool goes to the first pool of the Mac that recorded it.
+A pool id names one pool on every Mac. So `import` places the pools of each Mac the same way from
+every folder, whatever their order. It counts every account that the configs in the import put in
+the pool. Work that names no pool goes to the first pool of the Mac that recorded it.
 
-`imported_before` means an import before this one kept the pool apart, under its id. Now its
-accounts sit in one pool here, so its new days go to that pool. The days taken in before stay
+`imported_before` means the pool was kept apart, under its id, before this import began. Now its
+accounts sit in one pool here, so its new days go to that pool. Any days taken in before stay
 under the id, because a line held already stands against the same line in another pool. Read
-them with `--pool` and the id. `import` says so at each import.
+them with `--pool` and the id. `import` says so at each import, even if no days came in before.
 
 A pool kept apart keeps its record here. Read it with `--pool` and its id. `import` names each
 pool it keeps apart once, however many folders hold it. `import` never changes the config or the

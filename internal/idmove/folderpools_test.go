@@ -585,6 +585,40 @@ func TestAFolderWhoseConfigIsntThereOrDoesntReadIsRefused(t *testing.T) {
 	}
 }
 
+// A copy of its Mac's config the folder's export.json doesn't say it holds
+// isn't the folder's, as one whose removal a sync hasn't carried yet, or one
+// an older switchboard left behind: the folder is taken in as one holding
+// none, whether that copy reads or not.
+func TestAConfigTheFoldersExportJSONDoesntClaimIsPassedOver(t *testing.T) {
+	tests := []struct {
+		name string
+		copy string
+	}{
+		{name: "one that reads"},
+		{name: "one that doesn't", copy: "[[account]\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			folder, theirs := otherMacsFolder(t, export.Manifest{Install: otherInstall, IDs: true, Accounts: true})
+			if tt.copy != "" {
+				writeFile(t, export.ConfigFile(folder), tt.copy)
+			}
+			record, h := thisMacsOwn(t, folder, func(string) string { return poolsHere })
+
+			rename, err := idmove.JoinFolder(folder, &record, h)
+			if err != nil {
+				t.Fatalf("JoinFolder: %v", err)
+			}
+			if want := []identity.Apart{{Install: otherInstall, Pool: theirs, Label: "Default", Why: identity.ApartNoConfig}}; !slices.Equal(rename.Apart(), want) {
+				t.Errorf("joined, kept apart %+v; want %+v, as the folder holds no config", rename.Apart(), want)
+			}
+			if data, err := idmove.ConfigCopy(folder); data != nil || err != nil {
+				t.Errorf("ConfigCopy() = %q, %v; want none", data, err)
+			}
+		})
+	}
+}
+
 func TestALineMovedToPoolsReadsAsTheSameLineImportedFromBeforePools(t *testing.T) {
 	mac := newIDsFixture(t)
 	folder := t.TempDir()

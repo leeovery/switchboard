@@ -57,23 +57,24 @@ func Text(text string, secrets ...string) string {
 }
 
 // URL returns address with its credentials, query and fragment, any of
-// which can carry a key, each replaced by Placeholder: everything after the
-// first ? or #, and everything before the last @ that comes before them,
-// from the end of the scheme's ://. It goes by the text alone, as the
-// address may be no URL that parses, so an @ in a path hides the host too.
+// which can carry a key, each replaced by Placeholder: everything from the
+// end of the scheme's :// to the last @, wherever it is, as a password can
+// hold a ? or a #, then everything after the first ? or # that follows. It
+// goes by the text alone, as the address may be no URL that parses, so an @
+// in a path or a query hides the host too.
 func URL(address string) string {
-	shown, after := address, ""
-	if i := strings.IndexAny(shown, "?#"); i >= 0 {
-		shown, after = shown[:i], shown[i:i+1]+Placeholder
+	from := 0
+	if i := strings.Index(address, "://"); i >= 0 {
+		from = i + len("://")
 	}
-	if at := strings.LastIndexByte(shown, '@'); at >= 0 {
-		from := 0
-		if i := strings.Index(shown[:at], "://"); i >= 0 {
-			from = i + len("://")
-		}
-		shown = shown[:from] + Placeholder + shown[at:]
+	shown, rest := address[:from], address[from:]
+	if at := strings.LastIndexByte(rest, '@'); at >= 0 {
+		shown, rest = shown+Placeholder, rest[at:]
 	}
-	return shown + after
+	if i := strings.IndexAny(rest, "?#"); i >= 0 {
+		rest = rest[:i+1] + Placeholder
+	}
+	return shown + rest
 }
 
 // URLError returns err, where it's a *url.Error, with its URL shown as URL

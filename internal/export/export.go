@@ -62,14 +62,26 @@ type Exporter struct {
 // days, each a date of which the state directory holds a file of any kind,
 // it wrote a file of, and how many it left as they were; the days' files it
 // couldn't read, and so passed over; the files writes cut short left in the
-// Mac's folder that it couldn't remove; and why it didn't copy the config,
-// where it didn't, the folder keeping the copy it had.
+// Mac's folder that it couldn't remove; why it didn't copy the config, where
+// it didn't; and whether the folder holds a copy of it, this export's, or,
+// where it made none, the last an export made, as ConfigKept says.
 type Result struct {
 	Folder              string
 	Written, AsTheyWere int
 	Unread              []DayError
 	Unremoved           []Leftover
 	Uncopied            error
+	Config              bool
+}
+
+// ConfigKept says what the folder holds of the config, as a warning that the
+// export didn't copy it, as Uncopied says, words it: "the folder keeps the
+// copy an export made before", or "the folder holds none".
+func (r Result) ConfigKept() string {
+	if r.Config {
+		return "the folder keeps the copy an export made before"
+	}
+	return "the folder holds none"
 }
 
 // Days returns how many days the export exported.
@@ -144,8 +156,7 @@ func (e Exporter) Export(dir string) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
-	configured, err := x.config(e.Config, e.HomeDir, folder)
-	if err != nil {
+	if err := x.config(e.Config, e.HomeDir, folder); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	for _, lines := range e.lines(folder, x.mkdir) {
@@ -156,7 +167,7 @@ func (e Exporter) Export(dir string) (Result, error) {
 	if err := x.summaries(ledger.Dir(e.StateDir), ledger.Dir(folder)); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
-	if err := writeManifest(folder, id, e.Now(), recorded, configured); err != nil {
+	if err := writeManifest(folder, id, e.Now(), recorded, x.configured); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	return x.result(folder), nil
@@ -186,14 +197,16 @@ func linesIn(root string, logger *slog.Logger) []*dayfile.Files {
 
 // exporting is what an export has done so far: whether it wrote a file of
 // each day, by its date, the days' files it couldn't read, the files writes
-// cut short left that it couldn't remove, and why it didn't copy the config;
-// and mkdir, what makes the folders in the Mac's folder it writes into.
+// cut short left that it couldn't remove, why it didn't copy the config, and
+// whether the folder holds a copy of it; and mkdir, what makes the folders
+// in the Mac's folder it writes into.
 type exporting struct {
-	written   map[string]bool
-	unread    []DayError
-	unremoved []Leftover
-	uncopied  error
-	mkdir     func(dir string) error
+	written    map[string]bool
+	unread     []DayError
+	unremoved  []Leftover
+	uncopied   error
+	configured bool
+	mkdir      func(dir string) error
 }
 
 // lines exports each day lines' files in the state directory hold.
@@ -324,7 +337,7 @@ func (x *exporting) note(what, date string, did outcome, err error) error {
 
 // result is the result of the export into folder.
 func (x *exporting) result(folder string) Result {
-	r := Result{Folder: folder, Unread: x.unread, Unremoved: x.unremoved, Uncopied: x.uncopied}
+	r := Result{Folder: folder, Unread: x.unread, Unremoved: x.unremoved, Uncopied: x.uncopied, Config: x.configured}
 	for _, wroteAny := range x.written {
 		if wroteAny {
 			r.Written++

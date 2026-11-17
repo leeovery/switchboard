@@ -19,9 +19,9 @@ import (
 )
 
 // errOwnHistory is what laying another Mac's config down fails with where
-// this Mac has a history of its own: that config would leave its pools
-// marked removed, as the router keeps the record in step with the config.
-var errOwnHistory = errors.New("this Mac has no config, but its state directory holds an accounts record of its own, which another Mac's config would leave in pools marked removed, so none is laid down: run switchboard setup to make a config, then import again")
+// this Mac has a history of its own, an accounts record or a day of it:
+// that config would leave it in pools it doesn't have.
+var errOwnHistory = errors.New("this Mac has no config, but its state directory holds a history of its own, an accounts record or a day of it, which another Mac's config would leave in pools it doesn't have, so none is laid down: run switchboard setup to make a config, then import again")
 
 // restore lays down the config of the Mac's folder in dir, as restoreFrom
 // picks it, at the path the command reads the config at, where nothing is
@@ -91,35 +91,48 @@ type restoring struct {
 
 // seeding seeds r, the accounts record at path, in the state directory
 // state, for the config from, as cfg reads, to be laid down, as idmove's
-// SeedFolder seeds one from from's folder: where there's no record; or,
-// where from is another Mac's, where r holds nothing but what a restore
-// seeds, as identity's Seeded tells, and the state directory no history, as
-// a restore cut short between the two leaves them. A record of this Mac's
-// own, restoring its own backup, is left as it is. Any other record is a
-// history of this Mac's own, which another Mac's config would leave in
-// pools marked removed: that fails, with errOwnHistory.
+// SeedFolder seeds one from from's folder. Of this Mac's own folder,
+// restoring its own backup, it seeds only where there's no record, and
+// leaves one there as it is. Of another Mac's, it seeds only where this Mac
+// has no history of its own, as ownHistory tells, failing with
+// errOwnHistory where it has.
 func seeding(path string, r *identity.Record, from restoring, cfg *config.Config, state string) error {
 	_, err := os.Lstat(path)
+	recorded := err == nil
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
-	case err != nil:
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
 		return fmt.Errorf("look for an accounts record at %s: %w", path, err)
-	case from.own:
+	case from.own && recorded:
 		return nil
-	case !r.Seeded():
-		return errOwnHistory
-	default:
-		held, err := idmove.HoldsHistory(state)
-		if err != nil {
-			return fmt.Errorf("look for a history in %s: %w", state, err)
-		}
-		if held {
-			return errOwnHistory
+	case !from.own:
+		if err := ownHistory(r, recorded, state); err != nil {
+			return err
 		}
 	}
 	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(state) }), Accounts: cfg.Accounts, Pools: cfg.Pools}
 	if err := idmove.SeedFolder(from.folder, r, here); err != nil {
 		return fmt.Errorf("this Mac has no config, and the accounts of %s can't be recorded, so none is laid down: %w", from.folder, err)
+	}
+	return nil
+}
+
+// ownHistory fails with errOwnHistory where the state directory state holds
+// a history of this Mac's own, which another Mac's config would leave in
+// pools it doesn't have: r, its accounts record, where it's recorded,
+// holding more than a restore seeds, as identity's Seeded tells, or a day of
+// the ledger, the events or the readings, as idmove's HoldsHistory tells. A
+// record holding no more than a restore seeds, and no day, is one a restore
+// cut short left, between seeding it and laying the config down.
+func ownHistory(r *identity.Record, recorded bool, state string) error {
+	if recorded && !r.Seeded() {
+		return errOwnHistory
+	}
+	held, err := idmove.HoldsHistory(state)
+	switch {
+	case err != nil:
+		return fmt.Errorf("look for a history in %s: %w", state, err)
+	case held:
+		return errOwnHistory
 	}
 	return nil
 }

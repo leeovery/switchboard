@@ -29,9 +29,11 @@ a new Mac.
 
 The copy of the config holds its values alone, written anew, and none of its
 comments, so it never holds a secret: tokens live in files of their own,
-which no export copies. A config that doesn't load, or that gives a value
-that may hold a secret, as a token, or credentials or a key in the
-upstream's address, isn't copied, and the folder's copy is removed.
+which no export copies. A config that gives a value that may hold a secret,
+as a token, or credentials or a key in the upstream's address, isn't
+copied, and the folder's copy is removed, as it would read as current. One
+that's gone, or doesn't load, isn't copied either, and the folder keeps the
+copy an export made before, as a restore wants the last config that loaded.
 
 A day exported before, and unchanged since, is left as it is, and nothing in
 the folder is ever removed, a day past keeping included. Every file is
@@ -118,7 +120,7 @@ func (a *app) export(out, errOut io.Writer, dir string) error {
 		return err
 	}
 	if r.Uncopied != nil {
-		if _, err := fmt.Fprintln(errOut, "switchboard: couldn't copy the config, so the folder holds none: "+r.Uncopied.Error()); err != nil {
+		if _, err := fmt.Fprintln(errOut, "switchboard: couldn't copy the config, so "+r.ConfigKept()+": "+r.Uncopied.Error()); err != nil {
 			return err
 		}
 	}

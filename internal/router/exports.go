@@ -330,7 +330,7 @@ func (x *exports) note(dir string, r export.Result, err error) {
 		uncopied = []error{r.Uncopied}
 	}
 	x.uncopied = warnedOnce(x.uncopied, uncopied, error.Error, func(err error) {
-		logger.Warn("can't copy the config into the export, so the folder holds none; trying again at each round", "error", err)
+		logger.Warn("can't copy the config into the export, so "+r.ConfigKept()+"; trying again at each round", "error", err)
 	})
 	logger.Debug("exported the history", "folder", r.Folder, "written", r.Written, "as_they_were", r.AsTheyWere)
 }

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -98,6 +99,15 @@ func TestExportCopiesTheConfigOrSaysWhyNot(t *testing.T) {
 	}
 	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != copied {
 		t.Errorf("the folder's config holds %q (%v), want the config's values", got, err)
+	}
+
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("[[account]]\nid = 7\n"))
+	got := run(t, deps, "export", dir)
+	if kept := "switchboard: couldn't copy the config, so the folder keeps the copy an export made before: "; got.code != 0 || !strings.HasPrefix(got.stderr, kept) {
+		t.Errorf("switchboard export of a config that doesn't load = %+v, want it done, saying %q", got, kept)
+	}
+	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != copied {
+		t.Errorf("the folder's config holds %q (%v), want the last copy kept", got, err)
 	}
 
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(`upstream = "https://gateway.example.com/sk-ant-oat01-fake_token-shaped"`+"\n"+copied))

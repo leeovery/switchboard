@@ -63,11 +63,13 @@ copied fails no export.
 |---|---|
 | Has comments | The copy leaves them out, so a token pasted into a comment never reaches the folder. |
 | Gives a secret as a value, for example a token, or a password or a key in the `upstream` address | `export` copies no config, removes the copy in the folder, and says why. |
-| Doesn't load | `export` copies no config, removes the copy in the folder, and says why. |
-| Isn't there | `export` copies none, removes the copy in the folder, and says nothing. |
+| Doesn't load | `export` copies no config, keeps the copy in the folder, and says why. |
+| Isn't there | `export` copies none, and keeps the copy in the folder. It says so only if the folder holds one. |
 
-A copy that can't be made is removed, so the folder never holds an older config as if it were
-current. `export.json` then leaves `config` out.
+If the config gives a secret, the copy is removed, so the folder never holds an older config as if
+it were current. `export.json` then leaves `config` out. If the config is gone or doesn't load,
+the folder keeps the last copy that loaded, because that's the one a restore wants. For example,
+the router goes on exporting after the config file is deleted, and the copy stays.
 
 `export` copies no config whose `upstream` address holds any of these, because each can carry a
 key:

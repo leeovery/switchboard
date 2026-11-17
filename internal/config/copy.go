@@ -132,16 +132,18 @@ func Members(data []byte) (Accounts, error) {
 	return accounts, nil
 }
 
-// LayDown writes data as a new config file at path, making its folder where
-// it's missing: only where nothing is at path, never in place of a file, a
-// link or anything else there, as one written meanwhile, failing with an
-// error matching fs.ErrExist where something is.
+// LayDown writes data, a config, as Copy makes one, as a new config file at
+// path, its ids marked as switchboard marks those it writes, so none is
+// edited, making its folder where it's missing: only where nothing is at
+// path, never in place of a file, a link or anything else there, as one
+// written meanwhile, failing with an error matching fs.ErrExist where
+// something is.
 func LayDown(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 	staged, err := atomicfile.Stage(path, newFilePerm, func(w io.Writer) error {
-		_, err := w.Write(data)
+		_, err := io.WriteString(w, idsMarked(data))
 		return err
 	})
 	if err != nil {
@@ -153,4 +155,17 @@ func LayDown(path string, data []byte) error {
 		return fmt.Errorf("write config: %w", err)
 	}
 	return nil
+}
+
+// idsMarked returns data, a config's text, with the line setting each
+// account's and each pool's id marked, as a Draft marks those it writes,
+// where the marks read back as data does: else data as it is, as of text
+// that doesn't read as a config.
+func idsMarked(data []byte) string {
+	text := string(data)
+	want, _, err := decode(text)
+	if err != nil {
+		return text
+	}
+	return newDocument(text).idsMarked(want).text()
 }

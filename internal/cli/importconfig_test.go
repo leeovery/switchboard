@@ -12,7 +12,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/cli"
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -112,22 +111,33 @@ func laidDown(path, install, again string) string {
 }
 
 // laidCopy is the config laid down from a folder holding laidConfig: its
-// values alone, as config.Copy writes them.
-func laidCopy(t *testing.T) string {
-	t.Helper()
-	home := t.TempDir()
-	copied, err := config.Copy("config.toml", []byte(laidConfig), func() (string, error) { return home, nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(copied)
-}
+// values alone, as config.Copy writes them, each id marked, as switchboard
+// marks those it writes.
+const laidCopy = `[[account]]
+id = "b6s7"  # do not edit: links the account to its history
+label = "Work"
+pool = "b2n8"
+
+[[account]]
+id = "q8rt"  # do not edit: links the account to its history
+label = "Acme"
+pool = "q7mt"
+
+[[pool]]
+id = "b2n8"  # do not edit: links the pool to its history
+label = "Default"
+
+[[pool]]
+dirs = ["~/Code/acme"]
+id = "q7mt"  # do not edit: links the pool to its history
+label = "Acme"
+`
 
 // wantLaid fails t where the config at path isn't laidConfig's copy.
 func wantLaid(t *testing.T, path string) {
 	t.Helper()
-	if got, err := os.ReadFile(path); err != nil || string(got) != laidCopy(t) {
-		t.Errorf("the config laid down holds %q (%v), want the folder's values", got, err)
+	if got, err := os.ReadFile(path); err != nil || string(got) != laidCopy {
+		t.Errorf("the config laid down holds %q (%v), want the folder's values, each id marked", got, err)
 	}
 }
 
@@ -312,23 +322,37 @@ func TestImportLaysDownOneConfigOrSaysWhy(t *testing.T) {
 	}
 }
 
-// A Mac with a history of its own, its accounts record, but no config never
-// takes another Mac's config, which would leave its pools marked removed.
+// A Mac with a history of its own but no config, its accounts record or a
+// day of it, record or none, never takes another Mac's config, which would
+// leave that history in pools it doesn't have.
 func TestImportLaysNoConfigDownBesideAHistoryOfTheMacsOwn(t *testing.T) {
-	deps, state := importDeps(t)
-	was, err := os.ReadFile(identity.NewFile(state).Path())
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		mac  func(t *testing.T) (cli.Deps, string)
+	}{
+		{name: "its accounts record", mac: importDeps},
+		{name: "a day of its ledger, and no record", mac: func(t *testing.T) (cli.Deps, string) {
+			deps, state := newMacDeps(t)
+			markDone(t, state, idsMark, poolsMark)
+			writeStateFile(t, ledger.Dir(state), "requests-2026-10-02.jsonl", []byte(`{"n":1}`+"\n"))
+			return deps, state
+		}},
 	}
-	folder := withConfig(t, macFolder(t, t.TempDir(), "0123456789abcdef"), laidConfig)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, state := tt.mac(t)
+			was, wasErr := os.ReadFile(identity.NewFile(state).Path())
+			folder := withConfig(t, macFolder(t, t.TempDir(), "0123456789abcdef"), laidConfig)
 
-	want := result{stderr: "Error: this Mac has no config, but its state directory holds an accounts record of its own, which another Mac's config would leave in pools marked removed, so none is laid down: run switchboard setup to make a config, then import again\n", code: 1}
-	if got := run(t, deps, "import", folder); got != want {
-		t.Errorf("switchboard import = %+v, want %+v", got, want)
-	}
-	wantNoConfig(t, deps)
-	if got, err := os.ReadFile(identity.NewFile(state).Path()); err != nil || string(got) != string(was) {
-		t.Errorf("the accounts record holds %s (%v), want it as it was", got, err)
+			want := result{stderr: "Error: this Mac has no config, but its state directory holds a history of its own, an accounts record or a day of it, which another Mac's config would leave in pools it doesn't have, so none is laid down: run switchboard setup to make a config, then import again\n", code: 1}
+			if got := run(t, deps, "import", folder); got != want {
+				t.Errorf("switchboard import = %+v, want %+v", got, want)
+			}
+			wantNoConfig(t, deps)
+			if got, err := os.ReadFile(identity.NewFile(state).Path()); string(got) != string(was) || errors.Is(err, fs.ErrNotExist) != errors.Is(wasErr, fs.ErrNotExist) {
+				t.Errorf("the accounts record holds %s (%v), want it as it was (%v)", got, err, wasErr)
+			}
+		})
 	}
 }
 
@@ -384,7 +408,7 @@ func TestImportLaysTheConfigDownAgainOnceARestoreWasCutShort(t *testing.T) {
 
 			got := run(t, deps, "import", dir)
 			if history {
-				if got.code != 1 || !strings.Contains(got.stderr, "holds an accounts record of its own") {
+				if got.code != 1 || !strings.Contains(got.stderr, "holds a history of its own") {
 					t.Errorf("switchboard import = %+v, want it refused, the Mac's history its own", got)
 				}
 				wantNoConfig(t, deps)
@@ -466,7 +490,7 @@ func TestImportSaysEachPoolItKeptApart(t *testing.T) {
 			`switchboard: kept the pool "Old" (0ld1) of mac-0123456789abcdef apart, as its folder holds no copy of that Mac's config to match its accounts by: read it with --pool 0ld1` + "\n" +
 			`switchboard: kept the pool "Spare" (e4e4) of mac-0123456789abcdef apart, as that Mac's config puts no account in it: read it with --pool e4e4` + "\n" +
 			`switchboard: kept the pool "Lone" (n0p1) of mac-0123456789abcdef apart, as this Mac's config has no pools: read it with --pool n0p1` + "\n" +
-			`switchboard: the pool "Office" (w0rk) of mac-fedcba9876543210 goes to the pool here holding its accounts now, but the days an import took in before stay under w0rk: read them with --pool w0rk` + "\n",
+			`switchboard: the pool "Office" (w0rk) of mac-fedcba9876543210 goes to the pool here holding its accounts now, but the days an import took in before, if any, stay under w0rk: read them with --pool w0rk` + "\n",
 	}
 	if got := run(t, deps, "import", importFolder(t, t.TempDir())); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)

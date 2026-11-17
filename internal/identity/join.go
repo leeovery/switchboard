@@ -63,9 +63,11 @@ const (
 	// this Mac's config has no pools.
 	ApartNoPoolsHere = "no_pools_here"
 	// ApartBefore is a pool taken in as the pool here holding its accounts
-	// whose days an import before took in apart, as the record kept it, as
-	// JoinAs' Before gives it, as another Mac's: those days stay under its
-	// id, as a line held stands against one alike but for its pool.
+	// that the record kept apart as the import began, as JoinAs' Before gives
+	// it, as another Mac's: the days an import before took in, if any, stay
+	// under its id, as a line held stands against one alike but for its
+	// pool. Whether any were isn't known: an import that failed, or a restore
+	// seeding the record, may have put the pool there with none.
 	ApartBefore = "imported_before"
 )
 

@@ -128,20 +128,24 @@ func TestTheConfigsCopyHoldsNoComment(t *testing.T) {
 	wantCopy(t, export.ConfigFile(folderOf(t, state, dir)), copyOf(t, copiedConfig), configuredAt)
 }
 
-// A config that can't be copied, as one that doesn't load, one giving a
-// value shaped like a token or one that's gone, fails no export: the folder
-// is left holding no copy, as an older config's would read as current, and
-// says so, and the export says why it copied none, but of one that's gone,
-// which is none to copy.
-func TestAConfigThatCantBeCopiedLeavesTheFolderNone(t *testing.T) {
+// A config that can't be copied fails no export, and the export says why.
+// One that's gone, or doesn't load, leaves the folder the last copy an
+// export made, and export.json saying it holds it, as a router running on
+// the config it read before goes on exporting once the file's gone, and a
+// restore of this Mac wants that copy; of one that's gone, with no copy to
+// keep, nothing is said. One that loads, but gives a value shaped like a
+// token, which no copy holds, leaves the folder none, as an older config's
+// copy would read as current.
+func TestAConfigThatCantBeCopiedKeepsTheLastCopyButOfOneHoldingASecret(t *testing.T) {
 	tests := []struct {
 		name   string
 		config string
 		want   error
+		kept   bool
 	}{
-		{name: "one that doesn't load", config: "[[account]]\nid = 7\n", want: errors.New("any")},
+		{name: "one that's gone", want: fs.ErrNotExist, kept: true},
+		{name: "one that doesn't load", config: "[[account]]\nid = 7\n", want: errors.New("any"), kept: true},
 		{name: "one giving a token", config: `upstream = "https://gateway.example.com/sk-ant-oat01-fake_token-shaped"` + "\n" + copiedConfig, want: config.ErrSecretValue},
-		{name: "one that's gone"},
 	}
 	for _, tt := range tests {
 		for _, before := range []bool{false, true} {
@@ -167,20 +171,25 @@ func TestAConfigThatCantBeCopiedLeavesTheFolderNone(t *testing.T) {
 				}
 
 				r, err := configExporter(state, path).Export(dir)
-				if err != nil || (r.Uncopied != nil) != (tt.want != nil) {
-					t.Fatalf("Export() = %+v, %v; want it exported, saying why the config wasn't copied: %v", r, err, tt.want != nil)
+				held, said := before && tt.kept, before || tt.config != ""
+				if err != nil || (r.Uncopied != nil) != said || r.Config != held {
+					t.Fatalf("Export() = %+v, %v; want it exported, saying why the config wasn't copied: %v, and the folder holding a copy: %v", r, err, said, held)
 				}
-				if errors.Is(tt.want, config.ErrSecretValue) && !errors.Is(r.Uncopied, tt.want) || r.Uncopied != nil && strings.Contains(r.Uncopied.Error(), "sk-ant-") {
+				if said && (errors.Is(tt.want, config.ErrSecretValue) || errors.Is(tt.want, fs.ErrNotExist)) && !errors.Is(r.Uncopied, tt.want) || r.Uncopied != nil && strings.Contains(r.Uncopied.Error(), "sk-ant-") {
 					t.Errorf("Export() said the config wasn't copied as %v, want %v, without the token", r.Uncopied, tt.want)
 				}
-				wantConfigHeld(t, folder, false)
-				wantNoConfig(t, folder)
+				wantConfigHeld(t, folder, held)
+				if !held {
+					wantNoConfig(t, folder)
+					return
+				}
+				wantCopy(t, export.ConfigFile(folder), copyOf(t, copiedConfig), configuredAt)
 			})
 		}
 	}
 }
 
-// An export given no config file copies none, removes the copy the folder
+// An export given no config file copies none, keeps the copy the folder
 // holds, and says nothing of it.
 func TestAnExportGivenNoConfigCopiesNone(t *testing.T) {
 	state, dir := t.TempDir(), t.TempDir()
@@ -188,9 +197,9 @@ func TestAnExportGivenNoConfigCopiesNone(t *testing.T) {
 	writeFile(t, export.ConfigFile(folder), copyOf(t, copiedConfig), configuredAt)
 
 	r := exportInto(t, state, dir)
-	if r.Uncopied != nil {
-		t.Errorf("Export() = %+v, want it to say nothing of the config", r)
+	if r.Uncopied != nil || !r.Config {
+		t.Errorf("Export() = %+v, want it to say nothing of the config, the folder keeping its copy", r)
 	}
-	wantConfigHeld(t, folder, false)
-	wantNoConfig(t, folder)
+	wantConfigHeld(t, folder, true)
+	wantCopy(t, export.ConfigFile(folder), copyOf(t, copiedConfig), configuredAt)
 }

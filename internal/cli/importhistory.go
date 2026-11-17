@@ -229,7 +229,7 @@ func sayPassed(errOut io.Writer, passed []string) error {
 func apartSaid(p router.ApartPool) string {
 	pool := "the pool " + prose.Quoted(p.Label) + " (" + p.Pool + ") of " + export.FolderName(p.Install)
 	if p.Why == identity.ApartBefore {
-		return pool + " goes to the pool here holding its accounts now, but the days an import took in before stay under " + p.Pool + ": read them with --pool " + p.Pool
+		return pool + " goes to the pool here holding its accounts now, but the days an import took in before, if any, stay under " + p.Pool + ": read them with --pool " + p.Pool
 	}
 	because := map[string]string{
 		identity.ApartSplit:       ", as its accounts are in more than one pool here",
