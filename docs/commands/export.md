@@ -51,7 +51,7 @@ The export leaves out what the router builds again, and what isn't part of your 
 ```console
 $ switchboard export ~/Dropbox/switchboard
 exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 0 written, 31 as they were
-switchboard: couldn't copy the config, so the folder keeps the copy it has: the config gives a value that may hold a secret, such as a token, which a copy of it never holds
+switchboard: couldn't copy the config, so the folder holds none: the config gives a value that may hold a secret, such as a token, which a copy of it never holds
 ```
 
 `export` copies the config that switchboard reads, so a new Mac can lay it down. The copy never

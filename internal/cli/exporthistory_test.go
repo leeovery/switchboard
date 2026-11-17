@@ -1,6 +1,8 @@
 package cli_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,8 +79,9 @@ func TestExportLabelsTheAccountsConfigured(t *testing.T) {
 }
 
 // The config is exported as a copy beside the history; one that can't be
-// copied, as one giving a value shaped like a token, isn't, and export says
-// why, without the token, the history exported all the same.
+// copied, as one giving a value shaped like a token, isn't, its copy
+// removed, and export says why, without the token, the history exported all
+// the same.
 func TestExportCopiesTheConfigOrSaysWhyNot(t *testing.T) {
 	const copied = "[[account]]\nid = \"b6s7\"\nlabel = \"Work\"\n"
 	deps := exportDeps(t)
@@ -86,7 +89,7 @@ func TestExportCopiesTheConfigOrSaysWhyNot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(copied))
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("# my accounts\n"+copied))
 	dir := t.TempDir()
 	folder := macsFolder(t, deps, dir)
 
@@ -94,19 +97,19 @@ func TestExportCopiesTheConfigOrSaysWhyNot(t *testing.T) {
 		t.Fatalf("switchboard export = %+v, want it done, saying nothing of the config", got)
 	}
 	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != copied {
-		t.Errorf("the folder's config holds %q (%v), want the config", got, err)
+		t.Errorf("the folder's config holds %q (%v), want the config's values", got, err)
 	}
 
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(`upstream = "https://gateway.example.com/sk-ant-oat01-fake_token-shaped"`+"\n"+copied))
 	want := result{
 		stdout: "exported 2 days to " + folder + ": 0 written, 2 as they were\n",
-		stderr: "switchboard: couldn't copy the config, so the folder keeps the copy it has: " + config.ErrSecretValue.Error() + "\n",
+		stderr: "switchboard: couldn't copy the config, so the folder holds none: " + config.ErrSecretValue.Error() + "\n",
 	}
 	if got := run(t, deps, "export", dir); got != want {
 		t.Errorf("switchboard export of a config giving a token = %+v, want %+v", got, want)
 	}
-	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != copied {
-		t.Errorf("the folder's config holds %q (%v), want the copy it had", got, err)
+	if _, err := os.Lstat(export.ConfigFile(folder)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the folder's config: %v, want it removed, as an older config's copy would read as current", err)
 	}
 }
 

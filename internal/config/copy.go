@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 
@@ -16,53 +17,77 @@ import (
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
-// ErrSecretValue is what Copy fails with where the config gives a value that
-// may hold a secret, as an upstream's address can carry a token, a key in its
-// query or credentials: a copy holds none, and the config without it isn't
-// the config.
-var ErrSecretValue = errors.New("the config gives a value that may hold a secret, such as a token, which a copy of it never holds")
+var (
+	// ErrSecretValue is what Copy fails with where the config gives a value
+	// that may hold a secret, as an upstream's address can carry a token, a
+	// key in its query or fragment, or credentials: a copy holds none, and
+	// the config without it isn't the config.
+	ErrSecretValue = errors.New("the config gives a value that may hold a secret, such as a token, which a copy of it never holds")
+	// ErrCopyDiffers is what Copy fails with where the config, its values
+	// written anew, wouldn't load as the config it is.
+	ErrCopyDiffers = errors.New("the config, its values written anew, wouldn't load as it is, so no copy of it is made")
+)
 
-// Copy returns data, the text of the config file at path, which names it in
-// errors, as a copy of it is kept off this Mac, as an export carries one:
-// failing where data isn't a config that loads, as Parse reads one, so a
-// copy laid down on another Mac loads there; with ErrSecretValue where a value
-// it gives may hold a secret, as heldSecret finds one; and else with each
-// thing in its text shaped like a token hidden, as redact hides one, so a
-// token in a comment goes, failing with ErrSecretValue where hiding one
-// changes the config it makes.
+// Copy returns a copy of the config file at path, which names it in errors,
+// whose text is data, to keep off this Mac, as an export carries one: the
+// values data gives alone, as TOML decodes them, written anew, so nothing
+// but a key and its value reaches the copy, no comment nor any of its
+// layout. It fails where data isn't a config that loads, as Parse reads one;
+// with ErrSecretValue where a value or a key may hold a secret, as
+// heldSecret finds one; and with ErrCopyDiffers where the copy wouldn't load
+// as the config data makes, so a copy laid down on another Mac is the
+// config there.
 func Copy(path string, data []byte, homeDir func() (string, error)) ([]byte, error) {
 	cfg, err := Parse(path, data, homeDir)
 	if err != nil {
 		return nil, err
 	}
-	if heldSecret(cfg, data) {
+	var values map[string]any
+	if _, err := toml.Decode(string(data), &values); err != nil {
+		return nil, unparsed(path, err)
+	}
+	if heldSecret(cfg, values) {
 		return nil, ErrSecretValue
 	}
-	hidden := []byte(redact.Text(string(data)))
-	if bytes.Equal(hidden, data) {
-		return data, nil
+	copied, err := encoded(values)
+	if err != nil {
+		return nil, ErrCopyDiffers
 	}
-	if without, err := Parse(path, hidden, homeDir); err != nil || !reflect.DeepEqual(without, cfg) {
-		return nil, ErrSecretValue
+	if again, err := Parse(path, copied, homeDir); err != nil || !reflect.DeepEqual(again, cfg) {
+		return nil, ErrCopyDiffers
 	}
-	return hidden, nil
+	return copied, nil
 }
 
-// heldSecret reports whether cfg, loaded from data, gives a value that may
-// hold a secret: an upstream whose address may carry one, as
-// redact.HoldsSecret finds one, credentials or a query among them, as the
-// launcher judges a value it passes on; or any value or key shaped like a
-// token, read as TOML decodes it, so a token written with escapes, or split
-// across lines in a multi-line string, is found as the router would read it.
-func heldSecret(cfg *Config, data []byte) bool {
-	if redact.HoldsSecret(cfg.Upstream) {
-		return true
+// encoded is values, as TOML decodes a file's, written as a TOML file's
+// text: each table's keys in order, then its tables, none indented.
+func encoded(values map[string]any) ([]byte, error) {
+	var text bytes.Buffer
+	enc := toml.NewEncoder(&text)
+	enc.Indent = ""
+	if err := enc.Encode(values); err != nil {
+		return nil, err
 	}
-	var decoded map[string]any
-	if _, err := toml.Decode(string(data), &decoded); err != nil {
-		return true
-	}
-	return holdsToken(decoded)
+	return text.Bytes(), nil
+}
+
+// heldSecret reports whether cfg, loaded from a file whose values, as TOML
+// decodes them, are values, gives a value that may hold a secret: an
+// upstream whose address may carry one, as secretInUpstream finds one; or
+// any value or key shaped like a token, read as TOML decodes it, so a token
+// written with escapes, or split across lines in a multi-line string, is
+// found as the router would read it.
+func heldSecret(cfg *Config, values map[string]any) bool {
+	return secretInUpstream(cfg.Upstream) || holdsToken(values)
+}
+
+// secretInUpstream reports whether upstream, an upstream's address, may
+// carry a secret: anything redact.HoldsSecret finds, credentials or a query
+// among them, as the launcher judges a value it passes on, or a fragment,
+// which can carry a key too. A key in its host or its path can't be told
+// from any other name.
+func secretInUpstream(upstream string) bool {
+	return redact.HoldsSecret(upstream) || strings.Contains(upstream, "#")
 }
 
 // holdsToken reports whether v, a value as TOML decodes one, holds anything

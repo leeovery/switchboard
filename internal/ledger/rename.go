@@ -34,6 +34,16 @@ type Renaming struct {
 	Unpooled string
 }
 
+// Changes reports whether r, renaming summary, a day's as it's written, as
+// RenameDay and RenameSummary rename one, changes it: where it names an
+// account or a pool r renames, or holds an account's work in no pool, which
+// r gives one. One that doesn't read as a summary changes nothing, as those
+// leave it as it is.
+func (r Renaming) Changes(summary []byte) bool {
+	_, changed, err := renamedSummary(summary, r, dayfile.Rewritten{})
+	return err == nil && changed
+}
+
 // pooling is how r gives each pool of an account's day its id: work in no
 // pool the pool Unpooled names, and each pool's as Pool gives it; nil where
 // it gives none another.

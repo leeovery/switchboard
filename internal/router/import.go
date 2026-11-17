@@ -254,13 +254,11 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 }
 
 // apartIn are the pools the Macs of the folders renamed as renames say kept
-// apart, folder by folder.
+// apart, each once, as idmove's Apart lists them.
 func apartIn(renames []idmove.Renames) []ApartPool {
 	var apart []ApartPool
-	for _, rename := range renames {
-		for _, p := range rename.Apart() {
-			apart = append(apart, ApartPool{Install: p.Install, Pool: p.Pool, Label: p.Label, Why: p.Why})
-		}
+	for _, p := range idmove.Apart(renames) {
+		apart = append(apart, ApartPool{Install: p.Install, Pool: p.Pool, Label: p.Label, Why: p.Why})
 	}
 	return apart
 }

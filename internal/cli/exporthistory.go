@@ -27,11 +27,11 @@ and when it was exported. Kept in a folder Dropbox or iCloud Drive syncs,
 the history outlasts the Mac, and import restores it, config and all, onto
 a new Mac.
 
-The copy of the config never holds a secret: tokens live in files of their
-own, which no export copies, and anything shaped like one in a comment is
-hidden. A config that doesn't load, or that gives a value that may hold a
-secret, as a token, or credentials or a key in the upstream's address,
-isn't copied, and the folder keeps the copy it has.
+The copy of the config holds its values alone, written anew, and none of its
+comments, so it never holds a secret: tokens live in files of their own,
+which no export copies. A config that doesn't load, or that gives a value
+that may hold a secret, as a token, or credentials or a key in the
+upstream's address, isn't copied, and the folder's copy is removed.
 
 A day exported before, and unchanged since, is left as it is, and nothing in
 the folder is ever removed, a day past keeping included. Every file is
@@ -118,7 +118,7 @@ func (a *app) export(out, errOut io.Writer, dir string) error {
 		return err
 	}
 	if r.Uncopied != nil {
-		if _, err := fmt.Fprintln(errOut, "switchboard: couldn't copy the config, so the folder keeps the copy it has: "+r.Uncopied.Error()); err != nil {
+		if _, err := fmt.Fprintln(errOut, "switchboard: couldn't copy the config, so the folder holds none: "+r.Uncopied.Error()); err != nil {
 			return err
 		}
 	}

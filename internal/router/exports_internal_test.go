@@ -434,7 +434,7 @@ func TestWhatAnExportPassesOverIsWarnedOfOnceAndFailsNoExport(t *testing.T) {
 		{
 			name:   "a config it couldn't copy",
 			met:    export.Result{Uncopied: config.ErrSecretValue},
-			warned: []string{"level=WARN", `msg="can't copy the config into the export, so the folder keeps the copy it has; trying again at each round"`, `error="` + config.ErrSecretValue.Error() + `"`},
+			warned: []string{"level=WARN", `msg="can't copy the config into the export, so the folder holds none; trying again at each round"`, `error="` + config.ErrSecretValue.Error() + `"`},
 		},
 	}
 	steps := []struct {

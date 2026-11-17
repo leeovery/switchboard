@@ -46,22 +46,24 @@ it's exported again from that Mac once it runs this version. A folder whose
 record hasn't synced yet is passed over too, to import again once it has, and
 one whose record doesn't read.
 
-Each pool of a folder's Mac is taken in as the pool here holding the
-accounts that Mac's config, copied into its folder, puts in it. One whose
-accounts are in several pools here, or in none, is kept apart, saying so, and
-read with --pool and its id.
+Each pool of a folder's Mac is taken in as the pool here holding every
+account the configs of the folders' Macs, copied into their folders, put in
+it, alike from every folder. One whose accounts are in several pools here,
+or in none, is kept apart, saying so, and read with --pool and its id.
 
 It copies the folders into the state directory, then has the router take
 them in, waiting however long that takes, so it needs the router running:
 start it with switchboard service install (or switchboard serve). An import
 run while another is running is refused.
 
-On a Mac with no config and no router, as a new one taking over from another
-or restoring a backup, it lays down the config a folder holds instead,
-recording its accounts, and says what to run next: setup, to give each
-account its token, then import again. It lays one down only where nothing
-is at the config's path, this Mac has no accounts record of its own, and no
-folder in <dir> is passed over.`,
+On a Mac with no config and no router it lays down the config a folder holds
+instead, and says what to run next: setup, to give each account its token,
+then import again. A Mac that lost its config alone takes its own folder's;
+a new one, taking over from another, takes the one Mac's folder in <dir>,
+recording its accounts, and only where this Mac has no history of its own.
+Where <dir> holds several Macs' folders, import from the one to take. None
+is laid down where anything is at the config's path, or a folder in <dir>
+is passed over.`,
 		Args: oneFolder("import from", "reads"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return a.importHistory(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])

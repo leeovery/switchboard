@@ -503,3 +503,48 @@ func TestRenamingASummarysPoolsMergesTwoGivenOne(t *testing.T) {
 		})
 	}
 }
+
+// summaryOfLines is the summary of the day of the rename tests whose lines are
+// those given.
+func summaryOfLines(t *testing.T, lines ...*ledger.Line) []byte {
+	t.Helper()
+	dir := t.TempDir()
+	writeAt(t, dir, on(0, 12, 0), noReadings, lines...)
+	summariseAt(dir, t.TempDir(), on(3, 10, 0))
+	return summaryIn(t, dir)
+}
+
+// A rename changes a summary only where it renames something in it: an
+// account or a pool it names, or an account's work in no pool, given the
+// pool for it; never a summary whose work is in pools the rename leaves as
+// they are, whatever pool it gives work in none; and never one that doesn't
+// read.
+func TestARenameChangesASummaryOnlyWhereItRenamesSomethingInIt(t *testing.T) {
+	pooled := summaryOfLines(t,
+		&ledger.Line{At: on(0, 10, 0), Request: "r1", Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5", Account: "work", Pool: "a1a1", Reason: "new", Status: 200, Attempts: 1},
+		&ledger.Line{At: on(0, 11, 0), Request: "r2", Kind: ledger.KindMessage, Session: "s2", Model: "claude-opus-5-5", Account: "personal", Pool: "b2b2", Reason: "new", Status: 200, Attempts: 1},
+	)
+	unpooled := summaryOfLines(t,
+		&ledger.Line{At: on(0, 10, 0), Request: "r1", Kind: ledger.KindMessage, Session: "s1", Model: "claude-opus-5-5", Account: "work", Reason: "new", Status: 200, Attempts: 1},
+	)
+	same := func(id string) string { return id }
+	tests := []struct {
+		name    string
+		summary []byte
+		rename  ledger.Renaming
+		want    bool
+	}{
+		{name: "every account and pool as it is, work in none given one", summary: pooled, rename: ledger.Renaming{Account: same, Pool: same, Unpooled: "z9z9"}},
+		{name: "an account renamed", summary: pooled, rename: ledger.Renaming{Account: renamedID}, want: true},
+		{name: "a pool renamed", summary: pooled, rename: ledger.Renaming{Pool: strings.ToUpper}, want: true},
+		{name: "work in no pool given one", summary: unpooled, rename: ledger.Renaming{Unpooled: "z9z9"}, want: true},
+		{name: "one that doesn't read", summary: []byte(`{"accounts":`), rename: ledger.Renaming{Account: renamedID, Unpooled: "z9z9"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.rename.Changes(tt.summary); got != tt.want {
+				t.Errorf("Changes() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

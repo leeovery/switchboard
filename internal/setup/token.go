@@ -184,8 +184,9 @@ const (
 	// TokenRefused is the API refusing the token.
 	TokenRefused
 	// TokenSameAccount is the token being another account's subscription's,
-	// as the organization the API names it in says: Tokened's SameAs names
-	// the account.
+	// as the organization the API names it in says, or, of one replacing an
+	// account's, as the accounts record has it of another account configured
+	// here: Tokened's SameAs names the account.
 	TokenSameAccount
 	// TokenOtherSubscription is the token, replacing an account's, being for
 	// another subscription than the account's, as the accounts record has
@@ -461,7 +462,10 @@ func (s *Setup) save(ctx context.Context, f TokenFor, token tokens.Token, pasted
 		return Tokened{Result: TokenSameAccount, SameAs: same.Other}, nil
 	}
 	err = s.Accounts.SetTokenChecked(ctx, id, token, checked)
-	if other, ok := errors.AsType[*accounts.OtherSubscriptionError](err); ok {
+	switch other, ok := errors.AsType[*accounts.OtherSubscriptionError](err); {
+	case ok && other.OtherConfigured:
+		return Tokened{Result: TokenSameAccount, SameAs: other.OtherID}, nil
+	case ok:
 		return Tokened{Result: TokenOtherSubscription, SameAs: other.OtherLabel}, nil
 	}
 	return s.saved(ctx, err, Tokened{Result: TokenSaved, Checked: checked, ID: id})

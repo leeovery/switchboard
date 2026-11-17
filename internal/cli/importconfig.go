@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"cmp"
 	"errors"
 	"fmt"
@@ -19,30 +18,29 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// errOwnHistory is what laying a config down fails with where this Mac has
-// a history of its own: another Mac's config would leave its pools marked
-// removed, as the router keeps the record in step with the config.
+// errOwnHistory is what laying another Mac's config down fails with where
+// this Mac has a history of its own: that config would leave its pools
+// marked removed, as the router keeps the record in step with the config.
 var errOwnHistory = errors.New("this Mac has no config, but its state directory holds an accounts record of its own, which another Mac's config would leave in pools marked removed, so none is laid down: run switchboard setup to make a config, then import again")
 
-// restore lays down the config of the Mac's folder in dir, as configIn finds
-// it, at the path the command reads the config at, where nothing is there
-// and no router runs, as on a new Mac taking over from another, or one
-// restoring its backup: so its pools keep the ids the history names, and
-// setup then asks for nothing but each account's token. With it, it seeds
-// the accounts record, in the state directory state, from the folder's
-// record, as idmove's JoinFolder joins it, so each account's organization is
-// known, and setup refuses a token of another subscription given it, naming
-// the account it's for. Then it says what it laid down, warns of each folder
-// a pool fences that isn't one here, as of another home's, and says what to
-// run next, as the history waits for a router to take it in.
+// restore lays down the config of the Mac's folder in dir, as restoreFrom
+// picks it, at the path the command reads the config at, where nothing is
+// there and no router runs: as on a new Mac taking over from another, or
+// one that lost its config alone, restoring its own backup, so the pools
+// keep the ids the history names, and setup then asks for nothing but each
+// account's token. With another Mac's config, it seeds the accounts record,
+// in the state directory state, from that Mac's folder, as seeding says, so
+// each account's organization is known, and setup refuses a token of
+// another subscription given it, naming the account it's for. Then it says
+// what it laid down, warns of each folder a pool fences that isn't one here,
+// as of another home's, and says what to run next, as the history waits for
+// a router to take it in.
 //
 // It lays nothing down, failing, where something is at the config's path,
-// as configAt says; where the state directory holds an accounts record,
-// with errOwnHistory; where a folder in dir is passed over, as foldersFound
-// passes one over, saying which; and where the config can't be laid down,
-// as configIn and config.Copy say. It never writes in place of anything at
-// the config's path, and lays the record down with the config or not at
-// all.
+// as configAt says; where restoreFrom finds no config to lay down; where
+// seeding refuses; and where the config can't be laid down, as config.Copy
+// says. It never writes in place of anything at the config's path, and lays
+// the record down with the config or not at all.
 func (a *app) restore(out, errOut io.Writer, state, dir string) error {
 	path, err := a.configFile()
 	if err != nil {
@@ -51,33 +49,28 @@ func (a *app) restore(out, errOut io.Writer, state, dir string) error {
 	if err := a.configAt(path); err != nil {
 		return err
 	}
-	var folder string
-	var cfg *config.Config
+	from, err := a.restoreFrom(errOut, state, dir)
+	if err != nil {
+		return err
+	}
+	cfg, err := config.Parse(path, from.config, a.HomeDir)
+	if err != nil {
+		return err
+	}
 	record := identity.NewFile(state)
 	err = record.Change(func(r *identity.Record, commit func() error) error {
-		if _, err := os.Lstat(record.Path()); !errors.Is(err, fs.ErrNotExist) {
-			return errOwnHistory
-		}
-		var copied []byte
-		if folder, copied, err = a.restored(errOut, state, dir); err != nil {
+		if err := seeding(record.Path(), r, from, cfg, state); err != nil {
 			return err
-		}
-		if cfg, err = config.Parse(path, copied, a.HomeDir); err != nil {
-			return err
-		}
-		here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(state) }), Accounts: cfg.Accounts, Pools: cfg.Pools}
-		if _, err := idmove.JoinFolder(folder, r, here); err != nil {
-			return fmt.Errorf("this Mac has no config, and the accounts of %s can't be recorded, so none is laid down: %w", folder, err)
 		}
 		if err := commit(); err != nil {
 			return err
 		}
-		return a.layDown(path, copied)
+		return a.layDown(path, from.config)
 	})
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(out, "laid down the config of %s at %s: %s\n", filepath.Base(folder), path, configured(cfg)); err != nil {
+	if _, err := fmt.Fprintf(out, "laid down the config of %s at %s: %s\n", filepath.Base(from.folder), path, configured(cfg)); err != nil {
 		return err
 	}
 	if err := a.sayUnfenced(errOut, cfg.Pools); err != nil {
@@ -86,6 +79,49 @@ func (a *app) restore(out, errOut io.Writer, state, dir string) error {
 	_, err = fmt.Fprintf(out, "next, run %s to give each account its token and start the router, then %s again to bring in the history\n",
 		a.command("setup"), a.command("import", dir))
 	return err
+}
+
+// restoring is a config to lay down: the Mac's folder it's the copy of,
+// whether that's this install's own, and the copy, as config.Copy makes it.
+type restoring struct {
+	folder string
+	own    bool
+	config []byte
+}
+
+// seeding seeds r, the accounts record at path, in the state directory
+// state, for the config from, as cfg reads, to be laid down, as idmove's
+// SeedFolder seeds one from from's folder: where there's no record; or,
+// where from is another Mac's, where r holds nothing but what a restore
+// seeds, as identity's Seeded tells, and the state directory no history, as
+// a restore cut short between the two leaves them. A record of this Mac's
+// own, restoring its own backup, is left as it is. Any other record is a
+// history of this Mac's own, which another Mac's config would leave in
+// pools marked removed: that fails, with errOwnHistory.
+func seeding(path string, r *identity.Record, from restoring, cfg *config.Config, state string) error {
+	_, err := os.Lstat(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case err != nil:
+		return fmt.Errorf("look for an accounts record at %s: %w", path, err)
+	case from.own:
+		return nil
+	case !r.Seeded():
+		return errOwnHistory
+	default:
+		held, err := idmove.HoldsHistory(state)
+		if err != nil {
+			return fmt.Errorf("look for a history in %s: %w", state, err)
+		}
+		if held {
+			return errOwnHistory
+		}
+	}
+	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(state) }), Accounts: cfg.Accounts, Pools: cfg.Pools}
+	if err := idmove.SeedFolder(from.folder, r, here); err != nil {
+		return fmt.Errorf("this Mac has no config, and the accounts of %s can't be recorded, so none is laid down: %w", from.folder, err)
+	}
+	return nil
 }
 
 // layDown lays data down as the config at path, as config.LayDown does,
@@ -98,31 +134,91 @@ func (a *app) layDown(path string, data []byte) error {
 	return err
 }
 
-// restored returns the Mac's folder in dir whose config to lay down, and
-// that config, as config.Copy copies it: of the folders foldersFound finds,
-// as configIn picks one. It fails, saying each folder passed over, where
-// any is, as a config laid down then might be the wrong Mac's, or one a
-// sync has yet to carry.
-func (a *app) restored(errOut io.Writer, state, dir string) (string, []byte, error) {
+// restoreFrom returns the config to lay down from the Macs' folders in dir,
+// as foldersFound finds them: that of this install's own folder, where it's
+// among them, as on a Mac restoring its own backup; else that of the one
+// folder there is, as on a new Mac taking over from another. It fails,
+// saying each folder passed over, where any is, as a config laid down then
+// might be the wrong Mac's, or one a sync has yet to carry; where dir holds
+// several Macs' folders, none this install's, as severalMacs says; where
+// the folder holds no copy of its Mac's config, as noCopy says; and where
+// the copy can't be laid down, as config.Copy says.
+func (a *app) restoreFrom(errOut io.Writer, state, dir string) (restoring, error) {
 	folders, passed, err := foldersFound(state, dir)
 	if sayErr := sayPassed(errOut, passed); sayErr != nil {
-		return "", nil, sayErr
+		return restoring{}, sayErr
 	}
 	switch {
 	case err != nil:
-		return "", nil, err
+		return restoring{}, fmt.Errorf("this Mac has no config, and none is laid down: %w", err)
 	case len(passed) > 0:
-		return "", nil, fmt.Errorf("this Mac has no config, and none is laid down while a folder in %s is passed over: import again once each reads, or import from the folder of the Mac whose config to lay down alone", dir)
+		return restoring{}, fmt.Errorf("this Mac has no config, and none is laid down while a folder in %s is passed over: import again once each reads, or import from the folder of the Mac whose config to lay down alone", dir)
 	}
-	folder, data, err := a.configIn(dir, folders)
-	if err != nil {
-		return "", nil, err
+	from := restoring{folder: folders[0]}
+	switch own, isOwn, err := ownFolder(state, folders); {
+	case err != nil:
+		return restoring{}, err
+	case isOwn:
+		from.folder, from.own = own, true
+	case len(folders) > 1:
+		return restoring{}, a.severalMacs(dir, folders)
 	}
-	copied, err := config.Copy(export.ConfigFile(folder), data, a.HomeDir)
-	if err != nil {
-		return "", nil, fmt.Errorf("this Mac has no config, and the one in %s can't be laid down: %w", folder, err)
+	data, err := idmove.ConfigCopy(from.folder)
+	switch {
+	case err != nil:
+		return restoring{}, fmt.Errorf("this Mac has no config, and the one in %s can't be read: %w", from.folder, err)
+	case data == nil:
+		return restoring{}, a.noCopy(from)
 	}
-	return folder, copied, nil
+	if from.config, err = config.Copy(export.ConfigFile(from.folder), data, a.HomeDir); err != nil {
+		return restoring{}, fmt.Errorf("this Mac has no config, and the one in %s can't be laid down: %w", from.folder, err)
+	}
+	return from, nil
+}
+
+// ownFolder returns the folder of folders, Macs' folders, this install
+// exported, as its export.json names this install's id, reporting whether
+// there's one: none where no id is made yet, as on a Mac that has never
+// exported.
+func ownFolder(state string, folders []string) (string, bool, error) {
+	id, err := export.ReadInstallID(state)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return "", false, nil
+	case err != nil:
+		return "", false, err
+	}
+	for _, folder := range folders {
+		if m, err := export.ReadManifest(folder); err == nil && m.Install == id {
+			return folder, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// severalMacs is the error of dir holding the folders of several Macs,
+// folders, none this install's, whose config to lay down can't be told:
+// naming each, and saying to import from the one whose config to lay down.
+func (a *app) severalMacs(dir string, folders []string) error {
+	names := make([]string, len(folders))
+	for i, folder := range folders {
+		names[i] = filepath.Base(folder)
+	}
+	return fmt.Errorf("this Mac has no config, and %s holds the folders of several Macs, %s, so none is laid down: import from the folder of the Mac whose config to lay down, such as %s",
+		dir, prose.List(names), a.command("import", folders[0]))
+}
+
+// noCopy is the error of from's folder holding no copy of its Mac's config,
+// as one exported before an export copied the config: saying first, of
+// another Mac's, to export again from that Mac, if it still runs, as setup's
+// config here would give the pools new ids, keeping the history apart.
+func (a *app) noCopy(from restoring) error {
+	again := "if that Mac still runs, upgrade switchboard there, export again, and import that; else "
+	if from.own {
+		again = ""
+	}
+	return fmt.Errorf("this Mac has no config, and %s holds none to lay down, as a switchboard from before exports copied the config exported it: %srun %s to make a config, then import again, its history then kept in pools of its own",
+		from.folder, again, a.command("setup"))
 }
 
 // configAt fails where something is at path, the config's: with
@@ -186,34 +282,6 @@ func (a *app) sayUnfenced(errOut io.Writer, pools config.Pools) error {
 		}
 	}
 	return nil
-}
-
-// configIn returns the Mac's folder of folders, those in dir, whose copy of
-// its Mac's config to lay down, and the copy, as idmove's ConfigCopy reads
-// it: the one copy there is, or the one every copy is, as of Macs sharing a
-// config. It fails where none holds one, as folders exported before an
-// export copied the config don't; and where several hold copies that
-// differ, each saying what to do.
-func (a *app) configIn(dir string, folders []string) (string, []byte, error) {
-	var first string
-	var data []byte
-	for _, folder := range folders {
-		copied, err := idmove.ConfigCopy(folder)
-		switch {
-		case err != nil:
-			return "", nil, fmt.Errorf("this Mac has no config, and the one in %s can't be read: %w", folder, err)
-		case copied == nil:
-			continue
-		case first == "":
-			first, data = folder, copied
-		case !bytes.Equal(copied, data):
-			return "", nil, fmt.Errorf("this Mac has no config, and %s holds several Macs' configs: import from the folder of the Mac whose config to lay down, such as %s", dir, a.command("import", folder))
-		}
-	}
-	if first == "" {
-		return "", nil, fmt.Errorf("this Mac has no config, and %s holds none to lay down, as a switchboard from before exports copied the config exported it: if that Mac still runs, upgrade switchboard there, export again, and import that; else run switchboard setup to make a config, then import again, its history then kept in pools of its own", dir)
-	}
-	return first, data, nil
 }
 
 // command is the switchboard command line of the subcommand sub, as "pool

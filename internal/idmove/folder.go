@@ -60,12 +60,30 @@ type Renames struct {
 	pools    renames
 	unpooled string
 	apart    []identity.Apart
+	// members are the accounts the folder's Mac's config puts in each of
+	// its pools, as identity's Joined has them.
+	members map[string][]string
 }
 
 // Apart are the pools the folder's Mac configures that its join kept apart,
 // as identity's Joined says.
 func (r Renames) Apart() []identity.Apart {
 	return r.apart
+}
+
+// Apart are the pools the joins of the folders renamed as renames say kept
+// apart, each once, as the first of them to keep it apart says it, though
+// several did, as the folders of two Macs configuring one pool do.
+func Apart(renames []Renames) []identity.Apart {
+	var apart []identity.Apart
+	for _, r := range renames {
+		for _, p := range r.apart {
+			if !slices.ContainsFunc(apart, func(said identity.Apart) bool { return config.SamePool(said.Pool, p.Pool) }) {
+				apart = append(apart, p)
+			}
+		}
+	}
+	return apart
 }
 
 // Of renames id, as each step has it in turn.
@@ -113,9 +131,11 @@ type Here struct {
 	Accounts config.Accounts
 	Pools    config.Pools
 
-	// mapped are the pools the folders imported beside the one joined take
-	// in as pools here, as JoinFolders finds them.
-	mapped renames
+	// before are the pools the record held as the import began, and
+	// members the accounts the configs of the folders' Macs put in each
+	// pool, as identity's JoinAs has them, as JoinFolders finds them.
+	before  []identity.PoolEntry
+	members map[string][]string
 }
 
 // folderKind is how a Mac's folder's accounts are told, as classify tells.
@@ -278,6 +298,91 @@ func Refused(err error) bool {
 // install, of a folder that's refused; and with ErrNoFirstPool, of a folder
 // exported before pools, where record notes no first pool.
 func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error) {
+	all, err := JoinFolders([]string{dir}, record, here)
+	if err != nil {
+		return Renames{}, err
+	}
+	return all[0], nil
+}
+
+// SeedFolder seeds record, the accounts record of a Mac a config is laid
+// down on, from the Mac's folder at dir whose copy that config is, as here
+// has it: with what JoinFolder joins of the folder into it, the accounts
+// and pools the config configures alone, never those the folder's Mac
+// removed or kept apart, which an import takes in later as it takes in any.
+// It fails, record as it was, as JoinFolder does.
+func SeedFolder(dir string, record *identity.Record, here Here) error {
+	seeded := identity.Record{Accounts: slices.Clone(record.Accounts), Pools: slices.Clone(record.Pools)}
+	if _, err := JoinFolder(dir, &seeded, here); err != nil {
+		return err
+	}
+	seeded.Accounts = slices.DeleteFunc(seeded.Accounts, func(e identity.Entry) bool { return here.Accounts.Index(e.ID) < 0 })
+	seeded.Pools = slices.DeleteFunc(seeded.Pools, func(p identity.PoolEntry) bool {
+		_, configured := here.Pools.ByID(p.ID)
+		return !configured
+	})
+	*record = seeded
+	return nil
+}
+
+// JoinFolders joins the accounts each of the folders at dirs names into
+// record, in their order, as JoinFolder joins one, and returns how each is
+// renamed, in the same order. A pool's id being random, it's one pool on
+// every Mac: so each pool is taken in alike by every folder, as the pool
+// here holding every account the configs of the folders' Macs put in it,
+// identity's JoinAs' Members, whichever folders configure it, hold no copy
+// of their config, or relay its history, as a Mac that imported it does,
+// so every copy of a line goes to one pool, whatever the folders' order;
+// and a pool's days taken in apart before are said only of a pool the record
+// held as the import began. It fails, record as it was, as JoinFolder does.
+func JoinFolders(dirs []string, record *identity.Record, here Here) ([]Renames, error) {
+	here.before = slices.Clone(record.Pools)
+	// A first round of joins, into a copy, finds the accounts each folder's
+	// Mac puts in its pools, by their ids here: Join never changes the record
+	// it's given but to replace it whole, so a copy of the value shares
+	// nothing it writes.
+	scratch := *record
+	members := make(map[string][]string)
+	for _, dir := range dirs {
+		rename, err := joinFolder(dir, &scratch, here)
+		if err != nil {
+			return nil, err
+		}
+		for pool, in := range rename.members {
+			members[pool] = withIDs(members[pool], in)
+		}
+	}
+	here.members = members
+	joined := *record
+	all := make([]Renames, len(dirs))
+	for i, dir := range dirs {
+		rename, err := joinFolder(dir, &joined, here)
+		if err != nil {
+			return nil, err
+		}
+		all[i] = rename
+	}
+	*record = joined
+	return all, nil
+}
+
+// withIDs returns ids with each of more it doesn't hold, ids compared
+// ignoring case, as an account's are: never nil.
+func withIDs(ids, more []string) []string {
+	if ids == nil {
+		ids = []string{}
+	}
+	for _, id := range more {
+		if !slices.ContainsFunc(ids, func(held string) bool { return strings.EqualFold(held, id) }) {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// joinFolder joins the folder at dir into record, as JoinFolder says, as one
+// of the folders JoinFolders joins, as here's before and members have them.
+func joinFolder(dir string, record *identity.Record, here Here) (Renames, error) {
 	f, err := classify(dir, here)
 	switch {
 	case Refused(err):
@@ -304,50 +409,6 @@ func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error)
 	return rename, nil
 }
 
-// JoinFolders joins the accounts each of the folders at dirs names into
-// record, in their order, as JoinFolder joins one, and returns how each is
-// renamed, in the same order. A pool's id being random, it's one pool on
-// every Mac: so a pool one folder's join takes in as a pool here is taken in
-// as that one by each other folder's whose own Mac can't place it, as it
-// doesn't configure it, as of history relayed through a Mac that imported
-// it, or whose folder holds no copy of its config, unless two folders take
-// it in as different pools here. It fails, record as it was, as JoinFolder
-// does.
-func JoinFolders(dirs []string, record *identity.Record, here Here) ([]Renames, error) {
-	// A first round of joins, into a copy, finds what each folder takes its
-	// pools in as: Join never changes the record it's given but to replace
-	// it whole, so a copy of the value shares nothing it writes.
-	scratch := *record
-	mapped, clashed := make(renames), make(map[string]bool)
-	for _, dir := range dirs {
-		rename, err := JoinFolder(dir, &scratch, here)
-		if err != nil {
-			return nil, err
-		}
-		for id, to := range rename.pools {
-			if was, ok := mapped[id]; ok && !config.SamePool(was, to) {
-				clashed[id] = true
-			}
-			mapped[id] = to
-		}
-	}
-	for id := range clashed {
-		delete(mapped, id)
-	}
-	here.mapped = mapped
-	joined := *record
-	all := make([]Renames, len(dirs))
-	for i, dir := range dirs {
-		rename, err := JoinFolder(dir, &joined, here)
-		if err != nil {
-			return nil, err
-		}
-		all[i] = rename
-	}
-	*record = joined
-	return all, nil
-}
-
 // joined joins the accounts and pools the folder f names into record, as
 // JoinFolder says, by its kind, and returns how its accounts are renamed.
 func joined(f told, record *identity.Record, here Here) (Renames, error) {
@@ -364,13 +425,13 @@ func joined(f told, record *identity.Record, here Here) (Renames, error) {
 	own := installErr == nil && f.manifest.Install == install
 	as := identity.JoinAs{
 		Configured: here.Accounts, Pools: here.Pools, From: f.manifest.Install, Own: own, Labels: installErr == nil && !own,
-		Theirs: f.theirs, TheirsKnown: f.theirsKnown, Mapped: here.mapped,
+		Theirs: f.theirs, TheirsKnown: f.theirsKnown, Members: here.members, Before: here.before,
 	}
 	j, err := record.Join(f.record, as)
 	if err != nil {
 		return Renames{}, err
 	}
-	return Renames{steps: []renames{formerIDs(f.record), renames(j.Accounts)}, pools: renames(j.Pools), apart: j.Apart}, nil
+	return Renames{steps: []renames{formerIDs(f.record), renames(j.Accounts)}, pools: renames(j.Pools), apart: j.Apart, members: j.Members}, nil
 }
 
 // formerIDs are the ids record's accounts had before switchboard made ids,
@@ -519,10 +580,8 @@ func scanStaged(path string, most int, line func([]byte) []byte) (stagedScan, er
 }
 
 // summaryRenamed reports whether the request ledger's summary of the day
-// with the given date in dir is renamed as rename has it: it names an
-// account renamed, or a pool, or it has work in no pool to give one, as any
-// summary may, so is renamed whenever rename gives one; none where there's
-// no summary.
+// with the given date in dir is renamed as rename has it, as ledger's
+// Renaming.Changes tells: none where there's no summary.
 func summaryRenamed(dir, date string, rename ledger.Renaming) (bool, error) {
 	data, err := os.ReadFile(ledger.SummaryFile(dir, date))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -531,16 +590,7 @@ func summaryRenamed(dir, date string, rename ledger.Renaming) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	renamed := rename.Unpooled != ""
-	for _, named := range []struct {
-		names  names
-		rename func(id string) string
-	}{{summaryNames, rename.Account}, {names{values: summaryNames.pools}, rename.Pool}} {
-		if named.rename != nil {
-			named.names.visit(data, func(id string, _ bool) { renamed = renamed || named.rename(id) != id })
-		}
-	}
-	return renamed, nil
+	return rename.Changes(data), nil
 }
 
 // healStaged writes the staged compressed file at path anew, as one gzip

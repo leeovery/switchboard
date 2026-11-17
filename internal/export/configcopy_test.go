@@ -1,6 +1,7 @@
 package export_test
 
 import (
+	"bytes"
 	"errors"
 	"io/fs"
 	"os"
@@ -55,10 +56,31 @@ func wantConfigHeld(t *testing.T, folder string, held bool) {
 	}
 }
 
+// wantNoConfig fails t where the Mac's folder at folder holds a copy of the
+// config.
+func wantNoConfig(t *testing.T, folder string) {
+	t.Helper()
+	if _, err := os.Lstat(export.ConfigFile(folder)); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("the folder holds a config (%v), want none", err)
+	}
+}
+
+// copyOf is the copy of the config text gives, as config.Copy makes it.
+func copyOf(t *testing.T, text string) []byte {
+	t.Helper()
+	copied, err := config.Copy("config.toml", []byte(text), func() (string, error) { return "/Users/someone", nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	return copied
+}
+
 // The config is exported as a copy, with its time, before any day's lines,
 // so a sync in the export's order never carries the days ahead of it, and
-// export.json says the folder holds it; passed over while it's as it was, and
-// written again once it changes.
+// export.json says the folder holds it; passed over while the folder's copy
+// is as long and was last modified when the config was, told by those alone,
+// as a day's compressed file is, so nothing in the folder is read; and
+// written again once the config changes.
 func TestTheConfigIsExportedBeforeTheDaysAndSaidHeld(t *testing.T) {
 	state, dir := t.TempDir(), t.TempDir()
 	path := putConfig(t, t.TempDir(), copiedConfig, configuredAt)
@@ -76,10 +98,12 @@ func TestTheConfigIsExportedBeforeTheDaysAndSaidHeld(t *testing.T) {
 	if err != nil || looked != 1 || r.Uncopied != nil {
 		t.Fatalf("Export() = %+v, %v, looking at %d days; want the day exported, and the config copied", r, err, looked)
 	}
-	wantCopy(t, export.ConfigFile(folder), []byte(copiedConfig), configuredAt)
+	copied := copyOf(t, copiedConfig)
+	wantCopy(t, export.ConfigFile(folder), copied, configuredAt)
 	wantConfigHeld(t, folder, true)
-	was := look(t, export.ConfigFile(folder))
 
+	writeFile(t, export.ConfigFile(folder), bytes.Repeat([]byte("x"), len(copied)), configuredAt)
+	was := look(t, export.ConfigFile(folder))
 	if _, err := x.Export(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -90,26 +114,26 @@ func TestTheConfigIsExportedBeforeTheDaysAndSaidHeld(t *testing.T) {
 	if _, err := x.Export(dir); err != nil {
 		t.Fatal(err)
 	}
-	wantCopy(t, export.ConfigFile(folder), []byte(changed), configuredAt.Add(time.Hour))
+	wantCopy(t, export.ConfigFile(folder), copyOf(t, changed), configuredAt.Add(time.Hour))
 }
 
-// The copy never holds a token: one in a comment is hidden.
-func TestTheConfigsCopyHidesATokenInAComment(t *testing.T) {
+// No comment reaches the folder's copy, a token in one included.
+func TestTheConfigsCopyHoldsNoComment(t *testing.T) {
 	state, dir := t.TempDir(), t.TempDir()
 	path := putConfig(t, t.TempDir(), "# test-token: sk-ant-oat01-fake_token-shaped\n"+copiedConfig, configuredAt)
 
 	if _, err := configExporter(state, path).Export(dir); err != nil {
 		t.Fatal(err)
 	}
-	wantCopy(t, export.ConfigFile(folderOf(t, state, dir)), []byte("# test-token: [redacted]\n"+copiedConfig), configuredAt)
+	wantCopy(t, export.ConfigFile(folderOf(t, state, dir)), copyOf(t, copiedConfig), configuredAt)
 }
 
 // A config that can't be copied, as one that doesn't load, one giving a
 // value shaped like a token or one that's gone, fails no export: the folder
-// keeps the copy it has, as a backup keeps the last config that loaded, and
-// says it holds one where it does, and the export says why it copied none,
-// but of one that's gone, which is none to copy.
-func TestAConfigThatCantBeCopiedLeavesTheFoldersCopy(t *testing.T) {
+// is left holding no copy, as an older config's would read as current, and
+// says so, and the export says why it copied none, but of one that's gone,
+// which is none to copy.
+func TestAConfigThatCantBeCopiedLeavesTheFolderNone(t *testing.T) {
 	tests := []struct {
 		name   string
 		config string
@@ -149,24 +173,24 @@ func TestAConfigThatCantBeCopiedLeavesTheFoldersCopy(t *testing.T) {
 				if errors.Is(tt.want, config.ErrSecretValue) && !errors.Is(r.Uncopied, tt.want) || r.Uncopied != nil && strings.Contains(r.Uncopied.Error(), "sk-ant-") {
 					t.Errorf("Export() said the config wasn't copied as %v, want %v, without the token", r.Uncopied, tt.want)
 				}
-				wantConfigHeld(t, folder, before)
-				if before {
-					wantCopy(t, export.ConfigFile(folder), []byte(copiedConfig), configuredAt)
-				} else if _, err := os.Lstat(export.ConfigFile(folder)); !errors.Is(err, fs.ErrNotExist) {
-					t.Errorf("the folder holds a config (%v), want none", err)
-				}
+				wantConfigHeld(t, folder, false)
+				wantNoConfig(t, folder)
 			})
 		}
 	}
 }
 
-// An export given no config file copies none and says nothing of it.
+// An export given no config file copies none, removes the copy the folder
+// holds, and says nothing of it.
 func TestAnExportGivenNoConfigCopiesNone(t *testing.T) {
 	state, dir := t.TempDir(), t.TempDir()
+	folder := folderOf(t, state, dir)
+	writeFile(t, export.ConfigFile(folder), copyOf(t, copiedConfig), configuredAt)
 
 	r := exportInto(t, state, dir)
 	if r.Uncopied != nil {
 		t.Errorf("Export() = %+v, want it to say nothing of the config", r)
 	}
-	wantConfigHeld(t, folderOf(t, state, dir), false)
+	wantConfigHeld(t, folder, false)
+	wantNoConfig(t, folder)
 }

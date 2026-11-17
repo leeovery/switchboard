@@ -169,10 +169,12 @@ func TestJoiningThisMacsOwnRecordTakesNoPoolsLabel(t *testing.T) {
 // holds them, they're in several here, the other puts none in it, this Mac
 // has no pools, or its config isn't known, the pool is kept apart, added as
 // the other Mac keeps it, and Join says why, where it's live there. One
-// configured here, or this Mac's own, is matched by its id, as ever. One
-// another record joined beside it takes in as a pool here goes there too,
-// where its own Mac can't place it; and one an import before kept apart is
-// taken in all the same, Join saying its days imported then stay apart.
+// configured here, or this Mac's own, is matched by its id, as ever. Where
+// records are joined beside it, a pool is placed by every account any of
+// their Macs' configs put in it, its own Mac's among them, whether or not
+// its own Mac can place it; and one the record held as the import began, as
+// an import before kept it apart, is taken in all the same, Join saying its
+// days imported then stay apart, but never one an import put there since.
 func TestJoiningARecordTakesItsPoolsInAsThePoolHereHoldingTheirAccounts(t *testing.T) {
 	own := identity.Record{
 		Accounts: []identity.Entry{
@@ -196,14 +198,16 @@ func TestJoiningARecordTakesItsPoolsInAsThePoolHereHoldingTheirAccounts(t *testi
 		name   string
 		theirs config.Accounts
 		pool   identity.PoolEntry
-		// mapped is what other records joined beside it take pools in as;
-		// noPools has this Mac configure none; and before has the record keep
-		// the pool as another Mac's, as an import before kept it apart.
-		mapped  map[string]string
-		noPools bool
-		before  bool
-		here    string
-		apart   string
+		// members are the accounts the import's Macs put in each pool, as
+		// records joined beside it give them; noPools has this Mac configure
+		// none; before has the record keep the pool as another Mac's as the
+		// import began, as an import before kept it apart, and since has it
+		// keep it so only since, as a record joined beside it put it there.
+		members       map[string][]string
+		noPools       bool
+		before, since bool
+		here          string
+		apart         string
 	}{
 		{name: "holding an account of the same id", theirs: config.Accounts{{ID: "b6s7", Pool: "p1p1"}}, here: "b2n8"},
 		{name: "holding one of the same subscription under another id", theirs: config.Accounts{{ID: "z9k4", Pool: "p1p1"}}, here: "W9RK"},
@@ -217,9 +221,11 @@ func TestJoiningARecordTakesItsPoolsInAsThePoolHereHoldingTheirAccounts(t *testi
 		{name: "configured here, matched by its id", theirs: config.Accounts{{ID: "qgr2", Pool: "b2n8"}}, pool: identity.PoolEntry{ID: "b2n8", Label: "Default", Added: added, Configured: true}},
 		{name: "this Mac's own, removed here, matched by its id", theirs: config.Accounts{{ID: "b6s7", Pool: "g0n3"}}, pool: identity.PoolEntry{ID: "g0n3", Label: "Gone", Added: added, Configured: true}},
 		{name: "kept apart by an import before, its days then said apart", theirs: config.Accounts{{ID: "b6s7", Pool: "p1p1"}}, before: true, here: "b2n8", apart: identity.ApartBefore},
-		{name: "relayed, as its Mac doesn't configure it, taken in as another record joined beside it is", theirs: config.Accounts{}, pool: relayed, mapped: map[string]string{"p1p1": "w9rk"}, here: "w9rk"},
-		{name: "its Mac's config not known, taken in as another record joined beside it is", mapped: map[string]string{"p1p1": "w9rk"}, here: "w9rk"},
-		{name: "configured there, taken in as its own Mac's config places it", theirs: config.Accounts{{ID: "b6s7", Pool: "p1p1"}}, mapped: map[string]string{"p1p1": "w9rk"}, here: "b2n8"},
+		{name: "kept apart by a record joined beside it alone, nothing said", theirs: config.Accounts{{ID: "b6s7", Pool: "p1p1"}}, since: true, here: "b2n8"},
+		{name: "relayed, as its Mac doesn't configure it, placed by the accounts the import's Macs put in it", theirs: config.Accounts{}, pool: relayed, members: map[string][]string{"p1p1": {"qgr2"}}, here: "W9RK"},
+		{name: "relayed, kept apart unsaid where the import's Macs put its accounts in several pools here", theirs: config.Accounts{}, pool: relayed, members: map[string][]string{"p1p1": {"b6s7", "qgr2"}}},
+		{name: "its Mac's config not known, placed by the accounts the import's Macs put in it", members: map[string][]string{"p1p1": {"qgr2"}}, here: "W9RK"},
+		{name: "configured there, placed by every account the import's Macs put in it", theirs: config.Accounts{{ID: "b6s7", Pool: "p1p1"}}, members: map[string][]string{"p1p1": {"b6s7", "qgr2"}}, apart: identity.ApartSplit},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -230,12 +236,16 @@ func TestJoiningARecordTakesItsPoolsInAsThePoolHereHoldingTheirAccounts(t *testi
 			other := theirs
 			other.Pools = []identity.PoolEntry{pool}
 			record := identity.Record{Accounts: slices.Clone(own.Accounts), Pools: slices.Clone(own.Pools)}
-			if tt.before {
+			joinAs := as
+			joinAs.Before = slices.Clone(own.Pools)
+			if tt.before || tt.since {
 				record.Pools = append(record.Pools, identity.PoolEntry{ID: "p1p1", Label: "Everything", Added: added})
 			}
+			if tt.before {
+				joinAs.Before = record.Pools
+			}
 			_, wasHeld := record.PoolByID(pool.ID)
-			joinAs := as
-			joinAs.Theirs, joinAs.TheirsKnown, joinAs.Mapped = tt.theirs, tt.theirs != nil, tt.mapped
+			joinAs.Theirs, joinAs.TheirsKnown, joinAs.Members = tt.theirs, tt.theirs != nil, tt.members
 			if tt.noPools {
 				joinAs.Pools = nil
 			}

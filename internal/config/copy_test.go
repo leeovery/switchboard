@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -30,28 +31,198 @@ func inHome() (string, error) {
 	return "/Users/someone", nil
 }
 
-// A copy of a config holding nothing shaped like a token is the config as it
-// is, byte for byte.
-func TestACopyOfAConfigHoldingNoTokenIsTheConfig(t *testing.T) {
-	got, err := config.Copy("config.toml", []byte(copiedConfig), inHome)
-	if err != nil || string(got) != copiedConfig {
-		t.Errorf("Copy() = %q, %v; want the config as it is", got, err)
-	}
-}
+// fullConfig is a config giving a value of every kind a copy writes anew:
+// keys at the top, tables, arrays of tables, an array across lines, a
+// float, an integer, nested tables, an escape, and comments.
+const fullConfig = `# switchboard's config
+listen   = "127.0.0.1:4747"  # where the router listens
+upstream = "https://gw.example.com/anthropic"
+week_starts = "sunday"
 
-// A token in a comment is hidden in the copy, which loads as the config does.
-func TestACopyOfAConfigHidesATokenInAComment(t *testing.T) {
-	data := []byte("# pasted by mistake: " + tokenShaped + "\n" + copiedConfig)
+[[account]]
+id      = "b6s7"  # do not edit: links the account to its history
+label   = "Work \"main\""
+primary = true
+reserve = 0.1
+plan    = "max"
+pool    = "b2n8"
 
-	got, err := config.Copy("config.toml", data, inHome)
+[[account]]
+id    = "q8rt"
+label = "Acme"
+pool  = "q7mt"
+
+[[pool]]
+id    = "b2n8"
+label = "Default"
+
+[[pool]]
+id    = "q7mt"
+label = "Acme"
+dirs  = [
+  "~/Code/acme",  # the client's work
+  "/Volumes/Work/acme",
+]
+
+[prime]
+day = "08:00-23:00"
+
+[notifications]
+warning = 0.85
+moves   = true
+
+[ledger]
+keep = "forever"
+
+[prices.models.claude-opus-5-5]
+input  = 15
+output = 75.5
+`
+
+// fullCopy is the copy of fullConfig.
+const fullCopy = `listen = "127.0.0.1:4747"
+upstream = "https://gw.example.com/anthropic"
+week_starts = "sunday"
+
+[[account]]
+id = "b6s7"
+label = "Work \"main\""
+plan = "max"
+pool = "b2n8"
+primary = true
+reserve = 0.1
+
+[[account]]
+id = "q8rt"
+label = "Acme"
+pool = "q7mt"
+
+[ledger]
+keep = "forever"
+
+[notifications]
+moves = true
+warning = 0.85
+
+[[pool]]
+id = "b2n8"
+label = "Default"
+
+[[pool]]
+dirs = ["~/Code/acme", "/Volumes/Work/acme"]
+id = "q7mt"
+label = "Acme"
+
+[prices]
+[prices.models]
+[prices.models.claude-opus-5-5]
+input = 15
+output = 75.5
+
+[prime]
+day = "08:00-23:00"
+`
+
+// A copy of a config holds its values alone, written anew: each table's keys
+// in order, then its tables, none of its comments nor its layout; and it
+// loads as the config does.
+func TestACopyOfAConfigHoldsItsValuesAlone(t *testing.T) {
+	got, err := config.Copy("config.toml", []byte(fullConfig), inHome)
 	if err != nil {
 		t.Fatalf("Copy() = %v, want a copy", err)
 	}
-	if strings.Contains(string(got), "sk-ant-") || !strings.Contains(string(got), "# pasted by mistake: [redacted]\n") {
-		t.Errorf("Copy() = %q, want the token hidden", got)
+	if string(got) != fullCopy {
+		t.Errorf("Copy() =\n%s\nwant\n%s", got, fullCopy)
 	}
-	if cfg, err := config.Parse("config.toml", got, inHome); err != nil || len(cfg.Accounts) != 1 {
-		t.Errorf("the copy loads as %+v, %v; want the config's one account", cfg, err)
+	original, err := config.Parse("config.toml", []byte(fullConfig), inHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if copied, err := config.Parse("config.toml", got, inHome); err != nil || !reflect.DeepEqual(copied, original) {
+		t.Errorf("the copy loads as %+v, %v; want the config, %+v", copied, err, original)
+	}
+}
+
+// No comment reaches a copy, whatever it holds: a token, an address with
+// credentials and a key, a comment after a value, or a token wrapped across
+// two comments' lines.
+func TestNoCommentReachesACopy(t *testing.T) {
+	tests := []struct {
+		name, data string
+	}{
+		{name: "a token", data: "# pasted by mistake: " + tokenShaped + "\n" + copiedConfig},
+		{name: "an address with credentials and a key", data: "# upstream = \"https://user:test-secret@gw.example.com/v1?key=test-secret\"\n" + copiedConfig},
+		{name: "after the upstream", data: "upstream = \"https://gw.example.com\"  # user:test-secret@gw.example.com\n" + copiedConfig},
+		{name: "a token wrapped across two lines", data: "# sk-ant-oat01-fake_token-\n# test-secret-shaped-tail\n" + copiedConfig},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := config.Copy("config.toml", []byte(tt.data), inHome)
+			if err != nil {
+				t.Fatalf("Copy() = %v, want a copy", err)
+			}
+			if text := string(got); strings.Contains(text, "#") || strings.Contains(text, "test-secret") || strings.Contains(text, "sk-ant-") {
+				t.Errorf("Copy() = %q, want no comment in it", got)
+			}
+		})
+	}
+}
+
+// A copy laid down on another Mac is edited there as any config is: setup,
+// and every verb that edits a config, makes its change in it, which loads.
+func TestACopyIsEditedAsAnyConfigIs(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(d *config.Draft) error
+	}{
+		{name: "an account added", edit: func(d *config.Draft) error {
+			return d.AddAccount(config.NewAccount{ID: "m2x7", Label: "Mine", Plan: "pro", Primary: true, Pool: "q7mt"})
+		}},
+		{name: "an account removed", edit: func(d *config.Draft) error { return d.RemoveAccount("q8rt") }},
+		{name: "a label set", edit: func(d *config.Draft) error { return d.SetLabel("b6s7", "Office") }},
+		{name: "an id set", edit: func(d *config.Draft) error { return d.SetID("q8rt", "q9rt") }},
+		{name: "a plan set", edit: func(d *config.Draft) error { return d.SetPlan("q8rt", "ultra") }},
+		{name: "a reserve set", edit: func(d *config.Draft) error { return d.SetReserve("b6s7", 0.25) }},
+		{name: "the primary unmarked", edit: func(d *config.Draft) error { return d.UnmarkPrimary("b6s7") }},
+		{name: "an account moved to another pool", edit: func(d *config.Draft) error { return d.SetPool("q8rt", "b2n8") }},
+		{name: "the primary set", edit: func(d *config.Draft) error { return d.SetPrimary("q8rt") }},
+		{name: "a pool added", edit: func(d *config.Draft) error {
+			return d.AddPool(config.NewPool{ID: "h0me", Label: "Home", Dirs: []string{"~/Home"}})
+		}},
+		{name: "a pool relabelled", edit: func(d *config.Draft) error { return d.SetPoolLabel("q7mt", "Client") }},
+		{name: "a pool fenced anew", edit: func(d *config.Draft) error { return d.SetPoolDirs("q7mt", []string{"~/Client"}) }},
+		{name: "a pool removed", edit: func(d *config.Draft) error {
+			if err := d.RemoveAccount("q8rt"); err != nil {
+				return err
+			}
+			return d.RemovePool("q7mt")
+		}},
+		{name: "priming's day set", edit: func(d *config.Draft) error { return d.SetPrimeDay("09:00-21:00") }},
+	}
+	copied, err := config.Copy("config.toml", []byte(fullConfig), inHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := config.LayDown(path, copied); err != nil {
+				t.Fatal(err)
+			}
+			draft, err := config.Edit(path, inHome)
+			if err != nil {
+				t.Fatalf("Edit() = %v", err)
+			}
+			if err := tt.edit(draft); err != nil {
+				t.Fatalf("the edit = %v, want it made", err)
+			}
+			if err := draft.Save(); err != nil {
+				t.Fatalf("Save() = %v", err)
+			}
+			if _, err := config.Load(path, inHome); err != nil {
+				t.Errorf("edited, the copy loads as %v, want a config", err)
+			}
+		})
 	}
 }
 
@@ -70,6 +241,8 @@ func TestNoCopyIsMadeOfAConfigGivingASecretOrThatDoesntLoad(t *testing.T) {
 		{name: "a token in the upstream's credentials", data: `upstream = "https://user:` + tokenShaped + `@gateway.example.com"`, want: config.ErrSecretValue},
 		{name: "credentials in the upstream", data: `upstream = "https://user:test-secret@gateway.example.com"`, want: config.ErrSecretValue},
 		{name: "a key in the upstream's query", data: `upstream = "https://gateway.example.com/v1?key=test-secret"`, want: config.ErrSecretValue},
+		{name: "a key in the upstream's fragment", data: `upstream = "https://gateway.example.com/v1#key=test-secret"`, want: config.ErrSecretValue},
+		{name: "a token as a key", data: "[prices.models]\n" + tokenShaped + " = {input = 1.0}", want: config.ErrSecretValue},
 		{name: "a token written with an escape", data: `upstream = "https://gateway.example.com/\u0073k-ant-oat01-fake_token-shaped"`, want: config.ErrSecretValue},
 		{name: "a token split across lines", data: "upstream = \"\"\"https://gateway.example.com/sk-\\\n  ant-oat01-fake_token-shaped\"\"\"", want: config.ErrSecretValue},
 		{name: "a token written with an escape in a label", data: "[[account]]\nid = \"m2x7\"\nlabel = \"\\u0073k-ant-oat01-fake_token-shaped\"\npool = \"b2n8\"\n"},

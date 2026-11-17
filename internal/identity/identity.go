@@ -197,6 +197,20 @@ func (r Record) Hold(id, organization string) (Holding, Entry) {
 	return HeldNew, Entry{}
 }
 
+// Seeded reports whether the record holds nothing but what a restore seeds
+// it with, as idmove's SeedFolder seeds one: accounts, each live, with
+// nothing but its id, organization and time added; and pools, each live,
+// with nothing but its id and time added. A record a router has kept, or an
+// import has added to, holds more.
+func (r Record) Seeded() bool {
+	bare := func(e Entry) bool {
+		return e.Label == "" && e.Removed.IsZero() && e.Was == "" && e.Pool == "" && !e.Configured
+	}
+	barePool := func(p PoolEntry) bool { return p.Equal(PoolEntry{ID: p.ID, Added: p.Added}) }
+	return !slices.ContainsFunc(r.Accounts, func(e Entry) bool { return !bare(e) }) &&
+		!slices.ContainsFunc(r.Pools, func(p PoolEntry) bool { return !barePool(p) })
+}
+
 // Removed returns the accounts that have been removed, in the record's
 // order.
 func (r Record) Removed() []Entry {

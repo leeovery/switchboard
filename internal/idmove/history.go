@@ -85,6 +85,23 @@ func rewriteAll(ctx context.Context, files *dayfile.Files, line func([]byte) []b
 	return nil
 }
 
+// HoldsHistory reports whether the state directory stateDir holds any
+// history: a day of the request ledger's lines, or its summary, of the
+// router's events, or of the readings history. It opens nothing, and fails
+// where their folders can't be listed.
+func HoldsHistory(stateDir string) (bool, error) {
+	for _, files := range []*dayfile.Files{
+		ledger.Files(ledger.Dir(stateDir), logger), events.Files(ledger.Dir(stateDir), logger), readings.Files(readings.Dir(stateDir), logger),
+	} {
+		dates, err := files.All()
+		if err != nil || len(dates) > 0 {
+			return len(dates) > 0, err
+		}
+	}
+	summarised, err := ledger.SummaryDates(ledger.Dir(stateDir))
+	return len(summarised) > 0, err
+}
+
 // ledgerDates are the dates of the days the ledger holds lines or a summary
 // of, oldest first, each once.
 func ledgerDates(l *ledger.Ledger) ([]string, error) {

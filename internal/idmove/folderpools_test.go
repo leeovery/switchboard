@@ -455,6 +455,99 @@ func TestAPoolRelayedThroughAnotherMacIsTakenInAsItsOwnMacsFolderTakesItIn(t *te
 	}
 }
 
+// A pool is placed alike whatever the order of the folders imported: its own
+// Mac's folder, one relaying its history and a third Mac's configuring it
+// too, which holds its lines as well. Every copy of a line, in whichever
+// folder, names the one pool, so whichever the router takes in first, the
+// line goes there; the pool here holding every account the two Macs' configs
+// put in it, else the pool kept apart, both its Macs saying why alike, and
+// the import listing it once.
+func TestAPoolIsPlacedAlikeWhateverTheOrderOfTheFolders(t *testing.T) {
+	const relayer, third = "0a0a0a0a0a0a0a0a", "0c0c0c0c0c0c0c0c"
+	tests := []struct {
+		name string
+		// own and other are the accounts the pool's own Mac's config and the
+		// third Mac's put in it.
+		own, other []string
+		want       string
+		apart      string
+	}{
+		{name: "its own Mac's accounts split here, the third's in one pool", own: []string{workID, personalID}, other: []string{workID}, apart: identity.ApartSplit},
+		{name: "its own Mac's accounts in one pool here, the third's none", own: []string{workID}, want: poolsHere},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var placed map[string]string
+			for _, order := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+				own, theirs := otherMacsFolder(t, export.Manifest{Install: otherInstall, IDs: true, Accounts: true, Config: true})
+				relay := relayed(t, own, relayer, theirs)
+				other := relayed(t, own, third, theirs)
+				putPooledRecord(t, other, nil, []identity.PoolEntry{{ID: theirs, Label: "Default", Added: now, First: true, Configured: true}})
+				placing(t, other, inPool(tt.other, theirs))
+				placing(t, own, inPool(tt.own, theirs))
+				folders := []string{own, relay, other}
+				ordered := []string{folders[order[0]], folders[order[1]], folders[order[2]]}
+				record, h := thisMacsOwn(t, own, func(id string) string {
+					if id == workID {
+						return poolsHere
+					}
+					return "x2x2"
+				})
+
+				renames, err := idmove.JoinFolders(ordered, &record, h)
+				if err != nil {
+					t.Fatalf("JoinFolders(%v): %v", order, err)
+				}
+				lines := make(map[string]string)
+				for i, folder := range ordered {
+					if err := idmove.RenameFolder(t.Context(), folder, renames[i]); err != nil {
+						t.Fatalf("RenameFolder: %v", err)
+					}
+					for line, pool := range pooledLines(t, ledgerFiles(folder), requestOf) {
+						if was, ok := lines[line]; ok && was != pool {
+							t.Errorf("in the order %v, the copies of request line %s name pools %q and %q, want one", order, line, was, pool)
+						}
+						lines[line] = pool
+					}
+					for _, p := range renames[i].Apart() {
+						if p.Pool == theirs && p.Why != tt.apart {
+							t.Errorf("in the order %v, %s kept the pool apart as %q, want %q", order, folder, p.Why, tt.apart)
+						}
+					}
+				}
+				listed := 0
+				for _, p := range idmove.Apart(renames) {
+					if p.Pool == theirs {
+						listed++
+					}
+				}
+				if want := min(len(tt.apart), 1); listed != want {
+					t.Errorf("in the order %v, the import lists the pool apart %d times, want %d", order, listed, want)
+				}
+				if placed == nil {
+					placed = lines
+				} else if !maps.Equal(lines, placed) {
+					t.Errorf("in the order %v, the lines name the pools %v, want them as in the first order, %v", order, lines, placed)
+				}
+				for line, pool := range lines {
+					if want := cmp.Or(tt.want, theirs); pool != want {
+						t.Errorf("in the order %v, request line %s names pool %q, want %q", order, line, pool, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+// inPool puts each account of ids in pool, as placing takes them.
+func inPool(ids []string, pool string) map[string]string {
+	pools := make(map[string]string, len(ids))
+	for _, id := range ids {
+		pools[id] = pool
+	}
+	return pools
+}
+
 // A folder whose export.json says it holds its Mac's config is refused
 // where it doesn't, as a sync not done leaves it, and where its copy
 // doesn't read: its pools can't be told without it, and lines taken in apart
@@ -514,6 +607,59 @@ func TestALineMovedToPoolsReadsAsTheSameLineImportedFromBeforePools(t *testing.T
 			t.Errorf("the folder's lines taken in read\n%q\nwant this Mac's moved\n%q", got, want)
 		}
 	}
+}
+
+// This Mac's own folder, exported since pools, as a backup of the same Mac
+// is, has nothing renamed as it's taken in, every line and summary naming
+// its pool already: nothing in it is written, anew or beside, as each of its
+// folders' times tells, so an import of a year's backup reads its days but
+// compresses none of them again.
+func TestThisMacsOwnFolderSincePoolsHasNoDayWrittenAnew(t *testing.T) {
+	mac := newIDsFixture(t)
+	first := mac.pooled(t)
+	folder := t.TempDir()
+	for _, name := range []string{"ledger", "history", "accounts.json"} {
+		copyTree(t, filepath.Join(mac.state, name), filepath.Join(folder, name))
+	}
+	writeFile(t, export.ConfigFile(folder), readFile(t, mac.config))
+	asFolder(t, folder, export.Manifest{Install: thisInstall, IDs: true, Accounts: true, Config: true})
+	before := looks(t, folder)
+
+	record := mac.record(t)
+	rename, err := idmove.JoinFolder(folder, &record, idmove.Here{Install: here.Install, Accounts: mac.configured(t), Pools: config.Pools{{ID: first}}})
+	if err != nil {
+		t.Fatalf("JoinFolder: %v", err)
+	}
+	if err := idmove.RenameFolder(t.Context(), folder, rename); err != nil {
+		t.Fatalf("RenameFolder: %v", err)
+	}
+	after := looks(t, folder)
+	if !maps.EqualFunc(after, before, dayfile.SameAs) {
+		for path, was := range before {
+			if !dayfile.SameAs(was, after[path]) {
+				t.Errorf("%s was written anew, want it left as it was", path)
+			}
+		}
+	}
+}
+
+// looks are how each file and folder in dir looks, by its path, as Stat
+// gives it: a folder's time moves on as a file's made or removed in it.
+func looks(t *testing.T, dir string) map[string]os.FileInfo {
+	t.Helper()
+	files := make(map[string]os.FileInfo)
+	err := filepath.WalkDir(dir, func(path string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := os.Stat(path)
+		files[path] = info
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return files
 }
 
 // linesOf are the lines of every day of files, each as it's held, in order.
