@@ -229,7 +229,19 @@ func TestACompressStoppedPartwayIsFinishedByTheNextOnce(t *testing.T) {
 // compress stopped before it removed the plain file does.
 func addingPlain(t *testing.T, f *Files) {
 	t.Helper()
-	if err := f.addPlain(earlierDate); err != nil {
+	addPlainOf(t, f, earlierDate)
+}
+
+// addPlainOf adds the plain file of the day with the given date to its
+// compressed file, as addPlain does.
+func addPlainOf(t *testing.T, f *Files, date string) {
+	t.Helper()
+	plain, err := os.Open(f.path(plainFile(date)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = plain.Close() }()
+	if err := f.addPlain(date, plain); err != nil {
 		t.Fatal(err)
 	}
 }

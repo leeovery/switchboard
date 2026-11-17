@@ -80,8 +80,7 @@ removed ones included. It's how your record names an account long after you remo
 | `here` | boolean | Set while this Mac's config has the pool. |
 | `written` | object | The pool as this Mac's config last wrote it. |
 
-`here` is never set on a pool that only another Mac has. A copy written by an export holds neither
-`here` nor `written`.
+`here` is never set on a pool that only another Mac has.
 
 The `written` object holds these:
 
@@ -93,6 +92,26 @@ The `written` object holds these:
 | `primary_known` | boolean | Set once a config has said which account is primary. |
 
 With `primary_known` set, a pool without `primary` had no account.
+
+## The copy in an export
+
+An export writes a copy of the accounts record beside the days, as `accounts.json` in the folder of
+the Mac. The copy is for another Mac to take in, so it holds the labels and leaves out what only
+this Mac's config makes. The two differ in these fields:
+
+| Field | In the state directory | In the copy an export writes |
+|---|---|---|
+| `label` of an account | Left out while the account is configured | The label in the config, for each account the Mac configures |
+| `pool` of an account | The pool the config last had it in | Left out |
+| `label` of a pool | Left out while the pool is configured | The label in the config, for each pool the Mac configures |
+| `configured` | Never there | Set on each account and pool the Mac configures |
+| `here` and `written` | As above | Left out |
+
+A pool the record keeps as `here`, and not removed, counts as one the Mac configures in the copy.
+That holds even if the config doesn't name the pool, for example a config put back from before pools.
+The copy labels such a pool with the label the config last wrote, or with the pool id if there's none.
+
+Every other field is the same in both. See [Export folders](export-folder.md).
 
 ## A config from before pools
 

@@ -2,33 +2,43 @@ package router
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 // answeringMover is a move onto the accounts' ids that answers each run with
-// the next of its answers, nil once they've run out, counting its runs; and
-// has the API asked again after wait more than the wait before, noting each
-// wait before it's handed.
+// the next of its answers, nil once they've run out, counting its runs; has
+// the API asked again after wait more than the wait before, noting each wait
+// before it's handed; and settles failing with unsettled.
 type answeringMover struct {
-	answers []error
-	runs    int
-	ranAt   []time.Time
-	wait    time.Duration
-	waited  []time.Duration
+	answers   []error
+	runs      int
+	ranAt     []time.Time
+	wait      time.Duration
+	waited    []time.Duration
+	unsettled error
 }
 
 func (m *answeringMover) Settle() error {
-	return nil
+	return m.unsettled
 }
 
 func (m *answeringMover) RunBeside(context.Context, idmove.History) error {
@@ -177,6 +187,114 @@ func TestNoMoveOwedRunsNothing(t *testing.T) {
 	}, nil)
 	if m.owed() || m.report() != (status.Moving{}) {
 		t.Errorf("no move is owed, but the router says the move stands %+v", m.report())
+	}
+}
+
+// The router holds the history's rounds for as long as the move onto the ids
+// is owed: from its start, before settle and the history's writers run,
+// whatever Settle does, through a wait for the router to restart onto the
+// new ids, till that move's done; never while the move to pools after it
+// runs, nor with no move onto the ids owed.
+func TestTheHistoryIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
+	tests := []struct {
+		name  string
+		ids   *answeringMover
+		pools *answeringPoolMover
+		// held is whether the rounds are held as the router starts, and
+		// stays whether they still are once the moves have run.
+		held, stays bool
+	}{
+		{name: "the move onto the ids owed", ids: &answeringMover{}, held: true},
+		{name: "its Settle failing", ids: &answeringMover{unsettled: errors.New("the config can't be read")}, held: true},
+		{name: "the move failing, then done", ids: &answeringMover{answers: []error{errors.New("the disk is full")}}, held: true},
+		{name: "on the old ids, waiting to restart onto the new", ids: &answeringMover{answers: []error{idmove.ErrAwaitingRestart}}, held: true, stays: true},
+		{name: "the move to pools owed after it", ids: &answeringMover{}, pools: &answeringPoolMover{}, held: true},
+		{name: "the move to pools owed alone", pools: &answeringPoolMover{}},
+		{name: "no move owed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				var ids Mover
+				var pools PoolMover
+				if tt.ids != nil {
+					ids = tt.ids
+				}
+				if tt.pools != nil {
+					pools = tt.pools
+				}
+				m := newMoving(ids, pools)
+				if got := m.holds(); got != tt.held {
+					t.Errorf("as the router starts, holds() = %t, want %t", got, tt.held)
+				}
+				m.settle()
+				if got := m.holds(); got != tt.held {
+					t.Errorf("once settled, holds() = %t, want %t", got, tt.held)
+				}
+				heldInPools := false
+				m.run(t.Context(), func() idmove.History { return idmove.History{} }, func() bool {
+					heldInPools = heldInPools || m.holds()
+					return true
+				})
+				if heldInPools {
+					t.Error("while the move to pools ran, holds() = true, want false")
+				}
+				if got := m.holds(); got != tt.stays {
+					t.Errorf("once the moves have run, holds() = %t, want %t", got, tt.stays)
+				}
+			})
+		})
+	}
+}
+
+// While the move holds the history, the router's request ledger summarises
+// no day and prunes none, and its readings history prunes none; once the
+// move's done, their next rounds do both.
+func TestTheRoutersLedgerAndReadingsHistoryKeepNothingTillTheMoveLetsThemGo(t *testing.T) {
+	logstest.Capture(t)
+	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+	cfg.StateDir = t.TempDir()
+	cfg.Ledger.Keep, cfg.History.Keep = 24*time.Hour, 24*time.Hour
+	cfg.Move = &answeringMover{}
+	day, old := dayfile.DateOf(start.AddDate(0, 0, -1)), dayfile.DateOf(start.AddDate(0, 0, -30))
+	line, err := json.Marshal(ledger.Line{At: start.AddDate(0, 0, -1).UTC(), Request: "r1", Kind: ledger.KindMessage, Session: "one", Model: opus,
+		Account: "work", Reason: "sticky", Status: 200, Attempts: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, history := ledger.Dir(cfg.StateDir), readings.Dir(cfg.StateDir)
+	writeFile(t, filepath.Join(dir, "requests-"+day+".jsonl"), string(line)+"\n")
+	writeFile(t, filepath.Join(history, "readings-"+old+".jsonl"), "\n")
+	r := newTestRouterOf(t, cfg)
+	r.openHistory()
+	r.openLedger(dir)
+	ctx, cancel := context.WithCancel(t.Context())
+	var running sync.WaitGroup
+	running.Go(func() { r.ledger.run(ctx) })
+	running.Go(func() { r.history.run(ctx) })
+	defer func() {
+		cancel()
+		running.Wait()
+	}()
+	kept := func() (summarised, pruned bool) {
+		t.Helper()
+		if err := r.ledger.roundNow(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.history.tendNow(ctx); err != nil {
+			t.Fatal(err)
+		}
+		_, err := os.Stat(ledger.SummaryFile(dir, day))
+		_, gone := os.Stat(filepath.Join(history, "readings-"+old+".jsonl"))
+		return err == nil, errors.Is(gone, fs.ErrNotExist)
+	}
+
+	if summarised, pruned := kept(); summarised || pruned {
+		t.Errorf("while the move holds the history, a day was summarised %t, the readings past keeping pruned %t; want neither", summarised, pruned)
+	}
+	r.moving.run(ctx, func() idmove.History { return idmove.History{} }, nil)
+	if summarised, pruned := kept(); !summarised || !pruned {
+		t.Errorf("once the move's done, a day was summarised %t, the readings past keeping pruned %t; want both", summarised, pruned)
 	}
 }
 

@@ -67,10 +67,6 @@ type HistoryInput struct {
 	// PoolLabel labels a pool the days name by its id, as the JSON gives
 	// each beside its id: nil leaves them unlabelled.
 	PoolLabel func(pool string) string
-	// OnePool is set where the days are those of one pool of several, as
-	// PoolRead's Days reads them: the lines and bytes of each day's files,
-	// the whole day's, never the pool's, are left out of its JSON.
-	OnePool bool
 	// read is when a Past's days were read, as it takes them: its Now as
 	// NewPast takes them, and as Since takes those it's given; never moved
 	// on as it's taken to a later Now alone.
@@ -193,25 +189,40 @@ func wholeWeek(days []Day, this time.Time) func(week string) bool {
 type Day struct {
 	ledger.Priced
 	ByFamily []FamilyWorth `json:"by_family,omitempty"`
-	// onePool is set on a day of one pool of several, as HistoryInput's
-	// OnePool has it.
-	onePool bool
 }
 
-// MarshalJSON gives the day as its fields have it, but for its files' lines
-// and bytes, left out of a day of one pool of several.
+// MarshalJSON gives the day as its fields have it, a field added to it or
+// to the summary among them, but for what the summary keeps to know when to
+// summarise the day again: its version, the lines and bytes of the day's
+// files it was made from, and each account's windows read in the week
+// before. They say how the summary was made, not what the day did, so the
+// verb promises none of them.
 func (d Day) MarshalJSON() ([]byte, error) {
 	type day Day
-	if !d.onePool {
-		return json.Marshal(day(d))
+	accounts := make([]dayAccount, len(d.Accounts))
+	for i, a := range d.Accounts {
+		accounts[i] = dayAccount{PricedAccount: a}
 	}
-	// The fields below, shallower than the summary's of the same names,
-	// hide them, and are left out as nil.
+	// The fields below, shallower than the day's of the same names, take
+	// their places: Version, Lines and Bytes are left out as nil, and
+	// Accounts gives each account's day as dayAccount does, ByFamily after
+	// it, as the day gives them.
 	return json.Marshal(struct {
 		day
-		Lines *int          `json:"lines,omitempty"`
-		Bytes *ledger.Bytes `json:"bytes,omitempty"`
-	}{day: day(d)})
+		Version  *int          `json:"version,omitempty"`
+		Lines    *int          `json:"lines,omitempty"`
+		Bytes    *ledger.Bytes `json:"bytes,omitempty"`
+		Accounts []dayAccount  `json:"accounts,omitempty"`
+		ByFamily []FamilyWorth `json:"by_family,omitempty"`
+	}{day: day(d), Accounts: accounts, ByFamily: d.ByFamily})
+}
+
+// dayAccount is an account's day as a Day's JSON gives it: priced, but for
+// the windows read in the week before, which its field, shallower than the
+// summary's of the same name, hides, left out as nil.
+type dayAccount struct {
+	ledger.PricedAccount
+	ReadBefore *[]string `json:"read_before,omitempty"`
 }
 
 // FamilyWorth is what a family's requests were worth, by the family's name
@@ -228,7 +239,6 @@ func pricedDays(summaries []ledger.Summary, in HistoryInput, today string, v ver
 	days := make([]Day, len(summaries))
 	for i, s := range summaries {
 		days[i] = v.day(in.Prices.Priced(s, today), in.PoolLabel)
-		days[i].onePool = in.OnePool
 	}
 	return days
 }

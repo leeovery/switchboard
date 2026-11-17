@@ -338,16 +338,15 @@ func onePoolLeft(t *testing.T, deps cli.Deps, kept ...identity.PoolEntry) {
 	}
 }
 
-// A day of one pool of several leaves out its files' lines and bytes, the
-// whole day's, never the pool's.
-func TestHistoryOfOnePoolOfSeveralLeavesOutTheDaysFiles(t *testing.T) {
+// A day's summary keeps its version, and the lines and bytes of the day's
+// files it was made from, to know when to summarise it again: history
+// promises none of them, of one pool or of several.
+func TestHistoryLeavesOutHowEachDaysSummaryWasMade(t *testing.T) {
 	deps := pooledDeps(t, false)
 	for _, args := range [][]string{nil, {"--pool", "q7mt"}} {
-		checkDaysFilesLeftOut(t, deps, args)
+		checkSummaryKeepingLeftOut(t, deps, args)
 	}
 
-	// With one pool, its days are the whole day's, and keep them, while
-	// there never was another.
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
 	if err != nil {
 		t.Fatal(err)
@@ -355,39 +354,20 @@ func TestHistoryOfOnePoolOfSeveralLeavesOutTheDaysFiles(t *testing.T) {
 	onePool := strings.Replace(pooledConfig(false), `pool  = "q7mt"`, `pool  = "b2n8"`, 1)
 	onePool = onePool[:strings.LastIndex(onePool, "[[pool]]")]
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(onePool))
-	keepPools := func(pools ...identity.PoolEntry) {
-		t.Helper()
-		err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
-			r.Pools = pools
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+	err = identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: testNow, First: true, Here: true}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	first := identity.PoolEntry{ID: "b2n8", Added: testNow, First: true, Here: true}
-	keepPools(first)
-	got := run(t, deps, "history", "--json")
-	if !strings.Contains(got.stdout, `"lines": 3`) {
-		t.Errorf("switchboard history --json with one pool = %+v, want its day's lines", got)
-	}
-
-	// Once another was removed, or came in with an import, the days hold
-	// its work too, so even the one pool's leave them out.
-	for _, kept := range []identity.PoolEntry{
-		{ID: "q7mt", Label: "Acme", Added: testNow, Removed: testNow, Written: identity.PoolWritten{Label: "Acme", PrimaryKnown: true}},
-		{ID: "f4xk", Label: "Client", Added: testNow},
-	} {
-		keepPools(first, kept)
-		for _, args := range [][]string{nil, {"--pool", kept.ID}} {
-			checkDaysFilesLeftOut(t, deps, args)
-		}
-	}
+	checkSummaryKeepingLeftOut(t, deps, nil)
 }
 
-// checkDaysFilesLeftOut checks history --json with args gives its days
-// without their files' lines and bytes, each with its date.
-func checkDaysFilesLeftOut(t *testing.T, deps cli.Deps, args []string) {
+// checkSummaryKeepingLeftOut checks history --json with args gives its days
+// without what their summaries keep to know when to summarise them again,
+// each with its date.
+func checkSummaryKeepingLeftOut(t *testing.T, deps cli.Deps, args []string) {
 	t.Helper()
 	got := run(t, deps, append([]string{"history", "--json"}, args...)...)
 	var doc struct {
@@ -397,11 +377,10 @@ func checkDaysFilesLeftOut(t *testing.T, deps cli.Deps, args []string) {
 		t.Fatalf("switchboard history --json %s = %+v (%v), want its days", strings.Join(args, " "), got, err)
 	}
 	for _, d := range doc.Days {
-		if _, lines := d["lines"]; lines {
-			t.Errorf("switchboard history --json %s gave a day its lines, %s, want them left out", strings.Join(args, " "), d["lines"])
-		}
-		if _, bytes := d["bytes"]; bytes {
-			t.Errorf("switchboard history --json %s gave a day its bytes, %s, want them left out", strings.Join(args, " "), d["bytes"])
+		for _, kept := range []string{"version", "lines", "bytes"} {
+			if _, given := d[kept]; given {
+				t.Errorf("switchboard history --json %s gave a day its %s, %s, want it left out", strings.Join(args, " "), kept, d[kept])
+			}
 		}
 		if _, day := d["day"]; !day {
 			t.Errorf("switchboard history --json %s gave a day without its date: %v", strings.Join(args, " "), d)

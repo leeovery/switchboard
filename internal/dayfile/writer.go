@@ -45,6 +45,11 @@ type WriterOptions struct {
 	// past keeping before each prune, on Run's goroutine, holding nothing of
 	// the files.
 	Spare func(date string) bool
+	// Held, where it's given, reports whether the Writer's rounds are held
+	// for now: a round it reports true of calls neither Round nor Pruning,
+	// and prunes nothing, leaving all of it to the first round after, as
+	// while a move rewrites the files the rounds would keep and prune by.
+	Held func() bool
 }
 
 // Writer writes what's noted to it to its files, on Run's goroutine, and
@@ -64,6 +69,7 @@ type Writer[T any] struct {
 	onRound   func(now time.Time)
 	onPruning func(now time.Time, keep time.Duration)
 	spare     func(date string) bool
+	held      func() bool
 	queue     chan T
 	// work takes what Do hands Run's goroutine to do, as Run takes it up.
 	work chan func()
@@ -87,7 +93,7 @@ type Writer[T any] struct {
 // the lines linesOf returns of it, as opts say.
 func NewWriter[T any](files *Files, linesOf func(T) Lines, opts WriterOptions) *Writer[T] {
 	return &Writer[T]{files: files, linesOf: linesOf, keep: opts.Keep, now: opts.Now, items: opts.Items, onRound: opts.Round, onPruning: opts.Pruning,
-		spare: opts.Spare, queue: make(chan T, opts.Queue), work: make(chan func()), again: make(chan struct{}, 1), stopped: make(chan struct{})}
+		spare: opts.Spare, held: opts.Held, queue: make(chan T, opts.Queue), work: make(chan func()), again: make(chan struct{}, 1), stopped: make(chan struct{})}
 }
 
 // Files are the files the Writer writes to, holding them as Files says: one
@@ -237,8 +243,12 @@ func (w *Writer[T]) TendNow(ctx context.Context) error {
 // round has the Writer's Round, where it has one, keep what it keeps of the
 // files' days, then prunes the files on a day they haven't been pruned on,
 // noting the day it did, after its Pruning, where it has one, sparing the
-// days spared says: no prune comes but after both.
+// days spared says: no prune comes but after both. It does nothing while
+// the rounds are held, as Held says.
 func (w *Writer[T]) round() {
+	if w.held != nil && w.held() {
+		return
+	}
 	now := w.now()
 	if w.onRound != nil {
 		w.onRound(now)

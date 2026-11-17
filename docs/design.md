@@ -1564,7 +1564,25 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
   start nothing; a config changed meanwhile is asked for at the next read (see The dashboard in a
   pool).
 - **A router draining across the upgrade** can file a few lines naming no pool after the move,
-  read as the first pool's work (see What's recorded).
+  read as the first pool's work (see What's recorded). A router on the old ids still draining
+  as one on the new ids moves the history onto them can do three things more:
+  - lose a line it appends as the move renames that day's file into place, where it's from
+    before a day's plain file was held across processes (see Account identity), as it takes no
+    hold;
+  - file a line under an old id once the move has renamed that day, so its request is counted
+    under the old id, apart from its account;
+  - make a round as the move renames, where it's from before the rounds were held (see Account
+    identity) and its Mac joins a config another Mac moved, so the move begins as the new
+    router starts: the round can count a day's rise and limits twice, as the hold is there to
+    stop.
+
+  The usual upgrade can't do any of them: the router restarts in place, `exec`ing the new build
+  in the same process (see The router looking after itself), so no two routers ever run. Nor
+  can launchd's restarts, as it starts the next only once the last has gone. Each needs one of
+  the two routers run by hand, the one still draining among them. The first then needs a
+  request ending in the milliseconds of the rename, and the second one ending after it. The
+  third needs a round, which comes hourly and with a day's first line, falling within the
+  drain, so it's the rarest.
 - **A pool's id re-cased by a hand edit** lists the pool twice in the day's summary, once each
   spelling, and so in `history`'s JSON, each priced; every read of the pool takes both, as the
   config, the readers and a pool's read compare ids ignoring case.
@@ -1989,7 +2007,8 @@ formats below; the screens as signed off in Paper (see The screens, below).
   made, as `was`, read to import a folder exported before the move (below), and to put back an old
   id a config or a pin still names. Kept for good, as the days' summaries are, a few hundred bytes
   an account, and written whole, 0600, as `state.json` is, under a lock of its own,
-  `accounts.lock`; the config's lock, where a change holds both, is taken first. One that doesn't
+  `accounts.lock`; the config has no lock of its own, and a change of it that goes with the
+  record's, as `accounts add` and `remove` make, is written under this one. One that doesn't
   read is left as it is, never written over: what changes it fails, naming it, and the history's
   readers name a removed account by its id meanwhile. `export` copies it and `import` reads it.
 - **Adding:** `accounts add <label>` takes the label, and setup's add card the label and the plan,
@@ -2108,11 +2127,38 @@ formats below; the screens as signed off in Paper (see The screens, below).
     history, the router's events, the days' summaries and `state.json`, is written anew under the
     new ids and swapped in, a day's files at a time, holding off their writers as they hold one
     another off, so a stop part way loses nothing, and the move runs again from where it stopped:
-    a new id is never an old one, so a file moved reads the same moved again. A day's compressed
-    file that's damaged is read up to its damage, its whole lines kept in its place, and the file
-    itself set aside beside it as `<name>.damaged`, then `.damaged-2` and on, till its day's past
-    keeping. The files the router builds from these, the days' digests, parts, heads and rows, are
-    built again.
+    a new id is never an old one, so a file moved reads the same moved again. Another process's
+    writer is held off too: a day's plain file is held (`flock`), shared as it's appended to, and
+    exclusive from the check before its rename till the file written anew is in its place, and
+    as a compress reads it then removes it, so a router draining as another starts never appends
+    to a file replaced or removed. A router from before the hold doesn't take it (see What pools
+    can't hold). A day's compressed file that's damaged is read up to its damage, its whole lines
+    kept in its place, and the file itself set aside beside it as `<name>.damaged`, then
+    `.damaged-2` and on, till its day's past keeping. The files the router builds from these,
+    the days' digests, parts, heads and rows, are built again.
+  - **The rounds held:** for as long as the move is owed, from the router's start until the
+    move is marked done, the request ledger's rounds summarise nothing and prune nothing, and
+    the readings history prunes nothing (`moving.holds`). That's so whatever ids the router is
+    on, and whatever `Settle` finds: a router on the old ids, waiting to restart, holds too. A
+    prune is where a day's files are compressed, so a day that ends while the rounds are held
+    stays plain files till the first round after the move, and nothing is lost. The move
+    renames the history day by day, each day's lines before its summary, by the ids the
+    accounts record has moved: the configured ones, those only the history names, and those of
+    a config another Mac moved, which this Mac's record learns only as the move decides. A
+    round in between would summarise a day named by both, from readings under one id and lines
+    or a summary under the other: it would count the day's work under both ids, or its rise,
+    minutes and limits without what the week before carried, and the summary renamed after
+    would keep it so. Every reader waits while the move is owed (`history`, `requests`, the
+    sessions, the events, export, import and the dashboard), so a summary made then has no
+    reader. Nothing but the rounds writes a summary, beside the move and an import, and nothing
+    but a prune takes readings, so holding both loses nothing: a move held up, as by a step
+    that keeps failing, costs only the disk the days past keeping hold meanwhile. A fresh
+    install's move has nothing to rename. Where the record knows every account configured, as
+    setup leaves it, the move is done moments after the router starts; a config written by hand
+    waits on the API for its accounts' organizations first. Once the move's done, every line,
+    reading and summary names the new ids, and the next round, within the hour, summarises,
+    compresses and prunes as ever. Days under ids an account had in two cases still merge as
+    the summary is renamed, their figures added up, as each read readings of its own.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals by account the same before and after, and
     the dashboard and the verbs reading it whole.
@@ -2122,6 +2168,20 @@ formats below; the screens as signed off in Paper (see The screens, below).
   it has no token files for, its token files and history under the old, and joins them by
   organization, as the strays above say, so every Mac keys a subscription alike. A Mac still on an
   earlier build reads ids it has no token files for, so the Macs sharing a config upgrade together.
+
+  A Mac that joins so lets go of what its router kept under the old ids. Its router starts on the
+  config's new ids before the move has decided which old id each one was, so `Settle` has nothing
+  to rename, and the router drops what names an id it doesn't configure. The history stays whole,
+  but once per such Mac it costs:
+  - the pool's pin, gone with its `unpinned` event, and the sessions' own pins;
+  - each running session's account, chosen afresh at its next request;
+  - the windows last read, shown again once the accounts are probed;
+  - the old ids' kept tokens, counted as the primary's for a week, another account's among them;
+  - the recent rates, which start empty: the newest readings they're taken from are renamed only
+    by the history step, and the router doesn't read them again.
+
+  Keeping that state while the move is owed, then restarting once it's decided, would carry it
+  over: see [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md).
 - **Import across the move:** an export carries the accounts record, each account the exporting
   Mac configures marked `configured` and labelled as its config labels it. `export.json` is
   version 2, so a switchboard from before, which reads version 1, refuses a folder whose days name
@@ -3155,7 +3215,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts counts, each account's plan and its worth against it, each week's peaks, the capacity verdict on the accounts (see Accounts, The capacity verdict), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"version": 7, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
+| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts counts, each account's plan and its worth against it, each week's peaks, the capacity verdict on the accounts (see Accounts, The capacity verdict), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"day": "2026-10-05", "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, less what it keeps to know when to summarise the day again, which says how it was made, not what the day did: its `version`, `lines` and `bytes`, and each account's `read_before`; every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
@@ -10055,9 +10115,10 @@ sync lag, duplicates and sessions claimed twice.
   never a machine name. A Mac whose state directory is restored from another's, as Migration
   Assistant restores one, carries the other's id and exports to its folder: removing the file
   gives it a new id, and a folder of its own, at its next export.
-- **What a Mac's folder holds:** `export.json`, `{"version": 2, "install": "<id>", "exported_at":
-  "<RFC 3339 time, UTC>", "ids": true, "accounts": true}`, rewritten at each export, `ids` and
-  `accounts` as Account identity says; `accounts.json`, the accounts record, written first, so the
+- **What a Mac's folder holds:** `export.json`, `{"version": 3, "install": "<id>", "exported_at":
+  "<RFC 3339 time, UTC>", "ids": true, "accounts": true}`, rewritten at each export, `version` 3
+  since pools (see Pools), `ids` and `accounts` as Account identity says; `accounts.json`, the
+  accounts record, written first, so the
   days a sync carries are never ahead of the record that names their accounts; `ledger/`,
   `requests-<local date>.jsonl.gz`, `events-<local date>.jsonl.gz` and `day-<local date>.json`;
   and `history/`, `readings-<local date>.jsonl.gz`: the state directory's own names, each day's

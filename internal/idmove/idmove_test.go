@@ -266,26 +266,42 @@ func TestAnOldIDAnOrganizationWouldDeriveLengthensTheIDItDerives(t *testing.T) {
 	}
 }
 
+// A fresh install's move is done at once, beside the router serve starts on
+// its ids too, so the router holds its history's rounds no longer.
 func TestAFreshInstallIsMarkedMovedChangingNothing(t *testing.T) {
-	f := fixture{config: filepath.Join(t.TempDir(), "config.toml"), state: t.TempDir()}
-	f.tokens = tokens.NewStore(f.state, os.Getuid())
-	writeFile(t, f.config, "[[account]]\nid = \""+workID+"\"\nlabel = \"Work\"\n")
-	if err := identity.NewFile(f.state).Update(func(r *identity.Record) error {
-		r.Add(workID, workOrganization, now)
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	before := f.snapshot(t)
-	if idmove.Pending(f.state) {
-		t.Error("a fresh install's history waits on the move, want it to have none to wait on")
-	}
-	f.moved(t, answering())
+	for _, tc := range []struct {
+		name    string
+		routing []string
+	}{
+		{name: "with no router running"},
+		{name: "beside the router on its ids", routing: []string{workID}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := fixture{config: filepath.Join(t.TempDir(), "config.toml"), state: t.TempDir()}
+			f.tokens = tokens.NewStore(f.state, os.Getuid())
+			writeFile(t, f.config, "[[account]]\nid = \""+workID+"\"\nlabel = \"Work\"\n")
+			if err := identity.NewFile(f.state).Update(func(r *identity.Record) error {
+				r.Add(workID, workOrganization, now)
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			before := f.snapshot(t)
+			if idmove.Pending(f.state) {
+				t.Error("a fresh install's history waits on the move, want it to have none to wait on")
+			}
+			m := f.mover(answering())
+			m.Routing = tc.routing
+			if err := m.Run(t.Context()); err != nil {
+				t.Fatalf("Run() = %v", err)
+			}
 
-	after := f.snapshot(t)
-	delete(after, "accounts.moved")
-	if !maps.Equal(after, before) || !idmove.Moved(f.state) {
-		t.Errorf("a fresh install changed, or isn't marked moved:\n%s", differences(before, after))
+			after := f.snapshot(t)
+			delete(after, "accounts.moved")
+			if !maps.Equal(after, before) || !idmove.Moved(f.state) {
+				t.Errorf("a fresh install changed, or isn't marked moved:\n%s", differences(before, after))
+			}
+		})
 	}
 }
 
@@ -365,6 +381,46 @@ func TestARouterRestartingOntoTheNewIDsFinishesTheMove(t *testing.T) {
 	}
 	if !idmove.Moved(f.state) {
 		t.Error("the move isn't marked done")
+	}
+}
+
+// A router starting on the old ids, the move stopped once it had decided the
+// new ones and before it moved the config, settles nothing the config still
+// names: the history's files keep the old ids, and the state file renames
+// only the account the history alone names.
+func TestSettlingARouterStartingOnTheOldIDsRenamesNothingTheConfigNames(t *testing.T) {
+	f := newFixture(t)
+	stopped := f.mover(answering())
+	stopped.Routing = []string{work, personal}
+	stopped.StopAfter(func(step string) error {
+		if step == "give" {
+			return errStopped
+		}
+		return nil
+	})
+	if err := stopped.Run(t.Context()); !errors.Is(err, errStopped) {
+		t.Fatalf("Run() = %v, want it stopped once the tokens were given their ids", err)
+	}
+	record := f.record(t)
+	moved, workMoved := record.ByWas(work)
+	removed, goneMoved := record.ByWas(gone)
+	if !workMoved || moved.ID != workID || !goneMoved {
+		t.Fatalf("the record holds %+v, want work and %s moved onto their ids before the config", record.Accounts, gone)
+	}
+	history := f.snapshotOf(t, "ledger", "history")
+	state := readFile(t, filepath.Join(f.state, "state.json"))
+
+	m := f.mover(answering())
+	m.Routing = []string{work, personal}
+	if err := m.Settle(); err != nil {
+		t.Fatalf("Settle() = %v", err)
+	}
+	if got := f.snapshotOf(t, "ledger", "history"); !maps.Equal(got, history) {
+		t.Errorf("settling a router on the old ids changed the history:\n%s", differences(history, got))
+	}
+	want := strings.ReplaceAll(state, `"`+gone+`"`, `"`+removed.ID+`"`)
+	if got := readFile(t, filepath.Join(f.state, "state.json")); got != want {
+		t.Errorf("settling a router on the old ids left the state file\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -489,10 +545,10 @@ func differences(want, got map[string]string) string {
 // request ledger and the router's events, by each field that names an
 // account, as "requests.from" and "events.accounts[]"; the readings' use, in
 // thousandths, by account; and each day's requests upstream, input tokens,
-// and each window's highest use and rise, in thousandths, by account, as its
-// summary has them, and its requests upstream added up over the pools it
-// names, each pool's as InPool gives it, so a day whose pools don't add up to
-// its whole tallies other than its whole. A day whose compressed file isn't
+// each window's highest use and rise, in thousandths, and its limits, by
+// account, as its summary has them, and its requests upstream added up over
+// the pools it names, each pool's as InPool gives it, so a day whose pools
+// don't add up to its whole tallies other than its whole. A day whose compressed file isn't
 // gzip at all holds no lines to count.
 func (f fixture) tallies(t *testing.T) map[string]int {
 	t.Helper()
@@ -555,6 +611,9 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 			}
 			for window, rise := range a.Rise {
 				counts["summary.rise."+window+"|"+date+"|"+a.Account] += int(math.Round(rise * 1000))
+			}
+			if len(a.Limits) > 0 {
+				counts["summary.limits|"+date+"|"+a.Account] += len(a.Limits)
 			}
 			for _, pool := range poolsOf(a) {
 				for _, m := range a.InPool(pool, "").Models {

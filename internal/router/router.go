@@ -384,7 +384,7 @@ func New(cfg Config) (*Router, error) {
 	inFlight := newInFlight()
 	stream := newStream(cfg.Now)
 	requests := newRequestLedger(cfg.Ledger, ledger.CapsOf(cfg.Accounts, cfg.Policy.Shared), cfg.Digester, cfg.Now)
-	history.pruning = requests.summariseBeforePrune
+	history.pruning, history.held = requests.summariseBeforePrune, moving.holds
 	awake := &wakes{now: clock, woke: func() {
 		transport.renew()
 		health.wake()

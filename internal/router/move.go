@@ -78,8 +78,8 @@ func (m *moving) owed() bool {
 	return m.stands.Load() != nil
 }
 
-// idsOwed reports whether the move onto the accounts' ids is owed, the
-// config's ids and the record's differing till it's done.
+// idsOwed reports whether the move onto the accounts' ids is owed: from the
+// router's start, where the move isn't marked done, until it's done.
 func (m *moving) idsOwed() bool {
 	s := m.stands.Load()
 	return s != nil && s.Move == status.MovingIDs
@@ -97,6 +97,19 @@ func (m *moving) report() status.Moving {
 // standing notes how the move stands.
 func (m *moving) standing(s status.Moving) {
 	m.stands.Store(&s)
+}
+
+// holds reports whether the history's rounds are held, so the request
+// ledger summarises nothing and neither it nor the readings history prunes
+// or compresses: for as long as the move onto the ids is owed, from the
+// router's start until that move is done, whatever ids the router is on.
+// The move renames the history day by day, each day's lines before its
+// summary, as the accounts record has the ids moved, among them ids only
+// the history names, or a config another Mac has moved already, so a round
+// in between would summarise a day named by both: no reader reads one till
+// the move's done, as every reader waits on it.
+func (m *moving) holds() bool {
+	return m.idsOwed()
 }
 
 // historyMoving is the error of an import while the history waits on the
