@@ -229,7 +229,7 @@ What the record holds is on [Your record](your-record.md).
 - `dir` is an absolute path, or one starting `~/`. Left empty, the router exports nothing.
 - Each Mac writes into a folder of its own inside `dir`.
 
-How to use the export for backups and a second Mac is on [Several Macs](several-macs.md).
+How to use the export for backups and a second Mac is on [Backups and a new Mac](several-macs.md).
 
 ## Usage: `[usage]`
 

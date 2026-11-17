@@ -33,15 +33,15 @@ var configuredHere = config.Accounts{{ID: "B6S7", Label: "Work"}, {ID: "qgr2", L
 // joinAs joins as the join tests do, labels taken.
 var joinAs = identity.JoinAs{Configured: configuredHere, From: otherMac, Labels: true}
 
-// joined is record with other's accounts joined into it as as says, and what
-// Join mapped, failing the test where it fails.
+// joined is record with other's accounts joined into it as as says, and the
+// accounts Join mapped, failing the test where it fails.
 func joined(t *testing.T, record identity.Record, as identity.JoinAs, other ...identity.Entry) (identity.Record, map[string]string) {
 	t.Helper()
-	mapped, err := record.Join(identity.Record{Accounts: other}, as)
+	j, err := record.Join(identity.Record{Accounts: other}, as)
 	if err != nil {
 		t.Fatalf("Join: %v", err)
 	}
-	return record, mapped
+	return record, j.Accounts
 }
 
 // Joining another Mac's record matches each of its accounts to this one's by

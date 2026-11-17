@@ -75,9 +75,10 @@ type exports struct {
 	at  time.Time
 	why string
 	// unread are the days' files the last export that succeeded couldn't
-	// read, by what they are, and unremoved the files writes cut short left
-	// that it couldn't remove, by their paths.
-	unread, unremoved map[string]bool
+	// read, by what they are, unremoved the files writes cut short left that
+	// it couldn't remove, by their paths, and uncopied why it didn't copy the
+	// config, by its words.
+	unread, unremoved, uncopied map[string]bool
 	// running are the folders exports run into, each by when the export into
 	// it began, in UTC, and underWay counts them, for a restart in place to
 	// wait until none runs.
@@ -89,16 +90,20 @@ type exports struct {
 }
 
 // newExports returns the exports of a router built from cfg, into the folder
-// its Export names, from its state directory, by its clock, each once tend
-// has had the history's writers compress what's due, and none while
-// restarting reports the router is to restart, or moving that the history
-// waits on its move onto the accounts' ids.
+// its Export names, from its state directory, with a copy of its config file,
+// by its clock, each once tend has had the history's writers compress what's
+// due, and none while restarting reports the router is to restart, or moving
+// that the history waits on its move onto the accounts' ids.
 func newExports(cfg Config, tend func(ctx context.Context) error, restarting, moving func() bool) *exports {
+	exporter := export.Exporter{
+		StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, Accounts: cfg.Accounts, Pools: cfg.Pools,
+		Config: cfg.ConfigFile.path, HomeDir: cfg.HomeDir, NoParents: true,
+	}
 	x := &exports{
 		every:      exportEvery,
 		now:        cfg.Now,
 		homeDir:    cfg.HomeDir,
-		exportInto: export.Exporter{StateDir: cfg.StateDir, Now: cfg.Now, Logger: logger, Accounts: cfg.Accounts, Pools: cfg.Pools, NoParents: true}.Export,
+		exportInto: exporter.Export,
 		tend:       tend,
 		restarting: restarting,
 		moving:     moving,
@@ -121,7 +126,7 @@ func (x *exports) configure(e config.Export) {
 	}
 	dir, err := e.Folder(x.homeDir)
 	x.configured, x.folder, x.unfound = e, cmp.Or(dir, e.Dir), err
-	x.at, x.why, x.unread, x.unremoved = time.Time{}, "", nil, nil
+	x.at, x.why, x.unread, x.unremoved, x.uncopied = time.Time{}, "", nil, nil, nil
 }
 
 // report is how the exports stand, for the status document: zero where the
@@ -286,10 +291,10 @@ func (x *exports) export(ctx context.Context, target exportTarget) {
 // note notes how the export into dir went, r saying what it did, or err why
 // it failed, where dir is the folder configured still: a failure, logged once
 // until an export succeeds, as one failing already has a why, and the first
-// success after logged too; and each day's file it couldn't read, and each
-// file writes cut short left that it couldn't remove, neither of which fails
-// an export, each warned of once until an export no longer meets it, as
-// warnedOnce says.
+// success after logged too; and each day's file it couldn't read, each file
+// writes cut short left that it couldn't remove, and why it didn't copy the
+// config, none of which fails an export, each warned of once until an export
+// no longer meets it, as warnedOnce says.
 func (x *exports) note(dir string, r export.Result, err error) {
 	// Saying why can look at the folder, which a disk that has stopped
 	// answering holds up: never while holding mu, which report waits on.
@@ -319,6 +324,13 @@ func (x *exports) note(dir string, r export.Result, err error) {
 	})
 	x.unremoved = warnedOnce(x.unremoved, r.Unremoved, func(l export.Leftover) string { return l.Path }, func(l export.Leftover) {
 		logger.Warn("can't remove a file an export cut short left; trying again at each round", "path", l.Path, "error", l.Err)
+	})
+	var uncopied []error
+	if r.Uncopied != nil {
+		uncopied = []error{r.Uncopied}
+	}
+	x.uncopied = warnedOnce(x.uncopied, uncopied, error.Error, func(err error) {
+		logger.Warn("can't copy the config into the export, so "+r.ConfigKept()+"; trying again at each round", "error", err)
 	})
 	logger.Debug("exported the history", "folder", r.Folder, "written", r.Written, "as_they_were", r.AsTheyWere)
 }

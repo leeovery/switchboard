@@ -37,6 +37,13 @@ func InstallID(stateDir string) (string, error) {
 	return readID(path)
 }
 
+// ReadInstallID returns the install's id, as InstallID does, but never makes
+// one: failing, matching fs.ErrNotExist, where none is made yet, as on a Mac
+// that has never exported.
+func ReadInstallID(stateDir string) (string, error) {
+	return readID(filepath.Join(stateDir, idFile))
+}
+
 // readID reads the id the file at path holds.
 func readID(path string) (string, error) {
 	data, err := os.ReadFile(path)

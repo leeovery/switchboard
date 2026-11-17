@@ -82,6 +82,8 @@ subscription decides the account's id, as [`accounts add`](accounts.md) says.
   waits until you mark one.
 - **On a first run,** if the primary has no reserve, `enter` asks for one, once. Give a percentage,
   or `none`. `esc` leaves it with none.
+- **After `import` lays down a config,** every account in it shows `no token`. Press `t` on each
+  account to make its token. See [Backups and a new Mac](../several-macs.md).
 
 Sign your browser into the first pool's primary, because artifacts open in a browser signed into
 it. See [Room for the Claude app](../room-for-the-claude-app.md) for what a reserve keeps back.

@@ -1280,6 +1280,21 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{plaintext("http://localhost:8080")},
 		},
 		{
+			name:   "plain http upstream with credentials, a query and a fragment, each hidden",
+			config: "upstream = \"http://user:test-secret@gw.example.com/v1?key=test-secret#test-secret\"\n" + work,
+			want:   []string{plaintext("http://[redacted]@gw.example.com/v1?[redacted]")},
+		},
+		{
+			name:   "upstream without a scheme, with credentials, hidden",
+			config: "upstream = \"user:test-secret@gw.example.com\"\n" + work,
+			want:   []string{`upstream "[redacted]@gw.example.com": must be an absolute http or https URL, such as https://api.anthropic.com`},
+		},
+		{
+			name:   "upstream with another scheme and a fragment, hidden",
+			config: "upstream = \"ftp://gw.example.com/#test-secret\"\n" + work,
+			want:   []string{`upstream "ftp://gw.example.com/#[redacted]": must be an absolute http or https URL, such as https://api.anthropic.com`},
+		},
+		{
 			name: "several problems at once",
 			config: "listen = \"0.0.0.0:4747\"\nupstream = \"api.anthropic.com\"\nweek_starts = \"someday\"\nverbose = true\n" +
 				work + "primary = true\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n" +

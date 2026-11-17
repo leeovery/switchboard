@@ -504,7 +504,7 @@ func TestAReplacedTokenMustBeForTheAccountsOrganization(t *testing.T) {
 			name: "one whose account's the record doesn't know, a configured account's, named by the config's label", config: sideAt + "\n[[account]]\nid    = \"m2x7\"  # do not edit: links the account to its history\nlabel = \"Team\"\n",
 			id: "k3f9", organization: organization,
 			record:     []identity.Entry{{ID: "k3f9", Added: now}, {ID: "m2x7", Organization: organization, Added: now}},
-			wantErr:    `the token is for another subscription, that of "Team" (m2x7), so nothing is saved: add it as an account of its own`,
+			wantErr:    `the token is for another subscription, that of "Team" (m2x7), an account configured here, so nothing is saved: it's that account's token, given the wrong one`,
 			wantRecord: []identity.Entry{{ID: "k3f9", Added: now}, {ID: "m2x7", Organization: organization, Added: now}},
 		},
 		{

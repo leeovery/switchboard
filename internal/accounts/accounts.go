@@ -8,6 +8,7 @@
 package accounts
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -231,23 +232,30 @@ func (r Registry) SetTokenChecked(ctx context.Context, id string, token tokens.T
 
 // OtherSubscriptionError is what replacing an account's token fails with
 // where the token's organization isn't the account's, as the accounts
-// record has it: it's another subscription's, to add as an account of its
-// own. OtherID and OtherLabel name the account the record has of the token's
-// organization, where the account's isn't known yet: "" where there's none
-// to name.
+// record has it: it's another subscription's. OtherID and OtherLabel name
+// the account the record has of the token's organization, where the
+// account's isn't known yet: "" where there's none to name. OtherConfigured
+// is set where that account is configured here: the token is that
+// account's, given this one by mistake, as when it's pasted on the wrong
+// row. Otherwise the subscription is to be added as an account of its own.
 type OtherSubscriptionError struct {
 	OtherID, OtherLabel string
+	OtherConfigured     bool
 }
 
 // Error says the token is another subscription's, naming the account the
-// record has of it where there's one to name, and to add it as an account
-// of its own.
+// record has of it where there's one to name: that it's that account's,
+// given the wrong one, where it's configured here; else to add it as an
+// account of its own.
 func (e *OtherSubscriptionError) Error() string {
-	of := ""
-	if e.OtherID != "" {
-		of = ", that of " + prose.Quoted(e.OtherLabel) + " (" + e.OtherID + ")"
+	if e.OtherID == "" {
+		return "the token is for another subscription, so nothing is saved: add it as an account of its own"
 	}
-	return "the token is for another subscription" + of + ", so nothing is saved: add it as an account of its own"
+	of := "the token is for another subscription, that of " + prose.Quoted(e.OtherLabel) + " (" + e.OtherID + ")"
+	if e.OtherConfigured {
+		return of + ", an account configured here, so nothing is saved: it's that account's token, given the wrong one"
+	}
+	return of + ", so nothing is saved: add it as an account of its own"
 }
 
 // replace writes the token to the token file of the account with the given
@@ -284,7 +292,7 @@ func (r Registry) replace(ctx context.Context, id string, token tokens.Token, ch
 func (r Registry) owned(record *identity.Record, id, organization string) error {
 	switch held, other := record.Hold(id, organization); {
 	case held == identity.HeldForeign && other.ID != "":
-		return &OtherSubscriptionError{OtherID: other.ID, OtherLabel: r.labelOf(other)}
+		return r.otherSubscription(other)
 	case held == identity.HeldForeign:
 		return &OtherSubscriptionError{}
 	case held == identity.HeldNew:
@@ -293,18 +301,17 @@ func (r Registry) owned(record *identity.Record, id, organization string) error 
 	return nil
 }
 
-// labelOf is the label of the account the record has, e: the one it kept,
-// where it's removed, else the config's, else its id.
-func (r Registry) labelOf(e identity.Entry) string {
-	if e.Label != "" {
-		return e.Label
-	}
+// otherSubscription is the OtherSubscriptionError of a token of the
+// subscription of e, the account the record has of it: configured where the
+// config has it, labelled the config's label; else labelled the one the
+// record kept, as of one removed, else its id.
+func (r Registry) otherSubscription(e identity.Entry) *OtherSubscriptionError {
 	if draft, err := config.Edit(r.ConfigPath, r.HomeDir); err == nil {
 		if a, err := configured(draft.Config(), e.ID); err == nil {
-			return a.Label
+			return &OtherSubscriptionError{OtherID: e.ID, OtherLabel: a.Label, OtherConfigured: true}
 		}
 	}
-	return e.ID
+	return &OtherSubscriptionError{OtherID: e.ID, OtherLabel: cmp.Or(e.Label, e.ID)}
 }
 
 // Removed is what removing an account removed of its token file, as

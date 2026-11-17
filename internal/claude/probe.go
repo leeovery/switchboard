@@ -194,14 +194,14 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, e
 	defer cancel()
 	req, err := p.newRequest(ctx, token, model)
 	if err != nil {
-		return answer{}, err
+		return answer{}, redact.URLError(err)
 	}
 	resp, err := p.client().Do(req)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return answer{}, fmt.Errorf("timed out after %s", timeout)
 		}
-		return answer{}, err
+		return answer{}, redact.URLError(err)
 	}
 	defer drainAndClose(resp.Body)
 	got := answer{organization: organizationOf(resp.Header), status: resp.StatusCode, own: resp.Header.Get(requestIDHeader) != ""}

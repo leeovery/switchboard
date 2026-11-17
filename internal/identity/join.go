@@ -15,23 +15,89 @@ import (
 var ErrConflict = errors.New("the accounts records disagree")
 
 // JoinAs is how a Mac's record is joined: Configured are the accounts this
-// Mac configures, and Pools the pools; From is the install of the Mac whose
-// record it is, by which an account whose id is held here is given another;
-// Own is set where it's this Mac's own record, as its own export carries it,
-// whose ids are this Mac's; and Labels is set where its labels are taken, as
-// they aren't from this Mac's own export, which may be older than a label
-// another Mac gave since.
+// Mac configures, each in its pool, and Pools the pools; From is the install
+// of the Mac whose record it is, by which an account whose id is held here is
+// given another; Own is set where it's this Mac's own record, as its own
+// export carries it, whose ids are this Mac's; Labels is set where its labels
+// are taken, as they aren't from this Mac's own export, which may be older
+// than a label another Mac gave since; and Theirs are the accounts the Mac
+// whose record it is configures, each in its pool, as its export's copy of
+// its config gives them, known only where TheirsKnown is set, as of a folder
+// that holds the copy.
 type JoinAs struct {
-	Configured config.Accounts
-	Pools      config.Pools
-	From       string
-	Own        bool
-	Labels     bool
+	Configured  config.Accounts
+	Pools       config.Pools
+	From        string
+	Own         bool
+	Labels      bool
+	Theirs      config.Accounts
+	TheirsKnown bool
+	// Members are the accounts the configs of every Mac whose record an
+	// import joins, this one's among them, put in each pool, by their ids
+	// here, as Joined's Members gives them, each pool by its id in lower
+	// case: a pool's id being random, it's one pool on every Mac, placed by
+	// every account any of them puts in it. Nil where the record is joined
+	// alone, and only its own Mac's config, as Theirs gives it, is gone by.
+	Members map[string][]string
+	// Before are the pools the record held as the import began.
+	Before []PoolEntry
+}
+
+// Why a pool of another Mac's is kept apart as a record is joined, as
+// Apart's Why gives it: words never changed, as an import's answer gives
+// them.
+const (
+	// ApartSplit is a pool whose accounts, as the other Mac configures them,
+	// are in more than one pool here.
+	ApartSplit = "split"
+	// ApartNoneHere is a pool none of whose accounts, as the other Mac
+	// configures them, is configured here.
+	ApartNoneHere = "none_here"
+	// ApartNoConfig is a pool whose accounts can't be told, as the other
+	// Mac's config isn't known, as of a folder exported before an export
+	// carried it.
+	ApartNoConfig = "no_config"
+	// ApartEmpty is a pool the other Mac's config puts no account in.
+	ApartEmpty = "empty"
+	// ApartNoPoolsHere is a pool whose accounts can't go to a pool here, as
+	// this Mac's config has no pools.
+	ApartNoPoolsHere = "no_pools_here"
+	// ApartBefore is a pool taken in as the pool here holding its accounts
+	// that the record kept apart as the import began, as JoinAs' Before gives
+	// it, as another Mac's: the days an import before took in, if any, stay
+	// under its id, as a line held stands against one alike but for its
+	// pool. Whether any were isn't known: an import that failed, or a restore
+	// seeding the record, may have put the pool there with none.
+	ApartBefore = "imported_before"
+)
+
+// Joined is what joining a record did: the accounts it took in under other
+// ids, by their ids in lower case, each with its id here; the pools it took
+// in as pools here, as Join says, the same; the pools the other Mac
+// configures whose history it keeps apart, in the other record's order; and
+// the accounts the other Mac's config puts in each pool it configures, by
+// their ids here, each pool by its id in lower case, as JoinAs' Members
+// takes them, none where that config isn't known.
+type Joined struct {
+	Accounts map[string]string
+	Pools    map[string]string
+	Apart    []Apart
+	Members  map[string][]string
+}
+
+// Apart is a pool another Mac configures whose history joining its record
+// keeps apart, read by its id, as a pool of its own here, whole, or, as
+// ApartBefore says, as far as an import took it in before: the install of
+// that Mac, the pool's id and label there, and Why, as ApartSplit and its kin
+// say.
+type Apart struct {
+	Install, Pool, Label, Why string
 }
 
 // Join takes the accounts of another record, as an exported folder carries
-// a Mac's, into r, and returns the ids of those it took in under other ids,
-// in lower case, each with its id in r. The ids each had before switchboard
+// a Mac's, into r, and returns what it did, as Joined says, the ids of those
+// it took in under other ids, in lower case, each with its id in r, among
+// it. The ids each had before switchboard
 // made ids are the Mac's own names, so none is taken, nor matched on. Each
 // is matched to r's account of the same id, in this Mac's own record, as as
 // says, its ids this Mac's; else of the same organization; else of the same
@@ -57,27 +123,43 @@ type JoinAs struct {
 //     the other Mac's install and its id, as Derive spells one, so it's the
 //     same however often it's joined.
 //
-// Its pools are joined as joinPool joins each, matched by id alone, a
-// pool's id being random, never one of an organization's.
+// Its pools are joined once its accounts are, each as poolOf has it: matched
+// by id, a pool's id being random, never one of an organization's, where
+// it's configured here or this Mac's own; else taken in as the pool here
+// holding the accounts put in it, as Members gives them, where they're in
+// one; else apart, as joinPool joins it.
 //
 // It fails, changing nothing, with ErrConflict wrapped where r, joined,
 // breaks the record's rules, as check says.
-func (r *Record) Join(other Record, as JoinAs) (map[string]string, error) {
+func (r *Record) Join(other Record, as JoinAs) (Joined, error) {
 	j := joining{record: r.clone(), as: as, configured: as.Configured.IDs(), staged: other.ids()}
-	mapped := make(map[string]string)
+	joined := Joined{Accounts: make(map[string]string), Pools: make(map[string]string)}
 	for _, e := range other.Accounts {
 		if id := j.join(e); !strings.EqualFold(id, e.ID) {
-			mapped[strings.ToLower(e.ID)] = id
+			joined.Accounts[strings.ToLower(e.ID)] = id
 		}
 	}
+	joined.Members = j.members(other.Pools, joined.Accounts)
+	members := as.Members
+	if members == nil {
+		members = joined.Members
+	}
 	for _, p := range other.Pools {
+		here, why := j.poolOf(p, members)
+		if why != "" {
+			joined.Apart = append(joined.Apart, Apart{Install: as.From, Pool: p.ID, Label: cmp.Or(p.Label, p.ID), Why: why})
+		}
+		if here != "" {
+			joined.Pools[strings.ToLower(p.ID)] = here
+			continue
+		}
 		j.joinPool(p)
 	}
 	if err := j.record.check(); err != nil {
-		return nil, fmt.Errorf("%w: joined, %w", ErrConflict, err)
+		return Joined{}, fmt.Errorf("%w: joined, %w", ErrConflict, err)
 	}
 	*r = j.record
-	return mapped, nil
+	return joined, nil
 }
 
 // joining is a record as Join takes another's accounts into it, as as says:
@@ -150,18 +232,99 @@ func (j *joining) take(i int, e Entry, labelled bool) string {
 	return own.ID
 }
 
-// joinPool takes the pool p, as another record keeps it, into the record, as
-// it's joined: matched by id, it's the record's pool, which keeps its times
-// and removal, and, unless it's this Mac's, as PoolEntry's Here says, or
-// configured here, takes p's label as take has an account take one;
-// matching none, of an id configured here, it's that pool, added with its
-// time added alone, as a pool added on another Mac sharing this one's
-// config, unlabelled, as a configured one is, but this Mac's only once
-// KeepUp keeps it, as nothing of how this Mac's config writes it is known
-// till then; matching none otherwise, it's added as it is, its label and
-// removal kept, live, labelled, by its id where it has no label, as only the
-// other Mac configures it. The other Mac's first pool is never this one's,
-// nor how its config writes a pool this one's.
+// members are the accounts the other Mac's config, as Theirs gives it, puts
+// in each of pools, those of its record, that it configures, by the ids
+// accounts gives them here, else their own, as Joined's Members has them:
+// none where that config isn't known.
+func (j *joining) members(pools []PoolEntry, accounts map[string]string) map[string][]string {
+	if !j.as.TheirsKnown {
+		return nil
+	}
+	members := make(map[string][]string)
+	for _, p := range pools {
+		if !p.Configured {
+			continue
+		}
+		in := []string{}
+		for _, a := range j.as.Theirs {
+			if config.SamePool(a.Pool, p.ID) {
+				in = append(in, cmp.Or(accounts[strings.ToLower(a.ID)], a.ID))
+			}
+		}
+		members[strings.ToLower(p.ID)] = in
+	}
+	return members
+}
+
+// poolOf is the pool here the pool p, as another record keeps it, is taken
+// in as, as Join joins it, members being the accounts put in each pool, as
+// Members gives them: none where p is configured here, or this Mac's own, as
+// PoolEntry's Ours says, which it's matched to by its id; else the pool here
+// holding its members, as poolHere finds it, so a Mac taking over from
+// another, or restoring a backup, reads the history in the pool it
+// configures, whatever id its config gave it, and a pool whose history is
+// relayed through a Mac that imported it is placed as its own Mac places it.
+// Where that's none, so p is kept apart, it says why, where p is live there,
+// as the other Mac's export marks it configured: one removed there, or
+// relayed, has no accounts to go by. Where it's one, but the record held p
+// as the import began, as an import before kept it apart, it says so, as
+// ApartBefore does.
+func (j *joining) poolOf(p PoolEntry, members map[string][]string) (here, why string) {
+	if own := j.record.pool(p.ID); containsFold(j.as.Pools.IDs(), p.ID) || own != nil && own.Ours() {
+		return "", ""
+	}
+	if in, known := members[strings.ToLower(p.ID)]; known {
+		here, why = j.poolHere(in)
+	} else {
+		why = ApartNoConfig
+	}
+	switch {
+	case !p.Configured:
+		why = ""
+	case here != "" && slices.ContainsFunc(j.as.Before, func(b PoolEntry) bool { return strings.EqualFold(b.ID, p.ID) }):
+		why = ApartBefore
+	}
+	return here, why
+}
+
+// poolHere is the pool here holding every account of in, the accounts put
+// in a pool, by their ids here, that this Mac configures: "" where it can't
+// be, with why, as ApartSplit and its kin say: this Mac has no pools, in is
+// none, none of in is configured here, or they're in several pools here.
+func (j *joining) poolHere(in []string) (string, string) {
+	if len(j.as.Pools) == 0 {
+		return "", ApartNoPoolsHere
+	}
+	var here []string
+	for _, id := range in {
+		own, ok := j.as.Configured.ByID(id)
+		if ok && !slices.ContainsFunc(here, func(p string) bool { return config.SamePool(p, own.Pool) }) {
+			here = append(here, own.Pool)
+		}
+	}
+	switch {
+	case len(in) == 0:
+		return "", ApartEmpty
+	case len(here) == 0:
+		return "", ApartNoneHere
+	case len(here) == 1:
+		return here[0], ""
+	}
+	return "", ApartSplit
+}
+
+// joinPool takes the pool p, as another record keeps it, into the record,
+// where it's no pool here, as poolOf says: matched by id, it's the record's
+// pool, which keeps its times and removal, and, unless it's this Mac's, as
+// PoolEntry's Here says, or configured here, takes p's label as take has an
+// account take one; matching none, of an id configured here, it's that pool,
+// added with its time added alone, as a pool added on another Mac sharing
+// this one's config, unlabelled, as a configured one is, but this Mac's only
+// once KeepUp keeps it, as nothing of how this Mac's config writes it is
+// known till then; matching none otherwise, it's added as it is, its label
+// and removal kept, live, labelled, by its id where it has no label, as only
+// the other Mac configures it. What the other Mac marks a pool, its First,
+// Configured, Here and Written, is that Mac's, never this one's.
 func (j *joining) joinPool(p PoolEntry) {
 	labelled := j.as.Labels && p.Configured
 	p.First, p.Configured, p.Here, p.Written = false, false, false, PoolWritten{}

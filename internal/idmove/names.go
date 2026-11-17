@@ -16,18 +16,20 @@ import (
 // the strings that are an account's id; uses, those of the values that name
 // an account this Mac used, as a request going out on it or a reading of its
 // windows does; texts, the reasons that name them, as status.RenamedReason
-// reads them; and keys, the objects whose names are accounts' ids. pool
-// says where a line of it gives its pool, as pooling has it.
+// reads them; and keys, the objects whose names are accounts' ids. pools
+// are the strings that are a pool's id, and pool says where a line of it
+// gives its pool, as pooling has it.
 type names struct {
-	values, uses, texts, keys []pattern
-	pool                      pooling
+	values, uses, texts, keys, pools []pattern
+	pool                             pooling
 }
 
 // rewrittenBy reports whether rename changes anything of a line of the kind
-// n says where it names: an account it names, or the pool it gives.
+// n says where it names: an account it names, a pool it names, or the pool
+// it gives.
 func (n names) rewrittenBy(rename ledger.Renaming) bool {
 	names := len(n.values)+len(n.texts)+len(n.keys) > 0
-	return rename.Account != nil && names || rename.Unpooled != "" && n.pool.gives()
+	return rename.Account != nil && names || rename.Pool != nil && len(n.pools) > 0 || rename.Unpooled != "" && n.pool.gives()
 }
 
 // pooling says where a kind of line gives its pool, for a line that gives
@@ -126,7 +128,7 @@ func patterns(pointers ...string) []pattern {
 	return made
 }
 
-// Where each kind of file names accounts.
+// Where each kind of file names accounts, and pools.
 var (
 	// readingNames are a line of the readings history's, each a use: it
 	// gives no pool, as an account's windows are its own, whatever pool it's
@@ -139,6 +141,7 @@ var (
 		values: patterns("/account", "/from", "/tried/*/account"),
 		uses:   patterns("/account", "/tried/*/account"),
 		texts:  patterns("/reason"),
+		pools:  patterns("/pool"),
 		pool:   pooling{after: []string{"at", "request", "kind", "session", "dir", "model"}},
 	}
 	// eventNames are a line of the router's events', none a use, as the
@@ -147,13 +150,15 @@ var (
 	eventNames = names{
 		values: patterns("/account", "/accounts/*", "/from", "/to"),
 		texts:  patterns("/reason"),
+		pools:  patterns("/pool"),
 		pool:   pooling{after: []string{"id", "at", "kind", "account", "accounts"}, of: status.KindNamesItsPool},
 	}
 	// summaryNames are a summary of a day of the request ledger's, none a use
 	// by where it names it: one it names may be one its sessions moved off
 	// alone, no use, as a line's move off one is none, so which are is told
-	// by what the summary shows of them, as usedIn tells it.
-	summaryNames = names{values: patterns("/accounts/*/account")}
+	// by what the summary shows of them, as usedIn tells it. Each account's
+	// day names its one pool, or each of its pools.
+	summaryNames = names{values: patterns("/accounts/*/account"), pools: patterns("/accounts/*/pool", "/accounts/*/pools/*/pool")}
 	// stateNames are the router's state file's: its pin from before pools,
 	// as each form of it gives its accounts, and each pool's pin, its
 	// sessions' assignments and their own pins, in each pool, what it keeps

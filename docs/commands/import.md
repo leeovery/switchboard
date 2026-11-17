@@ -16,10 +16,55 @@ switchboard import <dir>
 ```
 
 `import` takes no flags. A relative `<dir>` is taken from the working directory. It needs the
-router, which writes your record, and fails without it.
+router, which writes your record, and fails without it. The one exception is a Mac with no config.
 
 Why you'd import, and how to restore onto a new Mac, is in
-[Several Macs and backups](../several-macs.md).
+[Backups and a new Mac](../several-macs.md).
+
+## On a Mac with no config
+
+```console
+$ switchboard import ~/Dropbox/switchboard
+laid down the config of mac-0123456789abcdef at /Users/you/.config/switchboard/config.toml: 3 accounts in 2 pools
+next, run switchboard setup to give each account its token and start the router, then switchboard import /Users/you/Dropbox/switchboard again to bring in the history
+```
+
+If this Mac has no config and no router runs, `import` lays down the copy of the config that an
+export keeps in the folder. With `--config`, it lays the config down at that path. It takes in no
+history yet. The accounts and pools keep their ids, so the history lands where it was. The copy
+holds the values of the config alone, without the comments. `import` writes `# do not edit`
+beside each id, as switchboard does in any config it writes.
+
+| If `<dir>` holds | Then `import` lays down |
+|---|---|
+| The folder of this Mac, for example a backup of a Mac that lost its config | The copy in that folder, and leaves the accounts record of this Mac as it is. |
+| The folder of one other Mac, for example on a new Mac | The copy in that folder, and records each account with its subscription. |
+| The folders of several other Macs | Nothing. It names each folder, so you can point `import` at the one you want. |
+
+To lay down the config of one Mac from a shared `<dir>`, give its folder:
+
+```bash
+switchboard import \
+  ~/Dropbox/switchboard/mac-0123456789abcdef
+```
+
+Each account is recorded with its subscription. So `switchboard setup` asks only for each
+token, and refuses a token made for another account. If a pool fences a folder that isn't on this
+Mac, `import` warns, and names the command that fences the pool anew.
+
+`import` never writes over anything at the config path. It lays down nothing in these cases:
+
+| If | Then |
+|---|---|
+| A link or file at the config path isn't a config that loads | It says what's there. |
+| This Mac has a history of its own, and `<dir>` holds no folder of this Mac | It says to run `switchboard setup`, then import again. |
+| A folder in `<dir>` was passed over, for example one not yet synced | It names each one. Import again once each folder reads. |
+| The folder holds no config, for example one exported before the config was copied | It says to export again from the old Mac first, if it still runs. |
+| `<dir>` holds no export, or isn't there | It says so. |
+| The config in the folder gives a secret as a value | It says why. |
+
+If an import stops after it records the accounts, but before it lays down the config, run it
+again. It goes ahead while this Mac holds no history yet.
 
 ## What it takes in
 
@@ -66,7 +111,42 @@ right account.
 An added account whose id is taken here already gets a new id, made from the install and the old
 id. It gets the same id at every import.
 
-A pool from another Mac keeps its record here. Read it with `--pool` and its id.
+## Pools across Macs
+
+```console
+$ switchboard import ~/Dropbox/switchboard
+imported 1 folder: 27 days added
+switchboard: kept the pool "Client" (c1nt) of mac-fedcba9876543210 apart, as its accounts are in more than one pool here: read it with --pool c1nt
+```
+
+Each pool of another Mac counts as the pool here that holds the same accounts. `import` reads
+which accounts a pool holds from the copy of the config in each folder. It counts only the
+accounts this Mac configures. A pool it can't match stays apart, and `import` names it, as above.
+The answer of the router gives the reason as `why`.
+
+| If the pool from the folder | Then | `why` |
+|---|---|---|
+| Is a pool this Mac configures, or had before | Its days stay in that pool. | |
+| Holds accounts that all sit in one pool here | Its days go to that pool here. | |
+| Holds accounts that sit in two pools here or more | It stays apart. | `split` |
+| Holds no account this Mac configures | It stays apart. | `none_here` |
+| Holds no account on the other Mac | It stays apart. | `empty` |
+| Comes onto a Mac whose config has no pools | It stays apart. | `no_pools_here` |
+| Comes from a folder with no copy of the config | It stays apart, unless another folder in the import places it. | `no_config` |
+| Was kept apart by an earlier import | New days go to the pool here. Any days imported before stay apart. | `imported_before` |
+
+A pool id names one pool on every Mac. So `import` places the pools of each Mac the same way from
+every folder, whatever their order. It counts every account that the configs in the import put in
+the pool. Work that names no pool goes to the first pool of the Mac that recorded it.
+
+`imported_before` means the pool was kept apart, under its id, before this import began. Now its
+accounts sit in one pool here, so its new days go to that pool. Any days taken in before stay
+under the id, because a line held already stands against the same line in another pool. Read
+them with `--pool` and the id. `import` says so at each import, even if no days came in before.
+
+A pool kept apart keeps its record here. Read it with `--pool` and its id. `import` names each
+pool it keeps apart once, however many folders hold it. `import` never changes the config or the
+pools on this Mac.
 
 ## What it prints
 
@@ -91,6 +171,8 @@ It waits for the router however long that takes. The router then sums up the day
 | An export with no `export.json`, cut short or not yet synced | Import again once it's exported whole. |
 | An `export.json` that names an accounts record not there yet | Import again once the sync has carried it. |
 | An accounts record that doesn't read | Export it again. |
+| An `export.json` that names a config not there yet | Import again once the sync has carried it. |
+| A config that doesn't read | Export it again. |
 | Another Mac, exported before switchboard made account ids | Export it again from that Mac once it runs this version. |
 
 The folder this Mac exported before account ids is taken in, under the ids its accounts had.
@@ -117,5 +199,5 @@ until it ends.
 ## Related
 
 - [`export`](export.md): write the folder that `import` reads.
-- [Several Macs and backups](../several-macs.md): backups, new Macs and two Macs at once.
+- [Backups and a new Mac](../several-macs.md): backups, new Macs and two Macs at once.
 - [Pools](../pools.md): how a pool keeps the record of its work.

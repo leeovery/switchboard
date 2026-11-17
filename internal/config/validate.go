@@ -129,14 +129,15 @@ func isPort(port string) bool {
 
 // checkUpstream allows plain http only to a loopback address: account tokens
 // travel in the requests the proxy forwards, and must not cross a network
-// unencrypted, nor go to another listener a name looks up to.
+// unencrypted, nor go to another listener a name looks up to. Its error
+// shows the upstream as redact.URL has it.
 func checkUpstream(upstream string) error {
 	u, err := url.Parse(upstream)
 	switch {
 	case err != nil || !isAbsoluteHTTP(u):
-		return wrongValue("upstream", upstream, "must be an absolute http or https URL, such as "+defaultUpstream)
+		return wrongValue("upstream", redact.URL(upstream), "must be an absolute http or https URL, such as "+defaultUpstream)
 	case u.Scheme == "http" && !isLoopbackIP(u.Hostname()):
-		return wrongValue("upstream", upstream, "must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext")
+		return wrongValue("upstream", redact.URL(upstream), "must use https unless its host is a loopback IP address, such as 127.0.0.1, so account tokens never cross a network in plaintext")
 	}
 	return nil
 }

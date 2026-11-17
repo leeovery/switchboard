@@ -33,15 +33,18 @@ const (
 // Manifest is what a Mac's folder's export.json says of it: its version, the
 // install it's of, by its id, when it was last exported to, in UTC; IDs,
 // whether a switchboard that makes account ids exported it, so its days name
-// accounts by those ids; and Accounts, whether that export wrote the
-// accounts record, as one does where the Mac has one: a folder that says so
-// but holds none hasn't synced whole.
+// accounts by those ids; Accounts, whether that export wrote the accounts
+// record, as one does where the Mac has one; and Config, whether the folder
+// holds a copy of the Mac's config, as an export writes one: a folder that
+// says it holds either but doesn't hasn't synced whole. A switchboard from
+// before Config reads the folder as ever, passing it over.
 type Manifest struct {
 	Version    int       `json:"version"`
 	Install    string    `json:"install"`
 	ExportedAt time.Time `json:"exported_at"`
 	IDs        bool      `json:"ids,omitzero"`
 	Accounts   bool      `json:"accounts,omitzero"`
+	Config     bool      `json:"config,omitzero"`
 }
 
 // BeforePools reports whether a switchboard from before pools exported the
@@ -101,10 +104,10 @@ func removeOlder(folder string) error {
 
 // writeManifest writes the export.json of the Mac's folder at folder, of the
 // install with the given id, exported to at the time given, saying it's of
-// a switchboard that makes account ids, and whether it wrote the accounts
-// record, whole.
-func writeManifest(folder, id string, at time.Time, accounts bool) error {
-	data, err := json.Marshal(Manifest{Version: Version, Install: id, ExportedAt: at.UTC().Truncate(time.Second), IDs: true, Accounts: accounts})
+// a switchboard that makes account ids, whether it wrote the accounts
+// record, whole, and whether the folder holds a copy of the config.
+func writeManifest(folder, id string, at time.Time, accounts, configured bool) error {
+	data, err := json.Marshal(Manifest{Version: Version, Install: id, ExportedAt: at.UTC().Truncate(time.Second), IDs: true, Accounts: accounts, Config: configured})
 	if err != nil {
 		return err
 	}

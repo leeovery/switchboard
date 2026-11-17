@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -431,20 +432,25 @@ func TestAFolderBeforePoolsWithNoFirstPoolToGiveItIsTheMacsFault(t *testing.T) {
 	}
 }
 
-// A folder whose accounts can't be told is answered as the folder's fault: a
-// 422 where its record doesn't read, or it's another Mac's from before
-// switchboard made ids; a 409, to try again, where its record hasn't synced.
+// A folder whose accounts or pools can't be told is answered as the folder's
+// fault: a 422 where its record or its config doesn't read, or it's another
+// Mac's from before switchboard made ids; a 409, to try again, where its
+// record or its config hasn't synced.
 func TestAFolderWhoseAccountsCantBeToldIsAnsweredAsTheFolders(t *testing.T) {
 	const otherInstall = `"install":"fedcba9876543210","exported_at":"2026-09-20T09:30:00Z"`
+	const record = `{"version":2,"accounts":[]}` + "\n"
 	tests := []struct {
 		name     string
 		manifest string
 		record   string
+		config   string
 		want     int
 	}{
 		{name: "a record that doesn't read", manifest: `{"version":1,` + otherInstall + `,"accounts":true}`, record: "not a record\n", want: http.StatusUnprocessableEntity},
 		{name: "another Mac's from before ids", manifest: `{"version":1,` + otherInstall + `}`, want: http.StatusUnprocessableEntity},
 		{name: "a record that hasn't synced", manifest: `{"version":1,` + otherInstall + `,"accounts":true}`, want: http.StatusConflict},
+		{name: "a config that doesn't read", manifest: `{"version":3,` + otherInstall + `,"ids":true,"accounts":true,"config":true}`, record: record, config: "[[account]\n", want: http.StatusUnprocessableEntity},
+		{name: "a config that hasn't synced", manifest: `{"version":3,` + otherInstall + `,"ids":true,"accounts":true,"config":true}`, record: record, want: http.StatusConflict},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -453,6 +459,9 @@ func TestAFolderWhoseAccountsCantBeToldIsAnsweredAsTheFolders(t *testing.T) {
 			stageFile(t, filepath.Join(folder, "export.json"), []byte(tt.manifest+"\n"))
 			if tt.record != "" {
 				stageFile(t, identity.NewFile(folder).Path(), []byte(tt.record))
+			}
+			if tt.config != "" {
+				stageFile(t, export.ConfigFile(folder), []byte(tt.config))
 			}
 			_, err := newTestRouterOf(t, cfg).joinStaged([]string{folder})
 			if got := importStatus(err); err == nil || got != tt.want {
@@ -480,7 +489,7 @@ func TestClientImportWaitsForTheAnswerHoweverLongItTakes(t *testing.T) {
 
 		got, err := ln.client().Import(t.Context())
 		want := Imported{Folders: 1, Days: ImportedDays{Added: 27, Merged: 3, PastKeep: 12}, Lines: 1204, Summaries: 27}
-		if err != nil || got != want {
+		if err != nil || !reflect.DeepEqual(got, want) {
 			t.Errorf("Import() = %+v, %v, an hour on, want %+v", got, err, want)
 		}
 	})

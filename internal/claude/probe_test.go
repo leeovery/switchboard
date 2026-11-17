@@ -235,6 +235,18 @@ func TestProbeModelReportsTransportErrors(t *testing.T) {
 	}
 }
 
+// A probe's error, as of a request that fails, quotes the upstream with
+// whatever can carry a key hidden: its credentials, query and fragment.
+func TestProbeErrorsHideTheUpstreamsSecrets(t *testing.T) {
+	failing := roundTripper(func(*http.Request) (*http.Response, error) { return nil, errors.New("refused") })
+	prober := &claude.Prober{Upstream: "https://user:pw@gw.example.com/v1?key=k#f", Version: version, Transport: failing}
+
+	_, err := prober.Probe(t.Context(), token)
+	if want := `Post "https://[redacted]@gw.example.com/v1/v1/messages?[redacted]": refused`; errorText(err) != want {
+		t.Errorf("Probe() error = %q, want %q", errorText(err), want)
+	}
+}
+
 func TestProbeGoesOutOnTheTransportGiven(t *testing.T) {
 	var sent requestLog
 	transport := roundTripper(func(r *http.Request) (*http.Response, error) {

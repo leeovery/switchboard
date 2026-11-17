@@ -503,7 +503,10 @@ func (a *app) replaceToken(cmd *cobra.Command, id string) error {
 		return err
 	}
 	taken, err := registry.SetToken(cmd.Context(), cfg, id)
-	if _, other := errors.AsType[*accounts.OtherSubscriptionError](err); other {
+	if other, ok := errors.AsType[*accounts.OtherSubscriptionError](err); ok {
+		if other.OtherConfigured {
+			return fmt.Errorf("%w: give it %s with %s", err, other.OtherID, a.command("accounts token", other.OtherID))
+		}
 		return fmt.Errorf("%w, with switchboard accounts add <label>", err)
 	}
 	if err != nil {

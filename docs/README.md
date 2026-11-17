@@ -23,8 +23,8 @@ Find the page for what you want to do. Each line says what the page answers.
   the Claude apps.
 - [Notifications](notifications.md): which alerts you get, and how to choose them.
 - [Pinning and moving](pinning-and-moving.md): how to send sessions to the account you choose.
-- [Several Macs and backups](several-macs.md): how to export your record, and bring it to
-  another Mac.
+- [Backups and a new Mac](several-macs.md): how to export your record and config, and restore
+  them on a new Mac.
 
 ## Look things up
 

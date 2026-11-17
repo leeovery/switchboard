@@ -158,7 +158,7 @@ starts belongs to switchboard, so the hook stays quiet.
 - **Staggered resets.** Accounts with a 5-hour window can reset one after another. See
   [Staggered resets](staggered-resets.md).
 - **Your record.** Every request without its content, and what it was worth. See
-  [Your record](your-record.md) and [Several Macs and backups](several-macs.md).
+  [Your record](your-record.md) and [Backups and a new Mac](several-macs.md).
 - **Claude and switchboard.** A skill teaches Claude to read the limits and pin. See
   [Claude and switchboard](claude-and-switchboard.md).
 - **Upgrades and restarts.** The router restarts itself, and refuses no request. See

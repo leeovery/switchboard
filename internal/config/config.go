@@ -401,6 +401,12 @@ func Load(path string, homeDir func() (string, error)) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
+	return Parse(path, data, homeDir)
+}
+
+// Parse reads data as the text of the config file at path, which names it
+// in errors, as Load reads the file.
+func Parse(path string, data []byte, homeDir func() (string, error)) (*Config, error) {
 	f, meta, err := decodeFile(path, data)
 	if err != nil {
 		return nil, err

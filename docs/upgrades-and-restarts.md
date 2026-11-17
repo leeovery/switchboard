@@ -87,5 +87,5 @@ and a move that waits, are in [Troubleshooting: upgrades](troubleshooting/upgrad
 ## Related
 
 - [`switchboard service`](commands/service.md): the LaunchAgent that runs the router.
-- [Several Macs and backups](several-macs.md): exporting and importing between Macs.
+- [Backups and a new Mac](several-macs.md): exporting and importing between Macs.
 - [How it works](how-it-works.md): the parts of switchboard, and the request path.

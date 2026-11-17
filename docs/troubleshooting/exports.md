@@ -75,6 +75,6 @@ tells you nothing about what the router may do.
 
 ## Related
 
-- [Several Macs and backups](../several-macs.md): what an export holds, and importing it.
+- [Backups and a new Mac](../several-macs.md): what an export holds, and importing it.
 - [`switchboard export`](../commands/export.md): every flag of `export`.
 - [Account ids](account-ids.md): an import refused across the upgrade to ids.

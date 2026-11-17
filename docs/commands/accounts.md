@@ -165,7 +165,7 @@ first, all at once, which takes up to about 10 seconds.
 
 | If | What `token` does |
 |---|---|
-| The token is for another subscription | Saves nothing, and names the account that has it. |
+| The token is for another subscription | Saves nothing, and names the account that has it. If that account is configured here, it says to give the token to that account. |
 | The API doesn't answer | Saves the token unchecked, with a warning. |
 | The token was made but not read or saved | Shows it, and fails. Paste it with `--paste`. |
 | Nothing is saved for another reason | Says why, and fails. |

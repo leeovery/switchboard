@@ -93,5 +93,6 @@ session's own pool.
 - **Once there's a second pool,** the text of each verb names the pool it read, such as `pool Acme`.
   The JSON gives `pool` and `pool_label`.
 - **A removed pool keeps its record.** `requests`, `history`, `sessions` and `events` read it with
-  `--pool <id>`, marked `pool Acme (removed 6 Oct)`. A pool brought in from another Mac shows as
-  `pool Client (not configured here)`. `status`, `usage` and `pin` refuse such a pool.
+  `--pool <id>`, marked `pool Acme (removed 6 Oct)`. A pool of another Mac that `import` kept
+  apart shows as `pool Client (not configured here)`. `status`, `usage` and `pin` refuse such a
+  pool.
