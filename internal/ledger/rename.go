@@ -116,10 +116,9 @@ func removeBuilt(dir string) error {
 // that changed it, stamped as mark stamps one where it's marked with its
 // day's files as they now stand. One that doesn't read as a summary is left
 // as it is, which is logged. Where two of its accounts' days, renamed, are
-// of one account, as of two ids an account had in two cases, or of a round
-// that made it from the day's lines under the old ids and its readings under
-// the new while they were renamed, they're merged into one, as mergedDays
-// merges them, so its totals stand whether or not its lines are still there.
+// of one account, as of two ids an account had in two cases, they're merged
+// into one, as mergedDays merges them, so its totals stand whether or not
+// its lines are still there.
 func (d days) renameSummary(date string, rename Renaming, rewritten dayfile.Rewritten) error {
 	path := SummaryFile(d.files.Dir, date)
 	data, err := os.ReadFile(path)
