@@ -507,7 +507,7 @@ func TestTheDashboardRunsItsModelStampedWithThePoolShown(t *testing.T) {
 		_, _ = io.WriteString(typing, "q")
 	}()
 	var out lockedBuffer
-	if err := run(t.Context(), cfg, &out, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter)); err != nil {
+	if err := run(t.Context(), cfg, &out, func() {}, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter)); err != nil {
 		t.Fatal(err)
 	}
 	drawn := out.String()

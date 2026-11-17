@@ -192,7 +192,7 @@ func (d sessionDrawn) ranWidest() int {
 
 // chosen is the turn chosen: the zero Turn where none is.
 func (d sessionDrawn) chosen() views.Turn {
-	if i := slices.IndexFunc(d.page.Turns, func(t views.Turn) bool { return t.Turn == d.shown.Turn }); i >= 0 {
+	if i := d.page.TurnIndex(d.shown.Turn); i >= 0 {
 		return d.page.Turns[i]
 	}
 	return views.Turn{}
@@ -838,16 +838,14 @@ type pageRow struct {
 
 // turnsShown are the rows of the session's turns in view, newest first, the
 // turn open's requests under its own, as turnsInView has them, and how many
-// turns are out of view above them and below. Only those in view are made
-// rows, as a session of weeks has thousands of turns, and its page is drawn
-// at every tick.
+// turns are out of view above them and below.
 func (d sessionDrawn) turnsShown() (rows []pageRow, above, below int) {
 	laid, from, to := d.shown.turnsInView(d.l)
 	rows = make([]pageRow, 0, to-from)
-	for _, r := range laid[from:to] {
-		rows = append(rows, d.pageRow(r))
+	for i := from; i < to; i++ {
+		rows = append(rows, d.pageRow(laid.row(i)))
 	}
-	return rows, turnsIn(laid[:from]), turnsIn(laid[to:])
+	return rows, laid.turnsBefore(from), laid.turns - laid.turnsBefore(to)
 }
 
 // turn draws the turn t's row along row y, the newest where newest says, in

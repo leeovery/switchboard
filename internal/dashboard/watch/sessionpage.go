@@ -330,7 +330,7 @@ func following(was, is dashboard.SessionShown, v dashboard.PageScrolling) dashbo
 // turnAt is the index of the turn numbered n among the page's turns, newest
 // first: -1 where it has none such.
 func turnAt(shown dashboard.SessionShown, n int) int {
-	return slices.IndexFunc(shown.Page.Turns, func(t views.Turn) bool { return t.Turn == n })
+	return shown.Page.TurnIndex(n)
 }
 
 // choosing is the page shown with its turn at index i, newest first, chosen,

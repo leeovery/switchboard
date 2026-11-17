@@ -369,6 +369,25 @@ func movesOf(s *story) []SessionMove {
 	return moves
 }
 
+// TurnIndex is the index among the page's turns, newest first, of the turn
+// numbered n: -1 where it has none such, and at once for an n of 0 or less,
+// none chosen. A page built numbers its turns from 1 at the oldest, each one
+// on from the one before, so the turn is where its number puts it, found at
+// once, as a session of weeks has thousands of turns and its page asks at
+// every turn of the wheel; the turns of a page numbered otherwise are gone
+// through.
+func (p SessionPage) TurnIndex(n int) int {
+	if n <= 0 {
+		return -1
+	}
+	if len(p.Turns) > 0 {
+		if i := p.Turns[0].Turn - n; i >= 0 && i < len(p.Turns) && p.Turns[i].Turn == n {
+			return i
+		}
+	}
+	return slices.IndexFunc(p.Turns, func(t Turn) bool { return t.Turn == n })
+}
+
 // Named is the page with every account it gives named as n names it, those
 // its Where says among them.
 func (p SessionPage) Named(n status.Namer) SessionPage {

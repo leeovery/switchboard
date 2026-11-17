@@ -3,6 +3,7 @@ package views
 import (
 	"iter"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
@@ -41,6 +42,13 @@ func SentAt(times ...time.Time) SentTimes {
 // Len is how many times s holds.
 func (s SentTimes) Len() int {
 	return s.sealed.len() + len(s.open)
+}
+
+// before is how many of the times s holds come before t, found by halves, as
+// each of its own is oldest first.
+func (s SentTimes) before(t time.Time) int {
+	sealed := sort.Search(s.sealed.len(), func(i int) bool { return !s.sealed.at(i).Before(t) })
+	return sealed + sort.Search(len(s.open), func(i int) bool { return !s.open[i].Before(t) })
 }
 
 // All gives every time s holds, oldest first.

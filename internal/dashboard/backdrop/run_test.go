@@ -2,11 +2,15 @@ package backdrop_test
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"weak"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
 )
@@ -72,7 +76,7 @@ func TestAFilterHeedingTheScreenIsGivenItAsItsLastStepLeftIt(t *testing.T) {
 		return msg
 	})
 	var out bytes.Buffer
-	last, err := backdrop.Run(stepped{}, &out, tea.WithInput(nil), tea.WithoutSignals(), tea.WithFilter(heed))
+	last, err := backdrop.Run(stepped{}, &out, func() {}, tea.WithInput(nil), tea.WithoutSignals(), tea.WithFilter(heed))
 	if err != nil || last.steps != 1 {
 		t.Fatalf("Run() = %+v, %v; want the screen quit after its step", last, err)
 	}
@@ -156,10 +160,89 @@ func TestAScreenAStepLeftBehindIsLetGoWhileItRuns(t *testing.T) {
 	t.Setenv("TEA_DEBUG", "")
 	var let bool
 	var out bytes.Buffer
-	if _, err := backdrop.Run(startingWithPayload(&let), &out, tea.WithInput(nil), tea.WithoutSignals()); err != nil {
+	if _, err := backdrop.Run(startingWithPayload(&let), &out, func() {}, tea.WithInput(nil), tea.WithoutSignals()); err != nil {
 		t.Fatal(err)
 	}
 	if !let {
 		t.Error("the payload the screen started with was still held once a step replaced it, want it let go")
+	}
+}
+
+// stopping is a screen whose background is set, which stops, at its first
+// step, as stop has it.
+type stopping struct {
+	back backdrop.Backdrop
+	stop func(stopping) (tea.Model, tea.Cmd)
+}
+
+func (s stopping) Init() tea.Cmd {
+	return func() tea.Msg { return step{} }
+}
+
+func (s stopping) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if _, ok := msg.(step); ok {
+		return s.stop(s)
+	}
+	return s, nil
+}
+
+func (s stopping) View() tea.View {
+	return tea.NewView("")
+}
+
+func (s stopping) Backdrop() backdrop.Backdrop {
+	return s.back
+}
+
+// However a screen stops that Bubble Tea catches, Run puts back the
+// terminal's background, then, last, once Bubble Tea has written its last,
+// throws away what was typed and never read, once.
+func TestRunThrowsAwayWhatWasTypedUnreadLastHoweverTheScreenStops(t *testing.T) {
+	t.Setenv("TEA_TRACE", "")
+	t.Setenv("TEA_DEBUG", "")
+	stops := []struct {
+		name      string
+		stop      func(stopping) (tea.Model, tea.Cmd)
+		wantError bool
+	}{
+		{name: "a quit", stop: func(s stopping) (tea.Model, tea.Cmd) { return s, tea.Quit }},
+		{name: "an interrupt", stop: func(s stopping) (tea.Model, tea.Cmd) { return s, tea.Interrupt }, wantError: true},
+		{name: "a panic Bubble Tea recovers from", stop: func(stopping) (tea.Model, tea.Cmd) { panic("a bug") }, wantError: true},
+	}
+	for _, tt := range stops {
+		t.Run(tt.name, func(t *testing.T) {
+			screen := stopping{back: backdrop.Backdrop{}.DrawIn(lakeTheme(t)), stop: tt.stop}
+			var out bytes.Buffer
+			var unread []string
+			_, err := backdrop.Run(screen, &out, func() { unread = append(unread, out.String()) }, tea.WithInput(nil), tea.WithoutSignals())
+
+			if (err != nil) != tt.wantError {
+				t.Errorf("Run() error = %v, want an error: %v", err, tt.wantError)
+			}
+			if !strings.HasSuffix(out.String(), ansi.ResetBackgroundColor) {
+				t.Errorf("the screen's output ends %q, want the background put back", out.String())
+			}
+			if len(unread) != 1 || unread[0] != out.String() {
+				t.Errorf("what was typed unread was thrown away %d times, the output then %q; want once, after the screen's last", len(unread), unread)
+			}
+		})
+	}
+}
+
+// What a screen reads that isn't a terminal is left as it is: nothing of it
+// is thrown away as the screen stops.
+func TestUnreadLeavesWhatIsntATerminalAlone(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	if _, err := io.WriteString(w, "typed"); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+	backdrop.Unread(r)()
+	if got, err := io.ReadAll(r); err != nil || string(got) != "typed" {
+		t.Errorf("the pipe holds %q, %v, want what was written to it, unread", got, err)
 	}
 }
