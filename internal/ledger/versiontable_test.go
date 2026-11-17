@@ -23,6 +23,7 @@ func TestTheVersionTableNamesEachVersionByFamilyNewestFirst(t *testing.T) {
 		{name: "Sonnet 5", family: "sonnet", ids: []string{"claude-sonnet-5"}},
 		{name: "Sonnet 4.6", family: "sonnet", ids: []string{"claude-sonnet-4-6"}},
 		{name: "Sonnet 4.5", family: "sonnet", ids: []string{"claude-sonnet-4-5-20250929", "claude-sonnet-4-5"}},
+		{name: "Fable 5.2", family: "fable", ids: []string{"claude-fable-5-2"}},
 		{name: "Fable 5.1", family: "fable", ids: []string{"claude-fable-5-1"}},
 		{name: "Fable 5", family: "fable", ids: []string{"claude-fable-5"}},
 		{name: "Haiku 5.5", family: "haiku", ids: []string{"claude-haiku-5-5"}},
@@ -40,7 +41,7 @@ func TestTheVersionTableNamesEachVersionByFamilyNewestFirst(t *testing.T) {
 }
 
 // The table gives viz.version.1 to viz.version.6 to Opus 5.5 and Opus 5,
-// Sonnet 5.5 and Sonnet 5, Fable 5.1, and Haiku 5.5, which took Haiku 4.5's
+// Sonnet 5.5 and Sonnet 5, Fable 5.2, and Haiku 5.5, which took Haiku 4.5's
 // as it was priced; and marks each version older than its family's newest.
 func TestTheVersionTableShadesEachFamilysNewestFirst(t *testing.T) {
 	want := map[string]struct {
@@ -50,7 +51,7 @@ func TestTheVersionTableShadesEachFamilysNewestFirst(t *testing.T) {
 		"Opus 5.5": {shade: 1}, "Opus 5": {shade: 2, older: true}, "Opus 4.8": {older: true}, "Opus 4.7": {older: true},
 		"Opus 4.6": {older: true}, "Opus 4.5": {older: true},
 		"Sonnet 5.5": {shade: 3}, "Sonnet 5": {shade: 4, older: true}, "Sonnet 4.6": {older: true}, "Sonnet 4.5": {older: true},
-		"Fable 5.1": {shade: 5}, "Fable 5": {older: true},
+		"Fable 5.2": {shade: 5}, "Fable 5.1": {older: true}, "Fable 5": {older: true},
 		"Haiku 5.5": {shade: 6}, "Haiku 4.5": {older: true},
 	}
 	for _, v := range ledger.Pricing.Versions {

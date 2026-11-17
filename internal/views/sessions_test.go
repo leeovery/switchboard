@@ -312,7 +312,7 @@ func utc(t time.Time) time.Time {
 
 func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 	got := views.ListSessions(views.SessionSources{Running: routed, Ledger: world(), Prices: ledger.Pricing, Now: now})
-	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-10-11", Sessions: []views.ListedSession{
+	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-11-17", Sessions: []views.ListedSession{
 		{
 			Session: older, Dir: "~/Code/api", Project: "~/Code/api", Account: "work", Model: opus, Running: true, LastSeen: utc(october(7, 13, 10)),
 			// Its last request ended at 9:00, and its cache with it, however
@@ -382,7 +382,7 @@ func TestWithoutTheRouterTheListHoldsTodaysSessionsAsEnded(t *testing.T) {
 
 func TestTheListIsEmptyWithoutSessions(t *testing.T) {
 	got := views.ListSessions(views.SessionSources{Ledger: fakeLedger{now: now}, Prices: ledger.Pricing, Now: now})
-	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-10-11", Sessions: []views.ListedSession{}}
+	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-11-17", Sessions: []views.ListedSession{}}
 	assertList(t, got, want)
 }
 

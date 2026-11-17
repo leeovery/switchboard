@@ -5,8 +5,9 @@ import "slices"
 // Pricing is the price table switchboard carries: every model on Anthropic's
 // pricing page, https://platform.claude.com/docs/en/about-claude/pricing, as
 // read on 7 October 2026, the day the ledger began recording, and checked on
-// 11 October, but those the API had retired by then, as no answer of theirs is
-// in the ledger to price. Each model's prices are those it launched with, on
+// 11 October and again on 17 November, but those the API had retired by then,
+// as no answer of theirs is in the ledger to price, and the Mythos models,
+// open only to verified organizations. Each model's prices are those it launched with, on
 // the day its release notes give, with a row more from each day one of them
 // changed, as Claude Sonnet 5.5's cache reads did on 7 October 2026. A cache
 // read is the page's own price, never worked out from the input's, as its
@@ -24,7 +25,8 @@ import "slices"
 // April 2025. And it names the models' versions, a row each, by family, in
 // the order Families gives, Opus, Sonnet, Fable, then Haiku, and within a
 // family newest first, by the day each launched.
-var Pricing = Table{AsOf: "2026-10-11", Plans: plans, Versions: versions, Models: []Model{
+var Pricing = Table{AsOf: "2026-11-17", Plans: plans, Versions: versions, Models: []Model{
+	priced("2026-11-09", 8, 10, 16, 0.20, 40, usOnly, "claude-fable-5-2"),
 	priced("2026-09-01", 10, 12.50, 20, 0.25, 50, usOnly, "claude-fable-5-1"),
 	priced("2026-06-09", 10, 12.50, 20, 1, 50, usOnly, "claude-fable-5"),
 	priced("2026-09-22", 4, 5, 8, 0.20, 20, usOnly, "claude-opus-5-5"),
@@ -60,6 +62,7 @@ var versions = shaded([]Version{
 	version("Sonnet 5", "claude-sonnet-5"),
 	version("Sonnet 4.6", "claude-sonnet-4-6"),
 	version("Sonnet 4.5", "claude-sonnet-4-5-20250929", "claude-sonnet-4-5"),
+	version("Fable 5.2", "claude-fable-5-2"),
 	version("Fable 5.1", "claude-fable-5-1"),
 	version("Fable 5", "claude-fable-5"),
 	version("Haiku 5.5", "claude-haiku-5-5"),

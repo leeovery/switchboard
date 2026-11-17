@@ -9982,7 +9982,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   tenth more on each token's price, on Claude 4.6 and later, where a request's shape asks for
   `inference_geo` `us`. Each price carries the day it took effect: each model's launch day, and the
   day a price of it changed, as Sonnet 5.5's cache reads did on 7 October 2026, checked against the
-  page again on 11 October 2026; so a request can be priced as at its own day or at
+  page again on 11 October and 17 November 2026; so a request can be priced as at its own day or at
   today's prices, and the views price at today's unless their design says otherwise. Worth is
   worked out as it's read and never stored, so a release with new prices prices the whole ledger
   afresh. A model the table doesn't know has no worth, and is shown as unpriced, never as free, as
@@ -9996,7 +9996,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     sum goes through the one helper that checks it, and a guard holds that none adds otherwise.
     Token counts are summed as they are, as no count nears what a 64-bit integer holds.
   - The table holds the models on the page, but those the API retired before 7 October 2026, the
-    day the ledger began recording, as no answer of theirs is in it to price.
+    day the ledger began recording, as no answer of theirs is in it to price, and the Mythos
+    models, open only to verified organizations.
   - A count the usage holds that the table can't price is left out of the worth, which names it
     unpriced, rather than guessed at: a server tool's it doesn't know, writes to the cache the usage
     doesn't break down by how long they last, and the turns of another model, as an advisor's,
@@ -12777,7 +12778,7 @@ was dropped binds a later choice, the design proper says so.
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after v1: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: after v1; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026 | [current-prices](../ideas/2026-10-09--current-prices.md) |
+| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: after v1; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026, Fable 5.2 on 17 November | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
