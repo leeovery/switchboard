@@ -39,6 +39,6 @@ SESSIONS
 ▸ b9c4 switchboard               side      opus-5-5    ended 18:46  13:20           595  $73.00
   9814 switchboard               personal  opus-5-5    ended 16:45  Mon 12:08       201  $22.65
   3a3a fix-login                 personal  opus-5-5    ended 15:23  Mon 11:37       179  $20.56
-  1cb3 pools                     side      sonnet-5-5  ended 13:27  Mon 10:39       159  $18.20
+  ▼ 4 more sessions
 
 tab views   ↑↓ project   → its sessions   < > period: this week   p pin   ? help  q quit

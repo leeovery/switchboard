@@ -1170,11 +1170,19 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
 pool recorded at the time: the requests and the Log, sessions, Projects, what work was worth, and
-Accounts' totals. So an account moved out keeps its work in the pool it left, and is named there by
-its label, as a removed account is shown, with where it is now in place of when it was removed: in
-text.faint on the screens that draw a removed account so, and in the verbs' text as `work (now in
-Acme)` (`status.MovedOf`, read through the names of every view and verb). `history`'s totals give
-it a column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
+Accounts' totals. An account's window facts in a day's summary, its limits and minutes at its cap,
+show:
+
+- in the pool it's in now, on every day, as they're the account's;
+- in a pool it left, on the days it worked there, as the past stands;
+- and not on the days it did no work in a pool it left, as a day's summary keeps no pool for an
+  account that sent nothing (recording one is in the Backlog).
+
+So an account moved out keeps its work in the pool it left, and is named there by its label, as a
+removed account is shown, with where it is now in place of when it was removed: in text.faint on
+the screens that draw a removed account so, and in the verbs' text as `work (now in Acme)`
+(`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a
+column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
 Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 
 ### Reading a pool
@@ -3234,7 +3242,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `move_cost`.
   - **Accounts' Compare, Detail and Tokens, and Trends' YEAR, BY MONTH and MODELS BY DAY:**
     `history`, its blocks: days, year, months, weeks, tokens, totals, plans and capacity, with
-    `status` for each account's windows and state now, and its extra usage.
+    `status` for each account's windows and state now, and its extra usage; but THIS WEEK's plans
+    on its first day, which `history` prices as today's (see `history` below).
   - **LATELY, the Log's Events, and Detail's LATELY:** `events`.
   - **The Log's Requests:** `requests`, and its day rule, `history`'s days.
   - **A session's page:** `sessions <id>`, and its requests, `requests --session <id>`.
@@ -3261,8 +3270,11 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `"schema": 1` put first, fields a later release added included.
   - **`history`:** one object, as Commands gives it, holding every block Accounts' and
     Trends' views build, over the days asked for, so an agent asks for a period by its first day
-    (settled in the plan), as each view builds it: `prices_as_of`, and `days`, each day's summary as
-    the ledger holds it, priced, with its worth by family, as MODELS BY DAY draws it; then:
+    (settled in the plan), as each view builds it. The one period it can't be asked for so is THIS
+    WEEK on its first day: today begins then too, and the shorter wins, so a day asked for is
+    priced a day, never a week, and THIS WEEK's plans that day are Accounts' alone. It holds
+    `prices_as_of`, and `days`, each day's summary as the ledger holds it, priced, with its worth
+    by family, as MODELS BY DAY draws it; then:
     - `year` and `months`: YEAR's grid, each day's requests and the level its shade is drawn at,
       with the key's cuts, and BY MONTH's rows, each month's requests, worth, plans' cost, limits
       and worth by family (see Trends).
@@ -5527,11 +5539,14 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the widest each says of all
   the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
   as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
-  each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
-  showing only with the session under it, and where no line fits, SESSIONS shows nothing, its
-  heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
-  ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
-  and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
+  each frame. Past its rows, its last says how many sessions are out of view, as the List's row
+  over the key line does, but only where that leaves its page four rows, a rule over each of two
+  sessions, so it never costs a session at SESSIONS' least, however far it's scrolled. Where
+  rows run shorter than its least, a page of one line shows no rule, a rule showing only with the
+  session under it, and where no line fits, SESSIONS shows nothing, its heading never alone. BY
+  MODEL draws a version as Compare's BY MODEL does, ON ACCOUNTS its names as Detail's column of
+  names, marks and all. The chosen row is lit where `↑` and `↓` act, in the list or SESSIONS, the
+  other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days before today, read off the update loop once
   Projects or Sessions' List first shows, one read serving both, from the period's first day, and
   again only where the dial reaches further back; and today's, folded off the loop at every read of
@@ -6875,7 +6890,8 @@ so `v` never moves BY MONTH (settled 21 October 2026).
   family's colour, or in `text.muted` for a family with no colour of its own, as one the version
   table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two cells
   after a part month's bar, `so far`, or `from the 16th` for the month the ledger began recording
-  in, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families'
+  in, and for the first of the 12 months, from the day they begin, so a 13th row never reads as a
+  whole month, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families'
   dots, each with its name in `text.subtle`, `● Opus   ● Sonnet   ● Fable   ● Haiku`: the bars' key,
   headed by its column's `by model`, flowed onto as many rows as it takes from that column, a family
   never cut.
@@ -12545,3 +12561,4 @@ was dropped binds a later choice, the design proper says so.
 | A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
+| An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |

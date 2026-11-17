@@ -25,8 +25,8 @@ func byMonthHelp() helpPart {
 				"and the limits reached. Against is bold, in the theme's positive colour at 1× or more, the plans more than " +
 				"paid for, and its attention colour under. A bar is a month's worth against the largest month's, split by " +
 				"family, each in its colour, as the dots under the bars name them. The month still running says so far after " +
-				"its bar, and the month the ledger began recording in the day it began, as from the 16th, its plans priced " +
-				"from then. Where some accounts' plans aren't known, against is over those known, as the heading says, " +
+				"its bar; the first of the 12 months the day they begin, where that's past its 1st, and the month the ledger " +
+				"began recording in the day it began, each as from the 16th, its plans priced from then. Where some accounts' plans aren't known, against is over those known, as the heading says, " +
 				"with the worth of their accounts alone."),
 		},
 		glyphs: []glyph{
