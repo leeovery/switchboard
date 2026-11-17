@@ -131,13 +131,13 @@ type Option func(*options)
 
 // options are what the options given set: the Digester the ledger digests
 // its days with, nil for none, which a follower passes over; what gives the
-// first pool's id, as FirstPool says, nil for none; and what gives the ids a
-// move renames to, as Moving says, nil for none, which a follower passes
-// over too, as no reader follows the ledger while a move is owed.
+// first pool's id, as FirstPool says, nil for none; and what holds the
+// ledger's rounds, as Holding says, nil for none, which a follower passes
+// over too.
 type options struct {
 	digester  Digester
 	firstPool func() string
-	moving    func() func(id string) string
+	held      func() bool
 }
 
 // optionsOf are what the options given set.
@@ -153,6 +153,13 @@ func optionsOf(opts []Option) options {
 // digesting says: none where it's nil, as where the option isn't given.
 func Digesting(digester Digester) Option {
 	return func(o *options) { o.digester = digester }
+}
+
+// Holding has the ledger's rounds summarise nothing, and prune nothing,
+// while held reports true, as dayfile.WriterOptions' Held says: none are
+// held where it's nil, as where the option isn't given.
+func Holding(held func() bool) Option {
+	return func(o *options) { o.held = held }
 }
 
 // digesting is the ledger's digesting of its days with its Digester, and the

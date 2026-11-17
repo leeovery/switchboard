@@ -32,6 +32,10 @@ type history struct {
 	// request ledger summarises on it the days that have ended, while the
 	// readings their summaries need are still there.
 	pruning func(now time.Time, keep time.Duration)
+	// held, where it's given, holds the history's prunes, as
+	// readings.Open's held says: the router's, while the move onto the
+	// accounts' ids holds the request ledger's rounds.
+	held func() bool
 	// files are the history's files, and writer what writes the readings
 	// noted to them: both are made as the history is opened, once the router
 	// has its state directory, before run starts.
@@ -49,7 +53,7 @@ func newHistory(settings config.History, now func() time.Time) *history {
 // open has the history kept in dir from now on.
 func (h *history) open(dir string) {
 	h.files = readings.Files(dir, logger)
-	h.writer = readings.Open(h.files, h.keep, h.now, h.pruning)
+	h.writer = readings.Open(h.files, h.keep, h.now, h.pruning, h.held)
 	h.opened.Store(true)
 }
 

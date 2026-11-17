@@ -1521,12 +1521,6 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
   no two routers ever run. Nor can launchd's restarts, as it starts the next only once the last
   has gone. It needs one of the two routers run by hand, the one still draining among them, and
   a request ending in the milliseconds of the rename.
-- **A move onto the ids stopped by a crash between a day's two files of lines,** a plain one and
-  a compressed one, leaves the day's lines under both ids. A round that summarises the day then,
-  its summary no longer standing, counts the lines renamed twice: the summary under the old id
-  knows them, and the lines under the new id give them again (see Account identity). It needs
-  the crash in the moment between the two renames, on a day with both files, and a summary of
-  an older version or a line filed since.
 - **A pool's id re-cased by a hand edit** lists the pool twice in the day's summary, once each
   spelling, and so in `history`'s JSON, each priced; every read of the pool takes both, as the
   config, the readers and a pool's read compare ids ignoring case.
@@ -2076,25 +2070,28 @@ formats below; the screens as signed off in Paper (see The screens, below).
     exclusive from the check before its rename till the file written anew is in its place, and
     as a compress reads it then removes it, so a router draining as another starts never appends
     to a file replaced or removed. A router from before the hold doesn't take it (see What pools
-    can't hold). A day of the request ledger has its lines renamed before its summary, its
-    rounds held off meanwhile; where the move fails, or the router stops, between the two, a
-    round that summarises the day takes each account of the summary held under the id the move
-    renames it to, wherever the day's lines and readings no longer name the old id. Summarised
-    from lines under the new ids, knowing a summary under the old, the day would count its work
-    under both, and renaming the summary would then add the two together. Before the move
-    renames a day, the day's lines and summary name the same ids, and a round summarises it as
-    ever, the readings a prune takes among it. Two days of one account a rename brings together
-    merge: their requests, of lines of their own, add up. The old id's day and the new id's read
-    the same readings, though, renamed before the summary, as the newest two days' are as the
-    router starts, so each window's rise and minutes at cap and at limit is the larger of the
-    two, never their sum. Days under ids an account had in two cases read readings of their own,
-    and add up whole. The router's rounds alone summarise a day so while the move is owed:
-    `history` and the dashboard read nothing of the ledger till it's done, as for imports below.
-    A crash between a day's two files of lines is left (see What pools can't hold). A day's
-    compressed file that's damaged is read up to its damage, its whole lines kept in its place,
-    and the file itself set aside beside it as `<name>.damaged`, then `.damaged-2` and on, till
-    its day's past keeping. The files the router builds from these, the days' digests, parts,
-    heads and rows, are built again.
+    can't hold). A day's compressed file that's damaged is read up to its damage, its whole lines
+    kept in its place, and the file itself set aside beside it as `<name>.damaged`, then
+    `.damaged-2` and on, till its day's past keeping. The files the router builds from these,
+    the days' digests, parts, heads and rows, are built again.
+  - **The rounds held:** while the move is owed, from the router's start on the new ids until
+    the move is done, the request ledger's rounds summarise nothing and prune nothing, and the
+    readings history prunes nothing (`moving.holds`). The move renames the newest readings as
+    the router starts, and the rest of the history day by day after it, each day's lines before
+    its summary. A round in between would summarise a day named by both, from readings under one
+    id and lines or a summary under the other: it would count the day's work under both ids,
+    or its rise, minutes and limits without what the week before carried, and the summary
+    renamed after would keep it so. Every reader waits while the move is owed (`history`,
+    `requests`, the sessions, the events, export, import and the dashboard), so a summary made
+    then has no reader. Nothing but the rounds writes a summary, beside the move and an import,
+    and nothing but a prune takes readings, so holding both loses nothing: a move held up, as
+    by a step that keeps failing, costs only the disk the days past keeping hold meanwhile. Once
+    the move's done, every line, reading and summary names the new ids, and the next round,
+    within the hour, summarises and prunes as ever. A router on the old ids, waiting to
+    restart, holds nothing, its files all under the old ids still. A router whose `Settle`
+    can't read the config holds its rounds all the same, as it can't tell which ids it starts
+    on. Days under ids an account had in two cases still merge as the summary is renamed,
+    their figures added up, as each read readings of its own.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals by account the same before and after, and
     the dashboard and the verbs reading it whole.

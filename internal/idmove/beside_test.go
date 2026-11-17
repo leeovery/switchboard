@@ -2,7 +2,6 @@ package idmove_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -26,10 +25,11 @@ import (
 // errStopped is a move stopped, as by a power cut or a crash.
 var errStopped = errors.New("stopped")
 
-// historyOf is the fixture's history's files, as a router opens them.
-func (f fixture) historyOf() idmove.History {
+// historyOf is the fixture's history's files, as a router opens them, its
+// request ledger opened with the options given.
+func (f fixture) historyOf(opts ...ledger.Option) idmove.History {
 	return idmove.History{
-		Ledger:   ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test")),
+		Ledger:   ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test"), opts...),
 		Readings: readingsFiles(f.state),
 		Events:   events.Files(ledger.Dir(f.state), logs.For("test")),
 	}
@@ -68,7 +68,7 @@ func (f fixture) lives(t *testing.T, stop func(step string) error) {
 		m := f.mover(answering())
 		m.Routing = f.configuredIDs(t)
 		m.StopAfter(stop)
-		if err := m.Settle(); err != nil {
+		if _, err := m.Settle(); err != nil {
 			t.Fatalf("Settle() = %v", err)
 		}
 		if stop(fmt.Sprintf("settled in life %d", life)) != nil {
@@ -112,59 +112,6 @@ func TestAMoveBesideRoutersStoppedAnywhereCarriesOnToTheSameEnd(t *testing.T) {
 				t.Errorf("stopped after %s and run on, the install differs from one never stopped:\n%s", at, differences(want, got))
 			}
 		})
-	}
-}
-
-// A round summarises the days that have ended once their readings are moved
-// and before their lines are, so each summary it writes holds an account's
-// requests under its old id and its windows under its new: renamed, the two
-// merge into one, every total kept.
-func TestASummarisingRoundBesideTheMoveKeepsEveryTotal(t *testing.T) {
-	f := newFixture(t)
-	before := f.tallies(t)
-	h := f.historyOf()
-	m := f.mover(answering())
-	m.History = &h
-	summarised := false
-	m.StopAfter(func(step string) error {
-		if step != h.Readings.Name+" "+today || summarised {
-			return nil
-		}
-		summarised = true
-		for _, date := range []string{longAgo, yesterday} {
-			if err := os.Remove(ledger.SummaryFile(ledger.Dir(f.state), date)); err != nil {
-				return err
-			}
-		}
-		h.Ledger.SummariseEnded(now)
-		var s ledger.Summary
-		if err := json.Unmarshal([]byte(readFile(t, ledger.SummaryFile(ledger.Dir(f.state), yesterday))), &s); err != nil {
-			return err
-		}
-		var accounts []string
-		for _, a := range s.Accounts {
-			accounts = append(accounts, a.Account)
-		}
-		if !slices.Contains(accounts, work) || !slices.Contains(accounts, workID) {
-			t.Errorf("summarised as the move ran, yesterday's summary holds %q, want work under both its ids, to merge", accounts)
-		}
-		return nil
-	})
-	if err := m.Run(t.Context()); err != nil {
-		t.Fatalf("Run() = %v", err)
-	}
-	if !summarised {
-		t.Fatal("no round summarised as the move ran")
-	}
-
-	rename := f.renamer(t)
-	want := make(map[string]int, len(before))
-	for key, n := range before {
-		kind, date, account := splitKey(key)
-		want[kind+"|"+date+"|"+rename(account)] += n
-	}
-	if got := f.tallies(t); !maps.Equal(got, want) {
-		t.Errorf("summarised as it was moved, the days' totals by account are\n%v\nwant\n%v", got, want)
 	}
 }
 
