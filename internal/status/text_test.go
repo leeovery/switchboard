@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -63,7 +64,7 @@ func TestText(t *testing.T) {
 						},
 					},
 					personal,
-					{ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
+					{ID: "spare", Label: "Spare", TokenSet: true, Error: tokenRefused, RefusedRead: claude.TokenRefused},
 				},
 			},
 			want: `work · Work
@@ -93,7 +94,7 @@ probed directly
 			name: "the router's, no account to use next, as none has room",
 			doc: status.Document{
 				GeneratedAt: now.UTC(), Source: status.SourceRouter, Router: status.Health{Healthy: true},
-				Accounts: []status.Account{personal, {ID: "spare", Label: "Spare", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"}},
+				Accounts: []status.Account{personal, {ID: "spare", Label: "Spare", TokenSet: true, Error: tokenRefused, RefusedRead: claude.TokenRefused}},
 			},
 			want: `personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
@@ -278,7 +279,7 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 				Source:      status.SourceRouter,
 				Router:      status.Health{Requests: 8, Failures: 6, Reason: "6 of the 8 requests in the last 5 minutes failed"},
 				Accounts: []status.Account{
-					{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", Limit: status.Limit{Until: now.Add(-time.Minute)}},
+					{ID: "side", Label: "Side", TokenSet: true, Error: tokenRefused, RefusedRead: claude.TokenRefused, Limit: status.Limit{Until: now.Add(-time.Minute)}},
 				},
 			},
 			want: `side · Side
@@ -1480,17 +1481,17 @@ func TestTextSaysAReadRefusedInItsCausesWords(t *testing.T) {
 	}{
 		{
 			name:    "its subscription ended",
-			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.3, 3*day)), failedWith(endedSubscription)),
+			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.3, 3*day)), refusedRead(claude.SubscriptionEnded)),
 			want:    []string{endedSubscription, "subscription lapsed · its subscription needs renewing"},
 		},
 		{
 			name:    "its subscription ended, its week at its limit before: both, back at no time known",
-			account: with(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 3*day)), weekLimit), failedWith(endedSubscription)),
+			account: with(with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 3*day)), weekLimit), refusedRead(claude.SubscriptionEnded)),
 			want:    []string{endedSubscription, "subscription lapsed · its subscription needs renewing", "limit reached"},
 		},
 		{
 			name:    "its token refused as it was read",
-			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.3, 3*day)), failedWith("HTTP 401 · Invalid bearer token")),
+			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.3, 3*day)), refusedRead(claude.TokenRefused)),
 			want:    []string{"HTTP 401 · Invalid bearer token", "token refused · its token needs renewing"},
 		},
 		{

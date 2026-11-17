@@ -28,6 +28,12 @@ switchboard status --json | jq \
 | `plan` | string | `pro`, `max` or `ultra`, as configured. Left out if unknown. |
 | `fetched_at` | time | When its usage was read. |
 | `error` | string | Why its usage couldn't be read, or what puts its token right. |
+| `refused_read` | string | Why Anthropic refused its last read: `subscription_ended` or `token_refused`. |
+
+If `refused_read` is set, the router sends the account nothing until a read comes back clean.
+`subscription_ended` means Anthropic refused the login of an ended subscription. `token_refused`
+means Anthropic refused the token. See
+[Troubleshooting: an account's token or subscription](../troubleshooting/tokens.md).
 
 ## The token
 

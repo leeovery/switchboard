@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -197,10 +198,10 @@ func (s savedUsage) read() int {
 // window was, by its key, the keys of the windows its whole readings stopped
 // reporting, in order, and its extra usage; and how its probes went: when one
 // last ended, why the last read nothing, how many in a row did, and, where
-// that's a read refused, when the refusal began. A file from before kept
-// none of the probes, which reads as none ended, and no window retired; and
-// one from before kept no refusal's start, which reads as its last probe's
-// end. A router from before reads a file kept with one, ignoring it.
+// that's a read refused, why the API refused it and when the refusal began.
+// A file from before kept none of the probes, which reads as none ended, and
+// no window retired; and one from before kept no refusal, as refusal reads
+// it. A router from before reads a file kept with them, ignoring them.
 type savedReading struct {
 	ReadAt        time.Time            `json:"read_at,omitzero"`
 	Windows       []quota.Window       `json:"windows,omitempty"`
@@ -209,8 +210,27 @@ type savedReading struct {
 	Extra         quota.ExtraUsage     `json:"extra_usage,omitzero"`
 	Probed        time.Time            `json:"probed,omitzero"`
 	ProbeError    string               `json:"probe_error,omitempty"`
+	RefusedRead   claude.ReadRefusal   `json:"refused_read,omitempty"`
 	Misses        int                  `json:"misses,omitempty"`
 	RefusedSince  time.Time            `json:"refused_since,omitzero"`
+}
+
+// refusal is why the API refused the account's last read, as the file kept
+// it: its RefusedRead, where that's a refusal, as status.RefusedRead judges
+// it. A file from before kept none: one that kept a refusal's start, as a
+// router that judged a read refused by its error's text alone wrote it, has
+// the refusal that text gives, as claude.RefusedReadIn reads it; one from
+// before the hold, which kept no start, has none, as its router held
+// nothing, till the account's next read judges it. A refusal this router
+// doesn't know, as a later one may have kept, is none.
+func (r savedReading) refusal() claude.ReadRefusal {
+	switch {
+	case status.RefusedRead(r.RefusedRead) != 0:
+		return r.RefusedRead
+	case r.RefusedRead == "" && !r.RefusedSince.IsZero():
+		return claude.RefusedReadIn(r.ProbeError)
+	}
+	return ""
 }
 
 // load takes in the state file at path, as the router starts, the pools as

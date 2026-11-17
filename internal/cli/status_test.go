@@ -216,7 +216,8 @@ func statusDocument(t *testing.T, deps cli.Deps) result {
       "id": "side",
       "label": "Side",
       "token_set": true,
-      "error": "HTTP 401 · Invalid bearer token"
+      "error": "HTTP 401 · Invalid bearer token",
+      "refused_read": "token_refused"
     }
   ]
 }
@@ -496,8 +497,8 @@ label = "Side"
 
 // fakeClaudeAPI serves a probe of the work account from Claude Code
 // testClaudeVersion with its usage headers, and rejects anything else, as a
-// token refused, unless a test has it read another account too, as readsToo
-// does. The account has used up its Fable week, which only Fable requests
+// token refused, with Anthropic's id for the answer, as the API's own carry,
+// unless a test has it read another account too, as readsToo does. The account has used up its Fable week, which only Fable requests
 // count, so it's still the account to use next. It returns the API's URL.
 func fakeClaudeAPI(t *testing.T) string {
 	t.Helper()
@@ -599,6 +600,7 @@ func newClaudeAPI(t *testing.T) *claudeAPI {
 		}
 		headers, ok := usage[req.Model]
 		if !ok || !reads || r.Header.Get("User-Agent") != "claude-code/"+testClaudeVersion {
+			w.Header().Set("Request-Id", "req_test")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`)
 			return

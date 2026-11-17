@@ -10,6 +10,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -125,9 +126,14 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 		a.Error = err
 		return a
 	}
+	refusedWith := func(id, err string, refused claude.ReadRefusal) status.Account {
+		a := failedWith(id, err)
+		a.RefusedRead = refused
+		return a
+	}
 	const endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 	limitedEnded := limitedAccount("limitedended")
-	limitedEnded.Error = endedSubscription
+	limitedEnded.Error, limitedEnded.RefusedRead = endedSubscription, claude.SubscriptionEnded
 	tests := []struct {
 		name    string
 		account status.Account
@@ -142,9 +148,9 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 		{name: "held at its limit", account: limitedAccount("limited"), want: RoutingRow{Reason: "at its limit till 14:12"}},
 		{name: "held at its limit, its cap holding it longer: till it's back", account: limitedCapped, want: RoutingRow{Reason: "at its limit till 15:12"}},
 		{name: "its token refused", account: refused, want: RoutingRow{Reason: "token refused (401)"}},
-		{name: "its subscription ended, as its last read says", account: failedWith("ended", endedSubscription), want: RoutingRow{Reason: "subscription lapsed"}},
+		{name: "its subscription ended, as its last read says", account: refusedWith("ended", endedSubscription, claude.SubscriptionEnded), want: RoutingRow{Reason: "subscription lapsed"}},
 		{name: "its subscription ended, a limit holding it too: the ended subscription", account: limitedEnded, want: RoutingRow{Reason: "subscription lapsed"}},
-		{name: "its token refused as it was last read", account: failedWith("refusedread", "HTTP 401 · Invalid bearer token"), want: RoutingRow{Reason: "token refused"}},
+		{name: "its token refused as it was last read", account: refusedWith("refusedread", "HTTP 401 · Invalid bearer token", claude.TokenRefused), want: RoutingRow{Reason: "token refused"}},
 		{name: "its last read failed otherwise", account: failedWith("failed", "HTTP 529 · Overloaded"), want: RoutingRow{Open: true, Pickable: true}},
 		{name: "without a token", account: tokenless, want: RoutingRow{Reason: "no token"}},
 		{name: "its token another subscription's", account: foreign, want: RoutingRow{Reason: "wrong token"}},

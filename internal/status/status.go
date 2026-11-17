@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prime"
@@ -575,6 +576,12 @@ type Account struct {
 	AtReserve []string `json:"at_reserve,omitempty"`
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`
+	// RefusedRead is why the API refused the account's last read, as
+	// claude.RefusedReadOf reads it off the read's failure, which holds the
+	// account back from every request till a read comes back clean: "" where
+	// it didn't, and in a document from a router from before it said, whose
+	// Error alone says it.
+	RefusedRead claude.ReadRefusal `json:"refused_read,omitempty"`
 	// Limit is the limit the router saw the account reach, while it holds:
 	// zero when there's none, and in a document that isn't the router's.
 	Limit Limit `json:"limit,omitzero"`
@@ -939,7 +946,7 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	probed, err := c.Prober.Probe(ctx, token.Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if err != nil {
-		account.Error = err.Error()
+		account.Error, account.RefusedRead = err.Error(), claude.RefusedReadOf(err)
 		logger.Warn("probe failed", "account", account.ID, "duration", took, "error", err)
 		return
 	}

@@ -15,6 +15,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -811,7 +812,7 @@ func TestAProbeThatEndsAfterItsAccountLostItsTokenLeavesNothing(t *testing.T) {
 				log := logstest.Capture(t)
 				path := filepath.Join(t.TempDir(), "state.json")
 				files := &changingFiles{files: testTokens}
-				refused := errors.New("HTTP 401 · Invalid bearer token")
+				refused := claudetest.ErrTokenRefused
 				prober := &stubProber{gate: make(chan struct{}), errs: map[string]error{sideToken: refused}}
 				r := newTestRouterReading(t, at(start), prober, files.read)
 				r.file.load(path)
@@ -862,7 +863,7 @@ func TestAProbeOnATokenGainedBackUnchangedCountsAsTheAccounts(t *testing.T) {
 		log := logstest.Capture(t)
 		clock := &testClock{now: start}
 		files := &changingFiles{files: testTokens}
-		refused := errors.New("HTTP 401 · Invalid bearer token")
+		refused := claudetest.ErrTokenRefused
 		prober := &stubProber{gate: make(chan struct{}), errs: map[string]error{sideToken: refused}}
 		r := newTestRouterReading(t, clock.read, prober, files.read)
 		defer r.probes.stop()

@@ -59,12 +59,12 @@ type StaleCause int
 // the one said.
 const (
 	// StaleLapsed is an account whose subscription has ended: its last read
-	// was refused its organization's login, as claude.LoginBarredRead finds
-	// it, which is how an ended subscription is answered.
+	// was refused its organization's login, as claude.SubscriptionEnded says,
+	// which is how an ended subscription is answered.
 	StaleLapsed StaleCause = iota + 1
 	// StaleRefused is an account whose token is refused: the router saw the
 	// upstream refuse it, or its last read was answered 401, as
-	// claude.TokenRefusedRead finds it.
+	// claude.TokenRefused says.
 	StaleRefused
 	// StaleFailed is an account whose last read failed otherwise.
 	StaleFailed
@@ -84,29 +84,29 @@ func (c StaleCause) Said() (full, short string) {
 	return "", ""
 }
 
-// RefusedRead is why the API refused a read whose error is err, as a probe's
-// error gives it: StaleLapsed where it refused the organization's login, as
-// claude.LoginBarredRead finds it, which is how an ended subscription is
-// answered; StaleRefused where it refused the token, as
-// claude.TokenRefusedRead finds it; and zero where it didn't, as of a read
-// that timed out or was answered otherwise, or that didn't fail. A read
-// refused holds its account back from every request, as the router's
-// refusal of its token does, till a read comes back clean, which clears the
-// error: it's the one rule the router and status hold an account back by.
-func RefusedRead(err string) StaleCause {
-	switch {
-	case claude.LoginBarredRead(err):
+// RefusedRead is why the API refused a read, as the refusal given says it,
+// as claude.RefusedReadOf reads it off the read's failure: StaleLapsed where
+// it refused the organization's login, claude.SubscriptionEnded, which is
+// how an ended subscription is answered; StaleRefused where it refused the
+// token, claude.TokenRefused; and zero where it didn't, as of a read that
+// timed out or was answered otherwise, or that didn't fail, and of a refusal
+// this build doesn't know. A read refused holds its account back from every
+// request, as the router's refusal of its token does, till a read comes back
+// clean: it's the one rule the router and status hold an account back by.
+func RefusedRead(refused claude.ReadRefusal) StaleCause {
+	switch refused {
+	case claude.SubscriptionEnded:
 		return StaleLapsed
-	case claude.TokenRefusedRead(err):
+	case claude.TokenRefused:
 		return StaleRefused
 	}
 	return 0
 }
 
 // refusedRead is why the API refused the account's last read, as RefusedRead
-// has it of its error.
+// has it of the account's RefusedRead.
 func (a Account) refusedRead() StaleCause {
-	return RefusedRead(a.Error)
+	return RefusedRead(a.RefusedRead)
 }
 
 // staleCause is why the account's reading is stale at now, as StaleCause

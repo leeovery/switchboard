@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
@@ -30,7 +31,7 @@ func TestRun(t *testing.T) {
 	fableDown := quota.Failure{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}
 	prober := &fakeProber{readings: map[string]probeResult{
 		workToken: {usage: quota.Usage{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown}}},
-		sideToken: {err: errors.New("HTTP 401 · Invalid bearer token")},
+		sideToken: {err: claudetest.ErrTokenRefused},
 	}}
 	cfg.Prober = prober
 	// A state directory others can read, which the router makes private.
@@ -61,7 +62,7 @@ func TestRun(t *testing.T) {
 	want := []status.Account{
 		{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now, Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown}, Sessions: 1},
 		{ID: "personal", Label: "Personal", Error: personalMissing},
-		{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
+		{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: claude.TokenRefused},
 	}
 	for i := range probed.Accounts {
 		probed.Accounts[i].Windows = asRead(probed.Accounts[i].Windows)

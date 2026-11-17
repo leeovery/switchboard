@@ -325,7 +325,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | Reason | Why |
 |---|---|
 | `pinned` | The session's own pin (step 1) |
-| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit, a refusal or a read refused from before this request holds it back, or it has no usable token |
+| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit or a refusal from before this request holds it back, or it has no usable token |
 | `pin yields: <id> hit its limit`, `pin yields: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it |
 | `moved by pin` | A global pin with `--move` (step 2) |
 | `sticky` | The session's account, its cache warm (step 3), a session that yielded its pin included (step 1) |
@@ -338,6 +338,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused above its reserve (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve`, `pin yields: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
+| `moved: <id> had its read refused`, `pin yields: <id> had its read refused` | The same, as the API refused `<id>`'s last read, its subscription ended or its token refused, which holds it back till a read comes back clean, whatever else holds it too (see 401s and 403s) |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
 | `moved: <id> has a new token`, `pin yields: <id> has a new token` | The same, as `<id>` refused the request's token, having taken up a new one |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
@@ -458,41 +459,50 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 - **A read refused holds the account back** (the owner's call, 16 November 2026): where the API
   refuses a read of the account's usage, answering 401, its token refused, or 403 with OAuth
   authentication not allowed for its organization, which is how an ended subscription is answered,
-  the router holds the account back from every request, as for a token it refused itself. It's no
-  candidate, however much room it has; sessions on it move; a pin to it yields; and its pool counts
-  none of its room. A pool whose every account is held has no room, and what Claude Code sees
-  turns on the client's account, the one its token is (see Choosing an account, step 5). Where
-  that's in the pool, the request goes out on it all the same, for the upstream to refuse it: the
-  401 or 403 is never relayed, so Claude Code gets the 502 above, naming the upstream's refusal of
-  the account. Where it's outside the pool, nothing goes out: switchboard answers 429 itself, each
-  account's cause in its message, `subscription lapsed` or `token refused` (see Routing within a
-  pool). The hold has no timer: it lasts till a read of it comes back clean, by a probe, a prime or
-  an answer, which clears the error. A read that fails otherwise after it, as one timed out,
-  unanswered or answered 5xx, keeps it, as that says nothing of whether the refusal has ended; one
-  refused again keeps it, saying why afresh, as a 401 after a 403 says `token refused`. A held
-  account is never passed over for being held: it's probed on the router's rounds at any hour, as
-  one whose probe read nothing, so a subscription renewed is seen within the half hour (see The
-  router's rounds); a choice probes it no sooner, nor the dashboard's refresh after a reset, nor is
-  a failed prime of it sent again sooner, as each read refused would only be another warning. `R`
-  and `--refresh` probe it at once, as someone asks to see a renewal. A new token in its file lifts
-  the hold at once, as it starts its probes afresh. The same token lost and back keeps it, as that
-  token would only be refused again: a file moved away and back, holding no usable token two looks
-  running, as a loss takes, or the router restarting while the file holds none, the state file
-  keeping the refusal for the token it held last. A read that fails otherwise with no refusal before
-  it holds nothing: the account routes on its windows as last read. A limit holding the account too
-  doesn't hide the hold: ROUTING, the routing card and `status` say the refusal first, and nothing
-  says it's back as the limit lifts, its windows' words reading `limit` with no `back`, and Runway's
-  stretch through now no `back` either. An account whose first read is refused, as one added with
-  its subscription already ended, says the refusal too, while every view draws it as not read yet,
-  as nothing of it has been, unless a limit or the router's own refusal of its token holds it too.
-  The hold begins at the first refusal of a run, kept through the refusals and failures after it,
-  which the state file keeps beside the last probe; the pools' room, which the forecast's day rate
-  counts, holds the account back only from then, never before, so a restart replaying the readings
-  history counts its room till then, however long it's been probed since. A state file from before
-  keeps no start, and the hold runs from its last probe; a router from before reads the file all the
-  same, passing over the start. The router judges the hold from its own state, through the readers
-  of Claude's answers, and the status document states it once, as the account's `RefusedRead`: no
-  view reads the error again. An account removed goes as any other, its history kept.
+  in an answer of its own, carrying Anthropic's `Request-Id`, the router holds the account back from
+  every request, as for a token it refused itself. A proxy between refusing the read in the API's
+  place says nothing of the account: that's a read that fails otherwise. It's no candidate, however
+  much room it has; sessions on it move, and a pin to it yields, saying it `had its read refused`;
+  and its pool counts none of its room. A pool whose every account is held has no room, and what
+  Claude Code sees turns on the client's account, the one its token is (see Choosing an account,
+  step 5). Where that's in the pool, the request goes out on it all the same, for the upstream to
+  refuse it: the 401 or 403 is never relayed, so Claude Code gets the 502 above, naming the
+  upstream's refusal of the account. Where it's outside the pool, nothing goes out: switchboard
+  answers 429 itself, each account's cause in its message, `subscription lapsed` or `token refused`
+  (see Routing within a pool). The hold has no timer: it lasts till a read of it comes back clean,
+  by a probe, a prime or an answer, which clears the error. A read that fails otherwise after it, as
+  one timed out, unanswered or answered 5xx, keeps it, as that says nothing of whether the refusal
+  has ended; one refused again keeps it, saying why afresh, as a 401 after a 403 says `token
+  refused`. A held account is never passed over for being held: it's probed on the router's rounds
+  at any hour, as one whose probe read nothing, so a subscription renewed is seen within the half
+  hour (see The router's rounds); a choice probes it no sooner, nor the dashboard's refresh after a
+  reset, nor is a failed prime of it sent again sooner, as each read refused would only be another
+  warning. `R` and `--refresh` probe it at once, as someone asks to see a renewal. A new token in
+  its file lifts the hold at once, as it starts its probes afresh. The same token lost and back
+  keeps it, as that token would only be refused again: a file moved away and back, holding no usable
+  token two looks running, as a loss takes, or the router restarting while the file holds none, the
+  state file keeping the refusal for the token it held last. A read that fails otherwise with no
+  refusal before it holds nothing: the account routes on its windows as last read. A limit holding
+  the account too doesn't hide the hold: ROUTING, the routing card and `status` say the refusal
+  first, and nothing says it's back as the limit lifts, its windows' words reading `limit` with no
+  `back`, and Runway's stretch through now no `back` either. An account whose first read is refused,
+  as one added with its subscription already ended, says the refusal too, while every view draws it
+  as not read yet, as nothing of it has been, unless a limit or the router's own refusal of its
+  token holds it too. The hold begins at the first refusal of a run, kept through the refusals and
+  failures after it, which the state file keeps beside the last probe, `refused_since`, with why,
+  `refused_read`; the pools' room, which the forecast's day rate counts, holds the account back only
+  from then, never before, so a restart replaying the readings history counts its room till then,
+  however long it's been probed since. The router judges the hold from the probe's failure, as
+  `claude` reads it, never from its error's text, so no wording of an error lifts a hold or makes
+  one; it keeps why as a value, and the status document gives it as the account's `refused_read`,
+  `subscription_ended` or `token_refused`, never reworded, which status reads once, as the account's
+  `RefusedRead`: no view reads the error. A state file from before the value keeps the start without
+  why: why is read off its error's text, as the router that wrote it judged the hold. One from
+  before the hold keeps no start, and holds nothing, as its router held nothing, till the account's
+  next read judges it. A router from before reads the file all the same, passing over
+  `refused_read`, and judges the error's text, as it did; and a document from one gives the error
+  alone, which status reads as a read that failed otherwise. An account removed goes as any other,
+  its history kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -10866,12 +10876,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
-  and `misses` (see The router's rounds), the hold curve, `hold` (see Forecasting run-outs), and the
-  hashes of every configured account's tokens, with a usable token or not: see Accounts and tokens;
-  and the token-year notifications told, an account's against the token they were told for: see
-  Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`, the id an
-  export names the Mac's folder by, `import/`, while an import runs, and `import.lock`, which
-  `import` holds while it stages and waits (see Export and import). `state.json` is versioned, the
+  and `misses` (see The router's rounds), and of a read refused why and since when, `refused_read`
+  and `refused_since` (see 401s and 403s), the hold curve, `hold` (see Forecasting run-outs), and
+  the hashes of every configured account's tokens, with a usable token or not: see Accounts and
+  tokens; and the token-year notifications told, an account's against the token they were told
+  for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
+  the id an export names the Mac's folder by, `import/`, while an import runs, and `import.lock`,
+  which `import` holds while it stages and waits (see Export and import). `state.json` is
+  versioned, the
   version changing only when a router couldn't read what another wrote: an older file, without
   readings, loads as having none, one whose readings lack `restarted_at` as windows that run a whole
   length before their resets, which a router from before, ignoring the field, takes them all for,
@@ -11302,6 +11314,7 @@ Each account:
 | `extra_usage` | Its extra usage, the API's overage, as the last answer or probe to give its `anthropic-ratelimit-unified-overage-*` headers left it: `{status, utilization, resets_at}`, from its `overage-status`, `overage-utilization` and `overage-reset` headers, as they've been seen: `status` as given (`allowed`, `allowed_warning` or `rejected`), `utilization` a fraction, and `resets_at` when its period resets. It's on, so the account can be served past its limit and billed for it, while its `status` isn't `rejected` (see What doesn't go through the router). The headers are read with the windows', and never count as a window. Left out where none has given them |
 | `failures` | Windows a probe expected but couldn't read: `{label, window, error}`, `label` naming what should have read it, such as `Fable`. Left out when none |
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
+| `refused_read` | Why the API refused its last read, which holds it back from every request till a read comes back clean (see 401s and 403s): `subscription_ended`, its organization's login refused, as an ended subscription's is, or `token_refused`. These words are never reworded. Left out where the API didn't refuse it, and in a document from a router from before it, whose `error` alone says |
 | `limit` | *router* A limit it reached, while it holds: `{id, windows, until}`, `id` the limit's identity, which it keeps while it holds, reached again, as the router counts its limits from 1 as it starts, and which the limit's event gives as its `limit`; `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
 | `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets, while the account can take a request of some model, as one refused a model or held back in a model's own week still can: the account is under pressure (see Choosing an account). Of an account that can take no request, pressure isn't what passes it over, and `under` is left out. Left out when the rate can't be said, as when the window isn't running, or the account has no 5-hour window |
@@ -11417,6 +11430,7 @@ verbs).
     at its cap`;
   - `moved: work hit its limit`: `work reached its limit`; `from work, at its limit`;
   - `moved: work was refused`: `work refused the request`; `from work, refused`;
+  - `moved: work had its read refused`: as it is; `from work, read refused`;
   - `moved: work has no room`: `work had no room`; `from work, with no room`;
   - `moved by pin`: `pinned to side`; `from work, pinned to side`, the pin's account the one moved
     to;
@@ -12457,4 +12471,4 @@ was dropped binds a later choice, the design proper says so.
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Pausing an account whose subscription is cancelled: kept whole and out of routing until it's resumed | after Account identity and Pools: the owner, 11 November 2026 | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
 | The dashboard's `--pool` for a pool the config no longer has, its recorded work read by its id, as the verbs read it | later: found with Pools' second phase, 13 November 2026 | [dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md) |
-| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, in place of a move that says `has no room` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
+| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |

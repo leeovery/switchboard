@@ -217,7 +217,7 @@ func TestThePoolsStackAheadIsEachAccountsRoomByItsProjection(t *testing.T) {
 			{k: 96, room: 0},
 		}},
 		{name: "its subscription ended, so the router sends it nothing", account: weekAccount("work", stackAt, 0.3, stackReset, func(a *status.Account) {
-			a.Error = endedSubscription
+			a.Error, a.RefusedRead = endedSubscription, claude.SubscriptionEnded
 		}), want: []at{
 			{k: 0, room: 0},
 			{k: 1, room: 0},
@@ -225,7 +225,7 @@ func TestThePoolsStackAheadIsEachAccountsRoomByItsProjection(t *testing.T) {
 		}},
 		{name: "held by its limit for two hours, its subscription ending meanwhile: none once its limit lifts", account: weekAccount("work", stackAt, 0.3, stackReset, func(a *status.Account) {
 			a.Limit = status.Limit{Windows: []string{claude.WeekWindow}, Until: stackAt.Add(2 * time.Hour)}
-			a.Error = endedSubscription
+			a.Error, a.RefusedRead = endedSubscription, claude.SubscriptionEnded
 		}), want: []at{
 			{k: 0, room: 0},
 			{k: 3, room: 0},
