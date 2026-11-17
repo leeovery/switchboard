@@ -23,17 +23,15 @@ var errHistoryMoving = errors.New("import once it's done")
 
 // Mover moves the accounts and their history onto the ids switchboard makes,
 // once, as idmove.Mover does: Settle moves the files the router takes up as
-// it starts, before it does, and RunBeside the rest, beside the router, given
+// it starts, before it does, reporting whether the router starts on the ids
+// the move renames onto, and RunBeside the rest, beside the router, given
 // the history's files as it keeps them, failing with idmove.ErrUnanswered,
 // having changed nothing, where the API doesn't answer, to run again once
-// AskAgain's wait is up, given the wait before, zero the first time. Renames
-// gives the id the move renames each id to, the id itself where it renames
-// none, nil where it renames none at all.
+// AskAgain's wait is up, given the wait before, zero the first time.
 type Mover interface {
-	Settle() error
+	Settle() (bool, error)
 	RunBeside(ctx context.Context, history idmove.History) error
 	AskAgain(wait time.Duration) time.Duration
-	Renames() (func(id string) string, error)
 }
 
 // PoolMover moves the history to pools, once, after the move onto the ids,
@@ -60,9 +58,9 @@ type moving struct {
 	// router's start, where it has a move to make, until every move is done.
 	// Nil where none is owed.
 	stands atomic.Pointer[status.Moving]
-	// renamed is what the mover last gave of the ids the move renames, as
-	// renaming has it: nil before it gave any.
-	renamed atomic.Pointer[func(id string) string]
+	// held is set where settle finds the router starting on the ids the move
+	// onto them renames onto, or can't tell, for holds.
+	held atomic.Bool
 }
 
 // newMoving returns the moving of mover's move onto the ids, then pools'
@@ -105,25 +103,16 @@ func (m *moving) standing(s status.Moving) {
 	m.stands.Store(&s)
 }
 
-// renaming gives the id the move onto the ids renames each id to, while
-// that's owed, as the mover's Renames gives them, for the request ledger's
-// rounds to know a day it renamed partway, as ledger.Moving says: nil where
-// it isn't owed, or renames none. Where the mover can't tell, as the config
-// can't be read for now, it gives what the mover last gave: the ids it
-// renames change only as the config takes the new ones.
-func (m *moving) renaming() func(id string) string {
-	if !m.idsOwed() {
-		return nil
-	}
-	renames, err := m.mover.Renames()
-	if err != nil {
-		if last := m.renamed.Load(); last != nil {
-			return *last
-		}
-		return nil
-	}
-	m.renamed.Store(&renames)
-	return renames
+// holds reports whether the history's rounds are held, so the request
+// ledger summarises nothing and neither it nor the readings history prunes:
+// from the router's start on the ids the move onto them renames onto, as
+// settle finds it, until that move is done. The move renames the newest
+// readings as the router starts, and the rest of the history day by day
+// after, each day's lines before its summary, so a round in between would
+// summarise a day named by both: no reader reads one till the move's done,
+// as every reader waits on it.
+func (m *moving) holds() bool {
+	return m.held.Load() && m.idsOwed()
 }
 
 // historyMoving is the error of an import while the history waits on the
@@ -133,15 +122,19 @@ func (m *moving) historyMoving() error {
 }
 
 // settle has the mover move the files the router takes up as it starts,
-// where the move onto the ids is owed. Where it can't, the router starts all
-// the same, the state those files kept of the accounts moved let go of.
+// where the move onto the ids is owed, noting whether the router starts on
+// the ids it renames onto, as holds has it. Where it can't move them, the
+// router starts all the same, the state those files kept of the accounts
+// moved let go of, and its history held, as it can't tell what's renamed.
 func (m *moving) settle() {
 	if !m.idsOwed() {
 		return
 	}
-	if err := m.mover.Settle(); err != nil {
+	settled, err := m.mover.Settle()
+	if err != nil {
 		logger.Warn("couldn't move the state file and the newest readings onto the accounts' ids, so what they kept of the accounts moved is let go of", "error", err)
 	}
+	m.held.Store(settled || err != nil)
 }
 
 // run runs the moves owed, given the history's files as history gives them,

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -308,6 +309,36 @@ func TestARoundAskedForAgainComesAtOnceOnceWhatsQueuedIsWritten(t *testing.T) {
 		}
 		if want := []string{"", linesOf("one"), linesOf("one")}; !slices.Equal(held, want) {
 			t.Errorf("start's plain file held %q as each round began, want %q: what was noted during a round written before the next", held, want)
+		}
+	})
+}
+
+func TestAHeldWritersRoundsKeepAndPruneNothingTillTheyreLetGo(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := readingsHistory(t.TempDir())
+		old := DateOf(start.Local().AddDate(0, 0, -30))
+		writeDay(t, f, plainFile(old), linesOf("old"))
+		began := time.Now()
+		var held atomic.Bool
+		held.Store(true)
+		rounds, prunings := 0, 0
+		w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
+			Round: func(time.Time) { rounds++ }, Pruning: func(time.Time, time.Duration) { prunings++ }, Held: held.Load})
+		stop := running(t, w)
+		defer stop()
+
+		time.Sleep(2*pruneLook + time.Minute)
+		synctest.Wait()
+		if rounds != 0 || prunings != 0 || !holdsDay(f, old) {
+			t.Fatalf("held, the writer made %d rounds and %d prunings, the day past keeping held = %v; want none, and the day kept", rounds, prunings,
+				holdsDay(f, old))
+		}
+		held.Store(false)
+		time.Sleep(pruneLook)
+		synctest.Wait()
+		if rounds != 1 || prunings != 1 || holdsDay(f, old) {
+			t.Errorf("let go, the writer made %d rounds and %d prunings, the day past keeping held = %v; want its next round to keep and prune, "+
+				"the day gone", rounds, prunings, holdsDay(f, old))
 		}
 	})
 }

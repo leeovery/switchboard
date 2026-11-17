@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -31,82 +30,14 @@ type Renaming struct {
 	Unpooled string
 }
 
-// Moving has the ledger's rounds know the move of the accounts onto new ids,
-// as moving gives the id the move renames each to, the id itself where it
-// renames none, asked once a round, none where it gives nil. The move
-// renames a day's lines, and the readings, before the day's summary: a round
-// summarising the day between the two, where it failed, or the router
-// stopped, finds its lines and readings under the new ids, and its summary
-// under the old, which, knowing it as it stands, would count the day's work
-// under both, and the move's rename of the summary would then add the two
-// together. So the summary's day of an account the day's lines and
-// readings no longer name is taken under its new id, as movedOn has it.
-func Moving(moving func() func(id string) string) Option {
-	return func(o *options) { o.moving = moving }
-}
-
-// renamedByMove gives the id a move renames each to, as Moving has the
-// ledger ask: nil where none does.
-func (l *Ledger) renamedByMove() func(id string) string {
-	if l.moving == nil {
-		return nil
-	}
-	return l.moving()
-}
-
-// movedOn returns s, a day's summary held, as made, the day summarised
-// afresh from its lines and readings, is to know it, where a move renames
-// ids as renamed gives them: each account's day s holds under an id the move
-// renames that made has no day of, its lines and readings renamed, under the
-// new id, two days of one account then merged into one, as mergeRenamed
-// merges them. A day made still has, its lines not yet renamed, stays as it
-// is, for the move to rename with them. It's s as it is where renamed is nil.
-func (s Summary) movedOn(made Summary, renamed func(id string) string) Summary {
-	if renamed == nil {
-		return s
-	}
-	var stay, moving []AccountDay
-	for _, a := range s.Accounts {
-		if to := renamed(a.Account); a.Account != "" && to != a.Account && !made.hasDayOf(a.Account) {
-			a.Account = to
-			moving = append(moving, a)
-			continue
-		}
-		stay = append(stay, a)
-	}
-	if moving != nil {
-		s.Accounts = mergeRenamed(stay, moving)
-	}
-	return s
-}
-
-// mergeRenamed returns an account's days of a summary, those of stay as
-// they are and those of moving renamed onto new ids, in the order of their
-// accounts' ids, two of one account merged into one: two of moving as
-// mergedDays merges them, as of two ids the account had in two cases, each
-// read of readings of its own; and one of moving onto one of stay as
-// mergedSameReadings merges them, the move having renamed the readings the
-// day under the new id read.
-func mergeRenamed(stay, moving []AccountDay) []AccountDay {
-	byAccount := func(a AccountDay) string { return a.Account }
-	moving = mergedBy(moving, byAccount, mergedDays, strings.Compare)
-	return mergedBy(slices.Concat(stay, moving), byAccount, mergedSameReadings, strings.Compare)
-}
-
-// hasDayOf reports whether the summary has a day of the account with the
-// given id, in any case.
-func (s Summary) hasDayOf(id string) bool {
-	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool { return strings.EqualFold(a.Account, id) })
-}
-
 // RenameDay renames the local day with the given date: each of its lines as
 // line makes it, its files rewritten as dayfile's Rewrite rewrites them,
 // then its summary, as rename has it, as renameSummary renames it. It holds
 // summarising throughout, so no round summarises the day from lines of one
 // form, knowing no less than a summary of the other, which would count its
-// work twice, as Moving has a round know where it stops between the two;
-// and the day's files only as Rewrite holds them. A summary that doesn't read
-// as one is left as it is, for a round to summarise again, as it would.
+// work twice; and the day's files only as Rewrite holds them. A summary that
+// doesn't read as one is left as it is, for a round to summarise again, as
+// it would.
 func (l *Ledger) RenameDay(date string, line func([]byte) []byte, rename Renaming) error {
 	l.summarising.Lock()
 	defer l.summarising.Unlock()
@@ -187,7 +118,7 @@ func removeBuilt(dir string) error {
 // as it is, which is logged. Where two of its accounts' days, renamed, are
 // of one account, as of two ids an account had in two cases, or of a round
 // that made it from the day's lines under the old ids and its readings under
-// the new while they were renamed, they're merged into one, as mergeRenamed
+// the new while they were renamed, they're merged into one, as mergedDays
 // merges them, so its totals stand whether or not its lines are still there.
 func (d days) renameSummary(date string, rename Renaming, rewritten dayfile.Rewritten) error {
 	path := SummaryFile(d.files.Dir, date)
@@ -260,74 +191,50 @@ func renamedSummary(summary []byte, rename Renaming, rewritten dayfile.Rewritten
 	return remarked, true, err
 }
 
-// accountDay is an account's day as a summary writes it, the id of its
-// account, renamed, and whether the rename gave it that id.
+// accountDay is an account's day as a summary writes it, and the id of its
+// account, renamed.
 type accountDay struct {
 	account string
 	written json.RawMessage
-	moved   bool
 }
 
 // renamedAccounts returns accounts, a summary's accounts' days as they're
 // written, each renamed as renamedDay renames it, in the order of their ids,
-// as a summary keeps them, two of one account merged into one, as
-// mergeRenamed merges them; and reports whether that changed them.
+// as a summary keeps them, two of one account merged into one, as mergedDays
+// merges them; and reports whether that changed them.
 func renamedAccounts(accounts json.RawMessage, rename Renaming) (json.RawMessage, bool, error) {
 	var written []json.RawMessage
 	if err := json.Unmarshal(accounts, &written); err != nil {
 		return nil, false, err
 	}
-	var stay, moving []accountDay
+	days := make([]accountDay, len(written))
 	changed := false
-	for _, w := range written {
+	for i, w := range written {
 		day, renamed, err := renamedDay(w, rename)
 		if err != nil {
 			return nil, false, err
 		}
-		changed = changed || renamed
-		if day.moved {
-			moving = append(moving, day)
-		} else {
-			stay = append(stay, day)
-		}
+		days[i], changed = day, changed || renamed
 	}
 	if !changed {
 		return accounts, false, nil
 	}
-	moving, err := mergedWrittenBy(moving, mergedDays)
-	if err != nil {
-		return nil, false, err
-	}
-	days, err := mergedWrittenBy(slices.Concat(stay, moving), mergedSameReadings)
-	if err != nil {
-		return nil, false, err
-	}
-	renamed := make([]json.RawMessage, len(days))
+	slices.SortStableFunc(days, func(a, b accountDay) int { return cmp.Compare(a.account, b.account) })
+	var renamed []json.RawMessage
 	for i, day := range days {
-		renamed[i] = day.written
+		if i == 0 || days[i-1].account != day.account {
+			renamed = append(renamed, day.written)
+			continue
+		}
+		last := len(renamed) - 1
+		merged, err := mergedWritten(renamed[last], day.written)
+		if err != nil {
+			return nil, false, err
+		}
+		renamed[last] = merged
 	}
 	out, err := json.Marshal(renamed)
 	return out, true, err
-}
-
-// mergedWrittenBy returns days in the order of their accounts' ids, two of
-// one account merged into one, as mergedWritten merges them by merge.
-func mergedWrittenBy(days []accountDay, merge func(a, b AccountDay) AccountDay) ([]accountDay, error) {
-	slices.SortStableFunc(days, func(a, b accountDay) int { return cmp.Compare(a.account, b.account) })
-	var merged []accountDay
-	for _, day := range days {
-		last := len(merged) - 1
-		if last < 0 || merged[last].account != day.account {
-			merged = append(merged, day)
-			continue
-		}
-		written, err := mergedWritten(merged[last].written, day.written, merge)
-		if err != nil {
-			return nil, err
-		}
-		merged[last].written = written
-	}
-	return merged, nil
 }
 
 // renamedDay returns an account's day as a summary writes it, renamed as
@@ -361,8 +268,7 @@ func pooledDay(day accountDay, pool string) (accountDay, bool, error) {
 		return day, false, nil
 	}
 	written, err := json.Marshal(pooled)
-	day.written = written
-	return day, true, err
+	return accountDay{account: day.account, written: written}, true, err
 }
 
 // renamedAccount returns an account's day as a summary writes it, its
@@ -388,5 +294,5 @@ func renamedAccount(written json.RawMessage, id func(string) string) (accountDay
 	}
 	// A string always marshals.
 	fields[i].value, _ = json.Marshal(now)
-	return accountDay{account: now, written: objectOf(fields), moved: true}, true, nil
+	return accountDay{account: now, written: objectOf(fields)}, true, nil
 }

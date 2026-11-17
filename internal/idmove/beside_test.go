@@ -26,10 +26,11 @@ import (
 // errStopped is a move stopped, as by a power cut or a crash.
 var errStopped = errors.New("stopped")
 
-// historyOf is the fixture's history's files, as a router opens them.
-func (f fixture) historyOf() idmove.History {
+// historyOf is the fixture's history's files, as a router opens them, its
+// request ledger opened with the options given.
+func (f fixture) historyOf(opts ...ledger.Option) idmove.History {
 	return idmove.History{
-		Ledger:   ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test")),
+		Ledger:   ledger.Open(ledger.Dir(f.state), dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test"), opts...),
 		Readings: readingsFiles(f.state),
 		Events:   events.Files(ledger.Dir(f.state), logs.For("test")),
 	}
@@ -68,7 +69,7 @@ func (f fixture) lives(t *testing.T, stop func(step string) error) {
 		m := f.mover(answering())
 		m.Routing = f.configuredIDs(t)
 		m.StopAfter(stop)
-		if err := m.Settle(); err != nil {
+		if _, err := m.Settle(); err != nil {
 			t.Fatalf("Settle() = %v", err)
 		}
 		if stop(fmt.Sprintf("settled in life %d", life)) != nil {

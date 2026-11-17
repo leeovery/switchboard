@@ -346,8 +346,8 @@ func TestARouterRestartingOntoTheNewIDsFinishesTheMove(t *testing.T) {
 
 	restarted := f.mover(answering())
 	restarted.Routing = []string{workID, personalID}
-	if err := restarted.Settle(); err != nil {
-		t.Fatalf("Settle() = %v", err)
+	if settled, err := restarted.Settle(); !settled || err != nil {
+		t.Fatalf("Settle() = %v, %v; want true, the router starting on the ids the move renames onto", settled, err)
 	}
 	state := readFile(t, filepath.Join(f.state, "state.json"))
 	readingsToday := readFile(t, filepath.Join(readings.Dir(f.state), "readings-"+today+".jsonl"))
@@ -366,34 +366,21 @@ func TestARouterRestartingOntoTheNewIDsFinishesTheMove(t *testing.T) {
 	if !idmove.Moved(f.state) {
 		t.Error("the move isn't marked done")
 	}
+	if settled, err := restarted.Settle(); settled || err != nil {
+		t.Errorf("once the move's done, Settle() = %v, %v; want false, as nothing's renamed any more", settled, err)
+	}
 }
 
-func TestTheMoveRenamesTheOldIDsFromWhenTheConfigTakesTheNewTillItsDone(t *testing.T) {
+func TestSettlingARouterStartingOnTheOldIDsRenamesNothing(t *testing.T) {
 	f := newFixture(t)
+	history := f.snapshotOf(t, "ledger", "history", "state.json")
 	m := f.mover(answering())
 	m.Routing = []string{work, personal}
-	if renames, err := m.Renames(); renames != nil || err != nil {
-		t.Errorf("before the move, Renames() = %v, %v; want none, as nothing's renamed yet", renames != nil, err)
+	if settled, err := m.Settle(); settled || err != nil {
+		t.Errorf("Settle() as the router starts on the old ids = %v, %v; want false, the config naming them still", settled, err)
 	}
-	if err := m.Run(t.Context()); !errors.Is(err, idmove.ErrAwaitingRestart) {
-		t.Fatalf("Run() beside a router on the old ids = %v, want ErrAwaitingRestart", err)
-	}
-	renames, err := m.Renames()
-	if renames == nil || err != nil {
-		t.Fatalf("once the config takes the new ids, Renames() = %v, %v; want the old ids renamed", renames != nil, err)
-	}
-	for id, want := range map[string]string{work: workID, strings.ToUpper(work): workID, personal: personalID, workID: workID, personalID: personalID} {
-		if got := renames(id); got != want {
-			t.Errorf("renames(%q) = %q, want %q", id, got, want)
-		}
-	}
-	restarted := f.mover(answering())
-	restarted.Routing = []string{workID, personalID}
-	if err := restarted.Run(t.Context()); err != nil {
-		t.Fatalf("Run() beside the router restarted = %v", err)
-	}
-	if renames, err := restarted.Renames(); renames != nil || err != nil {
-		t.Errorf("once the move's done, Renames() = %v, %v; want none", renames != nil, err)
+	if got := f.snapshotOf(t, "ledger", "history", "state.json"); !maps.Equal(got, history) {
+		t.Errorf("settling a router on the old ids changed the history:\n%s", differences(history, got))
 	}
 }
 
@@ -518,10 +505,10 @@ func differences(want, got map[string]string) string {
 // request ledger and the router's events, by each field that names an
 // account, as "requests.from" and "events.accounts[]"; the readings' use, in
 // thousandths, by account; and each day's requests upstream, input tokens,
-// and each window's highest use and rise, in thousandths, by account, as its
-// summary has them, and its requests upstream added up over the pools it
-// names, each pool's as InPool gives it, so a day whose pools don't add up to
-// its whole tallies other than its whole. A day whose compressed file isn't
+// each window's highest use and rise, in thousandths, and its limits, by
+// account, as its summary has them, and its requests upstream added up over
+// the pools it names, each pool's as InPool gives it, so a day whose pools
+// don't add up to its whole tallies other than its whole. A day whose compressed file isn't
 // gzip at all holds no lines to count.
 func (f fixture) tallies(t *testing.T) map[string]int {
 	t.Helper()
@@ -584,6 +571,9 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 			}
 			for window, rise := range a.Rise {
 				counts["summary.rise."+window+"|"+date+"|"+a.Account] += int(math.Round(rise * 1000))
+			}
+			if len(a.Limits) > 0 {
+				counts["summary.limits|"+date+"|"+a.Account] += len(a.Limits)
 			}
 			for _, pool := range poolsOf(a) {
 				for _, m := range a.InPool(pool, "").Models {

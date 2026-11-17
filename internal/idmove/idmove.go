@@ -299,25 +299,28 @@ func (m *Mover) stopped(name string) error {
 // two days, which it takes the recent rates up from, each account under the
 // id the accounts record has for the one it had, once the config no longer
 // configures that one. Nothing else runs on them then, so nothing's held. It
-// does nothing once the move is done.
-func (m *Mover) Settle() error {
+// reports whether there are such ids, as of a router starting on the ids the
+// move renames onto, the history then named by both till the move's done,
+// whether or not it could move those files; and does nothing once the move
+// is done.
+func (m *Mover) Settle() (bool, error) {
 	if Moved(m.StateDir) {
-		return nil
+		return false, nil
 	}
 	rename, err := m.renames()
 	if err != nil || rename.none() {
-		return err
+		return false, err
 	}
 	if err := m.renameState(rename); err != nil {
-		return err
+		return true, err
 	}
 	files := readings.Files(readings.Dir(m.StateDir), logger)
 	for _, date := range files.Newest(m.now(), 2) {
 		if _, err := files.Rewrite(date, rewritingLines(readingNames, ledger.Renaming{Account: rename.of})); err != nil {
-			return err
+			return true, err
 		}
 	}
-	return nil
+	return true, nil
 }
 
 // standing reads the config's accounts, as the config file stands, and the
@@ -642,21 +645,6 @@ func (r renames) of(id string) string {
 // none reports whether there's nothing to rename.
 func (r renames) none() bool {
 	return len(r) == 0
-}
-
-// Renames gives the id the move renames each id to, as the files it writes
-// anew rename it, the id itself where it renames none: an id the record has
-// moved that the config no longer configures. It's nil where there's none,
-// as before the config takes the new ids, or once the move is done.
-func (m *Mover) Renames() (func(id string) string, error) {
-	if Moved(m.StateDir) {
-		return nil, nil
-	}
-	rename, err := m.renames()
-	if err != nil || rename.none() {
-		return nil, err
-	}
-	return rename.of, nil
 }
 
 // renames are the ids the record has moved that the config no longer

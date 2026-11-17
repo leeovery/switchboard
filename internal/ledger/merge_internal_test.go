@@ -3,7 +3,6 @@ package ledger
 import (
 	"encoding/json"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 )
@@ -133,74 +132,6 @@ func TestMergedDaysMergeTheirWorkInEachPoolAsInEveryPoolTogether(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := mergedDays(tt.a, tt.b); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mergedDays() =\n%+v\nwant\n%+v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestMergedDaysOfTheSameReadingsTakeTheLargerOfWhatTheyReadAndSumTheirWork(t *testing.T) {
-	minutes := func(n int) *int { return &n }
-	a := AccountDay{Account: "wk7q", Models: []ModelDay{{Model: "claude-opus-5-5", Upstream: 2}},
-		Highest: map[string]float64{"5h": 0.4}, Rise: map[string]float64{"5h": 0.3, "7d": 0.1}, MinutesAtCap: minutes(5), MinutesAtLimit: minutes(3)}
-	b := AccountDay{Account: "wk7q", Models: []ModelDay{{Model: "claude-opus-5-5", Upstream: 1}},
-		Highest: map[string]float64{"5h": 0.5}, Rise: map[string]float64{"5h": 0.2}, MinutesAtCap: minutes(10)}
-	got := mergedSameReadings(a, b)
-	if !reflect.DeepEqual(got.Rise, map[string]float64{"5h": 0.3, "7d": 0.1}) || !reflect.DeepEqual(got.Highest, map[string]float64{"5h": 0.5}) ||
-		got.MinutesAtCap == nil || *got.MinutesAtCap != 10 || got.MinutesAtLimit == nil || *got.MinutesAtLimit != 3 {
-		t.Errorf("mergedSameReadings() = %+v, want each window's rise, highest and minutes the larger of the two, as the readings read once give them", got)
-	}
-	if len(got.Models) != 1 || got.Models[0].Upstream != 3 {
-		t.Errorf("mergedSameReadings() gives the models %+v, want their requests summed, of lines of their own", got.Models)
-	}
-}
-
-// A rename merges an account's days under ids it had in two cases, each
-// read of readings of its own, summed; and those onto its day under the new
-// id, read of the same readings renamed, as the larger of the two.
-func TestARenameSumsWhatIDsInTwoCasesReadAndTakesTheLargerOfWhatTheNewIDRead(t *testing.T) {
-	inEitherCase := func(id string) string {
-		if strings.EqualFold(id, "work") {
-			return "wk7q"
-		}
-		return id
-	}
-	day := func(account string, rise float64, atCap int) AccountDay {
-		return AccountDay{Account: account, Models: []ModelDay{{Model: "claude-opus-5-5", Upstream: 1}},
-			Rise: map[string]float64{"5h": rise}, MinutesAtCap: &atCap}
-	}
-	held := []AccountDay{day("Work", 0.25, 5), day("wk7q", 0.5, 12), day("work", 0.5, 10)}
-	tests := []struct {
-		name   string
-		rename func(t *testing.T) []AccountDay
-	}{
-		{name: "the summary renamed", rename: func(t *testing.T) []AccountDay {
-			written, err := json.Marshal(held)
-			if err != nil {
-				t.Fatal(err)
-			}
-			renamed, _, err := renamedAccounts(written, Renaming{Account: inEitherCase})
-			if err != nil {
-				t.Fatal(err)
-			}
-			var days []AccountDay
-			if err := json.Unmarshal(renamed, &days); err != nil {
-				t.Fatal(err)
-			}
-			return days
-		}},
-		{name: "the summary a round knows", rename: func(*testing.T) []AccountDay {
-			return Summary{Accounts: held}.movedOn(Summary{}, inEitherCase).Accounts
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tt.rename(t)
-			if len(got) != 1 || got[0].Account != "wk7q" {
-				t.Fatalf("renamed, the days are %+v, want wk7q's alone", got)
-			}
-			if d := got[0]; d.Rise["5h"] != 0.75 || d.MinutesAtCap == nil || *d.MinutesAtCap != 15 || len(d.Models) != 1 || d.Models[0].Upstream != 3 {
-				t.Errorf("wk7q's day is %+v, want the rise 0.75 and 15 minutes at cap, the two cases' summed and the larger of that and wk7q's, "+
-					"and every request, 3", d)
 			}
 		})
 	}
