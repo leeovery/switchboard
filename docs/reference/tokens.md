@@ -166,6 +166,14 @@ The message for another subscription is `the token is for another subscription, 
 saved: add it as an account of its own`. It names the account that has the token, if this Mac has
 one.
 
+If you configure that account here, the token is its own, given to the wrong account. The message
+then says so, and names the command that gives it to that account:
+
+```console
+$ switchboard accounts token work
+Error: the token is for another subscription, that of "Side" (side), an account configured here, so nothing is saved: it's that account's token, given the wrong one: give it side with switchboard accounts token side
+```
+
 ## Related
 
 - [Configuration](../configuration.md): the config, which holds no tokens.

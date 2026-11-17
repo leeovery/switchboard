@@ -25,8 +25,8 @@ starts. To restart it now, run `switchboard service restart`.
 
 ## What happens
 
-- An export holds the record, which switchboard can't build again, and a copy of the config. It
-  never holds a token: one pasted into a comment of the config is hidden in the copy.
+- An export holds the record, which switchboard can't build again, and a copy of the config. The
+  copy holds the values of the config alone, without comments, so it never holds a token.
 - Each Mac writes into a folder of its own, named `mac-` and the install id. Macs that share one
   folder never write over each other.
 - Each export writes only the days that changed, and removes nothing from the folder.
@@ -53,7 +53,11 @@ The new Mac has no config, so `import` lays down the config from the folder. The
    `imported 1 folder: 27 days added, 3 merged`.
 
 The config keeps `[export] dir`, so the new Mac goes on exporting. The same steps restore a
-backup onto this Mac if the config and the record are lost.
+backup onto this Mac if the config and the record are lost. If only the config is lost, `import`
+lays down the config from the folder of this Mac, and keeps its record as it is.
+
+If `<dir>` holds the folders of several other Macs, `import` names them and lays down nothing.
+Point it at the folder of the Mac whose config you want.
 
 If you moved with Migration Assistant, the new Mac carries the install id of the old one. It then
 exports into the old Mac's folder. To give it a folder of its own, remove `install-id` from the
@@ -87,7 +91,7 @@ What an export holds, in its `mac-<id>` folder:
 | `ledger/day-<date>.json` | The summary of each day. |
 | `history/readings-<date>.jsonl.gz` | The readings: how each window stood over time. |
 | `accounts.json` | The accounts record, naming each account by id and label. |
-| `config.toml` | A copy of the config, without any token. |
+| `config.toml` | A copy of the values of the config, without comments or tokens. |
 | `export.json` | Which Mac the folder belongs to, and when it last exported. |
 
 An export leaves the tokens, the logs and the dashboard settings behind. Every flag is in

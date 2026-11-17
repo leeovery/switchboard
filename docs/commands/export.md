@@ -30,7 +30,7 @@ through a config kept in a dotfiles repository, never write over each other.
 |---|---|
 | `export.json` | Whose folder it is, when it was last exported to, and its format. |
 | `accounts.json` | The accounts record, which names each account by id and label. |
-| `config.toml` | A copy of the config, without any token. |
+| `config.toml` | A copy of the values of the config, without comments or tokens. |
 | `ledger/requests-<date>.jsonl.gz` | The request ledger, one file a day. |
 | `ledger/events-<date>.jsonl.gz` | The router's events, one file a day. |
 | `ledger/day-<date>.json` | Each day's summary. |
@@ -54,16 +54,30 @@ exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 0 writt
 switchboard: couldn't copy the config, so the folder holds none: the config gives a value that may hold a secret, such as a token, which a copy of it never holds
 ```
 
-`export` copies the config that switchboard reads, so a new Mac can lay it down. The copy never
-holds a secret. Your tokens live in files of their own, and the config names none of them. A
-config that can't be copied fails no export.
+`export` copies the config that switchboard reads, so a new Mac can lay it down. The copy holds
+the values of the config alone, written anew. Comments aren't copied, and neither is the layout.
+Your tokens live in files of their own, and the config names none of them. A config that can't be
+copied fails no export.
 
 | If the config | Then |
 |---|---|
-| Has a token in a comment | The copy hides the token as `[redacted]`. |
-| Gives a secret as a value, for example a token, a password or a key in the `upstream` address | `export` copies no config, keeps the copy in the folder, and says why. |
-| Doesn't load | `export` copies no config, keeps the copy in the folder, and says why. |
-| Isn't there | `export` copies none, and says nothing. |
+| Has comments | The copy leaves them out, so a token pasted into a comment never reaches the folder. |
+| Gives a secret as a value, for example a token, or a password or a key in the `upstream` address | `export` copies no config, removes the copy in the folder, and says why. |
+| Doesn't load | `export` copies no config, removes the copy in the folder, and says why. |
+| Isn't there | `export` copies none, removes the copy in the folder, and says nothing. |
+
+A copy that can't be made is removed, so the folder never holds an older config as if it were
+current. `export.json` then leaves `config` out.
+
+`export` copies no config whose `upstream` address holds any of these, because each can carry a
+key:
+
+- credentials, as in `https://user:key@gateway.example.com`;
+- a query, as in `?key=…`;
+- a fragment, as in `#key=…`.
+
+A key written into the host or the path reads like any other name, so `export` can't find it.
+Keep keys out of the `upstream` address.
 
 The hourly export copies the config file the router reads, as the file stands at each export. If
 the router can't copy it, it warns once in `router.log`.

@@ -1969,7 +1969,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
 - **A token replaced,** with `accounts token` or setup's `t`, must be for the account's
   organization: another's is refused, saying it's another subscription's and to add it as an
   account of its own. Where the account's organization isn't known yet, the token's is taken,
-  unless the record has another account of it, which the refusal names. Where the API names none,
+  unless the record has another account of it, which the refusal names: where that account is
+  configured here, the token is its, given the wrong account, as a token pasted on the wrong row
+  is, so the refusal says so, `accounts token` saying to give it that account, and setup saying,
+  as of a token another account's subscription already, that account has it, rather than to add
+  it as an account of its own, which would be one subscription twice. Where the API names none,
   or the record hasn't the account, there's nothing to hold it to, and nothing is recorded.
 - **The router:** each probe's organization is held to the account's. Where they differ, as where a
   token file is replaced by hand, the account takes no requests, its rows and `status` saying its
@@ -10036,7 +10040,7 @@ sync lag, duplicates and sessions claimed twice.
 - **What a Mac's folder holds:** `export.json`, `{"version": 3, "install": "<id>", "exported_at":
   "<RFC 3339 time, UTC>", "ids": true, "accounts": true, "config": true}`, rewritten at each
   export, `version` 3 since pools (see Pools), `ids` and `accounts` as Account identity says, and
-  `config` where the folder holds the copy of the config, left out where it holds none, a reader
+  `config` where the folder holds this export's copy of the config, left out where it holds none, a reader
   from before it passing it over, as the version stays; `accounts.json`, the
   accounts record, written first, so the
   days a sync carries are never ahead of the record that names their accounts; `config.toml`, the
@@ -10068,21 +10072,27 @@ sync lag, duplicates and sessions claimed twice.
   ledger), and passed over as a compressed day is, so a summary copied in stands against the day's
   file copied beside it.
 - **The config,** the file at the path the command reads, or the router reads, as it stands at
-  each export, is copied as
-  `config.toml`, with its modification time, where the copy differs from the folder's
-  (`config.Copy`): only one that loads, as the config is read, so a copy laid down on another Mac
-  loads there; and never a secret. A config holds none where it's written as switchboard writes
-  it, tokens living in files of their own, but a comment can hold anything, and the upstream's
-  address can carry a gateway's credentials or key. So each value is judged as the config is
-  read, decoded, never by its text, as an escape or a line split inside a string can hide a
-  token from a search of the text: an upstream that may carry a secret, as the launcher judges a
-  value it passes on (`redact.HoldsSecret`: an `@` or a `?`, or anything shaped like a token), or
-  any value or key shaped like a token, and no copy is made, as the config without it isn't the
-  config. Then anything shaped like a token in the text, which only a comment can hold now, is
-  hidden, as the logs hide one. A config that isn't copied, so, or that can't be read,
-  leaves the folder's copy as it was, as a backup keeps the last config that loaded, and is warned
-  of, the router's once until an export no longer meets it; one that isn't there is none to copy,
-  and nothing is said.
+  each export, is copied as `config.toml`, with its modification time, passed over as a
+  compressed day is, by its size and time, never read (`config.Copy`): only one that loads, as
+  the config is read, so a copy laid down on another Mac loads there; and never a secret. A
+  config holds none where it's written as switchboard writes it, tokens living in files of their
+  own, but a comment can hold anything, and the upstream's address can carry a gateway's
+  credentials or key. So the copy is the config's values alone, decoded and written anew, keys in
+  order, no comment or layout of the file's reaching it, as a comment's text can't be judged for
+  every way a secret might be written in it; and it's made only where it loads as the config
+  itself does, value for value, as an encoder's way with a value might otherwise change what it
+  means. Each value is judged decoded, never by its text, as an escape or a line split inside a
+  string can hide a token from a search of the text: an upstream that may carry a secret, as the
+  launcher judges a value it passes on (`redact.HoldsSecret`: an `@` or a `?`, or anything shaped
+  like a token), or a `#`, a fragment, or any value or key shaped like a token, and no copy is
+  made, as the config without it isn't the config. A key written into the upstream's host or
+  path reads as any other name, so the docs say to keep keys out of the address. A config that
+  isn't copied, so, or that can't be read, or isn't there, has the folder's copy removed and
+  `config` left out of `export.json`, so a copy there is always the export's own, never an older
+  config read as current; one that isn't copied, or can't be read, is warned of, the router's
+  once until an export no longer meets it, and one that isn't there is none to copy, and nothing
+  is said. Every error of the config's that names the upstream hides its credentials, query and
+  fragment as `[redacted]`, as it reaches `router.log` and the export's warning.
 - **Every file** is written beside where it goes, as `.<its name>.<digits>`, and renamed into
   place, so a sync never carries one half written. An export cut short, as by a router stopping,
   leaves the file it was writing so named: each export, the router's or the command's, first
@@ -10103,8 +10113,8 @@ sync lag, duplicates and sessions claimed twice.
 
 It reads the files as `history` does, so it needs no router and runs beside one, and prints
 `exported 31 days to <folder>: 3 written, 28 as they were`, its folder in full, then why it didn't
-copy the config, where it didn't, as `switchboard: couldn't copy the config, so the folder keeps
-the copy it has: …`, which fails no export, then each day it passed over, as `switchboard:
+copy the config, where it didn't, as `switchboard: couldn't copy the config, so the folder holds
+none: …`, which fails no export, then each day it passed over, as `switchboard:
 couldn't export the request ledger of 2026-10-30: …`, and fails where there was one. A `<dir>`
 that can't be made or written, or that's a file, fails, saying so.
 
@@ -10133,30 +10143,45 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   started on them, which notes the config's first pool as this Mac's first (see What's
   recorded), reads every line as this Mac's own; and setup finds each account without its
   token, the one thing a config doesn't carry, its `t` making it.
-  - **The accounts record comes with it,** under the record's lock, the folder's joined to an
-    empty one as an import joins it (`idmove.JoinFolder`), so each configured account is
-    recorded with its organization, and none of the marks the folder's copy carries, `first`,
-    `configured`, `here` and `written`, which the router sets as it keeps the record in step.
-    Setup then refuses a token of another subscription given an account, as on the wrong row,
-    naming the account it's for, rather than recording it as that account's, which would
-    misfile the history the next import brings. The record is written, then the config laid
-    down, and where that fails the record is taken away again: one goes with the other. The
-    router's first start finds every account decided, so its move onto the ids asks for no
-    organization and changes nothing, and its move to pools notes the config's first pool.
+  - **Which Mac's config:** most imports are backups of the same Mac, a takeover the other case
+    (the owner's call). So the config laid down is that of this install's own folder, where
+    `<dir>` holds one, as its `export.json` names this install's id, as on a Mac that lost its
+    config alone, restoring its own backup; else that of the one Mac's folder `<dir>` holds, as
+    on a new Mac taking over from another. Where `<dir>` holds several Macs' folders, none this
+    install's, none is laid down, as which to take can't be told: the import names each and says
+    to import from the folder of the Mac whose config to lay down, as pointing it at one folder
+    does. A `<dir>` holding no export, or that isn't there, says there's nothing to import in it.
+  - **The accounts record comes with it,** from another Mac's folder, under the record's lock,
+    the folder's joined to an empty one as an import joins it (`idmove.SeedFolder`), so each
+    configured account is recorded with its organization, and none of the marks the folder's
+    copy carries, `first`, `configured`, `here` and `written`, which the router sets as it keeps
+    the record in step; only the accounts and pools the config laid down configures, as those
+    the other Mac removed or kept apart are an import's to take in. Setup then refuses a token
+    of another subscription given an account, as on the wrong row, naming the account it's for,
+    rather than recording it as that account's, which would misfile the history the next import
+    brings: where that account is configured here, it's said as the token that account's, given
+    the wrong one, and `accounts token` says to give it that account. The record is written, then
+    the config laid down, and where that fails the record is taken away again: one goes with the
+    other. A restore cut short between the two, its record written and no config laid down, goes
+    ahead when run again, where the record holds nothing but what a restore seeds
+    (`identity.Record.Seeded`) and the state directory no history, no day of the ledger, the
+    events or the readings. This Mac's own folder, its record still here, seeds nothing, the
+    record its own, kept as it is; one whose record is lost too is seeded as another's would be.
+    The router's first start finds every account decided, so its move onto the ids asks for
+    no organization and changes nothing, and its move to pools notes the config's first pool.
   - **What's refused,** laying nothing down: something at the config's path that isn't a
     config that loads, as a link to one that's gone, saying what's there (`... is a link to
     <target>, which isn't there: put it right, or move it aside, then import again`), rather
-    than that the router's down, as for a config that loads; a state directory holding an
-    accounts record, a history of this Mac's own, which another Mac's config would leave in
-    pools marked removed, saying to run setup, then import again; any folder in `<dir>` passed
-    over, each said as an import says them, as a config laid down then might be the wrong Mac's;
-    folders holding copies that differ, saying to import from the folder of the Mac whose config
-    to take; and none holding one, as exports from before the copy, saying first to upgrade that
-    Mac, if it still runs, and export again, as setup's config here would give the pools new ids
-    and its history would stay apart for good, else to run setup, then import again. The config
-    laid down is the one copy `<dir>` holds, or the one every copy is, as Macs sharing a config
-    hold it. A copy is read as an export makes it, so one holding a secret, as one edited by
-    hand might, isn't laid down, and a token in a comment is hidden.
+    than that the router's down, as for a config that loads; another Mac's config onto a state
+    directory holding a history of this Mac's own, an accounts record with more than a restore
+    seeds, or a day of history, which another Mac's config would leave in pools marked removed,
+    saying to run setup, then import again; any folder in `<dir>` passed over, each said as an
+    import says them, as a config laid down then might be the wrong Mac's; several Macs'
+    folders, as above; and a folder holding no copy, as exports from before the copy, saying
+    first to upgrade that Mac, if it still runs, and export again, as setup's config here would
+    give the pools new ids and its history would stay apart for good, else to run setup, then
+    import again. A copy is read as an export makes it, so one holding a secret, as one edited
+    by hand might, isn't laid down.
   - **A fence not here,** a folder a pool fences that isn't a directory on this Mac, as one
     written in full in another home is, is warned of as `pool add` warns of one: `switchboard:
     /Users/other/Code/acme isn't a directory, so no session starts in it yet: if it's on this Mac
@@ -10212,11 +10237,13 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   the pool here holding its accounts (`identity.Join`, the owner's call, 17 November 2026,
   reversing "the other Mac's first pool is never this one's"): one this Mac configures, or has
   had, as its record's `here` and `written` say, is matched by its id, as its history is this
-  Mac's own; any other goes by the accounts the folder's copy of the config puts in it, each
+  Mac's own; any other goes by the accounts the folders' copies of their configs put in it, each
   matched as Account identity matches it, and those this Mac configures counted alone. Where
   they're all in one pool here, every request line, every event that names its pool and every
   summary of the folder names that pool, as it's taken in, two pools taken in as one merged in a
-  summary, and the folder's pool isn't added to the record; so a Mac that ran setup before the
+  summary, a staged day none of whose lines or summary names what's renamed left as it was,
+  never written anew, as of this Mac's own folder, and the folder's pool isn't added to the
+  record; so a Mac that ran setup before the
   import reads the history as its own pools whatever ids its config gave them, each account being
   in one pool here. Else the pool stays apart, as before, added to the record as the other Mac
   keeps it and read with `--pool` and its id (see Reading a pool): its accounts are split across
@@ -10225,18 +10252,23 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   no copy of the config to go by (`no_config`), as one exported before the copy. One removed
   there has no accounts to go by, and stays apart unsaid, as it would. Nothing already on the
   Mac changes, its config and pools included, and the folder isn't touched.
-  - **One pool everywhere:** a pool's id is random, so it's one pool on every Mac. A pool one
-    folder of the import takes in as a pool here is taken in as that one by every other folder
-    whose own Mac can't place it, as it doesn't configure it, as of history relayed through a
-    Mac that imported it, or whose folder holds no copy of its config (`idmove.JoinFolders`, the
-    folders' records joined once into a copy to find each pool's, then again into the record);
-    unless two folders take it in as different pools here, when each folder's own stands.
+  - **One pool everywhere:** a pool's id is random, so it's one pool on every Mac, and every
+    copy of a line goes to one pool here, whatever the order of the folders. So each pool is
+    placed alike by every folder, by every account the configs of the import's folders put in
+    it, together (`identity.JoinAs`' `Members`): those of the Mac that configures it, and of any
+    other configuring it too, as Macs sharing a config do, whichever folder comes first, holds no
+    copy of its config, or relays its history, as a Mac that imported it does
+    (`idmove.JoinFolders`, the folders' records joined once into a copy to find the accounts each
+    pool holds, then again into the record). Those accounts split across pools here keep the
+    pool apart from every folder. A pool kept apart is said once, however many folders hold it.
   - **Days taken in apart before** stay apart, as a line held stands against one alike but for
-    its pool: a pool an import before kept apart, which the record keeps as another Mac's, and
-    which is now taken in as a pool here, has its new days there and its old under its id, and
-    the import says so (`imported_before`): `switchboard: the pool "Client" (c1nt) of mac-<id>
-    goes to the pool here holding its accounts now, but the days an import took in before stay
-    under c1nt: read them with --pool c1nt`, at each import, as nothing heals them.
+    its pool: a pool the record held as the import began, as an import before kept it apart, as
+    another Mac's, and which is now taken in as a pool here, has its new days there and its old
+    under its id, and the import says so (`imported_before`): `switchboard: the pool "Client"
+    (c1nt) of mac-<id> goes to the pool here holding its accounts now, but the days an import
+    took in before stay under c1nt: read them with --pool c1nt`, at each import, as nothing heals
+    them. A pool this import adds, from one folder, and places from another, has no days taken
+    in before, and is said of no such thing.
   - **Work in no pool** in a folder exported since pools, a line, an event of the kinds that
     name their pool, or a summary's day, is given that Mac's first pool, as its record notes it,
     as the pool here it's taken in as, or its own id where it's kept apart: there it's read as

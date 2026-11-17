@@ -31,24 +31,39 @@ next, run switchboard setup to give each account its token and start the router,
 
 If this Mac has no config and no router runs, `import` lays down the copy of the config that an
 export keeps in the folder. With `--config`, it lays the config down at that path. It takes in no
-history yet. The accounts and pools keep their ids, so the history lands where it was.
+history yet. The accounts and pools keep their ids, so the history lands where it was. The copy
+holds the values of the config alone, without the comments.
 
-`import` also records each account with its subscription. So `switchboard setup` asks only for
-each account's token, and refuses a token made for another account. If a pool fences a folder
-that isn't on this Mac, `import` warns, and names the command that fences the pool anew.
+| If `<dir>` holds | Then `import` lays down |
+|---|---|
+| The folder of this Mac, for example a backup of a Mac that lost its config | The copy in that folder, and leaves the accounts record of this Mac as it is. |
+| The folder of one other Mac, for example on a new Mac | The copy in that folder, and records each account with its subscription. |
+| The folders of several other Macs | Nothing. It names each folder, so you can point `import` at the one you want. |
+
+To lay down the config of one Mac from a shared `<dir>`, give its folder:
+
+```bash
+switchboard import \
+  ~/Dropbox/switchboard/mac-0123456789abcdef
+```
+
+Each account is recorded with its subscription. So `switchboard setup` asks only for each
+token, and refuses a token made for another account. If a pool fences a folder that isn't on this
+Mac, `import` warns, and names the command that fences the pool anew.
 
 `import` never writes over anything at the config path. It lays down nothing in these cases:
 
 | If | Then |
 |---|---|
 | A link or file at the config path isn't a config that loads | It says what's there. |
-| This Mac has an accounts record of its own | It says to run `switchboard setup`, then import again. |
+| This Mac has a history of its own, and `<dir>` holds no folder of this Mac | It says to run `switchboard setup`, then import again. |
 | A folder in `<dir>` was passed over, for example one not yet synced | It names each one. Import again once each folder reads. |
-| No folder holds a config, for example exports from before the config was copied | It says to export again from the old Mac first, if it still runs. |
-| Folders hold configs that differ | It names a Mac folder to import from instead. |
-| The config in the folder gives a secret as a value | It says why. A token in a comment is hidden. |
+| The folder holds no config, for example one exported before the config was copied | It says to export again from the old Mac first, if it still runs. |
+| `<dir>` holds no export, or isn't there | It says so. |
+| The config in the folder gives a secret as a value | It says why. |
 
-Folders that hold the same config, for example from Macs that share one, lay down that config.
+If an import stops after it records the accounts, but before it lays down the config, run it
+again. It goes ahead while this Mac holds no history yet.
 
 ## What it takes in
 
@@ -104,25 +119,34 @@ switchboard: kept the pool "Client" (c1nt) of mac-fedcba9876543210 apart, as its
 ```
 
 Each pool of another Mac counts as the pool here that holds the same accounts. `import` reads
-which accounts a pool holds from the copy of the config in the folder. It counts only the accounts
-this Mac configures. A pool it can't match stays apart, and `import` names it, as above.
+which accounts a pool holds from the copy of the config in each folder. It counts only the
+accounts this Mac configures. A pool it can't match stays apart, and `import` names it, as above.
+The answer of the router gives the reason as `why`.
 
-| If the pool from the folder | Then |
-|---|---|
-| Is a pool this Mac configures, or had before | Its days stay in that pool. |
-| Holds accounts that all sit in one pool here | Its days go to that pool here. |
-| Holds accounts that sit in two pools here or more | It stays apart. |
-| Holds no account this Mac configures | It stays apart. |
-| Holds no account on the other Mac | It stays apart. |
-| Comes from a folder with no copy of the config | It stays apart, unless another folder in the import places it. |
-| Was kept apart by an earlier import | New days go to the pool here. Days imported before stay apart, and `import` says so. |
+| If the pool from the folder | Then | `why` |
+|---|---|---|
+| Is a pool this Mac configures, or had before | Its days stay in that pool. | |
+| Holds accounts that all sit in one pool here | Its days go to that pool here. | |
+| Holds accounts that sit in two pools here or more | It stays apart. | `split` |
+| Holds no account this Mac configures | It stays apart. | `none_here` |
+| Holds no account on the other Mac | It stays apart. | `empty` |
+| Comes onto a Mac whose config has no pools | It stays apart. | `no_pools_here` |
+| Comes from a folder with no copy of the config | It stays apart, unless another folder in the import places it. | `no_config` |
+| Was kept apart by an earlier import | New days go to the pool here. Days imported before stay apart. | `imported_before` |
 
-A pool id names one pool on every Mac. So a pool that reaches you through a second Mac's folder
-goes where the folder of its own Mac puts it. Work that names no pool goes to the first pool of
-the Mac that recorded it.
+A pool id names one pool on every Mac. So `import` places a pool the same way from every folder,
+whatever their order. It counts every account that the configs in the import put in the pool. A
+pool that reaches you through a second Mac's folder goes where the folder of its own Mac puts it.
+Work that names no pool goes to the first pool of the Mac that recorded it.
 
-A pool kept apart keeps its record here. Read it with `--pool` and its id. `import` never changes
-the config or the pools on this Mac.
+`imported_before` means an import before this one kept the pool apart, under its id. Now its
+accounts sit in one pool here, so its new days go to that pool. The days taken in before stay
+under the id, because a line held already stands against the same line in another pool. Read
+them with `--pool` and the id. `import` says so at each import.
+
+A pool kept apart keeps its record here. Read it with `--pool` and its id. `import` names each
+pool it keeps apart once, however many folders hold it. `import` never changes the config or the
+pools on this Mac.
 
 ## What it prints
 

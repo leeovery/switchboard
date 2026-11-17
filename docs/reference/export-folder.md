@@ -26,8 +26,10 @@ see [`export`](../commands/export.md) and [Backups and a new Mac](../several-mac
 | `accounts` | boolean | `true` if the export wrote the accounts record, `accounts.json`, beside it. |
 | `config` | boolean | `true` if the folder holds a copy of the config, `config.toml`. Left out if it holds none. |
 
-An export writes `accounts.json` wherever the Mac has an accounts record. It writes `config.toml`
-if the config loads and gives no secret as a value. Otherwise the folder keeps the copy it had.
+An export writes `accounts.json` if the Mac has an accounts record. It writes `config.toml` if the
+config loads and gives no secret as a value. The copy holds the values of the config alone,
+without comments. Otherwise the export removes any copy the folder holds, and leaves `config`
+out. So `config: true` always means the copy is from the latest export.
 
 A switchboard from before the copy of the config reads a folder with `config` as it always did. The
 field leaves the version at `3`.
@@ -64,6 +66,6 @@ older switchboard would import.
 |---|---|
 | Says `accounts: true`, and the folder holds `accounts.json` | Takes the folder in |
 | Says `accounts: true`, but the folder holds no `accounts.json` | Passes the folder over until it has synced whole |
-| Says `config: true`, and the folder holds `config.toml` | Lays the config down on a Mac with none. Otherwise reads which accounts each pool holds from it. |
+| Says `config: true`, and the folder holds `config.toml` | Lays the config down on a Mac with none, if it's this Mac's folder or the only folder there. Otherwise reads which accounts each pool holds from it. |
 | Says `config: true`, but the folder holds no `config.toml` | Passes the folder over until it has synced whole |
 | Leaves out `ids` | Takes the folder in as one from before ids. See [`import`](../commands/import.md). |

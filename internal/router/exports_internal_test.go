@@ -334,7 +334,8 @@ func TestAnExportIntoAFolderNotThereWritesNothing(t *testing.T) {
 }
 
 // The router's export carries a copy of the config file it was started from,
-// read in its home directory, and export.json says the folder holds it.
+// read in its home directory, as config.Copy makes it, its values alone, and
+// export.json says the folder holds it.
 func TestTheRoutersExportCarriesItsConfig(t *testing.T) {
 	logstest.Capture(t)
 	state, dir := t.TempDir(), t.TempDir()
@@ -355,8 +356,12 @@ func TestTheRoutersExportCarriesItsConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	folder := export.Folder(dir, id)
-	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != text {
-		t.Errorf("the folder's config holds %q (%v), want the router's config", got, err)
+	want, err := config.Copy(path, []byte(text), cfg.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(export.ConfigFile(folder)); err != nil || string(got) != string(want) {
+		t.Errorf("the folder's config holds %q (%v), want the router's config, %q", got, err, want)
 	}
 	if m, err := export.ReadManifest(folder); err != nil || !m.Config {
 		t.Errorf("the folder's export.json reads %+v (%v), want it to say it holds the config", m, err)
