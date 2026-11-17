@@ -325,7 +325,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | Reason | Why |
 |---|---|
 | `pinned` | The session's own pin (step 1) |
-| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit, a refusal or a read refused from before this request holds it back, or it has no usable token |
+| `pin yields: <id> has no room` | The session's pin to `<id>` yielded, as `<id>` has no room for the request: its windows leave none, a limit or a refusal from before this request holds it back, or it has no usable token |
 | `pin yields: <id> hit its limit`, `pin yields: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it |
 | `moved by pin` | A global pin with `--move` (step 2) |
 | `sticky` | The session's account, its cache warm (step 3), a session that yielded its pin included (step 1) |
@@ -338,6 +338,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused above its reserve (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve`, `pin yields: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
+| `moved: <id> had its read refused`, `pin yields: <id> had its read refused` | The same, as the API refused `<id>`'s last read, its subscription ended or its token refused, which holds it back till a read comes back clean, whatever else holds it too (see 401s and 403s) |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
 | `moved: <id> has a new token`, `pin yields: <id> has a new token` | The same, as `<id>` refused the request's token, having taken up a new one |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
@@ -458,41 +459,54 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 - **A read refused holds the account back** (the owner's call, 16 November 2026): where the API
   refuses a read of the account's usage, answering 401, its token refused, or 403 with OAuth
   authentication not allowed for its organization, which is how an ended subscription is answered,
-  the router holds the account back from every request, as for a token it refused itself. It's no
-  candidate, however much room it has; sessions on it move; a pin to it yields; and its pool counts
-  none of its room. A pool whose every account is held has no room, and what Claude Code sees
-  turns on the client's account, the one its token is (see Choosing an account, step 5). Where
-  that's in the pool, the request goes out on it all the same, for the upstream to refuse it: the
-  401 or 403 is never relayed, so Claude Code gets the 502 above, naming the upstream's refusal of
-  the account. Where it's outside the pool, nothing goes out: switchboard answers 429 itself, each
-  account's cause in its message, `subscription lapsed` or `token refused` (see Routing within a
-  pool). The hold has no timer: it lasts till a read of it comes back clean, by a probe, a prime or
-  an answer, which clears the error. A read that fails otherwise after it, as one timed out,
-  unanswered or answered 5xx, keeps it, as that says nothing of whether the refusal has ended; one
-  refused again keeps it, saying why afresh, as a 401 after a 403 says `token refused`. A held
-  account is never passed over for being held: it's probed on the router's rounds at any hour, as
-  one whose probe read nothing, so a subscription renewed is seen within the half hour (see The
-  router's rounds); a choice probes it no sooner, nor the dashboard's refresh after a reset, nor is
-  a failed prime of it sent again sooner, as each read refused would only be another warning. `R`
-  and `--refresh` probe it at once, as someone asks to see a renewal. A new token in its file lifts
-  the hold at once, as it starts its probes afresh. The same token lost and back keeps it, as that
-  token would only be refused again: a file moved away and back, holding no usable token two looks
-  running, as a loss takes, or the router restarting while the file holds none, the state file
-  keeping the refusal for the token it held last. A read that fails otherwise with no refusal before
-  it holds nothing: the account routes on its windows as last read. A limit holding the account too
-  doesn't hide the hold: ROUTING, the routing card and `status` say the refusal first, and nothing
-  says it's back as the limit lifts, its windows' words reading `limit` with no `back`, and Runway's
-  stretch through now no `back` either. An account whose first read is refused, as one added with
-  its subscription already ended, says the refusal too, while every view draws it as not read yet,
-  as nothing of it has been, unless a limit or the router's own refusal of its token holds it too.
-  The hold begins at the first refusal of a run, kept through the refusals and failures after it,
-  which the state file keeps beside the last probe; the pools' room, which the forecast's day rate
-  counts, holds the account back only from then, never before, so a restart replaying the readings
-  history counts its room till then, however long it's been probed since. A state file from before
-  keeps no start, and the hold runs from its last probe; a router from before reads the file all the
-  same, passing over the start. The router judges the hold from its own state, through the readers
-  of Claude's answers, and the status document states it once, as the account's `RefusedRead`: no
-  view reads the error again. An account removed goes as any other, its history kept.
+  in an answer of its own, carrying Anthropic's id for it, in its `Request-Id` header or its body's
+  `request_id`, the router holds the account back from every request, as for a token it refused
+  itself. A proxy between refusing the read in the API's place says nothing of the account: that's a
+  read that fails otherwise. It's no candidate, however much room it has; sessions on it move, and a
+  pin to it yields, saying it `had its read refused`; and its pool counts none of its room. A pool
+  whose every account is held has no room, and what Claude Code sees turns on the client's account,
+  the one its token is (see Choosing an account, step 5). Where that's in the pool, the request goes
+  out on it all the same, for the upstream to refuse it: the 401 or 403 is never relayed, so Claude
+  Code gets the 502 above, naming the upstream's refusal of the account. Where it's outside the
+  pool, nothing goes out: switchboard answers 429 itself, each account's cause in its message,
+  `subscription lapsed` or `token refused` (see Routing within a pool). The hold has no timer: it
+  lasts till a read of it comes back clean, by a probe, a prime or an answer, which clears the
+  error. A read that fails otherwise after it, as one timed out, unanswered or answered 5xx, keeps
+  it, as that says nothing of whether the refusal has ended; one refused again keeps it, saying why
+  afresh, as a 401 after a 403 says `token refused`. A held account is never passed over for being
+  held: it's probed on the router's rounds at any hour, as one whose probe read nothing, so a
+  subscription renewed is seen within the half hour (see The router's rounds); a choice probes it no
+  sooner, nor the dashboard's refresh after a reset, nor is a failed prime of it sent again sooner,
+  as each read refused would only be another warning. `R` and `--refresh` probe it at once, as
+  someone asks to see a renewal. A new token in its file lifts the hold at once, as it starts its
+  probes afresh. The same token lost and back keeps it, as that token would only be refused again: a
+  file moved away and back, holding no usable token two looks running, as a loss takes, or the
+  router restarting while the file holds none, the state file keeping the refusal for the token it
+  held last. A read that fails otherwise with no refusal before it holds nothing: the account routes
+  on its windows as last read. A limit holding the account too doesn't hide the hold: ROUTING, the
+  routing card and `status` say the refusal first, and nothing says it's back as the limit lifts,
+  its windows' words reading `limit` with no `back`, and Runway's stretch through now no `back`
+  either. An account whose first read is refused, as one added with its subscription already ended,
+  says the refusal too, while every view draws it as not read yet, as nothing of it has been, unless
+  a limit or the router's own refusal of its token holds it too. The hold begins at the first
+  refusal of a run, kept through the refusals and failures after it, which the state file keeps
+  beside the last probe, `refused_since`, with why, `refused_read`; the pools' room, which the
+  forecast's day rate counts, holds the account back only from then, never before, so a restart
+  replaying the readings history counts its room till then, however long it's been probed since. The
+  router judges the hold from the probe's failure, which says why as a `quota.ReadRefusal`, read
+  through an interface the router declares, never from its error's text, so no wording of an error
+  lifts a hold or makes one; it keeps why as a value, and the status document gives it as the
+  account's `refused_read`, `subscription_ended` or `token_refused`, never reworded, which status
+  reads once, as the account's `RefusedRead`: no view reads the error. A state file from before the
+  value keeps the start without why: why is read off its error's text, by the provider's
+  `RefusedReadIn`, as the router that wrote it judged the hold. One from before the hold keeps no
+  start, and holds nothing, as its router held nothing, till the account's next read judges it. A
+  router from before reads the file all the same, passing over `refused_read`, and judges the
+  error's text, as it did; and a document from one gives the error alone, which status reads as a
+  read that failed otherwise. A session started while the account is held doesn't start on its
+  token as Claude Code's own while another's will do, as the router's document says it, or with the
+  router down its state file (see Launching). An account removed goes as any other, its history
+  kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -556,7 +570,9 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
   session resumed later gets the same token, so its earlier artifacts stay within reach. While the
   primary's token isn't usable, a routed session gets `--account`'s, else the first account's with a
   usable token. Not routed, `run` gives Claude Code `--account`'s token, else the primary's, else
-  the first account's with a usable token: see Launching.
+  the first account's with a usable token. Each passes over an account the router holds back, as
+  its last read refused or its token another subscription's, or doesn't route yet, while another
+  will do: see Launching.
 - `accounts`, `status` and the dashboard mark the primary.
 
 With pools, each pool has a primary of its own, kept so within the pool (see The primary, a pool
@@ -803,10 +819,13 @@ within, where it's started within one, and the session keeps that pool for its w
 
 ### Launching in a pool
 
-- **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, it starts on
-  the token of the pool's first account with a usable token. If no account in the pool has one, the
-  launch refuses, saying so: `switchboard: pool Acme has no account with a usable token — not
-  starting claude`, as Claude Code's own login would go out on whatever account it's signed into;
+- **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, or the router
+  holds the primary back or doesn't route it yet, as one the config made the primary since the
+  router started, it starts on `--account`'s token, where it's pinned, else the token of the pool's
+  first account with a usable token that the router would send on (see Launching). If no account
+  in the pool has a usable token, the launch refuses, saying so:
+  `switchboard: pool Acme has no account with a usable token — not starting claude`, as Claude
+  Code's own login would go out on whatever account it's signed into;
   but a config of one pool, unfenced, starts unaided, as before pools, as no session there can
   leave its pool. A pool with no accounts refuses: `switchboard: pool Acme has no accounts — not
   starting claude`. Every launch names its pool's id to the router in a header,
@@ -852,7 +871,8 @@ within, where it's started within one, and the session keeps that pool for its w
   through it goes nowhere outside its pool, where going direct would go past the fences. It routes
   the session once it takes its pools up, as while `run` waits for it.
 - **Direct,** as `when_router_down` or `SWITCHBOARD_WHEN_ROUTER_DOWN` say, goes out on `--account`'s
-  token, else the pool's primary's, else the token of the pool's first account with a usable token.
+  token, else the pool's primary's, else the token of the pool's first account with a usable token,
+  passing over one the router's state file keeps held back (see Launching).
   It never uses an account outside the pool. Where the router's state directory can't be located,
   the config read, a config with pools goes as with the router down, direct on the pool's tokens
   or stopped, and refuses where none is usable, rather than start unaided, but for a config of one
@@ -1256,9 +1276,11 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   saying so. The pool it leaves takes its next account as its primary where it was the primary,
   and `accounts edit` says which, that the sessions running on the moved account's token, where it
   has a usable one, are refused now it has left, and which account's token they start on resumed,
-  as a launch in that pool would choose it; or, where it was the pool's last account, that the
-  pool has no accounts now. `accounts remove` says the same of the removed account's pool: its
-  primary now, by the pool, or that it has no accounts.
+  as a launch in that pool would choose it by the config and the tokens, or another's where the
+  router holds that one back then, or doesn't route it yet, unless every account there is so, as
+  the router isn't asked; or, where it was the pool's last
+  account, that the pool has no accounts now. `accounts remove` says the same of the removed
+  account's pool: its primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
@@ -2003,16 +2025,16 @@ formats below; the screens as signed off in Paper (see The screens, below).
     organization, or whose organization another account configured or decided has, as two
     accounts of one subscription have, takes a random id, its organization unknown. Each gets a
     label, its old id, where it had none.
-  - **The waits:** an answer counts only where it's the API's own, carrying Anthropic's
-    `Request-Id` for it. A request the API didn't answer, one a proxy between answered in its
-    place, and one answered 408, 425, 429 or a 5xx are no answer: the move waits and asks again
-    from the start, changing nothing meanwhile, 30 seconds the first time, then twice as long each
-    time, 5 minutes at the most. An answer of the API's own that names no organization, as a
-    refusal, counts only once such answers have lasted 10 minutes, each heard within 10 minutes of
-    the one before, so a passing incident or a captive portal never decides an id for good, nor
-    gives two Macs sharing a config different ones. A token file that can't be read, as a writer
-    that empties it first leaves it for a moment, is looked at again 3 seconds later, three looks
-    at most.
+  - **The waits:** an answer counts only where it's the API's own, carrying Anthropic's id for it,
+    in its `Request-Id` header or, of an error, its body's `request_id`. A request the API didn't
+    answer, one a proxy between answered in its place, and one answered 408, 425, 429 or a 5xx are
+    no answer: the move waits and asks again from the start, changing nothing meanwhile, 30 seconds
+    the first time, then twice as long each time, 5 minutes at the most. An answer of the API's own
+    that names no organization, as a refusal, counts only once such answers have lasted 10 minutes,
+    each heard within 10 minutes of the one before, so a passing incident or a captive portal never
+    decides an id for good, nor gives two Macs sharing a config different ones. A token file that
+    can't be read, as a writer that empties it first leaves it for a moment, is looked at again 3
+    seconds later, three looks at most.
   - **The strays,** token files of accounts neither configured nor known to the record, are asked
     about only where their answers may change what's decided, and only then does the move wait on
     one unanswered:
@@ -2293,7 +2315,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
   is the new primary, that the pinned sessions keep their pinned account's token. The pinned
   sessions are said only where an account other than the first with a usable token has one, as
   otherwise none can be pinned elsewhere; and nothing is said where no account has a usable
-  token. Sessions started directly, while the router was down, are untouched by the move. It
+  token. As the router's word on each account as a session started can't be had, it says too that
+  where the router held back the account a session was to start on, or didn't route that account
+  yet, the session started on another account's token, unless every account was so (see
+  Launching). Sessions
+  started directly, while the router was down, are untouched by the move. It
   warns on stderr when the new primary has no usable token. A label the config writes over
   several lines, as a multi-line string, can't be edited as text: a label edit of that account
   is refused, to be made by hand, writing nothing, while a plan, reserve or primary edit is
@@ -10831,7 +10857,8 @@ Claude-specific knowledge lives in `internal/claude`. The router and `status` de
 interfaces they define themselves (`router.Provider`, `router.Prober`, `status.Prober`), which
 `internal/claude` satisfies, and the windows that matter, the one a request starts among them,
 reach them, the scoring and the watch as a `score.Policy`, which the CLI fills in from
-`internal/claude`. `cmd/switchboard` and `internal/cli`, which wire the rest together,
+`internal/claude`. A guard holds the router to its interfaces: none of its files but its tests
+imports `internal/claude`. `cmd/switchboard` and `internal/cli`, which wire the rest together,
 `internal/launch`, which exists to start Claude Code, and `internal/setup`, which links `claude` to
 switchboard ahead of it, use `internal/claude` directly: for the `claude` command, where it's
 installed and its version, and the environment variables Claude Code reads. A few pieces stay
@@ -10866,12 +10893,15 @@ hiding it behind the provider would take a wider interface than it's worth:
   window was last read, and when a window started again, as its reading's `restarted_at`, so a
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
-  and `misses` (see The router's rounds), the hold curve, `hold` (see Forecasting run-outs), and the
-  hashes of every configured account's tokens, with a usable token or not: see Accounts and tokens;
-  and the token-year notifications told, an account's against the token they were told for: see
-  Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`, the id an
-  export names the Mac's folder by, `import/`, while an import runs, and `import.lock`, which
-  `import` holds while it stages and waits (see Export and import). `state.json` is versioned, the
+  and `misses` (see The router's rounds), and of a read refused why and since when, `refused_read`
+  and `refused_since` (see 401s and 403s), the hold curve, `hold` (see Forecasting run-outs), and
+  the hashes of every configured account's tokens, with a usable token or not: see Accounts and
+  tokens; and the token-year notifications told, an account's against the token they were told
+  for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
+  the id an export names the Mac's folder by, `import/`, while an import runs, and `import.lock`,
+  which `import` holds while it stages and waits (see Export and import). `run`, with the router
+  down, reads the reads refused from `state.json`, writing nothing (see Launching). `state.json` is
+  versioned, the
   version changing only when a router couldn't read what another wrote: an older file, without
   readings, loads as having none, one whose readings lack `restarted_at` as windows that run a whole
   length before their resets, which a router from before, ignoring the field, takes them all for,
@@ -11302,6 +11332,7 @@ Each account:
 | `extra_usage` | Its extra usage, the API's overage, as the last answer or probe to give its `anthropic-ratelimit-unified-overage-*` headers left it: `{status, utilization, resets_at}`, from its `overage-status`, `overage-utilization` and `overage-reset` headers, as they've been seen: `status` as given (`allowed`, `allowed_warning` or `rejected`), `utilization` a fraction, and `resets_at` when its period resets. It's on, so the account can be served past its limit and billed for it, while its `status` isn't `rejected` (see What doesn't go through the router). The headers are read with the windows', and never count as a window. Left out where none has given them |
 | `failures` | Windows a probe expected but couldn't read: `{label, window, error}`, `label` naming what should have read it, such as `Fable`. Left out when none |
 | `error` | Why its usage couldn't be read, such as its token file missing, or readable by others, or, from the router, why its last probe read nothing; left out when there's nothing to say |
+| `refused_read` | Why the API refused its last read, which holds it back from every request till a read comes back clean (see 401s and 403s): `subscription_ended`, its organization's login refused, as an ended subscription's is, or `token_refused`. These words are never reworded. Left out where the API didn't refuse it, and in a document from a router from before it, whose `error` alone says |
 | `limit` | *router* A limit it reached, while it holds: `{id, windows, until}`, `id` the limit's identity, which it keeps while it holds, reached again, as the router counts its limits from 1 as it starts, and which the limit's event gives as its `limit`; `windows` the keys named as reached, left out when only the overall verdict said so |
 | `refused` | *router* The upstream's refusal, while it holds: `{until, status, family}`. `status` 401 is its token refused, holding back every request; 403 a request refused alone, holding back its model's `family`. With both, the token's; with several families, the latest |
 | `pressure` | *router* How fast its 5-hour window is being used, and where that's heading: `{window, rate, recent, since, runs_out, under}`. `window` is the window's key, such as `5h`; `rate` the share of it used an hour, never negative: its recent rate, as `rates` gives it, `recent` then set, and `since` when it's measured from, else its use since it started; `runs_out` when, at that rate, it reaches where the account runs out, where its reserve starts, or its limit without one or with the global pin naming the account, left out when it never does, as at a rate of 0, or has already; and `under` set when that comes before the window resets, while the account can take a request of some model, as one refused a model or held back in a model's own week still can: the account is under pressure (see Choosing an account). Of an account that can take no request, pressure isn't what passes it over, and `under` is left out. Left out when the rate can't be said, as when the window isn't running, or the account has no 5-hour window |
@@ -11417,6 +11448,7 @@ verbs).
     at its cap`;
   - `moved: work hit its limit`: `work reached its limit`; `from work, at its limit`;
   - `moved: work was refused`: `work refused the request`; `from work, refused`;
+  - `moved: work had its read refused`: as it is; `from work, read refused`;
   - `moved: work has no room`: `work had no room`; `from work, with no room`;
   - `moved by pin`: `pinned to side`; `from work, pinned to side`, the pin's account the one moved
     to;
@@ -11476,7 +11508,8 @@ verbs).
   `ANTHROPIC_BASE_URL` pointing at the proxy, where the router says it listens, not where the config
   says, which may have changed since, `CLAUDE_CODE_OAUTH_TOKEN` set to the primary's token, whatever
   account the conversation goes to, or, while the primary's isn't usable, `--account`'s, else the
-  first account's with a usable token, and with `--account`, the pin header added to any
+  first account's with a usable token, each passing over an account the router holds back (see
+  Passing over an account held back, below), and with `--account`, the pin header added to any
   `ANTHROPIC_CUSTOM_HEADERS` already set. The directory header is added too, naming the directory
   `run` started in, which Claude Code starts in as well, the home directory at its start shown as
   `~`, as `~/Code/api`, unless `run` can't read it, as when it's been removed since, or the router's
@@ -11513,12 +11546,40 @@ verbs).
   stepping aside, local or `--direct`, so no launch passes it on. Any other value of it stops,
   saying it takes `stop` or `direct`; a router that can be routed through, healthy or not, routes
   whatever it says. Going direct, `run` connects directly, on `--account`'s token, else the
-  primary's, else the first account's with a usable token, without the base URL, the pin, the
+  primary's, else the first account's with a usable token, the last two passing over an account
+  the router's state file keeps held back (below), without the base URL, the pin, the
   directory or the project, and says why in a line on stderr: `switchboard: the router isn't
   running — connecting directly on work · Work`. Either way, and with `--direct`, a pin, a
   directory or a project inherited from the environment, as from a session this one is started
   within, goes: what this launch pins is the only pin, and the directory and project it names the
   only ones. `--direct` removes the token and the base URL, so Claude Code uses its own login.
+- **Passing over an account held back:** Claude Code's own token carries what never reaches the
+  router and what passes through it untouched (see What doesn't go through the router), so an
+  account the router wouldn't send on is none to start on while another will do. Routed, once the
+  router has answered, `run` asks it for its status document of the session's pool, as `status`
+  asks it, 5 seconds at most, once a launch (without the config, the document that names a router's
+  accounts serves for both), and passes over an account the document doesn't name, which the router
+  doesn't route yet, as one `accounts add --primary` made the primary since it started, taken up
+  only as it restarts, whose token it couldn't tell for an account's, so every request would pass
+  it by unrouted and unrecorded; and one something bars from every request as the document was
+  built, as status judges it, its one owner (`Account.Barred`): a token another subscription's
+  (`token_foreign`), no usable token, its token refused on a request while that holds, or its
+  `refused_read` set (see 401s and 403s), as what went out on its token would be refused, or go out
+  on another subscription. The log names that cause, never the account's `error`, which a read
+  failed otherwise can have left. With the router down, going direct, `run` reads `state.json`,
+  leaving it as it is, a corrupt one included, by the rule the router loads it by
+  (`router.KeptHolds`), and passes over an account it keeps a read refused of, or a token another
+  subscription's, each of the token the account's file holds now: one replaced since starts
+  afresh, as it does for the router. It takes the next in the order above: the primary,
+  `--account`'s, then each account with a usable token in the config's order. A pin direct is never
+  passed over, as the whole session is to go out on it, the command line's choice. Where every
+  account is passed over, as when every account of the pool is held, or nothing's known, as where
+  the document or the file can't be had, it chooses as before, the first in that order. The log
+  says each account passed over and why, at info: `passing over an account for Claude Code's own
+  token`, and, where it chooses as before, so at warn. A command saying which account's token the
+  sessions start on, as `accounts edit` does, goes by the config and the token files alone, and so
+  adds that where the router held that account back, or didn't route it yet, a session started on
+  another, unless every account was so. (The v1 release review, 17 November 2026.)
 - **Without the config:** where `run` can't read its config, as when an upgrade's rules refuse the
   one the running router took, and the router holds its restart (see The router looking after
   itself), it locates the state directory, as it can without a config, and asks the router as it
@@ -11528,8 +11589,9 @@ verbs).
   for 5 seconds at most. Claude Code's own token is the primary's, as the document names it, read
   from its token file, `<state dir>/tokens/<id>`, which needs no config, or, while that isn't
   usable, `--account`'s, else the first account's in the document with a usable token, the order
-  Routed uses; `--account` must name an account the document names, with a usable token, as it must
-  a configured one, and adds the pin header. The directory header, the hints, the mark of what `run`
+  Routed uses, passing over an account held back as Routed does; `--account` must name an account
+  the document names, with a usable token, as it must a configured one, and adds the pin header.
+  The directory header, the hints, the mark of what `run`
   set and the log's `starting claude` line are as Routed says, but that the line goes at warn, with
   the config's error as `config_error`; and `run` says in a line on stderr that it can't read the
   config, and why, and is routing through the running router: `switchboard: couldn't read the
@@ -12456,6 +12518,6 @@ was dropped binds a later choice, the design proper says so.
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Pausing an account whose subscription is cancelled: kept whole and out of the probes and the forecast until it's resumed, routing's side answered in part by #351's hold | the owner, 11 November 2026; the verbs, the mark and the paused primary's rule remain | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
 | The dashboard's `--pool` for a pool the config no longer has, its recorded work read by its id, as the verbs read it | later: found with Pools' second phase, 13 November 2026 | [dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md) |
-| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, in place of a move that says `has no room` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
+| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |

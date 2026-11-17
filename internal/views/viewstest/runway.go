@@ -340,7 +340,7 @@ func failedReads() []RunwayMoment {
 	stale := readAccount(work, onThu(14, 20, 0), window(fiveHour, 0.4, onThu(16, 30, 0)), window(week, 0.3, mondayTen))
 	stale.Error = "HTTP 529 · Overloaded"
 	lapsed := stale
-	lapsed.Error = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
+	lapsed.Error, lapsed.RefusedRead = "HTTP 403 · OAuth authentication is currently not allowed for this organ", quota.SubscriptionEnded
 	weekOnly := readAccount(work, onThu(14, 41, 0), window(week, 0.3, mondayTen))
 	listed := readAccount(work, time.Time{}, window(fiveHour, 0, onThu(16, 30, 0)), window(week, 0, mondayTen))
 	sideAt := sideOn(onThu(14, 41, 0))

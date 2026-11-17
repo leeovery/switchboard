@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -36,7 +37,7 @@ func TestCollect(t *testing.T) {
 	}
 	prober := &fakeProber{results: map[string]probeResult{
 		"test-token-work": {usage: workUsage},
-		"test-token-side": {err: errors.New("HTTP 401 · Invalid bearer token")},
+		"test-token-side": {err: claudetest.ErrTokenRefused},
 	}}
 	collector := status.Collector{
 		Prober: prober,
@@ -54,7 +55,7 @@ func TestCollect(t *testing.T) {
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(), Usage: workUsage},
 			{ID: "personal", Label: "Personal", TokenSet: false, Error: tokenstest.Missing("personal").Error()},
-			{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
+			{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: quota.TokenRefused},
 		},
 	}.WorkedOut(policy)
 	if !reflect.DeepEqual(got, want) {
@@ -664,7 +665,7 @@ func TestDocumentJSON(t *testing.T) {
 						Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
 					},
 					{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"},
-					{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token"},
+					{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: quota.TokenRefused},
 				},
 			},
 			want: `{
@@ -711,7 +712,8 @@ func TestDocumentJSON(t *testing.T) {
       "id": "side",
       "label": "Side",
       "token_set": true,
-      "error": "HTTP 401 · Invalid bearer token"
+      "error": "HTTP 401 · Invalid bearer token",
+      "refused_read": "token_refused"
     }
   ]
 }`,
@@ -1864,8 +1866,9 @@ func TestShut(t *testing.T) {
 		{name: "past its limit", account: status.Account{Limit: status.Limit{Windows: []string{"5h"}, Until: built}}},
 		{name: "its token refused", account: status.Account{Refused: status.Refusal{Until: later, Status: 401}}, want: true},
 		{name: "refused a model family alone", account: status.Account{Refused: status.Refusal{Until: later, Status: 403, Family: "fable"}}},
-		{name: "its subscription ended, as its last read says", account: status.Account{Error: endedSubscription}, want: true},
-		{name: "its token refused as it was last read", account: status.Account{Error: "HTTP 401 · Invalid bearer token"}, want: true},
+		{name: "its subscription ended, as its last read says", account: with(status.Account{}, refusedRead(quota.SubscriptionEnded)), want: true},
+		{name: "its token refused as it was last read", account: with(status.Account{}, refusedRead(quota.TokenRefused)), want: true},
+		{name: "its last read's error reading as a refusal, none said", account: status.Account{Error: endedSubscription}},
 		{name: "its last read refused otherwise", account: status.Account{Error: "HTTP 403 · Request not allowed"}},
 		{name: "its last read unanswered", account: status.Account{Error: "timed out after 5s"}},
 	}
@@ -1926,6 +1929,45 @@ func TestARouterReportingNoPoolsIsFromBeforePoolsWhereTheConfigHasThem(t *testin
 			}
 			if tt.reportsPools && asked > 0 {
 				t.Errorf("BeforePools(true) asked for the config's pools %d times, want never: a router reporting its pools is no router from before", asked)
+			}
+		})
+	}
+}
+
+// An account takes requests while nothing bars it, and Barred names the
+// first cause that does: a token another subscription's, which is no usable
+// token of its own; no usable token; its token refused by the upstream,
+// though a refusal of a model family alone leaves it the rest; its last read
+// refused, till a read comes back clean. A refusal this build doesn't know
+// is none.
+func TestAnAccountTakesRequestsWhileNothingBarsIt(t *testing.T) {
+	now := time.Date(2026, 11, 17, 15, 0, 0, 0, time.UTC)
+	refused := status.Refusal{Until: now.Add(time.Minute), Status: 401}
+	tests := []struct {
+		name    string
+		account status.Account
+		want    status.Bar
+	}{
+		{name: "a usable token", account: status.Account{TokenSet: true}},
+		{name: "no usable token", account: status.Account{}, want: status.BarTokenless},
+		{name: "another subscription's token", account: status.Account{TokenForeign: true}, want: status.BarForeign},
+		{name: "another subscription's token, refused", account: status.Account{TokenForeign: true, Refused: refused}, want: status.BarForeign},
+		{name: "no usable token, its last read refused", account: status.Account{RefusedRead: quota.SubscriptionEnded}, want: status.BarTokenless},
+		{name: "its token refused", account: status.Account{TokenSet: true, Refused: refused}, want: status.BarTokenRefused},
+		{name: "its token refused, its last read too", account: status.Account{TokenSet: true, Refused: refused, RefusedRead: quota.TokenRefused}, want: status.BarTokenRefused},
+		{name: "its token refused till now", account: status.Account{TokenSet: true, Refused: status.Refusal{Until: now, Status: 401}}},
+		{name: "a model family refused", account: status.Account{TokenSet: true, Refused: status.Refusal{Until: now.Add(time.Minute), Status: 403, Family: "opus"}}},
+		{name: "its subscription ended", account: status.Account{TokenSet: true, RefusedRead: quota.SubscriptionEnded}, want: status.BarReadRefused},
+		{name: "its read's token refused", account: status.Account{TokenSet: true, RefusedRead: quota.TokenRefused}, want: status.BarReadRefused},
+		{name: "a refusal this build doesn't know", account: status.Account{TokenSet: true, RefusedRead: "something_new"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.account.Barred(now); got != tt.want {
+				t.Errorf("Barred() = %d, want %d", got, tt.want)
+			}
+			if got, want := tt.account.Takes(now), tt.want == 0; got != want {
+				t.Errorf("Takes() = %v, want %v", got, want)
 			}
 		})
 	}

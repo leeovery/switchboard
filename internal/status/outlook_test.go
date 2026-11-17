@@ -344,7 +344,7 @@ func TestThePool(t *testing.T) {
 		},
 		{
 			name:     "none from an account whose subscription ended, nor one whose read refused its token, though both count",
-			doc:      routerDocOf(with(work, failedWith(endedSubscription)), with(plainSide, failedWith("HTTP 401 · Invalid bearer token"))),
+			doc:      routerDocOf(with(work, refusedRead(quota.SubscriptionEnded)), with(plainSide, refusedRead(quota.TokenRefused))),
 			accounts: []string{"work", "side"},
 			want: []string{
 				"5h Session: room 0, used none, pace 0.6",
@@ -695,7 +695,7 @@ func TestWhatsComingUp(t *testing.T) {
 		{
 			name: "a limit of a model's own week, its subscription ended: never back, as only a clean read lifts that",
 			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.1, 2*time.Hour), windowIn("7d", 0.2, 3*day), spentIn("7d_oi", 1, 4*day)), func(a *status.Account) {
-				a.Limit, a.Error = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(4 * day)}, endedSubscription
+				a.Limit, a.Error, a.RefusedRead = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(4 * day)}, endedSubscription, quota.SubscriptionEnded
 			})),
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), reset("fable", "7d", 3*day), reset("fable", "7d_oi", 4*day)},
 		},

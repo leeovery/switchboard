@@ -79,6 +79,11 @@ type Provider interface {
 	// with token and anything else shaped like one hidden, or "" when it
 	// holds none.
 	ErrorMessage(body io.Reader, token string) string
+	// RefusedReadIn returns why the API refused a probe's read, by the text
+	// of the probe's failure alone, as a router from before judged it, which
+	// kept nothing else in the state file: none where the text says it
+	// wasn't refused.
+	RefusedReadIn(text string) quota.ReadRefusal
 	// Count reads an answer, by its header, and its body, decoded, as far as
 	// it needs, by its content type, calling chars with how many characters
 	// of text, thinking and tools' input it has streamed so far as each part
@@ -92,6 +97,8 @@ type Provider interface {
 // says which models reported each window. It sends them over transport: the
 // router's own, which its requests go upstream on, with their pings, and
 // which a wake renews for both, as a sleep can leave its connections dead.
+// Where the API refuses the read, its failure says why, as quota.RefusalOf
+// reads it.
 type Prober interface {
 	Probe(ctx context.Context, token string, transport http.RoundTripper) (quota.Probe, error)
 }
@@ -392,7 +399,7 @@ func New(cfg Config) (*Router, error) {
 		recent:    recent,
 		emit:      emit,
 		stream:    stream,
-		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told, pools.heirs(cfg.Accounts, cfg.Pools)),
+		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told, pools.heirs(cfg.Accounts, cfg.Pools), cfg.Provider.RefusedReadIn),
 		history:   history,
 		ledger:    requests,
 		imports:   newImports(),

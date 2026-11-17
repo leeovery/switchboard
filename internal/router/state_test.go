@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -518,9 +519,9 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 		return account
 	}
 
-	s.recordProbe("work", quota.Probe{}, errors.New("HTTP 401 · Invalid bearer token"), s.mark(), readings.FromProbe)
-	if got := work(); got.Error != "HTTP 401 · Invalid bearer token" || !got.FetchedAt.IsZero() {
-		t.Errorf("after a failed probe, work reads %+v, want the probe's error and nothing read", got)
+	s.recordProbe("work", quota.Probe{}, claudetest.ErrTokenRefused, s.mark(), readings.FromProbe)
+	if got := work(); got.Error != "HTTP 401 · Invalid bearer token" || got.RefusedRead != quota.TokenRefused || !got.FetchedAt.IsZero() {
+		t.Errorf("after a failed probe, work reads %+v, want the probe's error, its read refused, and nothing read", got)
 	}
 
 	s.recordProbe("work", quota.Probe{Windows: []quota.Window{session, week}, Failures: []quota.Failure{fableDown, opusDown}}, nil, s.mark(), readings.FromProbe)

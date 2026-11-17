@@ -2187,13 +2187,16 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 }
 
 // fakeRouter answers as a router does: its health, or healthErr; and its
-// status document, or docErr. asks counts the times it's asked its health.
+// status document, or docErr, of any pool. asks counts the times it's asked
+// its health, and docsOf are the pools its document is asked for, in order,
+// "" for none.
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
 	doc       status.Document
 	docErr    error
 	asks      int
+	docsOf    []string
 }
 
 func (r *fakeRouter) Health(context.Context) (router.Health, error) {
@@ -2201,7 +2204,8 @@ func (r *fakeRouter) Health(context.Context) (router.Health, error) {
 	return r.health, r.healthErr
 }
 
-func (r *fakeRouter) Status(context.Context) (status.Document, error) {
+func (r *fakeRouter) Status(_ context.Context, pool string) (status.Document, error) {
+	r.docsOf = append(r.docsOf, pool)
 	return r.doc, r.docErr
 }
 

@@ -2,11 +2,10 @@
 
 Since #351 the router holds an account back while Anthropic refuses its read, as when its
 subscription has ended or its token is refused, until a read comes back clean. The status document
-states the hold, as the account's `RefusedRead`, and the cards and `status` say why. The Log
-doesn't. A session moved off a held account reads there as any other leaving one without room:
-`moved off work: has no room`, as the router's `unable` falls back to it when no request went
-wrong on the account and no reserve holds it. Nothing in the Log says when the hold began, why,
-or when it lifted, so looking back, a hold reads as a limit that never came.
+states the hold, as the account's `refused_read`, and the cards and `status` say why. The Log
+says less. A session moved off a held account says `had its read refused`, the router's why for
+it since v1, but not which refusal. Nothing in the Log says when the hold began, why, or when it
+lifted, so looking back, a hold reads as a move with no event behind it.
 
 ## What it could do
 
@@ -14,8 +13,8 @@ or when it lifted, so looking back, a hold reads as a limit that never came.
   `subscription lapsed` or `token refused`. It joins the Log's Events, LATELY and `switchboard
   events`, as `refused` and `limit` do.
 - **An event when it lifts,** as a clean read comes back, as `open` tells of room again.
-- **The cause on the moves it makes:** a session moved off a held account says why, such as
-  `moved off work: subscription lapsed`, in place of `has no room`.
+- **The cause on the moves it makes:** a session moved off a held account says which refusal,
+  such as `moved off work: subscription lapsed`, where it now says `read refused`.
 
 ## To settle
 

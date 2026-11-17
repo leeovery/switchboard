@@ -306,12 +306,16 @@ func (s situation) why() (reason, preferred string, forced bool) {
 }
 
 // unable says why the account with the given id can't take the request: what
-// went wrong when the request went out on it, else that it has reached its
-// reserve, when that alone holds it back, else that it has no room.
+// went wrong when the request went out on it, else that its last read was
+// refused, which holds it back till a read comes back clean, whatever else
+// does, else that it has reached its reserve, when that alone holds it back,
+// else that it has no room.
 func (s situation) unable(id string) string {
 	switch a, tried := s.req.attempt(id); {
 	case tried:
 		return a.Why
+	case s.accounts.heldByRead(id):
+		return status.WhyReadRefused
 	case s.accounts.reserved(id):
 		return status.WhyReserve
 	default:

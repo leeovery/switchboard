@@ -143,6 +143,10 @@ func idledIn(count int, unit string, rest int, restUnit string) string {
 const (
 	// WhyReserve is an account held back by its reserve alone.
 	WhyReserve = "is at its reserve"
+	// WhyReadRefused is an account held back by its last read refused, its
+	// subscription ended or its token refused, as RefusedRead has it, till a
+	// read comes back clean.
+	WhyReadRefused = "had its read refused"
 	// WhyLimit is an account that answered the request with a limit reached.
 	WhyLimit = "hit its limit"
 	// WhyRefused is an account that refused the request.

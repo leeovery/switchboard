@@ -139,8 +139,10 @@ func hasWindow(windows []quota.Window, key string) bool {
 // usage windows off the response. Any response that carries them counts: the
 // API sends them on a 429 as well as a 200. Its errors never contain the
 // token, and have a Refused method, which reports whether the API refused the
-// probe: its token, answering 401, or the request, answering 403; and an
-// APIStatus method, the status the API itself answered with, if it did.
+// probe: its token, answering 401, or the request, answering 403; an
+// APIStatus method, the status the API itself answered with, if it did; and a
+// RefusedRead method, why the API itself refused the read, if it did, as
+// refusalOf judges its answer.
 func (p *Prober) ProbeModel(ctx context.Context, token, model string) ([]quota.Window, error) {
 	r := p.read(ctx, token, model)
 	return r.usage.Windows, r.err
@@ -153,20 +155,35 @@ func (p *Prober) read(ctx context.Context, token, model string) reading {
 	if err != nil {
 		// Not wrapped: the cause's own text can carry the token, as a transport
 		// error quotes the URL.
-		return reading{model: model, organization: got.organization, err: &probeError{text: redact.Text(err.Error(), token), status: got.status, own: got.own}}
+		return reading{model: model, organization: got.organization, err: &probeError{
+			text: redact.Text(err.Error(), token), status: got.status, own: got.own, refusedRead: got.refusedRead(),
+		}}
 	}
 	return reading{model: model, usage: got.usage, admitted: got.status >= 200 && got.status < 300, organization: got.organization}
 }
 
 // answer is what the response to a probe gave: the usage it reports, the
-// organization it names, its status, which is 0 when there's no response, and
-// whether it's the API's own, carrying Anthropic's id for it, rather than one
-// given in the API's place, as by a proxy between.
+// organization it names, its status, which is 0 when there's no response,
+// whether it's the API's own, carrying Anthropic's id for it, in its
+// Request-Id header or, where it reports no usage, its body's request_id,
+// rather than one given in the API's place, as by a proxy between, and the
+// API's error message, where it reports no usage, with the token hidden.
 type answer struct {
 	usage        quota.Usage
 	organization string
 	status       int
 	own          bool
+	message      string
+}
+
+// refusedRead is why the API refused the probe, as refusalOf judges the
+// answer, where it's the API's own: none where it isn't, as a proxy between
+// refusing the probe gives, which says nothing of the account.
+func (a answer) refusedRead() quota.ReadRefusal {
+	if !a.own {
+		return ""
+	}
+	return refusalOf(a.status, a.message)
 }
 
 // probeModel returns what the response to the probe gave, or, failing, the
@@ -191,7 +208,9 @@ func (p *Prober) probeModel(ctx context.Context, token, model string) (answer, e
 	if got.usage = ParseUsage(resp.Header); len(got.usage.Windows) > 0 {
 		return got, nil
 	}
-	return got, errors.New(noUsageReason(resp, token))
+	failed := apiErrorIn(resp.Body)
+	got.message, got.own = redact.Text(failed.Error.Message, token), got.own || failed.RequestID != ""
+	return got, errors.New(noUsageReason(got.status, got.message))
 }
 
 // client sends probes over p's transport, following no redirect: a client
@@ -211,6 +230,9 @@ type probeError struct {
 	// and own whether the answer was the API's own, as answer has it.
 	status int
 	own    bool
+	// refusedRead is why the API refused the read, as answer's refusedRead
+	// has it.
+	refusedRead quota.ReadRefusal
 }
 
 func (e *probeError) Error() string {
@@ -232,6 +254,16 @@ func (e *probeError) APIStatus() int {
 		return 0
 	}
 	return e.status
+}
+
+// RefusedRead is why the API refused the read: where the API itself
+// answered, carrying Anthropic's id for its answer, as APIStatus has it,
+// quota.SubscriptionEnded or quota.TokenRefused, as refusalOf judges the
+// answer. It's none where the API didn't refuse it, as of a read that timed
+// out or was answered otherwise, and where the answer was given in the API's
+// place, as by a proxy between, which says nothing of the account.
+func (e *probeError) RefusedRead() quota.ReadRefusal {
+	return e.refusedRead
 }
 
 type messagesRequest struct {
@@ -283,11 +315,11 @@ const (
 	messageAfter = " · "
 )
 
-// noUsageReason says why a response carried no usage: its status, and the API's
-// error message when the body has one.
-func noUsageReason(resp *http.Response, token string) string {
-	reason := answeredWith + strconv.Itoa(resp.StatusCode)
-	message := errorMessage(resp.Body, token)
+// noUsageReason says why a response answered with status carried no usage:
+// its status, and the API's error message, where it gave one, its token
+// already hidden.
+func noUsageReason(status int, message string) string {
+	reason := answeredWith + strconv.Itoa(status)
 	if message == "" {
 		return reason
 	}
@@ -299,24 +331,34 @@ func noUsageReason(resp *http.Response, token string) string {
 // 403, where it refuses the organization's OAuth login, as it answers an
 // ended subscription: "OAuth authentication is currently not allowed for
 // this organization", in lower case, as far as maxErrorMessage keeps it
-// whole.
+// whole in a probe's error.
 const loginBarred = "oauth authentication is currently not allowed"
 
-// TokenRefusedRead reports whether text, the text of a probe's error, as
-// ProbeModel's gives it, says the API refused the probe's token: it answered
-// 401.
-func TokenRefusedRead(text string) bool {
-	status, _, ok := answerIn(text)
-	return ok && status == http.StatusUnauthorized
+// refusalOf is why the API refused a read it answered with status, saying
+// message: quota.TokenRefused where it answered 401; quota.SubscriptionEnded
+// where it answered 403, its message opening as loginBarred does, in any
+// case; and none otherwise.
+func refusalOf(status int, message string) quota.ReadRefusal {
+	switch {
+	case status == http.StatusUnauthorized:
+		return quota.TokenRefused
+	case status == http.StatusForbidden && strings.HasPrefix(strings.ToLower(message), loginBarred):
+		return quota.SubscriptionEnded
+	}
+	return ""
 }
 
-// LoginBarredRead reports whether text, the text of a probe's error, as
-// ProbeModel's gives it, says the API refused the organization's OAuth login,
-// as it answers an ended subscription: it answered 403, its message opening
-// as loginBarred does, in any case.
-func LoginBarredRead(text string) bool {
+// refusedReadIn is why the API refused the read whose failure's text is
+// text, as a probe's error gives it, judged by its text alone, as refusalOf
+// judges the status and the message it gives, whoever answered: as a router
+// from before judged it, which kept nothing else in its state file. None
+// where text gives no answer, as of a probe that timed out.
+func refusedReadIn(text string) quota.ReadRefusal {
 	status, message, ok := answerIn(text)
-	return ok && status == http.StatusForbidden && strings.HasPrefix(strings.ToLower(message), loginBarred)
+	if !ok {
+		return ""
+	}
+	return refusalOf(status, message)
 }
 
 // answerIn is the status and the message of the answer that text, the text
@@ -336,15 +378,27 @@ func answerIn(text string) (status int, message string, ok bool) {
 // more than maxErrorBody of it, with the token and anything else shaped like a
 // Claude token hidden; or "" when it holds none.
 func errorMessage(body io.Reader, token string) string {
-	var apiError struct {
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
+	return redact.Text(apiErrorIn(body).Error.Message, token)
+}
+
+// apiError is an error the API answers with: its message, and Anthropic's id
+// for the answer, which the API gives in the body as well as in its
+// Request-Id header.
+type apiError struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+	RequestID string `json:"request_id"`
+}
+
+// apiErrorIn is the API error body holds, reading no more than maxErrorBody
+// of it: none where it holds none.
+func apiErrorIn(body io.Reader) apiError {
+	var failed apiError
+	if err := json.NewDecoder(io.LimitReader(body, maxErrorBody)).Decode(&failed); err != nil {
+		return apiError{}
 	}
-	if err := json.NewDecoder(io.LimitReader(body, maxErrorBody)).Decode(&apiError); err != nil {
-		return ""
-	}
-	return redact.Text(apiError.Error.Message, token)
+	return failed
 }
 
 // drainAndClose reads the body to its end before closing it, so its

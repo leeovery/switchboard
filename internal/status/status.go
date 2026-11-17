@@ -575,6 +575,11 @@ type Account struct {
 	AtReserve []string `json:"at_reserve,omitempty"`
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`
+	// RefusedRead is why the API refused the account's last read, as the
+	// read's failure says it, which holds the account back from every request
+	// till a read comes back clean: "" where it didn't, and in a document
+	// from a router from before it said, whose Error alone says it.
+	RefusedRead quota.ReadRefusal `json:"refused_read,omitempty"`
 	// Limit is the limit the router saw the account reach, while it holds:
 	// zero when there's none, and in a document that isn't the router's.
 	Limit Limit `json:"limit,omitzero"`
@@ -704,7 +709,8 @@ func pressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes f
 	}
 }
 
-// Prober reads an account's usage with its token.
+// Prober reads an account's usage with its token. Where the API refuses the
+// read, its failure says why, as quota.RefusalOf reads it.
 type Prober interface {
 	Probe(ctx context.Context, token string) (quota.Probe, error)
 }
@@ -939,7 +945,7 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	probed, err := c.Prober.Probe(ctx, token.Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if err != nil {
-		account.Error = err.Error()
+		account.Error, account.RefusedRead = err.Error(), quota.RefusalOf(err)
 		logger.Warn("probe failed", "account", account.ID, "duration", took, "error", err)
 		return
 	}
@@ -1013,4 +1019,47 @@ func (a Account) tokenRefused(now time.Time) bool {
 // read, as refusedRead says, which holds till a read comes back clean.
 func (a Account) turnedAway(now time.Time) bool {
 	return a.tokenRefused(now) || a.refusedRead() != 0
+}
+
+// Takes reports whether the account can take requests at now, whatever its
+// windows read: nothing bars it, as Barred says.
+func (a Account) Takes(now time.Time) bool {
+	return a.Barred(now) == 0
+}
+
+// Bar is what bars an account from every request, whatever its windows
+// read, as Account's Barred has it: zero where nothing does.
+type Bar int
+
+const (
+	// BarForeign is an account whose token is another subscription's, which
+	// is no usable token of its own, as TokenForeign says.
+	BarForeign Bar = iota + 1
+	// BarTokenless is an account the router has no usable token for, as
+	// TokenSet says.
+	BarTokenless
+	// BarTokenRefused is an account whose token the router saw the upstream
+	// refuse, while that holds, as tokenRefused says.
+	BarTokenRefused
+	// BarReadRefused is an account whose last read the API refused, as
+	// RefusedRead says, till a read comes back clean.
+	BarReadRefused
+)
+
+// Barred is what bars the account from every request at now, whatever its
+// windows read, the first of the causes as Bar orders them: zero where
+// nothing does, the router having a usable token of the account's own, and
+// the account not turned away, the causes turnedAway judges by.
+func (a Account) Barred(now time.Time) Bar {
+	switch {
+	case a.TokenForeign:
+		return BarForeign
+	case !a.TokenSet:
+		return BarTokenless
+	case a.tokenRefused(now):
+		return BarTokenRefused
+	case a.refusedRead() != 0:
+		return BarReadRefused
+	}
+	return 0
 }

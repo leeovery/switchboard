@@ -75,7 +75,7 @@ What the router does with each answer that refuses a request, its own reads of u
 | Slow down, with no limit reached | Waits and tries the same account again, twice at most. |
 | The token is refused (401) | Reads the token file again, and retries the same account once if the token changed. Otherwise it sends the request on another account, and the refused account sits out for ten minutes. |
 | The request is refused (403) | Sends the request on another account. The refused account sits out that model family for ten minutes. |
-| A read of usage is refused: the token (401), or the login of an ended subscription (403) | Sends nothing on that account until a read comes back clean. The account's sessions move, and Σ pool leaves out the account's room. See [Troubleshooting: an account's token or subscription](troubleshooting/tokens.md). |
+| A read of usage is refused: the token (401), or the login of an ended subscription (403) | Sends nothing on that account until a read comes back clean. If Anthropic refused the reads of every account in the pool, the request goes out on the token Claude Code holds, for Anthropic to refuse it. The account's sessions move, and Σ pool leaves out the account's room. See [Troubleshooting: an account's token or subscription](troubleshooting/tokens.md). |
 | Too many requests, with no usage figures at all | Passes the refusal to Claude Code at once, unchanged. |
 | No account has room | Reads any account that looks full once more, then gives Claude Code a limit refusal. |
 | Every account refused the request | Answers 502 with the reason from Anthropic, and tells Claude Code not to retry. |

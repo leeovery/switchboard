@@ -3,7 +3,6 @@ package router
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -951,7 +951,7 @@ func (u *windowsUpstream) readWeek(w quota.Window) {
 
 // refuse has the upstream refuse token from now on.
 func (u *windowsUpstream) refuse(token string) {
-	u.fail(token, errors.New("HTTP 401 · Invalid bearer token"))
+	u.fail(token, claudetest.ErrTokenRefused)
 }
 
 // overload has the upstream answer token as overloaded from now on.
