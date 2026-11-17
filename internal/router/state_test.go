@@ -520,7 +520,7 @@ func TestProbesErrorsAndFailuresLastUntilRead(t *testing.T) {
 	}
 
 	s.recordProbe("work", quota.Probe{}, claudetest.ErrTokenRefused, s.mark(), readings.FromProbe)
-	if got := work(); got.Error != "HTTP 401 · Invalid bearer token" || got.RefusedRead != claude.TokenRefused || !got.FetchedAt.IsZero() {
+	if got := work(); got.Error != "HTTP 401 · Invalid bearer token" || got.RefusedRead != quota.TokenRefused || !got.FetchedAt.IsZero() {
 		t.Errorf("after a failed probe, work reads %+v, want the probe's error, its read refused, and nothing read", got)
 	}
 

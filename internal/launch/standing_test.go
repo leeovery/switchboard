@@ -5,9 +5,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
@@ -25,7 +25,7 @@ var everyToken = tokenstest.Files{"work": workToken, "personal": personalToken, 
 // routing returns r, its status document naming the accounts with the given
 // ids, in their order, as the router routes them, each whose id refused has
 // with why its last read was refused.
-func (r *fakeRouter) routing(ids []string, refused map[string]claude.ReadRefusal) *fakeRouter {
+func (r *fakeRouter) routing(ids []string, refused map[string]quota.ReadRefusal) *fakeRouter {
 	r.doc = status.Document{}
 	for _, id := range ids {
 		r.doc.Accounts = append(r.doc.Accounts, status.Account{ID: id, Label: id, RefusedRead: refused[id]})
@@ -37,11 +37,11 @@ func (r *fakeRouter) routing(ids []string, refused map[string]claude.ReadRefusal
 // refused, by its id, on the token everyToken gives it, as Route's Refused
 // reads it: on any other token, none. reads counts the times it's read.
 type keptRefusals struct {
-	refused map[string]claude.ReadRefusal
+	refused map[string]quota.ReadRefusal
 	reads   int
 }
 
-func (k *keptRefusals) of(id string, token tokens.Token) claude.ReadRefusal {
+func (k *keptRefusals) of(id string, token tokens.Token) quota.ReadRefusal {
 	k.reads++
 	if token.Reveal() != everyToken[id] {
 		return ""
@@ -58,7 +58,7 @@ func (k *keptRefusals) of(id string, token tokens.Token) claude.ReadRefusal {
 // direct is the whole session's, as asked. Where every account is passed
 // over, it's chosen as if nothing were known.
 func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) {
-	ended := map[string]claude.ReadRefusal{"work": claude.SubscriptionEnded}
+	ended := map[string]quota.ReadRefusal{"work": quota.SubscriptionEnded}
 	all := []string{"work", "personal", "side"}
 	tests := []struct {
 		name string
@@ -67,8 +67,8 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 		// routes names, every one where it's nil, those refused names held.
 		down    bool
 		routes  []string
-		refused map[string]claude.ReadRefusal
-		kept    map[string]claude.ReadRefusal
+		refused map[string]quota.ReadRefusal
+		kept    map[string]quota.ReadRefusal
 		docErr  error
 		// tokens are the token files there are, everyToken where nil.
 		tokens  tokenstest.Files
@@ -77,11 +77,11 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 	}{
 		{name: "routed, the primary's", want: workToken},
 		{name: "routed, the primary's subscription ended: the first held back by nothing", refused: ended, want: personalToken},
-		{name: "routed, the primary's token refused: the first held back by nothing", refused: map[string]claude.ReadRefusal{"work": claude.TokenRefused}, want: personalToken},
+		{name: "routed, the primary's token refused: the first held back by nothing", refused: map[string]quota.ReadRefusal{"work": quota.TokenRefused}, want: personalToken},
 		{name: "routed, the primary held, pinned: the pinned account's", refused: ended, account: "side", want: sideToken},
 		{
 			name:    "routed, the primary and the pinned account held: the first held back by nothing",
-			refused: map[string]claude.ReadRefusal{"work": claude.SubscriptionEnded, "side": claude.TokenRefused},
+			refused: map[string]quota.ReadRefusal{"work": quota.SubscriptionEnded, "side": quota.TokenRefused},
 			account: "side",
 			want:    personalToken,
 		},
@@ -89,11 +89,11 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 		{name: "routed, the primary held, pinned to an account not routed yet: the first the router routes", routes: []string{"work", "personal"}, refused: ended, account: "side", want: personalToken},
 		{
 			name:    "routed, every account held: the primary's, as if nothing were known",
-			refused: map[string]claude.ReadRefusal{"work": claude.SubscriptionEnded, "personal": claude.TokenRefused, "side": claude.SubscriptionEnded},
+			refused: map[string]quota.ReadRefusal{"work": quota.SubscriptionEnded, "personal": quota.TokenRefused, "side": quota.SubscriptionEnded},
 			want:    workToken,
 		},
 		{name: "routed, the router routing none: the primary's, as if nothing were known", routes: []string{}, want: workToken},
-		{name: "routed, a refusal this build doesn't know: the primary's", refused: map[string]claude.ReadRefusal{"work": "something_new"}, want: workToken},
+		{name: "routed, a refusal this build doesn't know: the primary's", refused: map[string]quota.ReadRefusal{"work": "something_new"}, want: workToken},
 		{name: "routed, the router's document not to be had: the primary's", refused: ended, docErr: errors.New("no answer within 5s"), want: workToken},
 		{name: "routed, the primary held, the first held back by nothing without a token: the next", refused: ended, tokens: tokenstest.Files{"work": workToken, "side": sideToken}, want: sideToken},
 		{name: "direct, the primary's", down: true, want: workToken},
@@ -105,11 +105,11 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 			tokens: tokenstest.Files{"work": renewedToken, "personal": personalToken, "side": sideToken},
 			want:   renewedToken,
 		},
-		{name: "direct, pinned to an account kept refused: the pinned account's, as asked", down: true, kept: map[string]claude.ReadRefusal{"side": claude.SubscriptionEnded}, account: "side", want: sideToken},
+		{name: "direct, pinned to an account kept refused: the pinned account's, as asked", down: true, kept: map[string]quota.ReadRefusal{"side": quota.SubscriptionEnded}, account: "side", want: sideToken},
 		{
 			name: "direct, every account kept refused: the primary's, as if nothing were known",
 			down: true,
-			kept: map[string]claude.ReadRefusal{"work": claude.SubscriptionEnded, "personal": claude.TokenRefused, "side": claude.SubscriptionEnded},
+			kept: map[string]quota.ReadRefusal{"work": quota.SubscriptionEnded, "personal": quota.TokenRefused, "side": quota.SubscriptionEnded},
 			want: workToken,
 		},
 	}
@@ -163,7 +163,7 @@ func TestPassingOverAnAccountForClaudeCodesOwnTokenSaysWhyInTheLog(t *testing.T)
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			h := newHarness(t)
-			rt := healthy().routing(tt.routes, map[string]claude.ReadRefusal{"work": claude.SubscriptionEnded})
+			rt := healthy().routing(tt.routes, map[string]quota.ReadRefusal{"work": quota.SubscriptionEnded})
 			r := route(rt, "")
 			r.Document, r.Token = rt.Status, everyToken.Read
 
@@ -183,7 +183,7 @@ func TestPassingOverAnAccountForClaudeCodesOwnTokenSaysWhyInTheLog(t *testing.T)
 func TestRunUnreadPassesOverAnAccountTheRouterHoldsBack(t *testing.T) {
 	h := newHarness(t, "HOME=/home/tester")
 	rt := healthy().naming("side", accounts...)
-	rt.doc.Accounts[2].RefusedRead = claude.SubscriptionEnded
+	rt.doc.Accounts[2].RefusedRead = quota.SubscriptionEnded
 
 	if err := h.launcher.RunUnread(t.Context(), unreadRoute(rt, ""), nil, errUnread); err != nil {
 		t.Fatalf("RunUnread() error = %v", err)

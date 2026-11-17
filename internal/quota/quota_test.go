@@ -14,6 +14,16 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
+// The words a refusal of a read is given by, in the status document and the
+// state file, are fixed: a refusal reworded fails here.
+func TestTheRefusalsOfAReadKeepTheirWords(t *testing.T) {
+	for refused, want := range map[quota.ReadRefusal]string{quota.SubscriptionEnded: "subscription_ended", quota.TokenRefused: "token_refused"} {
+		if string(refused) != want {
+			t.Errorf("a refusal is given as %q, want %q, as the reference fixes it", refused, want)
+		}
+	}
+}
+
 func TestMultiDay(t *testing.T) {
 	tests := []struct {
 		key  string

@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -47,12 +46,12 @@ func failedWith(err string) func(*status.Account) {
 
 // refusedRead has the account's last read refused by the API, as refused
 // says why, with the error the probe gives then.
-func refusedRead(refused claude.ReadRefusal) func(*status.Account) {
+func refusedRead(refused quota.ReadRefusal) func(*status.Account) {
 	return func(a *status.Account) { a.Error, a.RefusedRead = refusalErrors[refused], refused }
 }
 
 // refusalErrors are the errors a probe gives, by why the API refused it.
-var refusalErrors = map[claude.ReadRefusal]string{claude.SubscriptionEnded: endedSubscription, claude.TokenRefused: tokenRefused}
+var refusalErrors = map[quota.ReadRefusal]string{quota.SubscriptionEnded: endedSubscription, quota.TokenRefused: tokenRefused}
 
 // pressing has the account's session run out at 16:05 at its last half
 // hour's rate, before it resets at 17:10: under pressure.

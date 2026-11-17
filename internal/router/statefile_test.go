@@ -19,7 +19,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -368,7 +367,7 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 			t.Errorf("state file holds\n%s\nwant work's probes kept, %s among them", data, want)
 		}
 	}
-	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: claude.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute)}
+	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute)}
 	if got := readState(t, path).Readings["side"]; !reflect.DeepEqual(got, wantSide) {
 		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept, its read refused since it was first", got, wantSide)
 	}

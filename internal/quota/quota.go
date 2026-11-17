@@ -143,6 +143,22 @@ type Probe struct {
 	Organization string `json:"organization,omitempty"`
 }
 
+// ReadRefusal is why the API refused a probe's read of an account's usage,
+// as the provider judges its answer, which holds the account back from
+// every request till a read comes back clean, in the words the status
+// document and the state file give it by, which are never reworded: "" where
+// it didn't.
+type ReadRefusal string
+
+// The refusals of a read.
+const (
+	// SubscriptionEnded is the API refusing the organization's login, which
+	// is how it answers an ended subscription.
+	SubscriptionEnded ReadRefusal = "subscription_ended"
+	// TokenRefused is the API refusing the token.
+	TokenRefused ReadRefusal = "token_refused"
+)
+
 // Verdict is what a response to a request says of the account it went out on.
 type Verdict int
 

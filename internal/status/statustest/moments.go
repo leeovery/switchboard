@@ -9,7 +9,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -199,7 +198,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 	// organization's login, 403, as an ended subscription's is, its message
 	// cut to the 60 characters kept.
 	subscriptionEnded := func(a *status.Account) {
-		a.Error, a.RefusedRead = "HTTP 403 · OAuth authentication is currently not allowed for this organ", claude.SubscriptionEnded
+		a.Error, a.RefusedRead = "HTTP 403 · OAuth authentication is currently not allowed for this organ", quota.SubscriptionEnded
 	}
 	workUnnamed := AccountFacts{
 		Routing: status.RoutingLimited, Held: true, OutOfQuota: true, LimitHolds: true, Back: Built.Add(40 * time.Minute),
@@ -437,7 +436,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Name: "its subscription ended, its 5-hour reset since it was read",
 			Doc: Router(policy, nil,
 				Routed{Account: with(readAt("work", windowIn("5h", 0.7, 2*time.Minute), windowIn("7d", 0.4, 3*day)), func(a *status.Account) {
-					a.FetchedAt, a.Error, a.RefusedRead = Built.Add(-20*time.Minute), "HTTP 403 · OAuth authentication is currently not allowed for this organ", claude.SubscriptionEnded
+					a.FetchedAt, a.Error, a.RefusedRead = Built.Add(-20*time.Minute), "HTTP 403 · OAuth authentication is currently not allowed for this organ", quota.SubscriptionEnded
 				})},
 				Routed{Account: side},
 			),
@@ -657,7 +656,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			// has ever been read.
 			Name: "its first read refused, its subscription ended, nothing read before",
 			Doc: Router(policy, nil,
-				Routed{ID: "work", Label: "work", TokenSet: true, Error: "HTTP 403 · OAuth authentication is currently not allowed for this organ", RefusedRead: claude.SubscriptionEnded},
+				Routed{ID: "work", Label: "work", TokenSet: true, Error: "HTTP 403 · OAuth authentication is currently not allowed for this organ", RefusedRead: quota.SubscriptionEnded},
 				Routed{Account: side},
 			),
 			Now: Built.Add(time.Minute),
@@ -686,7 +685,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Name: "its read refused its token",
 			Doc: Router(policy, nil,
 				Routed{Account: with(readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.5, 2*day)), func(a *status.Account) {
-					a.FetchedAt, a.Error, a.RefusedRead = Built.Add(-20*time.Minute), "HTTP 401 · Invalid bearer token", claude.TokenRefused
+					a.FetchedAt, a.Error, a.RefusedRead = Built.Add(-20*time.Minute), "HTTP 401 · Invalid bearer token", quota.TokenRefused
 				})},
 				Routed{Account: side},
 			),

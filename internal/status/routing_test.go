@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
@@ -115,27 +114,27 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 		},
 		{
 			name:    "its subscription ended: why, with no time it's back, as it's back once a read comes back clean",
-			account: with(readNow(0.2, 0.3, 0), refusedRead(claude.SubscriptionEnded)),
+			account: with(readNow(0.2, 0.3, 0), refusedRead(quota.SubscriptionEnded)),
 			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
 		},
 		{
 			name:    "its subscription ended, nothing read before: why, not the error cut short",
-			account: with(status.Account{ID: "work", TokenSet: true}, refusedRead(claude.SubscriptionEnded)),
+			account: with(status.Account{ID: "work", TokenSet: true}, refusedRead(quota.SubscriptionEnded)),
 			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
 		},
 		{
 			name:    "its subscription ended, the router refusing its token too: the ended subscription, which no time lifts",
-			account: with(with(readNow(0.2, 0.3, 0), refusing(401, "")), refusedRead(claude.SubscriptionEnded)),
+			account: with(with(readNow(0.2, 0.3, 0), refusing(401, "")), refusedRead(quota.SubscriptionEnded)),
 			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
 		},
 		{
 			name:    "its last read refusing its token: why, as the router's refusal of it is said",
-			account: with(readNow(0.2, 0.3, 0), refusedRead(claude.TokenRefused)),
+			account: with(readNow(0.2, 0.3, 0), refusedRead(quota.TokenRefused)),
 			want:    status.Routing{Kind: status.RoutingRefused, Says: "token refused", Clauses: []string{"its token needs renewing"}, Short: []string{"refused"}},
 		},
 		{
 			name:    "its week at its limit before its subscription ended: the ended subscription, which the limit lifting doesn't",
-			account: with(with(readNow(0.2, 1, 0), limited("7d")), refusedRead(claude.SubscriptionEnded)),
+			account: with(with(readNow(0.2, 1, 0), limited("7d")), refusedRead(quota.SubscriptionEnded)),
 			want:    status.Routing{Kind: status.RoutingLapsed, Says: "subscription lapsed", Clauses: []string{"its subscription needs renewing"}, Short: []string{"lapsed"}},
 		},
 		{

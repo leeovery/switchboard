@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -194,7 +193,7 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 			{after: 4 * day, room: 0.7, known: true},
 			{after: 4*day + time.Second, room: 1, known: true},
 		}},
-		{name: "held by a limit for an hour, its subscription ended: none for ever, as only a clean read lifts that", account: statustest.Routed{Account: with(with(lasting, holding), refusedRead(claude.SubscriptionEnded))}, key: "7d", want: []roomAt{
+		{name: "held by a limit for an hour, its subscription ended: none for ever, as only a clean read lifts that", account: statustest.Routed{Account: with(with(lasting, holding), refusedRead(quota.SubscriptionEnded))}, key: "7d", want: []roomAt{
 			{room: 0, known: true},
 			{after: 2 * time.Hour, room: 0, known: true},
 			{after: 4 * day, room: 0, known: true},

@@ -637,10 +637,10 @@ func (a accountWorlds) lapsed() accountWorld {
 
 // failedRead is why an account's last probe read nothing, as the router
 // keeps it: the probe's error, and why the API refused the read, where it
-// did, as claude.RefusedReadOf reads it.
+// did, as the probe's failure says it.
 type failedRead struct {
 	error   string
-	refused claude.ReadRefusal
+	refused quota.ReadRefusal
 }
 
 // subscriptionEnded is how an ended subscription's probe fails: answered
@@ -648,7 +648,7 @@ type failedRead struct {
 // characters kept.
 var subscriptionEnded = failedRead{
 	error:   "HTTP 403 · OAuth authentication is currently not allowed for this organ",
-	refused: claude.SubscriptionEnded,
+	refused: quota.SubscriptionEnded,
 }
 
 // many is the world of the frames of six or ten accounts: the auto world's

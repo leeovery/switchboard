@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -17,8 +16,8 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 	capped := func(a *status.Account) { a.Reserve = 0.05 }
 	failing := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
 	refused := func(a *status.Account) { a.Refused = status.Refusal{Until: at(1, 21, 40).UTC(), Status: 401} }
-	readRefused := refusedRead(claude.TokenRefused)
-	ended := refusedRead(claude.SubscriptionEnded)
+	readRefused := refusedRead(quota.TokenRefused)
+	ended := refusedRead(quota.SubscriptionEnded)
 	read := stateNow.Add(-4 * time.Second).UTC()
 	tests := []struct {
 		name    string
@@ -249,22 +248,22 @@ func TestAStaleReadingSaysWhyItsStale(t *testing.T) {
 	tests := []struct {
 		name        string
 		error       string
-		refusedRead claude.ReadRefusal
+		refusedRead quota.ReadRefusal
 		refused     status.Refusal
 		wantKind    status.WindowKind
 		wantStale   status.StaleCause
 	}{
-		{name: "its subscription ended: subscription lapsed", error: endedSubscription, refusedRead: claude.SubscriptionEnded, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
+		{name: "its subscription ended: subscription lapsed", error: endedSubscription, refusedRead: quota.SubscriptionEnded, wantKind: status.WindowStale, wantStale: status.StaleLapsed},
 		{
-			name: "its subscription ended, its token refused too: subscription lapsed", error: endedSubscription, refusedRead: claude.SubscriptionEnded, refused: refused,
+			name: "its subscription ended, its token refused too: subscription lapsed", error: endedSubscription, refusedRead: quota.SubscriptionEnded, refused: refused,
 			wantKind: status.WindowStale, wantStale: status.StaleLapsed,
 		},
-		{name: "its last read's token refused: its token refused", error: tokenRefused, refusedRead: claude.TokenRefused, wantKind: status.WindowStale, wantStale: status.StaleRefused},
+		{name: "its last read's token refused: its token refused", error: tokenRefused, refusedRead: quota.TokenRefused, wantKind: status.WindowStale, wantStale: status.StaleRefused},
 		{name: "the router seeing its token refused: its token refused", refused: refused, wantKind: status.WindowStale, wantStale: status.StaleRefused},
 		{name: "an error reading as an ended subscription's, no refusal said: failed", error: endedSubscription, wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{name: "an error reading as a refused token's, no refusal said: failed", error: tokenRefused, wantKind: status.WindowStale, wantStale: status.StaleFailed},
 		{
-			name: "a refusal this build doesn't know: failed", error: "HTTP 403 · Something new", refusedRead: claude.ReadRefusal("something_new"),
+			name: "a refusal this build doesn't know: failed", error: "HTTP 403 · Something new", refusedRead: quota.ReadRefusal("something_new"),
 			wantKind: status.WindowStale, wantStale: status.StaleFailed,
 		},
 		{name: "a read answered otherwise: failed", error: "HTTP 529 · Overloaded", wantKind: status.WindowStale, wantStale: status.StaleFailed},

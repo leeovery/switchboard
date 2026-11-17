@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -582,34 +581,34 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 		kept savedReading
 		// want is why work's read is refused once loaded, since when, and
 		// resaved whether the file is due to be saved again.
-		want    claude.ReadRefusal
+		want    quota.ReadRefusal
 		since   time.Time
 		resaved bool
 	}{
 		{
 			name: "kept as a value",
-			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: claude.SubscriptionEnded, RefusedSince: began},
-			want: claude.SubscriptionEnded, since: began,
+			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.SubscriptionEnded, RefusedSince: began},
+			want: quota.SubscriptionEnded, since: began,
 		},
 		{
 			name: "kept as a value, its error reading otherwise",
-			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: claude.TokenRefused, RefusedSince: began},
-			want: claude.TokenRefused, since: began,
+			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: quota.TokenRefused, RefusedSince: began},
+			want: quota.TokenRefused, since: began,
 		},
 		{
 			name: "kept as a value without when it began, as by hand: from its last probe",
-			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedRead: claude.TokenRefused},
-			want: claude.TokenRefused, since: probed, resaved: true,
+			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedRead: quota.TokenRefused},
+			want: quota.TokenRefused, since: probed, resaved: true,
 		},
 		{
 			name: "kept by its start and its error's text alone, as a router from before the value kept it",
 			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedSince: began},
-			want: claude.SubscriptionEnded, since: began, resaved: true,
+			want: quota.SubscriptionEnded, since: began, resaved: true,
 		},
 		{
 			name: "kept by its start, its error's text a token refused",
 			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedSince: began},
-			want: claude.TokenRefused, since: began, resaved: true,
+			want: quota.TokenRefused, since: began, resaved: true,
 		},
 		{
 			name:    "kept by its start, its error's text no refusal",
@@ -622,7 +621,7 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 		},
 		{
 			name:    "a refusal this router doesn't know",
-			kept:    savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: claude.ReadRefusal("something_new"), RefusedSince: began},
+			kept:    savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.ReadRefusal("something_new"), RefusedSince: began},
 			resaved: true,
 		},
 		{
@@ -641,7 +640,7 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 				Readings: map[string]savedReading{"work": kept},
 			})
 			f := newTestFile(at(start.Add(3*time.Hour)), resolve(workReserved(), testTokens.Read, unrecorded))
-			read, err := KeptRefusalsIn(filepath.Dir(path))
+			read, err := KeptRefusalsIn(filepath.Dir(path), f.refusalIn)
 			if got := read.Of("work", mustToken(t, workToken)); err != nil || got != tt.want {
 				t.Errorf("a launch with the router down reads work's read refused as %q (%v), want %q, as the router loads it", got, err, tt.want)
 			}
@@ -683,9 +682,9 @@ func TestALaunchReadsARefusalTheStateFileKeepsOnItsTokenAlone(t *testing.T) {
 		dir   string
 		id    string
 		token string
-		want  claude.ReadRefusal
+		want  quota.ReadRefusal
 	}{
-		{name: "its token as kept", dir: filepath.Dir(path), id: "side", token: sideToken, want: claude.SubscriptionEnded},
+		{name: "its token as kept", dir: filepath.Dir(path), id: "side", token: sideToken, want: quota.SubscriptionEnded},
 		{name: "another token since", dir: filepath.Dir(path), id: "side", token: renewedToken},
 		{name: "another account", dir: filepath.Dir(path), id: "work", token: workToken},
 		{name: "another account, on the token kept of the one refused", dir: filepath.Dir(path), id: "work", token: sideToken},
@@ -693,7 +692,7 @@ func TestALaunchReadsARefusalTheStateFileKeepsOnItsTokenAlone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kept, err := KeptRefusalsIn(tt.dir)
+			kept, err := KeptRefusalsIn(tt.dir, saving.refusalIn)
 			if got := kept.Of(tt.id, mustToken(t, tt.token)); err != nil || got != tt.want {
 				t.Errorf("Of(%q) = %q (error %v), want %q", tt.id, got, err, tt.want)
 			}
@@ -720,7 +719,7 @@ func TestALaunchLeavesAStateFileItCantReadAsItIs(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			kept, err := KeptRefusalsIn(dir)
+			kept, err := KeptRefusalsIn(dir, newTestFile(at(start), testAccounts()).refusalIn)
 			if err == nil || !strings.Contains(err.Error(), tt.wantError) || !strings.Contains(err.Error(), path) {
 				t.Errorf("KeptRefusalsIn() error = %v, want one naming %s, saying %q", err, path, tt.wantError)
 			}

@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -24,7 +24,7 @@ type standing struct {
 	// kept is why the API refused the last read of the account with the
 	// given id, on token, as the router's state file keeps it, as Route's
 	// Refused reads it: nil where it isn't to be read.
-	kept func(id string, token tokens.Token) claude.ReadRefusal
+	kept func(id string, token tokens.Token) quota.ReadRefusal
 }
 
 // against says why Claude Code isn't to start on token, the account's with
@@ -35,7 +35,7 @@ type standing struct {
 // a read comes back clean, as whatever went out on its token would only be
 // refused. "" where nothing's known against it.
 func (s standing) against(id string, token tokens.Token) string {
-	var refused claude.ReadRefusal
+	var refused quota.ReadRefusal
 	switch {
 	case s.read:
 		i := slices.IndexFunc(s.doc.Accounts, func(a status.Account) bool { return strings.EqualFold(a.ID, id) })

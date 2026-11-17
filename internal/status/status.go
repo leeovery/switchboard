@@ -6,12 +6,12 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"maps"
 	"slices"
 	"sync"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prime"
@@ -576,12 +576,11 @@ type Account struct {
 	AtReserve []string `json:"at_reserve,omitempty"`
 	// Error says why Usage couldn't be read.
 	Error string `json:"error,omitempty"`
-	// RefusedRead is why the API refused the account's last read, as
-	// claude.RefusedReadOf reads it off the read's failure, which holds the
-	// account back from every request till a read comes back clean: "" where
-	// it didn't, and in a document from a router from before it said, whose
-	// Error alone says it.
-	RefusedRead claude.ReadRefusal `json:"refused_read,omitempty"`
+	// RefusedRead is why the API refused the account's last read, as the
+	// read's failure says it, which holds the account back from every request
+	// till a read comes back clean: "" where it didn't, and in a document
+	// from a router from before it said, whose Error alone says it.
+	RefusedRead quota.ReadRefusal `json:"refused_read,omitempty"`
 	// Limit is the limit the router saw the account reach, while it holds:
 	// zero when there's none, and in a document that isn't the router's.
 	Limit Limit `json:"limit,omitzero"`
@@ -711,9 +710,26 @@ func pressureOf(policy score.Policy, pace score.Pace, c score.Candidate, takes f
 	}
 }
 
-// Prober reads an account's usage with its token.
+// Prober reads an account's usage with its token. Where the API refuses the
+// read, its failure says why, as a readRefusal.
 type Prober interface {
 	Probe(ctx context.Context, token string) (quota.Probe, error)
+}
+
+// readRefusal is a probe's failure that says why the API refused the read.
+type readRefusal interface {
+	error
+	RefusedRead() quota.ReadRefusal
+}
+
+// refusalOf is why the API refused the read that failed with err, as its
+// failure says it, a readRefusal: none where it doesn't say.
+func refusalOf(err error) quota.ReadRefusal {
+	refused, ok := errors.AsType[readRefusal](err)
+	if !ok {
+		return ""
+	}
+	return refused.RefusedRead()
 }
 
 // Collector builds a status document by probing every account.
@@ -946,7 +962,7 @@ func (c Collector) probe(ctx context.Context, account *Account, token tokens.Tok
 	probed, err := c.Prober.Probe(ctx, token.Reveal())
 	took := time.Since(started).Round(time.Millisecond)
 	if err != nil {
-		account.Error, account.RefusedRead = err.Error(), claude.RefusedReadOf(err)
+		account.Error, account.RefusedRead = err.Error(), refusalOf(err)
 		logger.Warn("probe failed", "account", account.ID, "duration", took, "error", err)
 		return
 	}

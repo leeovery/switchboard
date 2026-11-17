@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -59,12 +58,12 @@ type StaleCause int
 // the one said.
 const (
 	// StaleLapsed is an account whose subscription has ended: its last read
-	// was refused its organization's login, as claude.SubscriptionEnded says,
+	// was refused its organization's login, as quota.SubscriptionEnded says,
 	// which is how an ended subscription is answered.
 	StaleLapsed StaleCause = iota + 1
 	// StaleRefused is an account whose token is refused: the router saw the
-	// upstream refuse it, or its last read was answered 401, as
-	// claude.TokenRefused says.
+	// upstream refuse it, or its last read was refused its token, as
+	// quota.TokenRefused says.
 	StaleRefused
 	// StaleFailed is an account whose last read failed otherwise.
 	StaleFailed
@@ -85,19 +84,19 @@ func (c StaleCause) Said() (full, short string) {
 }
 
 // RefusedRead is why the API refused a read, as the refusal given says it,
-// as claude.RefusedReadOf reads it off the read's failure: StaleLapsed where
-// it refused the organization's login, claude.SubscriptionEnded, which is
-// how an ended subscription is answered; StaleRefused where it refused the
-// token, claude.TokenRefused; and zero where it didn't, as of a read that
-// timed out or was answered otherwise, or that didn't fail, and of a refusal
-// this build doesn't know. A read refused holds its account back from every
+// as the read's failure gives it: StaleLapsed where it refused the
+// organization's login, quota.SubscriptionEnded, which is how an ended
+// subscription is answered; StaleRefused where it refused the token,
+// quota.TokenRefused; and zero where it didn't, as of a read that timed out
+// or was answered otherwise, or that didn't fail, and of a refusal this
+// build doesn't know. A read refused holds its account back from every
 // request, as the router's refusal of its token does, till a read comes back
 // clean: it's the one rule the router and status hold an account back by.
-func RefusedRead(refused claude.ReadRefusal) StaleCause {
+func RefusedRead(refused quota.ReadRefusal) StaleCause {
 	switch refused {
-	case claude.SubscriptionEnded:
+	case quota.SubscriptionEnded:
 		return StaleLapsed
-	case claude.TokenRefused:
+	case quota.TokenRefused:
 		return StaleRefused
 	}
 	return 0

@@ -41,18 +41,21 @@ once it's done.
   account's windows, with how much of each is used, as a fraction, and when it resets; each window's
   even pace, where even use would have put it by now, and its allowance, what can be spent of it an
   hour or a day and still last to its reset; what holds the account back, such as a limit it
-  reached, a refusal, its reserve, `refused_read`, Anthropic refusing its usage read as its
-  subscription has ended (`subscription_ended`) or its token is refused (`token_refused`), so it
-  takes no requests till a read comes back clean, or `token_foreign`, its token file holding
-  another subscription's token, so it takes no requests till `switchboard accounts token <id>`
-  gives it its own; how fast its 5-hour window, where it has one, as a verified
-  Ultra account hasn't, has been used lately, and whether that has it under pressure, running out
-  before it resets; and its sessions. With the accounts come `pool`, the room new sessions can go
-  to, summed across the accounts; what's coming up, soonest first, as a limit lifting, a window
-  running out or resetting, or a prime; the pool's pin, the account best used next, the router's
-  health, and, where the config's `[export] dir` names a folder, how the router's hourly export of
-  the history into it stands: when one last succeeded, why the last failed, in plain words, and
-  when the one under way began, as one waiting on macOS asking the user to allow it waits.
+  reached, a refusal, its reserve, `refused_read`, Anthropic refusing its usage read, which holds it
+  back till a read comes back clean: `token_refused`, its token refused, lifted at once by a new
+  token through `switchboard accounts token <id>`, or `subscription_ended`, its subscription ended,
+  lifted once it's renewed, at the router's next clean read of it, within half an hour, or at once
+  with `R` on the dashboard or `switchboard status --refresh`; or `token_foreign`, its token file
+  holding another subscription's token, so it takes no requests till
+  `switchboard accounts token <id>` gives it its own; how fast its 5-hour window, where it has one,
+  as a verified Ultra account hasn't, has been used lately, and whether that has it under pressure,
+  running out before it resets; and its sessions. With the accounts come `pool`, the room new
+  sessions can go to, summed across the accounts; what's coming up, soonest first, as a limit
+  lifting, a window running out or resetting, or a prime; the pool's pin, the account best used
+  next, the router's health, and, where the config's `[export] dir` names a folder, how the router's
+  hourly export of the history into it stands: when one last succeeded, why the last failed, in
+  plain words, and when the one under way began, as one waiting on macOS asking the user to allow it
+  waits.
 - After a limit is reset by hand on claude.ai, run `switchboard status --refresh`, which has the
   router first probe each account that can take no request, however lately it read it, but never
   twice in a minute, so it sees the reset.

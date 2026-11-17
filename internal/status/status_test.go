@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -56,7 +55,7 @@ func TestCollect(t *testing.T) {
 		Accounts: []status.Account{
 			{ID: "work", Label: "Work", TokenSet: true, FetchedAt: now.UTC(), Usage: workUsage},
 			{ID: "personal", Label: "Personal", TokenSet: false, Error: tokenstest.Missing("personal").Error()},
-			{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: claude.TokenRefused},
+			{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: quota.TokenRefused},
 		},
 	}.WorkedOut(policy)
 	if !reflect.DeepEqual(got, want) {
@@ -666,7 +665,7 @@ func TestDocumentJSON(t *testing.T) {
 						Failures: []quota.Failure{{Label: "Fable", Window: "7d_oi", Error: "HTTP 529 · Overloaded"}},
 					},
 					{ID: "personal", Label: "Personal", Error: "token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal"},
-					{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: claude.TokenRefused},
+					{ID: "side", Label: "Side", TokenSet: true, Error: "HTTP 401 · Invalid bearer token", RefusedRead: quota.TokenRefused},
 				},
 			},
 			want: `{
@@ -1867,8 +1866,8 @@ func TestShut(t *testing.T) {
 		{name: "past its limit", account: status.Account{Limit: status.Limit{Windows: []string{"5h"}, Until: built}}},
 		{name: "its token refused", account: status.Account{Refused: status.Refusal{Until: later, Status: 401}}, want: true},
 		{name: "refused a model family alone", account: status.Account{Refused: status.Refusal{Until: later, Status: 403, Family: "fable"}}},
-		{name: "its subscription ended, as its last read says", account: with(status.Account{}, refusedRead(claude.SubscriptionEnded)), want: true},
-		{name: "its token refused as it was last read", account: with(status.Account{}, refusedRead(claude.TokenRefused)), want: true},
+		{name: "its subscription ended, as its last read says", account: with(status.Account{}, refusedRead(quota.SubscriptionEnded)), want: true},
+		{name: "its token refused as it was last read", account: with(status.Account{}, refusedRead(quota.TokenRefused)), want: true},
 		{name: "its last read's error reading as a refusal, none said", account: status.Account{Error: endedSubscription}},
 		{name: "its last read refused otherwise", account: status.Account{Error: "HTTP 403 · Request not allowed"}},
 		{name: "its last read unanswered", account: status.Account{Error: "timed out after 5s"}},

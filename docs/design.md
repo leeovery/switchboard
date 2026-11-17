@@ -459,52 +459,54 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
 - **A read refused holds the account back** (the owner's call, 16 November 2026): where the API
   refuses a read of the account's usage, answering 401, its token refused, or 403 with OAuth
   authentication not allowed for its organization, which is how an ended subscription is answered,
-  in an answer of its own, carrying Anthropic's `Request-Id`, the router holds the account back from
-  every request, as for a token it refused itself. A proxy between refusing the read in the API's
-  place says nothing of the account: that's a read that fails otherwise. It's no candidate, however
-  much room it has; sessions on it move, and a pin to it yields, saying it `had its read refused`;
-  and its pool counts none of its room. A pool whose every account is held has no room, and what
-  Claude Code sees turns on the client's account, the one its token is (see Choosing an account,
-  step 5). Where that's in the pool, the request goes out on it all the same, for the upstream to
-  refuse it: the 401 or 403 is never relayed, so Claude Code gets the 502 above, naming the
-  upstream's refusal of the account. Where it's outside the pool, nothing goes out: switchboard
-  answers 429 itself, each account's cause in its message, `subscription lapsed` or `token refused`
-  (see Routing within a pool). The hold has no timer: it lasts till a read of it comes back clean,
-  by a probe, a prime or an answer, which clears the error. A read that fails otherwise after it, as
-  one timed out, unanswered or answered 5xx, keeps it, as that says nothing of whether the refusal
-  has ended; one refused again keeps it, saying why afresh, as a 401 after a 403 says `token
-  refused`. A held account is never passed over for being held: it's probed on the router's rounds
-  at any hour, as one whose probe read nothing, so a subscription renewed is seen within the half
-  hour (see The router's rounds); a choice probes it no sooner, nor the dashboard's refresh after a
-  reset, nor is a failed prime of it sent again sooner, as each read refused would only be another
-  warning. `R` and `--refresh` probe it at once, as someone asks to see a renewal. A new token in
-  its file lifts the hold at once, as it starts its probes afresh. The same token lost and back
-  keeps it, as that token would only be refused again: a file moved away and back, holding no usable
-  token two looks running, as a loss takes, or the router restarting while the file holds none, the
-  state file keeping the refusal for the token it held last. A read that fails otherwise with no
-  refusal before it holds nothing: the account routes on its windows as last read. A limit holding
-  the account too doesn't hide the hold: ROUTING, the routing card and `status` say the refusal
-  first, and nothing says it's back as the limit lifts, its windows' words reading `limit` with no
-  `back`, and Runway's stretch through now no `back` either. An account whose first read is refused,
-  as one added with its subscription already ended, says the refusal too, while every view draws it
-  as not read yet, as nothing of it has been, unless a limit or the router's own refusal of its
-  token holds it too. The hold begins at the first refusal of a run, kept through the refusals and
-  failures after it, which the state file keeps beside the last probe, `refused_since`, with why,
-  `refused_read`; the pools' room, which the forecast's day rate counts, holds the account back only
-  from then, never before, so a restart replaying the readings history counts its room till then,
-  however long it's been probed since. The router judges the hold from the probe's failure, as
-  `claude` reads it, never from its error's text, so no wording of an error lifts a hold or makes
-  one; it keeps why as a value, and the status document gives it as the account's `refused_read`,
-  `subscription_ended` or `token_refused`, never reworded, which status reads once, as the account's
-  `RefusedRead`: no view reads the error. A state file from before the value keeps the start without
-  why: why is read off its error's text, as the router that wrote it judged the hold. One from
-  before the hold keeps no start, and holds nothing, as its router held nothing, till the account's
-  next read judges it. A router from before reads the file all the same, passing over
-  `refused_read`, and judges the error's text, as it did; and a document from one gives the error
-  alone, which status reads as a read that failed otherwise. A session started while the account
-  is held doesn't start on its token as Claude Code's own while another's will do, as the router's
-  document says it, or with the router down its state file (see Launching). An account removed
-  goes as any other, its history kept.
+  in an answer of its own, carrying Anthropic's id for it, in its `Request-Id` header or its body's
+  `request_id`, the router holds the account back from every request, as for a token it refused
+  itself. A proxy between refusing the read in the API's place says nothing of the account: that's a
+  read that fails otherwise. It's no candidate, however much room it has; sessions on it move, and a
+  pin to it yields, saying it `had its read refused`; and its pool counts none of its room. A pool
+  whose every account is held has no room, and what Claude Code sees turns on the client's account,
+  the one its token is (see Choosing an account, step 5). Where that's in the pool, the request goes
+  out on it all the same, for the upstream to refuse it: the 401 or 403 is never relayed, so Claude
+  Code gets the 502 above, naming the upstream's refusal of the account. Where it's outside the
+  pool, nothing goes out: switchboard answers 429 itself, each account's cause in its message,
+  `subscription lapsed` or `token refused` (see Routing within a pool). The hold has no timer: it
+  lasts till a read of it comes back clean, by a probe, a prime or an answer, which clears the
+  error. A read that fails otherwise after it, as one timed out, unanswered or answered 5xx, keeps
+  it, as that says nothing of whether the refusal has ended; one refused again keeps it, saying why
+  afresh, as a 401 after a 403 says `token refused`. A held account is never passed over for being
+  held: it's probed on the router's rounds at any hour, as one whose probe read nothing, so a
+  subscription renewed is seen within the half hour (see The router's rounds); a choice probes it no
+  sooner, nor the dashboard's refresh after a reset, nor is a failed prime of it sent again sooner,
+  as each read refused would only be another warning. `R` and `--refresh` probe it at once, as
+  someone asks to see a renewal. A new token in its file lifts the hold at once, as it starts its
+  probes afresh. The same token lost and back keeps it, as that token would only be refused again: a
+  file moved away and back, holding no usable token two looks running, as a loss takes, or the
+  router restarting while the file holds none, the state file keeping the refusal for the token it
+  held last. A read that fails otherwise with no refusal before it holds nothing: the account routes
+  on its windows as last read. A limit holding the account too doesn't hide the hold: ROUTING, the
+  routing card and `status` say the refusal first, and nothing says it's back as the limit lifts,
+  its windows' words reading `limit` with no `back`, and Runway's stretch through now no `back`
+  either. An account whose first read is refused, as one added with its subscription already ended,
+  says the refusal too, while every view draws it as not read yet, as nothing of it has been, unless
+  a limit or the router's own refusal of its token holds it too. The hold begins at the first
+  refusal of a run, kept through the refusals and failures after it, which the state file keeps
+  beside the last probe, `refused_since`, with why, `refused_read`; the pools' room, which the
+  forecast's day rate counts, holds the account back only from then, never before, so a restart
+  replaying the readings history counts its room till then, however long it's been probed since. The
+  router judges the hold from the probe's failure, which says why as a `quota.ReadRefusal`, read
+  through an interface the router declares, never from its error's text, so no wording of an error
+  lifts a hold or makes one; it keeps why as a value, and the status document gives it as the
+  account's `refused_read`, `subscription_ended` or `token_refused`, never reworded, which status
+  reads once, as the account's `RefusedRead`: no view reads the error. A state file from before the
+  value keeps the start without why: why is read off its error's text, by the provider's
+  `RefusedReadIn`, as the router that wrote it judged the hold. One from before the hold keeps no
+  start, and holds nothing, as its router held nothing, till the account's next read judges it. A
+  router from before reads the file all the same, passing over `refused_read`, and judges the
+  error's text, as it did; and a document from one gives the error alone, which status reads as a
+  read that failed otherwise. A session started while the account is held doesn't start on its
+  token as Claude Code's own while another's will do, as the router's document says it, or with the
+  router down its state file (see Launching). An account removed goes as any other, its history
+  kept.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -2019,16 +2021,16 @@ formats below; the screens as signed off in Paper (see The screens, below).
     organization, or whose organization another account configured or decided has, as two
     accounts of one subscription have, takes a random id, its organization unknown. Each gets a
     label, its old id, where it had none.
-  - **The waits:** an answer counts only where it's the API's own, carrying Anthropic's
-    `Request-Id` for it. A request the API didn't answer, one a proxy between answered in its
-    place, and one answered 408, 425, 429 or a 5xx are no answer: the move waits and asks again
-    from the start, changing nothing meanwhile, 30 seconds the first time, then twice as long each
-    time, 5 minutes at the most. An answer of the API's own that names no organization, as a
-    refusal, counts only once such answers have lasted 10 minutes, each heard within 10 minutes of
-    the one before, so a passing incident or a captive portal never decides an id for good, nor
-    gives two Macs sharing a config different ones. A token file that can't be read, as a writer
-    that empties it first leaves it for a moment, is looked at again 3 seconds later, three looks
-    at most.
+  - **The waits:** an answer counts only where it's the API's own, carrying Anthropic's id for it,
+    in its `Request-Id` header or, of an error, its body's `request_id`. A request the API didn't
+    answer, one a proxy between answered in its place, and one answered 408, 425, 429 or a 5xx are
+    no answer: the move waits and asks again from the start, changing nothing meanwhile, 30 seconds
+    the first time, then twice as long each time, 5 minutes at the most. An answer of the API's own
+    that names no organization, as a refusal, counts only once such answers have lasted 10 minutes,
+    each heard within 10 minutes of the one before, so a passing incident or a captive portal never
+    decides an id for good, nor gives two Macs sharing a config different ones. A token file that
+    can't be read, as a writer that empties it first leaves it for a moment, is looked at again 3
+    seconds later, three looks at most.
   - **The strays,** token files of accounts neither configured nor known to the record, are asked
     about only where their answers may change what's decided, and only then does the move wait on
     one unanswered:
@@ -10847,7 +10849,8 @@ Claude-specific knowledge lives in `internal/claude`. The router and `status` de
 interfaces they define themselves (`router.Provider`, `router.Prober`, `status.Prober`), which
 `internal/claude` satisfies, and the windows that matter, the one a request starts among them,
 reach them, the scoring and the watch as a `score.Policy`, which the CLI fills in from
-`internal/claude`. `cmd/switchboard` and `internal/cli`, which wire the rest together,
+`internal/claude`. A guard holds the router to its interfaces: none of its files but its tests
+imports `internal/claude`. `cmd/switchboard` and `internal/cli`, which wire the rest together,
 `internal/launch`, which exists to start Claude Code, and `internal/setup`, which links `claude` to
 switchboard ahead of it, use `internal/claude` directly: for the `claude` command, where it's
 installed and its version, and the environment variables Claude Code reads. A few pieces stay

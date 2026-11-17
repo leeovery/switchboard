@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -121,7 +122,7 @@ type Route struct {
 	// router.KeptRefusals has it, which a launch with the router down chooses
 	// Claude Code's token by, as the router, started again, would hold the
 	// account back (see choose). nil keeps none.
-	Refused func(id string, token tokens.Token) claude.ReadRefusal
+	Refused func(id string, token tokens.Token) quota.ReadRefusal
 	// Patience is how long the router is waited for, as Patience.Ask waits.
 	Patience Patience
 	// Account is the id of the account to pin the session to, or "" to leave
