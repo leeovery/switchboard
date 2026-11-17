@@ -4,6 +4,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -197,6 +198,31 @@ func TestClaudeCodesOwnTokenPassesOverAnAccountTheRouterHoldsBack(t *testing.T) 
 			}
 		})
 	}
+}
+
+// A router slow to send its status document holds a routed launch up for a
+// second at most, after which the launch goes on as if nothing were known of
+// how the accounts stand: on the primary's token, though the document would
+// have held it back.
+func TestALaunchWaitsASecondAtMostForTheRoutersDocument(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		rt := healthy().routing([]string{"work", "personal", "side"}, map[string]status.Account{"work": readRefused(quota.SubscriptionEnded)})
+		rt.docWait = time.Minute
+		r := route(rt, "")
+		r.Document, r.Token = rt.Status, everyToken.Read
+
+		began := time.Now()
+		if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if waited := time.Since(began); waited > time.Second {
+			t.Errorf("the launch waited %s on the router, want a second at most", waited)
+		}
+		if got := h.environment(t)["CLAUDE_CODE_OAUTH_TOKEN"]; got != workToken {
+			t.Errorf("started on %q, want %q, the primary's, as if nothing were known", got, workToken)
+		}
+	})
 }
 
 // The log says each account passed over and why: what bars it, as the

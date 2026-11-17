@@ -11,6 +11,13 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
+// documentWait is how long a routed launch waits for the router's status
+// document of the session's pool, after its health answer, before it goes
+// on knowing nothing of how the accounts stand: a busy router would
+// otherwise hold the launch up for as long as the client waits on any
+// answer.
+const documentWait = time.Second
+
 // standing is how the accounts a launch can start on stand, beyond their
 // tokens, as far as the launch can know: routed, as the router's status
 // document of the session's pool has them; with the router down, as its
@@ -83,7 +90,8 @@ func keptBack(hold router.KeptHold) string {
 // the router as state says, can know: routed, as the router's status
 // document of the pool has them, asked for once the router has answered, as
 // Document asks; else as the router's state file keeps what holds them back,
-// as Held reads it. Where the document can't be had, it knows nothing.
+// as Held reads it. Where the document can't be had within documentWait, it
+// knows nothing.
 func (r Route) standing(ctx context.Context, state routerState, in place) standing {
 	if !state.routable() {
 		return standing{kept: r.Held}
@@ -91,7 +99,9 @@ func (r Route) standing(ctx context.Context, state routerState, in place) standi
 	if r.Document == nil {
 		return standing{}
 	}
-	doc, err := r.Document(ctx, in.id())
+	asking, cancel := context.WithTimeout(ctx, documentWait)
+	defer cancel()
+	doc, err := r.Document(asking, in.id())
 	if err != nil {
 		logger.Info("can't ask the router how the pool's accounts stand", "router", state.name, "pool", in.id(), "error", err)
 		return standing{}
