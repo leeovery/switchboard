@@ -2,7 +2,7 @@
 
 A dashboard shows one pool (see Pools, The dashboard in a pool), the one `--pool` names, `P`
 turning to the next, and every tab tells of the pool shown alone: the Log's requests, Sessions, a
-session's page, History, Graphs and the worth and tokens on Accounts, each read through the pool's
+session's page, Trends and the worth and tokens on Accounts, each read through the pool's
 read, `views.PoolRead`, by its id. The pool must be one the config has: `--pool` with any other id
 is refused, naming the pools configured.
 
@@ -13,7 +13,7 @@ removed pool's work, or another Mac's from an import, by its id, never folded in
 ## What it could do
 
 - **The dashboard's `--pool`** could take such a pool for what its recorded files hold of it,
-  History, the Log's requests and Sessions with each session's page, labelled as the verbs label a
+  Trends, Accounts' worth and tokens, the Log's requests and Sessions with each session's page, labelled as the verbs label a
   removed pool, as `pool Acme (removed 6 Oct)`; its windows, Runway and the routing card having no
   accounts to show, and `P` turning to the pools configured. The day rows and digests name their
   lines' pools already, so its reads are those a configured pool's are.
