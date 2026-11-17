@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -448,8 +447,7 @@ func (a *app) loadConfig() (*config.Config, error) {
 func (a *app) loadConfigAt(path string) (*config.Config, error) {
 	cfg, err := config.Load(path, a.HomeDir)
 	if errors.Is(err, fs.ErrNotExist) {
-		example := strings.TrimSuffix(config.Example, "\n")
-		return nil, fmt.Errorf("no config file at %s\n\nCreate one like this:\n\n%s", redact.Text(path), example)
+		return nil, fmt.Errorf("no config file at %s: run switchboard setup, which adds your accounts and writes it", redact.Text(path))
 	}
 	if err != nil {
 		return nil, err

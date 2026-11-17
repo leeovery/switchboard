@@ -487,10 +487,14 @@ func TestReadPoolsReadsThemAsLoadReadsAConfigsOwn(t *testing.T) {
 }
 
 // A pool covers each of its directories and everything beneath them,
-// compared a whole folder name at a time and ignoring case; the unfenced
-// pool covers none.
+// compared a whole folder name at a time, ignoring case, and taking a name
+// with its accents composed for the same name with them apart, as macOS
+// does; the unfenced pool covers none.
 func TestPoolCovers(t *testing.T) {
 	acme := config.Pool{ID: "q7mt", Dirs: []string{"/Users/test/Code/acme", "/Volumes/Acme"}}
+	// Café is written with its é composed, as a name is typed, and apart, an
+	// e and its accent, as Finder makes one.
+	composed, apart := config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/caf\u00e9"}}, config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/cafe\u0301"}}
 	tests := []struct {
 		name string
 		pool config.Pool
@@ -505,6 +509,10 @@ func TestPoolCovers(t *testing.T) {
 		{name: "around one", pool: acme, dir: "/Users/test/Code"},
 		{name: "outside it", pool: acme, dir: "/tmp"},
 		{name: "the unfenced pool", pool: config.Pool{ID: "b2n8"}, dir: "/Users/test/Code/acme"},
+		{name: "a composed name inside one written apart", pool: apart, dir: "/Users/test/Code/caf\u00e9/api", want: true},
+		{name: "a name apart inside one written composed", pool: composed, dir: "/Users/test/Code/cafe\u0301/api", want: true},
+		{name: "a name apart inside one composed, ignoring case", pool: composed, dir: "/Users/test/Code/CAFE\u0301", want: true},
+		{name: "a name without its accent", pool: composed, dir: "/Users/test/Code/cafe"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

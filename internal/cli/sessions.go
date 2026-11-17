@@ -17,6 +17,37 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// sessionsDocument is what sessions --json prints of today's sessions: where
+// they were read from, as sessionsSource says; the pool they're of, by its id
+// and label, none in a config with no pools; and the List.
+type sessionsDocument struct {
+	Source    string `json:"source"`
+	Pool      string `json:"pool,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
+	views.SessionList
+}
+
+// Where sessions read today's sessions from, as its JSON's source says.
+const (
+	// sessionsFromRouter marks a list the router's sessions went into, as it
+	// answered, those running marked so.
+	sessionsFromRouter = status.SourceRouter
+	// sessionsFromLedger marks a list of the ledger's sessions alone, none
+	// running, as where the router isn't running, can't be asked, or isn't
+	// asked, of a pool it doesn't route.
+	sessionsFromLedger = "ledger"
+)
+
+// sessionsSource says where a list of the pool's sessions was read from, as
+// routedSessions read them: the router's, unless it lists them unlisted, or
+// isn't asked, of a pool kept but not configured; else the ledger's alone.
+func sessionsSource(pool filedPool, unlisted bool) string {
+	if pool.kept || unlisted {
+		return sessionsFromLedger
+	}
+	return sessionsFromRouter
+}
+
 func newSessionsCommand(a *app) *cobra.Command {
 	var (
 		form formFlags
@@ -106,7 +137,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	})
 	list = list.Named(pool.names(cfg, readers.removed))
 	if asJSON {
-		return writeJSON(out, list)
+		return writeJSON(out, sessionsDocument{Source: sessionsSource(pool, unlisted), Pool: pool.ID, PoolLabel: pool.Label, SessionList: list})
 	}
 	if _, err := io.WriteString(out, pool.heading()); err != nil {
 		return err

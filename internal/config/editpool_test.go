@@ -152,6 +152,34 @@ label = "Default"
 			want:   pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs  = ["~/Code/acme", "/Volumes/Acme"]`),
 		},
 		{
+			name:   "adding a pool fenced to directories in the home given whole, as a shell gives ~/Code/side, writing them from ~/",
+			config: pooled,
+			edit: func(d *config.Draft) error {
+				return d.AddPool(config.NewPool{ID: "m5r1", Label: "Side", Dirs: []string{"/Users/test/Code/side/", "/users/TEST/Code/web/../api", "/Users/testing/side"}})
+			},
+			want: pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\"/Volumes/Client\"]\n\n[[pool]]\nid    = \"m5r1\"  # do not edit: links the pool to its history\nlabel = \"Side\"\ndirs  = [\"~/Code/side\", \"~/Code/api\", \"/Users/testing/side\"]\n"),
+		},
+		{
+			name:   "adding a pool fenced to the home directory itself, writing it whole",
+			config: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"  # do not edit: links the pool to its history\ndirs = [\"/Volumes/Work\"]\n",
+			edit: func(d *config.Draft) error {
+				return d.AddPool(config.NewPool{ID: "m5r1", Label: "Home", Dirs: []string{"/Users/test"}})
+			},
+			want: "[[account]]\nid = \"work\"  # do not edit: links the account to its history\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"  # do not edit: links the pool to its history\ndirs = [\"/Volumes/Work\"]\n\n[[pool]]\nid    = \"m5r1\"  # do not edit: links the pool to its history\nlabel = \"Home\"\ndirs  = [\"/Users/test\"]\n",
+		},
+		{
+			name:   "fencing a pool to a directory in the home given whole, writing it from ~/",
+			config: pooled,
+			edit:   func(d *config.Draft) error { return d.SetPoolDirs("h4w2", []string{"/Users/test/Archive/client"}) },
+			want:   pooledWith(t, `dirs = ["/Volumes/Client"]`, `dirs = ["~/Archive/client"]`),
+		},
+		{
+			name:   "fencing a pool to the directory it's fenced to, given whole, leaving it as it is",
+			config: pooled,
+			edit:   func(d *config.Draft) error { return d.SetPoolDirs("q7mt", []string{"/Users/test/Code/acme"}) },
+			want:   pooled,
+		},
+		{
 			name:   "fencing a pool in place of its directories, keeping the comment beside them",
 			config: pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs  = ["~/Code/acme"]  # the client's repos, "]" and all`),
 			edit:   func(d *config.Draft) error { return d.SetPoolDirs("q7mt", []string{"/Volumes/Acme"}) },

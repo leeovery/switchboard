@@ -27,8 +27,8 @@ ending `— not starting claude`.
 | `can't tell which pool ~/Code/x is in: neither the config, the router nor the accounts record names any pools` | Nothing names any pools, so any folder may be fenced. Put the pools back in the config. |
 | `the router routes no account of pool Acme yet: any the config gives it waits for the router to restart` | Wait for the router to restart itself, or run `switchboard service restart`. |
 
-`no pool covers` means every pool is fenced, and none holds the folder. To leave a pool unfenced,
-run `switchboard pool edit q7mt --unfence`. A git worktree belongs in the same fence as its
+`no pool covers` means every pool is fenced, and none holds the folder. To leave your first pool
+unfenced, run `switchboard pool edit d3wn --unfence`. A git worktree belongs in the same fence as its
 repository, or outside every fence with it. The own-login refusal comes from `--direct`, or from a
 start without switchboard, inside a fence. Without switchboard, the message starts with why.
 

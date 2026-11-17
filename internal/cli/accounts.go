@@ -271,11 +271,12 @@ directly above it, and its token file, <state dir>/tokens/<id>. A token file
 that's a link goes, but not the file it leads to, which is left as it is. The
 only account can't be removed, as a config needs one.
 
-Removing the primary makes the account marked primary = true the primary, or
-the first when none is, and says which. The sessions running on the removed
-account's token, as every session holds the primary's, stay routed, as the
-new primary's, for a week from when the router takes the change up, while
-the new primary has a usable token.
+Removing a pool's primary makes the pool's account marked primary = true its
+primary, or its first when none is, and says which; removing a pool's last
+account says the pool has no accounts now. The sessions running on the
+removed account's token, as every session holds its pool's primary's, stay
+routed, as the new primary's, for a week from when the router takes the
+change up, while the new primary has a usable token.
 
 ` + editingTheConfig,
 		Args: oneAccount,

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 )
@@ -490,11 +492,19 @@ func overlap(a, b fence) error {
 
 // within reports whether path is dir or inside it, both absolute and clean,
 // compared a whole folder name at a time, so /Code/acme doesn't hold
-// /Code/acme-api, and ignoring case, as macOS compares them. It's lexical
-// alone: it reads no files.
+// /Code/acme-api, as macOS compares them: ignoring case, and taking a name
+// with its accents composed for the same name with them apart, as a name
+// typed and one Finder made can differ. It's lexical alone: it reads no
+// files.
 func within(path, dir string) bool {
 	in, fence := folders(path), folders(dir)
-	return len(fence) <= len(in) && slices.EqualFunc(fence, in[:len(fence)], strings.EqualFold)
+	return len(fence) <= len(in) && slices.EqualFunc(fence, in[:len(fence)], sameFolder)
+}
+
+// sameFolder reports whether a and b name one folder, as within compares
+// them.
+func sameFolder(a, b string) bool {
+	return strings.EqualFold(norm.NFC.String(a), norm.NFC.String(b))
 }
 
 // folders returns the folder names of path, from the root.

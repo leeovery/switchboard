@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/cli"
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -148,7 +147,7 @@ func TestAccountsWithoutConfig(t *testing.T) {
 	got := run(t, testDeps(nil, home), "accounts")
 	want := result{
 		stderr: "Error: no config file at " + filepath.Join(home, ".config", "switchboard", "config.toml") +
-			"\n\nCreate one like this:\n\n" + config.Example,
+			": run switchboard setup, which adds your accounts and writes it\n",
 		code: 1,
 	}
 	if got != want {
@@ -276,7 +275,7 @@ func TestAccountsTokenWithoutConfig(t *testing.T) {
 	home := t.TempDir()
 
 	got := runWithInput(t, testDeps(nil, home), "test-token-work\n", "accounts", "token", "work")
-	if want := "Error: no config file at " + filepath.Join(home, ".config", "switchboard", "config.toml") + "\n"; got.code != 1 || !strings.HasPrefix(got.stderr, want) {
+	if want := "Error: no config file at " + filepath.Join(home, ".config", "switchboard", "config.toml") + ": run switchboard setup, which adds your accounts and writes it\n"; got.code != 1 || !strings.HasPrefix(got.stderr, want) {
 		t.Errorf("switchboard accounts token = %+v, want an error starting %q", got, want)
 	}
 }

@@ -477,7 +477,6 @@ func TestAddingAndRemovingAnAccountLeavesTheConfigAsItWas(t *testing.T) {
 	for _, before := range []string{
 		commented,
 		priced,
-		config.Example,
 		"listen = \"127.0.0.1:4747\"\n\n[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[notifications]\nmoves = true\n",
 		"[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[history]\nkeep = \"30d\"\n",
 		"[[account]]\nid = \"work\"  # do not edit: links the account to its history\n\n[ledger]\nkeep = \"120d\"\n",
@@ -915,8 +914,8 @@ func TestSetPrimeDay(t *testing.T) {
 		},
 		{
 			name:   "past a [prime] table left commented out",
-			config: config.Example,
-			want:   config.Example + "\n[prime]\nday = \"08:00-23:00\"\n",
+			config: commented,
+			want:   commented + "\n[prime]\nday = \"08:00-23:00\"\n",
 		},
 		{
 			name:   "in place of the day given, keeping the comment beside it",

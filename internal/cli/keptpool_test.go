@@ -123,16 +123,31 @@ func TestAPoolTheRecordKeepsIsReadByItsID(t *testing.T) {
 	sessions := []struct {
 		args []string
 		want []string
+		// of is the pool the list names at its top, read from the ledger
+		// alone.
+		of listTop
 	}{
-		{args: []string{"--pool", "q7mt"}, want: []string{status.ShortID(sessionB)}},
-		{args: []string{"--pool", "f4xk"}, want: []string{status.ShortID(sessionD)}},
+		{args: []string{"--pool", "q7mt"}, want: []string{status.ShortID(sessionB)}, of: listTop{Source: "ledger", Pool: "q7mt", PoolLabel: "Acme"}},
+		{args: []string{"--pool", "f4xk"}, want: []string{status.ShortID(sessionD)}, of: listTop{Source: "ledger", Pool: "f4xk", PoolLabel: "Client"}},
 	}
 	for _, tt := range sessions {
 		got := run(t, deps, append([]string{"sessions", "--json"}, tt.args...)...)
 		if ids := sessionsListed(t, got); !slices.Equal(ids, tt.want) || got.stderr != "" {
 			t.Errorf("switchboard sessions --json %s listed %q, said %q; want %q, saying nothing of the router, which runs nothing in it", strings.Join(tt.args, " "), ids, got.stderr, tt.want)
 		}
+		var top listTop
+		if err := json.Unmarshal([]byte(got.stdout), &top); err != nil || top != tt.of {
+			t.Errorf("switchboard sessions --json %s has at its top %+v (%v), want %+v", strings.Join(tt.args, " "), top, err, tt.of)
+		}
 	}
+}
+
+// listTop is what a list's JSON says at its top: where it was read from, and
+// the pool it's of.
+type listTop struct {
+	Source    string `json:"source"`
+	Pool      string `json:"pool"`
+	PoolLabel string `json:"pool_label"`
 }
 
 // The text of a verb reading a kept pool names it by the record's label,

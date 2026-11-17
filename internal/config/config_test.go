@@ -809,22 +809,6 @@ func TestMostDaysIsTheMostWholeDaysADurationHolds(t *testing.T) {
 	}
 }
 
-func TestExampleIsValid(t *testing.T) {
-	cfg, err := load(writeConfig(t, config.Example))
-	if err != nil {
-		t.Fatalf("Load(Example) error = %v", err)
-	}
-	if primary := cfg.Accounts.Primary(); primary.ID != "b6s7" {
-		t.Errorf("Load(Example) primary = %+v, want b6s7", primary)
-	}
-	if !strings.Contains(config.Example, "\n# reserve = 0.1 ") || slices.ContainsFunc(cfg.Accounts, func(a config.Account) bool { return a.Reserve != 0 }) {
-		t.Errorf("Example reads\n%s\nwant a reserve shown, and left off", config.Example)
-	}
-	if !strings.Contains(config.Example, "# [prime]\n# day = \"08:00-23:00\"\n") || cfg.Prime.On() {
-		t.Errorf("Example reads\n%s\nwant priming shown, and left off", config.Example)
-	}
-}
-
 func TestLoadMissingFile(t *testing.T) {
 	_, err := load(filepath.Join(t.TempDir(), "config.toml"))
 	if !errors.Is(err, fs.ErrNotExist) {
