@@ -10,7 +10,7 @@ ROUTING reads `■ subscription lapsed · its subscription needs renewing`, and 
 `subscription lapsed` in red. When the router last read the account, Anthropic refused the read.
 Anthropic refuses the login of an ended subscription that way.
 
-The router sends nothing on that account until a read of it comes back clean:
+Until a read of the account comes back clean, the router holds the account back:
 
 - Sessions on the account move to the other accounts.
 - A pin to the account yields.
@@ -38,8 +38,8 @@ switchboard accounts remove b6s7
 ## An account reads `token refused`
 
 ROUTING reads `■ token refused · its token needs renewing`. When the router last read the account,
-Anthropic refused the token. The router sends the account nothing until a read comes back clean,
-the same as for `subscription lapsed`.
+Anthropic refused the token. The router holds the account back until a read comes back clean, the
+same as for `subscription lapsed`.
 
 Give the account a new token. The router takes up a new token within 3 seconds of the file
 changing, and routes to the account at once. The same token written back to the file lifts

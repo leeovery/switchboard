@@ -122,6 +122,15 @@ func (Provider) Usage(h http.Header) quota.Usage {
 	return ParseUsage(h)
 }
 
+// RefusedReadIn is why the API refused a probe's read whose failure's text is
+// text, as a probe's error gives it, judged by its text alone, whoever
+// answered: as a router from before judged it, which kept nothing else in its
+// state file. None where it wasn't refused, or text gives no answer, as of a
+// probe that timed out.
+func (Provider) RefusedReadIn(text string) quota.ReadRefusal {
+	return refusedReadIn(text)
+}
+
 // ErrorMessage returns the message of the API error a response's body holds,
 // reading no more than 64 KiB of it, with token and anything else shaped like
 // a Claude token hidden; or "" when it holds none.

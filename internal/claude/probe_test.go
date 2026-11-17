@@ -788,6 +788,8 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 		{name: "429 without usage", reply: apiError(http.StatusTooManyRequests, "Rate limited"), wantStatus: http.StatusTooManyRequests},
 		{name: "529", reply: apiError(529, "Overloaded"), wantStatus: 529},
 		{name: "403 from a proxy between, without Anthropic's id for it", reply: reply{status: http.StatusForbidden, body: "Blocked by policy"}, wantRefused: true},
+		{name: "401, Anthropic's id for it in its body alone", reply: idInBody(apiError(http.StatusUnauthorized, "Invalid bearer token")), wantRefused: true, wantStatus: http.StatusUnauthorized},
+		{name: "529, Anthropic's id for it in its body alone", reply: idInBody(apiError(529, "Overloaded")), wantStatus: 529},
 		{name: "no answer in time", reply: reply{hang: true}},
 	}
 	for _, tt := range tests {
@@ -822,26 +824,29 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 const endedSubscription = "OAuth authentication is currently not allowed for this organization."
 
 // A probe's error says why the API refused the read, where the API itself
-// answered, carrying Anthropic's id for its answer: its token, answering 401,
-// or the organization's OAuth login, answering 403 with the message an ended
-// subscription is answered with, in any case. Never another 403, nor any
-// answer a proxy between gives in the API's place, which says nothing of the
-// account, nor a probe the API didn't answer.
+// answered, carrying Anthropic's id for its answer in its Request-Id header
+// or its body's request_id: its token, answering 401, or the organization's
+// OAuth login, answering 403 with the message an ended subscription is
+// answered with, in any case. Never another 403, nor any answer a proxy
+// between gives in the API's place, which says nothing of the account, nor a
+// probe the API didn't answer.
 func TestAProbesErrorSaysWhetherTheAPIRefusedItsTokenOrItsLogin(t *testing.T) {
 	tests := []struct {
 		name  string
 		reply reply
-		want  claude.ReadRefusal
+		want  quota.ReadRefusal
 	}{
-		{name: "401", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), want: claude.TokenRefused},
-		{name: "401 without a message", reply: ownReply(http.StatusUnauthorized), want: claude.TokenRefused},
-		{name: "403, the login barred", reply: apiError(http.StatusForbidden, endedSubscription), want: claude.SubscriptionEnded},
-		{name: "403, the login barred, in another case", reply: apiError(http.StatusForbidden, strings.ToUpper(endedSubscription)), want: claude.SubscriptionEnded},
-		{name: "403, the login barred, in lower case", reply: apiError(http.StatusForbidden, strings.ToLower(endedSubscription)), want: claude.SubscriptionEnded},
+		{name: "401", reply: apiError(http.StatusUnauthorized, "Invalid bearer token"), want: quota.TokenRefused},
+		{name: "401 without a message", reply: ownReply(http.StatusUnauthorized), want: quota.TokenRefused},
+		{name: "403, the login barred", reply: apiError(http.StatusForbidden, endedSubscription), want: quota.SubscriptionEnded},
+		{name: "403, the login barred, in another case", reply: apiError(http.StatusForbidden, strings.ToUpper(endedSubscription)), want: quota.SubscriptionEnded},
+		{name: "403, the login barred, in lower case", reply: apiError(http.StatusForbidden, strings.ToLower(endedSubscription)), want: quota.SubscriptionEnded},
 		{name: "403 with another message", reply: apiError(http.StatusForbidden, "Not allowed")},
 		{name: "403 without a message", reply: ownReply(http.StatusForbidden)},
 		{name: "another status with the login's message", reply: apiError(http.StatusBadRequest, endedSubscription)},
 		{name: "529", reply: apiError(529, "Overloaded")},
+		{name: "401, Anthropic's id for it in its body alone", reply: idInBody(apiError(http.StatusUnauthorized, "Invalid bearer token")), want: quota.TokenRefused},
+		{name: "403, the login barred, Anthropic's id for it in its body alone", reply: idInBody(apiError(http.StatusForbidden, endedSubscription)), want: quota.SubscriptionEnded},
 		{name: "401 from a proxy between, without Anthropic's id for it", reply: proxied(apiError(http.StatusUnauthorized, "Invalid bearer token"))},
 		{name: "403 from a proxy between, the login's message, without Anthropic's id for it", reply: proxied(apiError(http.StatusForbidden, endedSubscription))},
 		{name: "no answer in time", reply: reply{hang: true}},
@@ -855,27 +860,24 @@ func TestAProbesErrorSaysWhetherTheAPIRefusedItsTokenOrItsLogin(t *testing.T) {
 			if err == nil {
 				t.Fatal("Probe() succeeded, want an error")
 			}
-			if got := claude.RefusedReadOf(err); got != tt.want {
-				t.Errorf("RefusedReadOf(%q) = %q, want %q", err, got, tt.want)
+			if got := refusedRead(err); got != tt.want {
+				t.Errorf("Probe() error %q says the API refused the read as %q, want %q", err, got, tt.want)
 			}
 		})
 	}
-
-	t.Run("an error that isn't a probe's", func(t *testing.T) {
-		if got := claude.RefusedReadOf(errors.New("HTTP 401 · Invalid bearer token")); got != "" {
-			t.Errorf("RefusedReadOf(an error of text alone) = %q, want none: only a probe's says", got)
-		}
-	})
 }
 
-// The words a refusal of a read is given by, in the status document and the
-// state file, are fixed: a refusal reworded fails here.
-func TestTheRefusalsOfAReadKeepTheirWords(t *testing.T) {
-	for refused, want := range map[claude.ReadRefusal]string{claude.SubscriptionEnded: "subscription_ended", claude.TokenRefused: "token_refused"} {
-		if string(refused) != want {
-			t.Errorf("a refusal is given as %q, want %q, as the reference fixes it", refused, want)
-		}
+// refusedRead is why a probe's error says the API refused the read: none
+// where it doesn't say.
+func refusedRead(err error) quota.ReadRefusal {
+	r, ok := errors.AsType[interface {
+		error
+		RefusedRead() quota.ReadRefusal
+	}](err)
+	if !ok {
+		return ""
 	}
+	return r.RefusedRead()
 }
 
 // ownReply is a reply of status without a body, with Anthropic's id for it,
@@ -891,6 +893,14 @@ func proxied(r reply) reply {
 	return r
 }
 
+// idInBody is the API's error reply with Anthropic's id for it in its body,
+// as request_id, rather than in its Request-Id header.
+func idInBody(r reply) reply {
+	r.header = nil
+	r.body = strings.TrimSuffix(r.body, "}") + `,"request_id":"req_test"}`
+	return r
+}
+
 // The text of a probe's error, read back as a router from before kept it,
 // alone, says the refusal it gives, whoever answered: its token, answering
 // 401, or the organization's login, answering 403 with the message an ended
@@ -899,12 +909,12 @@ func TestTheTextOfAProbesErrorSaysTheRefusalItGives(t *testing.T) {
 	tests := []struct {
 		name string
 		text string
-		want claude.ReadRefusal
+		want quota.ReadRefusal
 	}{
-		{name: "401", text: "HTTP 401 · Invalid bearer token", want: claude.TokenRefused},
-		{name: "401 without a message", text: "HTTP 401", want: claude.TokenRefused},
-		{name: "403, the login barred, cut short as the error keeps it", text: "HTTP 403 · OAuth authentication is currently not allowed for this organ", want: claude.SubscriptionEnded},
-		{name: "403, the login barred, in lower case", text: "HTTP 403 · oauth authentication is currently not allowed", want: claude.SubscriptionEnded},
+		{name: "401", text: "HTTP 401 · Invalid bearer token", want: quota.TokenRefused},
+		{name: "401 without a message", text: "HTTP 401", want: quota.TokenRefused},
+		{name: "403, the login barred, cut short as the error keeps it", text: "HTTP 403 · OAuth authentication is currently not allowed for this organ", want: quota.SubscriptionEnded},
+		{name: "403, the login barred, in lower case", text: "HTTP 403 · oauth authentication is currently not allowed", want: quota.SubscriptionEnded},
 		{name: "403 with another message", text: "HTTP 403 · Not allowed"},
 		{name: "another status with the login's message", text: "HTTP 400 · OAuth authentication is currently not allowed"},
 		{name: "529", text: "HTTP 529 · Overloaded"},
@@ -913,7 +923,7 @@ func TestTheTextOfAProbesErrorSaysTheRefusalItGives(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := claude.RefusedReadIn(tt.text); got != tt.want {
+			if got := (claude.Provider{}).RefusedReadIn(tt.text); got != tt.want {
 				t.Errorf("RefusedReadIn(%q) = %q, want %q", tt.text, got, tt.want)
 			}
 		})

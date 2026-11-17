@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -67,10 +66,17 @@ type stateFile struct {
 	// emit tells the events loading the file calls for: each pool's pin it
 	// drops whole, as Unpinned.
 	emit func(Event)
+	// refusalIn reads why the API refused a read off the text of its
+	// failure, as a file from before kept it alone, as the provider's
+	// RefusedReadIn does.
+	refusalIn func(text string) quota.ReadRefusal
 }
 
-func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold, heirs heirs) *stateFile {
-	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told, heirs: heirs, emit: func(Event) {}}
+func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold, heirs heirs, refusalIn func(string) quota.ReadRefusal) *stateFile {
+	return &stateFile{
+		write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told, heirs: heirs,
+		emit: func(Event) {}, refusalIn: refusalIn,
+	}
 }
 
 // changes are the changes the state file lacks. Noting one never blocks, and
@@ -210,25 +216,41 @@ type savedReading struct {
 	Extra         quota.ExtraUsage     `json:"extra_usage,omitzero"`
 	Probed        time.Time            `json:"probed,omitzero"`
 	ProbeError    string               `json:"probe_error,omitempty"`
-	RefusedRead   claude.ReadRefusal   `json:"refused_read,omitempty"`
+	RefusedRead   quota.ReadRefusal    `json:"refused_read,omitempty"`
 	Misses        int                  `json:"misses,omitempty"`
 	RefusedSince  time.Time            `json:"refused_since,omitzero"`
+}
+
+// readRefusals has each reading the file kept say why the API refused its
+// account's last read, as its refusal reads it, by readIn where a file from
+// before kept the refusal's text alone, and reports whether any reads
+// otherwise than it was kept, so the file is written again as this router
+// keeps it.
+func (s savedUsage) readRefusals(readIn func(text string) quota.ReadRefusal) (changed bool) {
+	for id, r := range s.Readings {
+		if refused := r.refusal(readIn); refused != r.RefusedRead {
+			r.RefusedRead = refused
+			s.Readings[id] = r
+			changed = true
+		}
+	}
+	return changed
 }
 
 // refusal is why the API refused the account's last read, as the file kept
 // it: its RefusedRead, where that's a refusal, as status.RefusedRead judges
 // it. A file from before kept none: one that kept a refusal's start, as a
 // router that judged a read refused by its error's text alone wrote it, has
-// the refusal that text gives, as claude.RefusedReadIn reads it; one from
-// before the hold, which kept no start, has none, as its router held
-// nothing, till the account's next read judges it. A refusal this router
-// doesn't know, as a later one may have kept, is none.
-func (r savedReading) refusal() claude.ReadRefusal {
+// the refusal readIn reads off that text; one from before the hold, which
+// kept no start, has none, as its router held nothing, till the account's
+// next read judges it. A refusal this router doesn't know, as a later one
+// may have kept, is none.
+func (r savedReading) refusal(readIn func(text string) quota.ReadRefusal) quota.ReadRefusal {
 	switch {
 	case status.RefusedRead(r.RefusedRead) != 0:
 		return r.RefusedRead
 	case r.RefusedRead == "" && !r.RefusedSince.IsZero():
-		return claude.RefusedReadIn(r.ProbeError)
+		return readIn(r.ProbeError)
 	}
 	return ""
 }
@@ -243,6 +265,7 @@ func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
 	saved := f.read(now)
+	refusals := saved.readRefusals(f.refusalIn)
 	tokens := f.accounts.recall(saved.Tokens, f.heirs, now)
 	sessions, unpinned := f.sessions.recall(saved.savedSessions, f.accounts, now, f.state.pools.current())
 	f.state.recallPins(f.sessions.pinsNow())
@@ -251,7 +274,7 @@ func (f *stateFile) load(path string) {
 	}
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
-	if tokens || sessions || usage || told {
+	if refusals || tokens || sessions || usage || told {
 		f.changes.note()
 	}
 	held := f.snapshot()

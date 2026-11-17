@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/claude/claudetest"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -580,34 +579,34 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 		kept savedReading
 		// want is why work's read is refused once loaded, since when, and
 		// resaved whether the file is due to be saved again.
-		want    claude.ReadRefusal
+		want    quota.ReadRefusal
 		since   time.Time
 		resaved bool
 	}{
 		{
 			name: "kept as a value",
-			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: claude.SubscriptionEnded, RefusedSince: began},
-			want: claude.SubscriptionEnded, since: began,
+			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.SubscriptionEnded, RefusedSince: began},
+			want: quota.SubscriptionEnded, since: began,
 		},
 		{
 			name: "kept as a value, its error reading otherwise",
-			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: claude.TokenRefused, RefusedSince: began},
-			want: claude.TokenRefused, since: began,
+			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: quota.TokenRefused, RefusedSince: began},
+			want: quota.TokenRefused, since: began,
 		},
 		{
 			name: "kept as a value without when it began, as by hand: from its last probe",
-			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedRead: claude.TokenRefused},
-			want: claude.TokenRefused, since: probed, resaved: true,
+			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedRead: quota.TokenRefused},
+			want: quota.TokenRefused, since: probed, resaved: true,
 		},
 		{
 			name: "kept by its start and its error's text alone, as a router from before the value kept it",
 			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedSince: began},
-			want: claude.SubscriptionEnded, since: began, resaved: true,
+			want: quota.SubscriptionEnded, since: began, resaved: true,
 		},
 		{
 			name: "kept by its start, its error's text a token refused",
 			kept: savedReading{ProbeError: errTokenRefused.Error(), RefusedSince: began},
-			want: claude.TokenRefused, since: began, resaved: true,
+			want: quota.TokenRefused, since: began, resaved: true,
 		},
 		{
 			name:    "kept by its start, its error's text no refusal",
@@ -620,7 +619,7 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 		},
 		{
 			name:    "a refusal this router doesn't know",
-			kept:    savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: claude.ReadRefusal("something_new"), RefusedSince: began},
+			kept:    savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.ReadRefusal("something_new"), RefusedSince: began},
 			resaved: true,
 		},
 		{

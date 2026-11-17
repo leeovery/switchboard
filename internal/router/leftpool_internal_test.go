@@ -849,7 +849,7 @@ func TestTheTokensOfAnAccountRemovedWhileTheRouterWasAwayCountAsItsPoolsPrimarys
 				}
 				return ""
 			}}
-			f := newStateFile(at(start), changes, newSessions(at(start), changes.note, changes.routine), as, usage, newYearsTold(changes.note), h)
+			f := newStateFile(at(start), changes, newSessions(at(start), changes.note, changes.routine), as, usage, newYearsTold(changes.note), h, claude.Provider{}.RefusedReadIn)
 
 			f.load(path)
 

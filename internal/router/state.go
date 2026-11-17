@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/prime"
 	"github.com/leeovery/switchboard/internal/quota"
@@ -53,13 +52,13 @@ type usage struct {
 	probed, ended time.Time
 	// probeErr says why the last probe read nothing, but a refused read's
 	// error outlasts the failures after it, as failed says, and refusedRead
-	// why the API refused it, where it did, as claude.RefusedReadOf reads it
-	// off the probe's failure; and misses counts the probes in a row that
-	// read nothing, until a reading comes in, to backingOff. refusedSince is
-	// when its read was first refused, of the refusals refusedRead has kept
-	// in a row, which the hold runs from, zero while none has.
+	// why the API refused it, where it did, as refusalOf reads it off the
+	// probe's failure; and misses counts the probes in a row that read
+	// nothing, until a reading comes in, to backingOff. refusedSince is when
+	// its read was first refused, of the refusals refusedRead has kept in a
+	// row, which the hold runs from, zero while none has.
 	probeErr     string
-	refusedRead  claude.ReadRefusal
+	refusedRead  quota.ReadRefusal
 	misses       int
 	refusedSince time.Time
 	// warned holds, by key, when each window the last probe couldn't read was
@@ -557,7 +556,7 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if err != nil {
 		if !taken.tokenGone {
 			u.probed, u.ended = at, at
-			u.failed(redact.Text(err.Error()), claude.RefusedReadOf(err), at)
+			u.failed(redact.Text(err.Error()), refusalOf(err), at)
 			u.misses = min(u.misses+1, backingOff)
 			s.routine()
 		}
@@ -1275,7 +1274,7 @@ func (u *usage) heldByReadAt(at time.Time) bool {
 // read comes back clean. A refusal that follows none starts the hold, at at;
 // one after another, as a token refused after a subscription ended, says why
 // afresh, the hold running on from when it began.
-func (u *usage) failed(err string, refused claude.ReadRefusal, at time.Time) {
+func (u *usage) failed(err string, refused quota.ReadRefusal, at time.Time) {
 	refusal := status.RefusedRead(refused) != 0
 	switch {
 	case u.readRefused() && !refusal:
@@ -1720,9 +1719,10 @@ func (s *state) recall(saved savedUsage, holding func(id string) tokenKept) (cha
 // both read and retired was read; one retired that shared says no model
 // shares wasn't retired; a probe kept as ending after now, as before the
 // clock was set back, ended now; a count of misses runs from none to
-// backingOff; an error has nothing shaped like a token in it; and a read
-// refused is as savedReading's refusal says. It reports whether it took the
-// probes otherwise than they were kept, or left them out.
+// backingOff; and an error has nothing shaped like a token in it. It reports
+// whether it took the probes otherwise than they were kept, or left them out.
+// Why a read was refused is as the file kept it, read as savedUsage's
+// readRefusals reads it.
 func (u *usage) recall(kept savedReading, token tokenKept, shared func(key string) bool, now time.Time) (changed bool) {
 	for _, w := range kept.Windows {
 		u.windows[w.Key] = w
@@ -1736,7 +1736,7 @@ func (u *usage) recall(kept savedReading, token tokenKept, shared func(key strin
 	u.updated, u.extra = kept.ReadAt.UTC(), kept.Extra
 	if token.same {
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
-		u.probeErr, u.refusedRead = redact.Text(kept.ProbeError), kept.refusal()
+		u.probeErr, u.refusedRead = redact.Text(kept.ProbeError), kept.RefusedRead
 		u.refusedSince = u.refusalKept(kept, now)
 	}
 	if !token.usable {

@@ -498,8 +498,9 @@ label = "Side"
 // fakeClaudeAPI serves a probe of the work account from Claude Code
 // testClaudeVersion with its usage headers, and rejects anything else, as a
 // token refused, with Anthropic's id for the answer, as the API's own carry,
-// unless a test has it read another account too, as readsToo does. The account has used up its Fable week, which only Fable requests
-// count, so it's still the account to use next. It returns the API's URL.
+// unless a test has it read another account too, as readsToo does. The
+// account has used up its Fable week, which only Fable requests count, so
+// it's still the account to use next. It returns the API's URL.
 func fakeClaudeAPI(t *testing.T) string {
 	t.Helper()
 	return newClaudeAPI(t).URL
