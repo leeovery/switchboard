@@ -15,6 +15,7 @@ switchboard pool --json
       "pool": "d3wn",
       "pool_label": "Default",
       "dirs": [],
+      "paths": [],
       "accounts": [
         {
           "account": "b6s7",
@@ -31,6 +32,7 @@ switchboard pool --json
       "pool": "q7mt",
       "pool_label": "Acme",
       "dirs": ["~/Code/acme"],
+      "paths": ["/Users/you/Code/acme"],
       "accounts": [
         {
           "account": "m2kp",
@@ -57,6 +59,7 @@ Each pool holds these:
 | `pool` | string | The id of the pool. |
 | `pool_label` | string | The label of the pool. |
 | `dirs` | list of strings | The folders of the fence, as the config writes them, `~/` included. Empty for the unfenced pool. |
+| `paths` | list of strings | The folders of the fence in full, `~/` replaced by your home folder. These are the folders the router fences sessions by. A folder the config can't resolve is left out. Empty for the unfenced pool. |
 | `accounts` | list of objects | The accounts in the pool, in the order of the config, as `{account, label, primary}`. |
 
 `primary` is set only on the primary of the pool.

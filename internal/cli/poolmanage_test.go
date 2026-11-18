@@ -64,6 +64,7 @@ func TestPoolListsThePoolsTheirDirectoriesAccountsAndPrimaries(t *testing.T) {
       "pool": "b2n8",
       "pool_label": "Default",
       "dirs": [],
+      "paths": [],
       "accounts": [
         {
           "account": "personal",
@@ -82,6 +83,9 @@ func TestPoolListsThePoolsTheirDirectoriesAccountsAndPrimaries(t *testing.T) {
       "dirs": [
         "/work/acme"
       ],
+      "paths": [
+        "/work/acme"
+      ],
       "accounts": [
         {
           "account": "work",
@@ -95,6 +99,34 @@ func TestPoolListsThePoolsTheirDirectoriesAccountsAndPrimaries(t *testing.T) {
 `
 	if got := run(t, deps, "pool", "--json"); got != (result{stdout: want}) {
 		t.Errorf("switchboard pool --json =\n%+v\nwant\n%s", got, want)
+	}
+}
+
+// pool --json gives each fence folder twice: as the config writes it, and
+// absolute and clean, as the config resolves it for the router to fence
+// sessions by, ~/ in the home directory.
+func TestThePoolsJSONGivesEachFenceFolderResolved(t *testing.T) {
+	deps, _ := accountsDeps(t, "http://127.0.0.1:1", "[[account]]\nid = \"work\"\npool = \"q7mt\"\n\n"+
+		"[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\ndirs = [\"~/Code/acme\", \"/work/old/../client/\"]\n")
+	home, err := deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Pools []struct {
+			Dirs  []string `json:"dirs"`
+			Paths []string `json:"paths"`
+		} `json:"pools"`
+	}
+	got := run(t, deps, "pool", "--json")
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || len(doc.Pools) != 1 {
+		t.Fatalf("switchboard pool --json = %+v (%v), want one pool", got, err)
+	}
+	if want := []string{"~/Code/acme", "/work/old/../client/"}; !slices.Equal(doc.Pools[0].Dirs, want) {
+		t.Errorf("switchboard pool --json gave the dirs %q, want them as the config writes them, %q", doc.Pools[0].Dirs, want)
+	}
+	if want := []string{filepath.Join(home, "Code", "acme"), "/work/client"}; !slices.Equal(doc.Pools[0].Paths, want) {
+		t.Errorf("switchboard pool --json gave the paths %q, want them resolved, %q", doc.Pools[0].Paths, want)
 	}
 }
 

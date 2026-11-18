@@ -1284,8 +1284,10 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   pools, or can't be read, the router is read as before, there being no pools to tell it by; once
   the move is done, a config naming no pools has its pools as they stand, from the accounts record,
   as `launch.PoolsOf` gives them, so such a router is read as above.
-- **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
-  add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
+- **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries,
+  its JSON giving each pool's directories twice: `dirs` as the config writes them, and `paths` as
+  the config resolves them, absolute and clean, as the router fences sessions by them, one it can't
+  resolve left out of `paths`. `pool add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
   label with `--label`, replaces its directories with `--dirs` and clears them with `--unfence`; and
   `pool remove <id>` removes one that has no accounts. Leaving a second pool unfenced is refused,
@@ -12800,6 +12802,5 @@ was dropped binds a later choice, the design proper says so.
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
 | An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
 | Setup's card for a new pool warns of a fence folder that isn't on this Mac, as `pool add` and `pool edit` do | open: after v1 | [setup-fence-folder-warning](../ideas/2026-11-17--setup-fence-folder-warning.md) |
-| `pool --json` gives each fence folder resolved, absolute, beside `dirs` as written | open: after v1 | [pool-json-resolved-paths](../ideas/2026-11-17--pool-json-resolved-paths.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
 | Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |

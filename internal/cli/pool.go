@@ -25,12 +25,14 @@ type poolsDocument struct {
 }
 
 // listedPool is a pool as pool lists it: its id and label, the directories
-// it's fenced to, as the config writes them, none for the unfenced pool, and
-// its accounts, in the config's order.
+// it's fenced to, as the config writes them and as it resolves them,
+// absolute, as the router fences sessions by them, none for the unfenced
+// pool, and its accounts, in the config's order.
 type listedPool struct {
 	Pool      string          `json:"pool"`
 	PoolLabel string          `json:"pool_label"`
 	Dirs      []string        `json:"dirs"`
+	Paths     []string        `json:"paths"`
 	Accounts  []pooledAccount `json:"accounts"`
 }
 
@@ -88,10 +90,7 @@ func listPools(cfg *config.Config) []listedPool {
 	listed := []listedPool{}
 	for _, p := range cfg.Pools {
 		in := cfg.Accounts.InPool(p.ID)
-		pool := listedPool{Pool: p.ID, PoolLabel: p.Label, Dirs: slices.Clone(p.WrittenDirs), Accounts: []pooledAccount{}}
-		if pool.Dirs == nil {
-			pool.Dirs = []string{}
-		}
+		pool := listedPool{Pool: p.ID, PoolLabel: p.Label, Dirs: listedDirs(p.WrittenDirs), Paths: listedDirs(p.Dirs), Accounts: []pooledAccount{}}
 		primary, _ := cfg.Accounts.PrimaryOf(p.ID)
 		for _, acct := range in {
 			pool.Accounts = append(pool.Accounts, pooledAccount{Account: acct.ID, AccountName: status.ConfiguredName(acct), Primary: acct.ID == primary.ID})
@@ -99,6 +98,11 @@ func listPools(cfg *config.Config) []listedPool {
 		listed = append(listed, pool)
 	}
 	return listed
+}
+
+// listedDirs are dirs as a pool's JSON lists them: a copy, empty for none.
+func listedDirs(dirs []string) []string {
+	return append([]string{}, dirs...)
 }
 
 // noPools says why there are no pools to list: before the move to pools, the
