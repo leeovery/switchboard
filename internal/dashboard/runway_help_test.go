@@ -95,12 +95,14 @@ func TestRunwayHelpLeavesThePoolOutWithNoPoolsLane(t *testing.T) {
 // Each mark of a lane is explained once, drawn as a lane draws it in each
 // look: in colour, room and a run-out alike █, by their colours, and a cap
 // and a hold alike ━; without colour, a run-out ▒ and a hold bold, so each
-// tells from the other by its glyph or its weight.
+// tells from the other by its glyph or its weight; and before a new
+// account's first reading, ┈ in every look.
 func TestRunwayHelpDrawsEachMarkAsALaneDrawsIt(t *testing.T) {
 	room := line{{"█", ink{token: theme.VizRamp1}}}
 	capped := line{{"━", ink{token: theme.AccentAttention}}}
 	reset := line{{"│", ink{token: theme.TextSubtle}}}
-	coloured := []line{room, {{"█", ink{token: theme.AccentAttention}}}, capped, {{"━", ink{token: theme.StateDestructive}}}, reset}
+	dotted := line{{"┈", ink{token: theme.TextFaint}}}
+	coloured := []line{room, {{"█", ink{token: theme.AccentAttention}}}, capped, {{"━", ink{token: theme.StateDestructive}}}, reset, dotted}
 	tests := []struct {
 		name string
 		look Look
@@ -110,7 +112,7 @@ func TestRunwayHelpDrawsEachMarkAsALaneDrawsIt(t *testing.T) {
 		{name: "the terminal's colours", look: Screen(builtin(t, "terminal")), want: coloured},
 		{
 			name: "no colour", look: NoColour(),
-			want: []line{room, {{"▒", ink{token: theme.AccentAttention}}}, capped, {{"━", ink{token: theme.StateDestructive, bold: true}}}, reset},
+			want: []line{room, {{"▒", ink{token: theme.AccentAttention}}}, capped, {{"━", ink{token: theme.StateDestructive, bold: true}}}, reset, dotted},
 		},
 	}
 	for _, tt := range tests {
@@ -204,7 +206,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"how long ago", "Each line ends with how long ago it was, as 11m ago or 1d 4h ago, its words in full where they fit beside it"},
 		{"LATELY in the rows left", "It takes only the rows the lanes and COMING UP leave"},
 		{"LATELY beside COMING UP", "LATELY sits at the left and COMING UP at the right"},
-		{"LATELY stacked", "else under COMING UP, where its heading and two lines fit: COMING UP in its two columns where they fit, LATELY across the frame under them, or else the two sharing one column, as wide as their lines need to read whole, from 72 to the frame's"},
+		{"LATELY stacked", "else under COMING UP, where its heading and two lines fit: COMING UP in its two columns where they fit, LATELY across the frame under them, or else the two one over the other, each across the frame"},
 		{"LATELY gone", "else it's gone, the first to give way as rows run short"},
 	} {
 		if !strings.Contains(said, tc.want) {

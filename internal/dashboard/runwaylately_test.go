@@ -52,11 +52,11 @@ func TestLatelyGoesBesideComingUpFrom159ColumnsElseUnderItElseNowhere(t *testing
 // Side by side, LATELY takes the Overview's LATELY column's width from column
 // 0, w − ⌊w/2⌋ − 2, and COMING UP the Overview's COMING UP column's,
 // round(w × 0.45), ending at the frame's edge; stacked, COMING UP keeps the
-// columns it takes alone, LATELY under them from column 0, as wide as they
-// span, and where COMING UP takes one column, both share it, 72 where their
-// lines read whole in it, or the frame's width where that's narrower; and
+// columns it takes alone, LATELY under them across the frame, and where
+// COMING UP takes one column, both take the frame's width, as the
+// Overview's stacked sections do, however short or long their lines; and
 // alone, COMING UP takes comingColumns' columns.
-func TestLatelysColumnIsTheOverviewsBesideComingUpElseOneItShares(t *testing.T) {
+func TestLatelysColumnIsTheOverviewsBesideComingUpElseTheFramesWidth(t *testing.T) {
 	m := latelyMoment(slices.Clone(runwayEvents)...)
 	tests := []struct {
 		width  int
@@ -68,7 +68,9 @@ func TestLatelysColumnIsTheOverviewsBesideComingUpElseOneItShares(t *testing.T) 
 		{width: 159, place: latelySideBySide, lately: flex.Span{Size: 78}, coming: []flex.Span{{At: 87, Size: 72}}},
 		{width: 158, place: latelyStacked, lately: flex.Span{Size: 158}, coming: []flex.Span{{Size: 77}, {At: 81, Size: 77}}},
 		{width: 150, place: latelyStacked, lately: flex.Span{Size: 150}, coming: []flex.Span{{Size: 73}, {At: 77, Size: 73}}},
-		{width: 108, place: latelyStacked, lately: flex.Span{Size: 72}, coming: []flex.Span{{Size: 72}}},
+		{width: 116, place: latelyStacked, lately: flex.Span{Size: 116}, coming: []flex.Span{{Size: 116}}},
+		{width: 108, place: latelyStacked, lately: flex.Span{Size: 108}, coming: []flex.Span{{Size: 108}}},
+		{width: 73, place: latelyStacked, lately: flex.Span{Size: 73}, coming: []flex.Span{{Size: 73}}},
 		{width: 52, place: latelyStacked, lately: flex.Span{Size: 52}, coming: []flex.Span{{Size: 52}}},
 		{width: 160, place: comingAlone, coming: []flex.Span{{Size: 78}, {At: 82, Size: 78}}},
 	}
@@ -76,44 +78,11 @@ func TestLatelysColumnIsTheOverviewsBesideComingUpElseOneItShares(t *testing.T) 
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
 			f := latelyFrame(tt.width, 53, 4, 0)
 			f.Runway.Lately = runwayLatelyOf(m)
-			coming, lately := f.runwayColumns(m, runwayFit{place: tt.place, latelyLines: 10})
+			coming, lately := f.runwayColumns(runwayFit{place: tt.place, latelyLines: 10})
 			if lately != tt.lately || !slices.Equal(coming, tt.coming) {
 				t.Errorf("at %d columns, LATELY laid %d, its column is %+v and COMING UP's %+v, want %+v and %+v", tt.width, tt.place, lately, coming, tt.lately, tt.coming)
 			}
 		})
-	}
-}
-
-// Stacked, COMING UP and LATELY share one width: what their lines need to
-// read whole, a long name among them, never under 72, nor over the frame's
-// width, so a name is cut only where the frame is too narrow for it.
-func TestStackedComingUpAndLatelyWidenTogetherForTheirLinesToReadWhole(t *testing.T) {
-	long := latelyMomentOf(func(doc *status.Document) {
-		doc.Accounts[0].Label, doc.Accounts[2].Label = "work-team-plan", "side-hustle-consulting"
-	}, slices.Clone(runwayEvents)...)
-	stacked := runwayFit{place: latelyStacked, latelyLines: 10}
-	f := latelyFrame(108, 53, 0, 0)
-	f.Runway.Coming = []status.Upcoming{{At: routedClock(2, 16, 20), Account: "side", Kind: status.UpcomingRunsOut, Window: "7d"}}
-	f.Runway.Lately = runwayLatelyOf(long)
-	coming, lately := f.runwayColumns(long, stacked)
-	if lately.Size <= runwayComingWidth || lately.Size >= f.Width || !slices.Equal(coming, []flex.Span{lately}) {
-		t.Fatalf("with a long name at 108, LATELY's column is %+v and COMING UP's %+v; want one they share, wider than 72, narrower than the frame", lately, coming)
-	}
-	cut := func(cells int) bool {
-		said := slices.ContainsFunc(runwayLatelyLines(long, f.Runway.Lately, cells), func(l line) bool { return strings.Contains(l.plain(), "…") })
-		things := f.runwayHappenings(long)
-		for _, h := range things {
-			said = said || strings.Contains(h.said(long.Now, whenColumn(things, long.Now)).fit(cells-comingTail).plain(), "…")
-		}
-		return said
-	}
-	if cut(lately.Size) || !cut(lately.Size-1) {
-		t.Errorf("at %d cells, a line is cut %t, and a cell narrower %t; want every line whole, and one cut a cell narrower", lately.Size, cut(lately.Size), cut(lately.Size-1))
-	}
-	narrow := f
-	narrow.Width = 80
-	if _, lately := narrow.runwayColumns(long, stacked); lately.Size != 80 {
-		t.Errorf("with a long name at 80, LATELY's column is %+v, want the frame's width", lately)
 	}
 }
 

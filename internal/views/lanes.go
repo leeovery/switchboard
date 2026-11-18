@@ -69,8 +69,9 @@ func (from LanesFrom) reach() status.Reach {
 // each stretch it has no room through, in order; each it would have past the
 // timeline, as beyond has them, which no column draws; whether it has room
 // through every column from now's, or through every column of a week
-// stepped back to, as nothing else is said of it; and its use of the view's
-// window.
+// stepped back to, as nothing else is said of it; its use of the view's
+// window; and the stretch before its account was first read, where it's new
+// in the view.
 type Lane struct {
 	ID        string
 	Cells     []Cell
@@ -79,6 +80,19 @@ type Lane struct {
 	Beyond    []LaneStretch
 	Room      bool
 	Use       Use
+	New       LaneNew
+}
+
+// LaneNew is the stretch of a lane before its account was first read, where
+// it's new in the view: first read inside it while the readings reach back
+// before it, so its blank columns there tell an account not added yet, not
+// one that went unread. Since is its first reading, and Columns how many
+// columns the stretch takes from the lanes' first, nothing known of each:
+// none where it isn't new, as on a fresh install, where every account's
+// readings start inside the view.
+type LaneNew struct {
+	Since   time.Time
+	Columns int
 }
 
 // Cell is how an account stands in a column of its lane, at the column's
@@ -287,7 +301,26 @@ func (from LanesFrom) laneOf(a status.AccountNow, past pastOf, then judge) Lane 
 	asItResets(lane.Stretches, resets)
 	asItResets(lane.Beyond, resets)
 	lane.Room = roomThrough(lane.Cells[from.saysFrom():])
+	lane.New = newStretch(past.since, lane.Cells, tl)
 	return lane
+}
+
+// newStretch is the stretch of a lane, its columns standing as cells, before
+// its account was first read at since, where it's new in the timeline tl, as
+// LaneNew has it: the columns from the first, nothing known of each, whose
+// moment is before since; none where since is zero, or no column is.
+func newStretch(since time.Time, cells []Cell, tl Timeline) LaneNew {
+	if since.IsZero() {
+		return LaneNew{}
+	}
+	n := 0
+	for n < len(cells) && cells[n] == CellUnknown && tl.Moment(n).Before(since) {
+		n++
+	}
+	if n == 0 {
+		return LaneNew{}
+	}
+	return LaneNew{Since: since, Columns: n}
 }
 
 // asItResets sets each of the stretches given AsItResets where it's said to

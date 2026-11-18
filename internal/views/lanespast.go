@@ -53,7 +53,8 @@ func heldReadingsOf(read []readings.Reading) heldReadings {
 // holds, and the holds the router told of; the readings of every account,
 // as status.Index indexes them once for them all, those the days before the
 // keep stand for among them; the resets of the view's window its own give;
-// and how it stood at each column's moment.
+// how it stood at each column's moment; and when it was first read, where
+// it's new in the timeline, as newSince has it.
 type pastOf struct {
 	id           string
 	tokenSet     bool
@@ -63,6 +64,7 @@ type pastOf struct {
 	read         status.Readings
 	resets       []time.Time
 	was          []status.Was
+	since        time.Time
 }
 
 // holds reports whether the past held was judged from what's given, so
@@ -125,9 +127,11 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 	if now := tl.NowColumn(); now >= 0 {
 		judged = now
 	}
-	read, key := status.Index(from.readingsAll()), from.viewKey()
+	all, key := from.readingsAll(), from.viewKey()
+	read, firsts := status.Index(all), firstReadsOf(all)
 	for _, a := range m.Accounts {
 		p := pastOf{id: a.ID, tokenSet: a.TokenSet, reserve: a.Reserve, reserveHolds: a.ReserveHolds, told: from.told(a.ID), read: read}
+		p.since = firsts.newSince(a.ID, tl)
 		p.resets = read.Resets(a.ID, key)
 		p.was = make([]status.Was, judged)
 		for c := range p.was {
@@ -137,6 +141,39 @@ func (l Lanes) judgePast(from LanesFrom) heldPast {
 		past.accounts = append(past.accounts, p)
 	}
 	return past
+}
+
+// firstReads are when the readings first read each account, by its id, and
+// when the first of them all was read, zero where there are none.
+type firstReads struct {
+	of    map[string]time.Time
+	first time.Time
+}
+
+// firstReadsOf are the first reads of the readings given, in whatever order,
+// as a tail carries each window's run in before the rest.
+func firstReadsOf(read []readings.Reading) firstReads {
+	f := firstReads{of: make(map[string]time.Time)}
+	for _, r := range read {
+		if at, ok := f.of[r.Account]; !ok || r.At.Before(at) {
+			f.of[r.Account] = r.At
+		}
+		if f.first.IsZero() || r.At.Before(f.first) {
+			f.first = r.At
+		}
+	}
+	return f
+}
+
+// newSince is when the account with the given id was first read, where it's
+// new in the timeline tl: first read inside it, while the readings reach back
+// before it, another account read by then; zero else.
+func (f firstReads) newSince(id string, tl Timeline) time.Time {
+	at, ok := f.of[id]
+	if !ok || !f.first.Before(tl.Start) || !tl.holds(at) {
+		return time.Time{}
+	}
+	return at
 }
 
 // readingsAll are the readings the past is judged by, each account's oldest

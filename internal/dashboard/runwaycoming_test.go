@@ -38,8 +38,8 @@ var fiveHourComing = []status.Upcoming{
 
 // Runway's COMING UP lists what Runway's own list holds, as the watch gives
 // it, never what else the moment has coming up, a line each, the Overview's
-// rows: in one column, its countdowns ending at column 71 at their natural,
-// and at the frame's edge on a phone.
+// rows: in one column, LATELY stacked under it, its countdowns ending at the
+// frame's edge, at 120 as on a phone.
 func TestRunwaysComingUpListsWhatRunwaysListHolds(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -50,16 +50,11 @@ func TestRunwaysComingUpListsWhatRunwaysListHolds(t *testing.T) {
 	}{
 		{
 			name: "the 5-hour frame's three", width: 120, height: 37, coming: fiveHourComing,
-			want: []string{
-				"COMING UP",
-				"16:30  personal's 5-hour resets                                in 1h 48m",
-				"17:10  work back from its cap                                  in 2h 28m",
-				"18:50  side's 5-hour resets                                    in 4h 08m",
-			},
+			want: []string{"COMING UP", fiveHourComingAt(120)[0], fiveHourComingAt(120)[1], fiveHourComingAt(120)[2]},
 		},
 		{
 			name: "one of them, the moment's others left out", width: 120, height: 37, coming: fiveHourComing[1:2],
-			want: []string{"COMING UP", "17:10  work back from its cap                                  in 2h 28m"},
+			want: []string{"COMING UP", fiveHourComingAt(120)[1]},
 		},
 		{
 			name: "on a phone, the frame's width", width: 52, height: 33, coming: fiveHourComing,
@@ -255,6 +250,21 @@ func TestRunwaysComingUpRunsDownItsFirstColumnThenAcross(t *testing.T) {
 	}
 }
 
+// fiveHourComingAt are fiveHourComing's lines as COMING UP draws them in a
+// column width cells wide, each countdown ending at its last cell.
+func fiveHourComingAt(width int) []string {
+	lines := [][2]string{
+		{"16:30  personal's 5-hour resets", "in 1h 48m"},
+		{"17:10  work back from its cap", "in 2h 28m"},
+		{"18:50  side's 5-hour resets", "in 4h 08m"},
+	}
+	said := make([]string, len(lines))
+	for i, l := range lines {
+		said[i] = l[0] + strings.Repeat(" ", width-len(l[0])-len(l[1])) + l[1]
+	}
+	return said
+}
+
 // Collapsing the account column leaves COMING UP as it is, every line of it
 // or cut, in its words and its inks: each line names its account alone,
 // never by its lane's number.
@@ -264,14 +274,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 		height int
 		want   []string
 	}{
-		{
-			name: "open", height: 37,
-			want: []string{
-				"16:30  personal's 5-hour resets                                in 1h 48m",
-				"17:10  work back from its cap                                  in 2h 28m",
-				"18:50  side's 5-hour resets                                    in 4h 08m",
-			},
-		},
+		{name: "open", height: 37, want: fiveHourComingAt(120)},
 		{name: "cut", height: 23, want: []string{"16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"}},
 	}
 	for _, tt := range tests {
@@ -298,7 +301,8 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 }
 
 // A run-out's line is all in accent.attention, its time and countdown
-// included, but its account, in bold text.primary, as every line names it.
+// included, but its account, in bold text.primary, as every line names it:
+// at 120, LATELY stacked under it, its countdown ending at the frame's edge.
 func TestARunOutsLineOnRunwayIsInAccentAttention(t *testing.T) {
 	out := status.Upcoming{At: routedClock(1, 16, 5), Account: "personal", Kind: status.UpcomingRunsOut, Window: "5h"}
 	doc := framesDoc()
@@ -307,7 +311,7 @@ func TestARunOutsLineOnRunwayIsInAccentAttention(t *testing.T) {
 	f := Frame{Width: 120, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	c := runwayDrawn(f, doc)
 	y := f.runwayFitted(f.top()).coming + 1
-	for x, want := range map[int]ink{0: warningInk, 8: titleInk, 17: warningInk, 71: warningInk} {
+	for x, want := range map[int]ink{0: warningInk, 8: titleInk, 17: warningInk, 119: warningInk} {
 		if got := c.at(x, y).ink; got != want {
 			t.Errorf("column %d of the run-out's line is in %+v, want %+v", x, got, want)
 		}

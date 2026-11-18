@@ -203,7 +203,7 @@ type runwayLaid struct {
 // the columns runwayColumns gives them.
 func (f Frame) runwayLaidOut(m status.Moment, x int, fit runwayFit) runwayLaid {
 	laid := runwayLaid{x: x, m: m, lanes: f.laidLanes(m, fit), fit: fit}
-	laid.coming, laid.lately = f.runwayColumns(m, fit)
+	laid.coming, laid.lately = f.runwayColumns(fit)
 	return laid
 }
 

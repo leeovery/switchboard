@@ -74,6 +74,7 @@ func (f Frame) lanesHelp() helpPart {
 			{drawn: line{f.Look.laneMark(views.CellCapped)}, means: "at its cap, where its reserve starts: the router passes it over, unless a pin spends it"},
 			{drawn: line{f.Look.laneMark(views.CellLimited)}, means: "at its limit, its token refused, or without a usable token: held back from every request"},
 			{drawn: line{{resetCell, dimInk}}, means: "where its " + runwayWeek + " resets"},
+			{drawn: line{f.Look.laneNewMark()}, means: "before a newly added account's first reading, new since 09:44 under it saying when"},
 		},
 	}
 }
@@ -166,9 +167,9 @@ func runwayLatelyHelp() helpPart {
 			said("It takes only the rows the lanes and COMING UP leave. Where the frame holds both, and those rows hold COMING " +
 				"UP's every line in one column, LATELY sits at the left and COMING UP at the right, the past and what's coming " +
 				"as the lanes lie, each down to the legend; else under COMING UP, where its heading and two lines fit: COMING " +
-				"UP in its two columns where they fit, LATELY across the frame under them, or else the two sharing one " +
-				"column, as wide as their lines need to read whole, from 72 to the frame's; else it's gone, the first to give " +
-				"way as rows run short. Stepped back, there's none."),
+				"UP in its two columns where they fit, LATELY across the frame under them, or else the two one over the " +
+				"other, each across the frame; else it's gone, the first to give way as rows run short. Stepped back, " +
+				"there's none."),
 		},
 	}
 }
