@@ -4675,7 +4675,8 @@ remembered").
   account's, and beside them its accounts' states counted, `2 open · 1 at cap`, each count in its
   state's colour (`open` in `text.secondary`, `pressure` and `at cap` in `accent.attention`, `limit`
   and `refused` in `state.destructive`) with ` · ` in `text.faint`; its accounts' sessions summed,
-  `6 sessions`; and their requests a minute summed, as a trace and a rate, `16/min`.
+  `6 sessions`, as `views.PoolSessions` sums them; and their requests a minute summed, as a trace
+  and a rate, `16/min`, the rate as `views.Traces.PoolRate` sums it.
 - **The key line** follows the last block, from the name column.
 - **Under 150 columns,** USAGE draws as `usage --by account` does at that width, but its names
   from the page's column (see The page), and ROUTING stays a section of its own under it
@@ -5009,8 +5010,9 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
     words give way, never a figure. The shortest are turned Compare's words, one owner of each.
     `sessions moved` says how many moves, the in and out summed, `21`, and for `all accounts` its
-    moves, `5`, in the column's ink, as `all accounts` says its count of limits, wide or turned,
-    where the full doesn't fit a cell short of the next column. `limits hit` names its windows short,
+    moves, `5`, as `views.AccountTotals.Moves` counts them, in the column's ink, as `all accounts`
+    says its count of limits, wide or turned, where the full doesn't fit a cell short of the next
+    column. `limits hit` names its windows short,
     `week ×1 · 5h ×2`, then says how many, `3`, in the column's ink, as `all accounts` says its
     count; turned Compare's `hit` takes the same forms but the full, the fullest its column holds,
     so three windows read `4` there. `left at its last reset` drops the day, `0%`; `plan` drops the
@@ -12806,4 +12808,3 @@ was dropped binds a later choice, the design proper says so.
 | `history --windows --json` names the pool it read, as `history --json` and `sessions --json` do | open: after v1 | [history-windows-json-pool](../ideas/2026-11-17--history-windows-json-pool.md) |
 | `pool --json` gives each fence folder resolved, absolute, beside `dirs` as written | open: after v1 | [pool-json-resolved-paths](../ideas/2026-11-17--pool-json-resolved-paths.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
-| Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |

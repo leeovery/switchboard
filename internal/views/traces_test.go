@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -105,6 +106,23 @@ func TestTheRateIsTheRequestsOfTheLastMinute(t *testing.T) {
 	}
 	if got := (views.Trace{}).Rate(tracedAt); got != 0 {
 		t.Errorf("a trace with no requests has a rate of %d, want 0", got)
+	}
+}
+
+// The pool's rate is its accounts' rates together: spare, left out of the
+// pool, and requests older than a minute count for nothing.
+func TestThePoolsRateIsItsAccountsRatesTogether(t *testing.T) {
+	m := status.Moment{Accounts: []status.AccountNow{{ID: "work", InPool: true}, {ID: "side", InPool: true}, {ID: "spare", OutOfPool: true}}}
+	traces := views.Traces{Accounts: map[string]views.Trace{
+		"work":  {Sent: []time.Time{tracedAt.Add(-2 * time.Minute), tracedAt.Add(-time.Second), tracedAt}},
+		"side":  {Sent: []time.Time{tracedAt.Add(-30 * time.Second)}},
+		"spare": {Sent: []time.Time{tracedAt}},
+	}}
+	if got := traces.PoolRate(m, tracedAt); got != 3 {
+		t.Errorf("the pool's rate is %d, want work's 2 and side's 1", got)
+	}
+	if got := (views.Traces{}).PoolRate(m, tracedAt); got != 0 {
+		t.Errorf("the pool's rate with no requests is %d, want 0", got)
 	}
 }
 

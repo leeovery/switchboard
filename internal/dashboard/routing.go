@@ -168,20 +168,23 @@ type accountRouting struct {
 
 // routingTable is ROUTING of a document at a moment: each account's, in the
 // config's order; where its rows lie across the frame; the pool's accounts',
-// where it has a pool, and their states counted; and the moment.
+// where it has a pool, their states counted, and their sessions and rate
+// together; and the moment.
 type routingTable struct {
-	accounts []accountRouting
-	pool     []accountRouting
-	states   status.StateCounts
-	columns  routingColumns
-	now      time.Time
+	accounts     []accountRouting
+	pool         []accountRouting
+	states       status.StateCounts
+	poolSessions int
+	poolRate     int
+	columns      routingColumns
+	now          time.Time
 }
 
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
-// account's sessions counted as SESSIONS lists them running, as
-// views.RunningCounts counts them, where the router listed any, else as doc
-// counts them; and its pool, who's out of it, and its accounts' states
-// counted, as status.CountStates counts them, at now.
+// account's sessions as views.SessionsOn counts them; and its pool, who's
+// out of it, its accounts' states counted, as status.CountStates counts
+// them, and their sessions and rate, as views.PoolSessions and
+// views.Traces.PoolRate have them, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	m := f.Moment(doc, now)
 	names := namesOf(m)
@@ -194,10 +197,7 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	for i, a := range m.Accounts {
 		r := accountRouting{
 			id: a.ID, name: names[i], standing: a.Routing, pinned: a.Pinned,
-			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: a.OutOfPool,
-		}
-		if running != nil {
-			r.sessions = running[a.ID]
+			sessions: views.SessionsOn(a, running), trace: f.Traces.Accounts[a.ID], faded: a.OutOfPool,
 		}
 		t.accounts = append(t.accounts, r)
 		if a.InPool {
@@ -205,6 +205,7 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 		}
 	}
 	t.states = status.CountStates(pooled)
+	t.poolSessions, t.poolRate = views.PoolSessions(m, running), f.Traces.PoolRate(m, now)
 	return t
 }
 
@@ -624,13 +625,13 @@ func (f Frame) besidePool(c *canvas, t routingTable, x int, rows []int) {
 	drawLines(rows,
 		func(y int) { c.line(x, y, countedStates(t.states, NumberStates, f.Width-wordsGap-x)) },
 		func(y int) {
-			c.line(x, y, line{sessionsSpan(summedSessions(t.pool)).numbered(Number{Kind: NumberSessions})})
+			c.line(x, y, line{sessionsSpan(t.poolSessions).numbered(Number{Kind: NumberSessions})})
 		},
 		func(y int) {
 			trace := f.besideTrace(x, y)
 			pool := summed(tracesOf(t.pool), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
 			f.drawCells(c, pool, trace, false)
-			c.right(f.rateEdge(trace), y, line{rateOf(summedRate(t.pool, t.now), false).numbered(Number{Kind: NumberRate})})
+			c.right(f.rateEdge(trace), y, line{rateOf(t.poolRate, false).numbered(Number{Kind: NumberRate})})
 		})
 }
 
@@ -739,22 +740,4 @@ func stateInk(s status.AccountState) ink {
 // open", numbered as the kind given of states counted in those words.
 func statesCounted(n int, words string, k ink, kind NumberKind) span {
 	return span{fmt.Sprintf("%d %s", n, words), k}.numbered(Number{Kind: kind, Of: words})
-}
-
-// summedSessions are the sessions on the accounts, summed.
-func summedSessions(accounts []accountRouting) int {
-	n := 0
-	for _, r := range accounts {
-		n += r.sessions
-	}
-	return n
-}
-
-// summedRate is the accounts' rates at now, summed.
-func summedRate(accounts []accountRouting, now time.Time) int {
-	n := 0
-	for _, r := range accounts {
-		n += r.trace.Rate(now)
-	}
-	return n
 }
