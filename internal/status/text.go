@@ -298,7 +298,7 @@ func (d Document) Names(ids []string) string {
 // hand, once it's run again; with an export of the history under way, once
 // it ends, and nothing of service restart, which is refused meanwhile, as in
 // "restart due since Mon 14:02 (config changed), once the export into
-// /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can hold it";
+// /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can keep it waiting";
 // or put off, its binary refusing to start, why it refuses, and nothing of
 // how it's to come, as in "restart due since Mon 14:02 (upgraded), put off:
 // invalid config".
@@ -310,7 +310,7 @@ func (r Restart) Text(now time.Time) string {
 	case r.ByHand:
 		return due + ": run switchboard serve again to take it up"
 	case r.Exporting != "":
-		return due + ", once the export into " + prose.Clean(r.Exporting) + " ends: an unanswered macOS prompt can hold it"
+		return due + ", once the export into " + prose.Clean(r.Exporting) + " ends: an unanswered macOS prompt can keep it waiting"
 	}
 	return fmt.Sprintf("%s, once no request is in flight (%d now): switchboard service restart restarts it now, "+
 		"cutting off requests still in flight after 30 seconds", due, r.InFlight)

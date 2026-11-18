@@ -10923,7 +10923,7 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, while
   an export of the history runs, into the folder configured or one no longer, `restart due since
   Mon 14:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered
-  macOS prompt can hold it`, with no advice, as `service restart` is refused meanwhile, or, run by
+  macOS prompt can keep it waiting`, with no advice, as `service restart` is refused meanwhile, or, run by
   hand, `…: run switchboard serve again to take it up`, or, put off, `restart due since Mon 14:02
   (upgraded), put off: <why the binary refuses>`, with no advice, as neither a quiet moment nor
   `service restart` gets past it; and the dashboard's status line, `restart due (config changed)`,
