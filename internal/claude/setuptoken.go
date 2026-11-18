@@ -5,7 +5,7 @@ import (
 	"slices"
 )
 
-// What claude setup-token does and draws, as Claude Code 2.1.311 has it. It
+// What claude setup-token does and draws, as Claude Code 2.1.327 has it. It
 // takes no options: it opens a sign-in address in the browser, whose page
 // returns to a localhost callback it listens on, makes the token once the
 // sign-in is approved there, shows it once, and saves it nowhere.
@@ -17,8 +17,10 @@ const (
 	// with, the address its one argument, run without a shell.
 	BrowserEnv = "BROWSER"
 	// SetupTokenMade is the line setup-token shows once it has made the
-	// token, which it shows on a line of its own below.
-	SetupTokenMade = "Long-lived authentication token created successfully!"
+	// token, which it shows on a line of its own below. Claude Code 2.1.326
+	// dropped the " successfully!" that ended it, so it's held to what the
+	// line says before and since.
+	SetupTokenMade = "Long-lived authentication token created"
 	// SetupTokenBelow begins the line setup-token shows next below the token
 	// it made, past a blank one.
 	SetupTokenBelow = "Store this token securely."

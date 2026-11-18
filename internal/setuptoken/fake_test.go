@@ -20,7 +20,7 @@ import (
 )
 
 // fakeSetupToken is claude, standing in for claude setup-token as Claude Code
-// 2.1.311 draws it. It notes its process id, its arguments, its environment,
+// 2.1.327 draws it. It notes its process id, its arguments, its environment,
 // its terminal, whether that's its controlling terminal, and its size, and
 // the id of a process it starts and leaves running, deaf to the hang-up its
 // exit sends, then draws "Opening
@@ -96,8 +96,8 @@ if [ "$FAKE_MODE" = oauth-error ]; then
 	read -r _
 	exec /bin/sleep 60
 fi
-made=' \033[32m✓ Long-lived authentication token created successfully!\033[39m\n\n Your OAuth token (valid for 1 year):\n\n'
-after='\n\n \033[2mStore this token securely. You won'"'"'t be able to see it again.\033[22m\n\n \033[2mUse this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>\033[22m\n'
+made=' \033[32m✓ Long-lived authentication token created\033[39m\n\n Your OAuth token (valid for 1 year):\n\n'
+after='\n\n \033[2mStore this token securely. You won'"'"'t be able to see it again.\033[22m\n\n \033[2mUse this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>\033[22m\n\n \033[2mYou can revoke it later at https://claude.ai/settings/claude-code\033[22m\n'
 first=$(printf '%s' "$FAKE_TOKEN" | /usr/bin/cut -c1-40)
 rest=$(printf '%s' "$FAKE_TOKEN" | /usr/bin/cut -c41-)
 case $FAKE_MODE in
