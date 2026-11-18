@@ -47,7 +47,6 @@ func (w *world) settled(t *testing.T, actions ...string) setup.LinkFound {
 func TestTheClaudeLinkPageHasTheLoginShellRunTheLink(t *testing.T) {
 	const runsOwn = "runs Claude Code's own claude, <root>/claude-code/bin/claude, so its sessions aren't routed"
 	const through = "runs switchboard's claude: asked just now, as a new terminal starts it"
-	const noCompletions = " · switchboard's line isn't in ~/.zshrc, so its completions don't load"
 	const aliasFix = ": removing the alias, or pointing it at claude, puts it right"
 	const npx = "zsh's claude is alias claude='npx @anthropic-ai/claude-code', which runs something other than switchboard's claude" + aliasFix
 	const cantCheck = " · setup can't check it for this shell: put switchboard's bin directory first on PATH by hand"
@@ -138,13 +137,13 @@ func TestTheClaudeLinkPageHasTheLoginShellRunTheLink(t *testing.T) {
 			unmade: ".bash_profile",
 		},
 		{
-			name: "offered, left: asked again until it runs the link, as the directory's put on PATH by hand, the line left for the completions",
+			name: "offered, left: asked again until it runs the link, as the directory's put on PATH by hand",
 			lay: func(_ *testing.T, w *world) {
 				w.login.answers = []shell.Answer{other, {Kind: shell.None}, {Kind: shell.Link}}
 			},
 			actions:  []string{askAgain, askAgain},
-			want:     setup.OfferCompletions,
-			wantSaid: through + noCompletions,
+			want:     setup.Through,
+			wantSaid: through,
 			unmade:   ".zshrc",
 		},
 		{
@@ -244,12 +243,12 @@ func TestTheClaudeLinkPageHasTheLoginShellRunTheLink(t *testing.T) {
 			wantFile: ".zshrc", wantText: "<line>\n",
 		},
 		{
-			name: "PATH's another claude, but an alias in front runs the link by its path: done, the line offered for the completions",
+			name: "PATH's another claude, but an alias in front runs the link by its path: done",
 			lay: func(_ *testing.T, w *world) {
 				w.login.front = shell.Front{Text: "alias claude=~/.local/share/switchboard/bin/claude", Runs: shell.TheLink}
 			},
-			want:     setup.OfferCompletions,
-			wantSaid: through + " · zsh's claude is alias claude=~/.local/share/switchboard/bin/claude, which runs switchboard's claude link by its path" + noCompletions,
+			want:     setup.Through,
+			wantSaid: through + " · zsh's claude is alias claude=~/.local/share/switchboard/bin/claude, which runs switchboard's claude link by its path",
 			unmade:   ".zshrc",
 		},
 		{

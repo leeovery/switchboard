@@ -3,6 +3,7 @@ package setup_test
 import (
 	"errors"
 	"io/fs"
+	"path/filepath"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -136,14 +137,30 @@ func TestCheckPoolFindsTheDirectoriesNotOnThisMac(t *testing.T) {
 			s := w.setup(t)
 			s.Root = tt.root
 
-			missing, err := s.CheckPool(pool)
-			if err != nil || !slices.Equal(missing, tt.want) {
-				t.Errorf("CheckPool() = %q, %v; want %q missing, the pool passing", missing, err, tt.want)
+			checked, err := s.CheckPool(pool)
+			if err != nil || !slices.Equal(checked.Missing, tt.want) {
+				t.Errorf("CheckPool() = %+v, %v; want %q missing, the pool passing", checked, err, tt.want)
 			}
 			if got := w.readConfig(t); got != was {
 				t.Errorf("the config reads\n%s\nwant it as it was", got)
 			}
 		})
+	}
+}
+
+// A new pool passing is given its directories as the config would write
+// them, one typed in full in the home from ~/, so the card's hint and its
+// warning name it alike.
+func TestCheckPoolGivesTheDirectoriesAsTheConfigWouldWriteThem(t *testing.T) {
+	w := newWorld(t)
+	w.writeConfig(t, doneInPools(defaultPool+"\n"+acmePool))
+	s := w.setup(t)
+	s.Accounts.HomeDir = func() (string, error) { return w.home, nil }
+	s.Root = fstest.MapFS{}
+
+	checked, err := s.CheckPool(accounts.NewPool{Label: "Client", Dirs: []string{filepath.Join(w.home, "Code", "client")}})
+	if want := []string{"~/Code/client"}; err != nil || !slices.Equal(checked.Dirs, want) || !slices.Equal(checked.Missing, want) {
+		t.Errorf("CheckPool() = %+v, %v; want %q written, and missing", checked, err, want)
 	}
 }
 

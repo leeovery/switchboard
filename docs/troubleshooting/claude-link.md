@@ -59,9 +59,17 @@ doesn't go through the router.
 
 ## Completions don't work
 
-The switchboard file for your shell loads completions for commands and flags. Only the switchboard
-line in your startup file loads that file. If you declined the line, run `switchboard setup`
-again: it offers the line once more.
+The switchboard file for your shell loads completions for commands and flags. The switchboard line
+in your startup file loads that file. If you declined the line, run `switchboard setup` again. It
+offers the line once more if your shell has no switchboard completions.
+
+`setup` doesn't offer the line in these cases:
+
+- it can't read your startup file;
+- it can't tell which startup file a new terminal reads;
+- another switchboard's line is in the file.
+
+Add the line yourself then, as "Which startup file gets the line" below says.
 
 | Shell | Completions load if |
 |---|---|

@@ -97,12 +97,16 @@ The add card has a Pool field, with every pool by its label, then `new pool`. It
 `~/`. With no folders, the pool is unfenced. `setup` checks the pool before it makes any token, and
 writes the pool only once the token is saved. So an add you cancel leaves no pool behind.
 
-If a folder isn't on this Mac, the card warns you under the Pool hint, in case the name is
-mistyped. `setup` makes the pool anyway, because you may make the folder later:
+If a folder isn't on this Mac, the card warns you under the Pool hint. The warning is one line,
+broken here to fit:
 
 ```text
-~/Code/acmee isn't a directory on this Mac, so no session starts in it yet
+~/Code/acmee isn't a directory on this Mac,
+so no session starts in it yet
 ```
+
+The warning catches a mistyped name. `setup` makes the pool anyway, because you may make the
+folder later.
 
 Once there's a second pool, the table groups the accounts by pool, and `◆` marks each primary. The
 edit card gains a Pool field, which moves the account as
@@ -168,8 +172,9 @@ Until it is, `setup` offers once to add one line to the end of your shell's star
 the file and shows the line first. `enter` adds it, and `n` leaves it to you.
 
 If your shell already runs switchboard's `claude`, because you keep your `PATH` in another file,
-`setup` still offers the line once. This time the line is for the completions, which only the line
-loads. `n` declines it, and the step is done either way.
+`setup` asks your shell whether switchboard's completions are loaded. If they aren't, `setup` still
+offers the line once, this time for the completions. `n` declines it, and the step is done either
+way.
 
 | Key | What it does |
 |---|---|

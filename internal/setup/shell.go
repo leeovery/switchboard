@@ -472,23 +472,24 @@ func yourShell(mark Mark, detail string) Said {
 
 // through is the situation of claude going through switchboard in a new
 // terminal, as answer, the login shell's, says, with what's in front of
-// PATH's claude there, as linkedFront says it; but where the shell is one
-// setup knows, sh, and its startup file is one setup can offer switchboard's
-// line to, as startup's offerable has it, OfferCompletions, the line
-// offered for its completions, as a PATH kept in another file finds
-// switchboard's claude without loading them.
+// PATH's claude there, as linkedFront says it; but OfferCompletions, the
+// line offered for switchboard's completions alone, where PATH itself finds
+// switchboard's claude, as a PATH kept in another file does, the shell says
+// it can take the completions but hasn't them, and the shell is one setup
+// knows, sh, whose startup file setup can offer the line to, as startup's
+// offerable has it.
 func (r *run) through(answer shell.Answer, sh shell.Shell, known bool) ShellFound {
 	detail := "runs switchboard's claude: asked just now, as a new terminal starts it"
 	if front := r.linkedFront(answer.Front); front != "" {
 		detail += " · " + front
 	}
 	at := ShellFound{Situation: Through, Said: yourShell(Done, detail)}
-	if !known {
+	if !known || answer.Kind != shell.Link || answer.Completions != shell.CompletionsMissing {
 		return at
 	}
 	if s := r.startupOf(sh, answer); s.offerable(answer) {
 		at.Situation, at.File, at.Line, at.Where = OfferCompletions, s.file, s.line, s.where
-		at.Said.Detail += " · switchboard's line isn't in " + s.where + ", so its completions don't load"
+		at.Said.Detail += " · switchboard's completions aren't loaded: its line isn't in " + s.where
 	}
 	return at
 }

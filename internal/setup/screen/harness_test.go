@@ -302,8 +302,8 @@ type fakeSteps struct {
 	adds   []setup.Adding
 	addErr error
 	// pools are the pools CheckPool is asked to check, each passing, its
-	// directories poolMissing names not on this Mac, but where poolErr
-	// fails it.
+	// directories written as given, those poolMissing names not on this
+	// Mac, but where poolErr fails it.
 	pools       []accounts.NewPool
 	poolMissing []string
 	poolErr     error
@@ -704,16 +704,16 @@ func (s *fakeSteps) CheckAdding(adding setup.Adding) (accounts.Adding, error) {
 	return accounts.Adding{Account: config.NewAccount{Label: adding.Label, Plan: plan, Pool: adding.Pool}, NewPool: adding.NewPool}, err
 }
 
-// CheckPool keeps the pool, passing it, its directories poolMissing
-// names missing, but where poolErr fails it.
-func (s *fakeSteps) CheckPool(pool accounts.NewPool) ([]string, error) {
+// CheckPool keeps the pool, passing it, its directories written as given,
+// those poolMissing names missing, but where poolErr fails it.
+func (s *fakeSteps) CheckPool(pool accounts.NewPool) (setup.CheckedPool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pools = append(s.pools, pool)
 	if s.poolErr != nil {
-		return nil, s.poolErr
+		return setup.CheckedPool{}, s.poolErr
 	}
-	return s.poolMissing, nil
+	return setup.CheckedPool{Dirs: pool.Dirs, Missing: s.poolMissing}, nil
 }
 
 // fakeEdit is an edit EditAccount was given, of the account id.

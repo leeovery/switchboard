@@ -200,7 +200,7 @@ func TestNAndEscCloseTheOfferCardOntoTheByHandPage(t *testing.T) {
 // by a PATH kept in another file, switchboard's line offered for ~/.zshrc
 // for its completions alone.
 var linkForCompletions = func() setup.LinkFound {
-	found := situated(setup.OfferCompletions, "runs switchboard's claude · switchboard's line isn't in ~/.zshrc, so its completions don't load")
+	found := situated(setup.OfferCompletions, "runs switchboard's claude · switchboard's completions aren't loaded: its line isn't in ~/.zshrc")
 	found.Shell.Said.Mark = setup.Done
 	return found
 }()

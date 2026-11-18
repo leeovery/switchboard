@@ -58,19 +58,26 @@ func planChosen(chosen string) (string, error) {
 	return config.ParsePlan(chosen)
 }
 
+// CheckedPool is a pool to make with an account that CheckPool passed: its
+// directories as the config would write them, such as ~/Code/acme for one
+// typed in full in the home; and those of them that aren't on this Mac, as
+// config.Pool's Missing has them, a warning, never a refusal, as one may be
+// made later.
+type CheckedPool struct {
+	Dirs, Missing []string
+}
+
 // CheckPool checks a pool to make with an account, as the new pool card gives
 // it, against the config as it stands, writing nothing, as
-// accounts.Registry.CheckNewPool checks it, returning its directories that
-// aren't on this Mac, as config.Pool's Missing has them, as the config
-// writes them: a warning, never a refusal, as one may be made later. It
-// fails with a Refused of its label or its directories, as refusedPool has
-// it, and as CheckNewPool does otherwise.
-func (s *Setup) CheckPool(pool accounts.NewPool) ([]string, error) {
+// accounts.Registry.CheckNewPool checks it, returning it as CheckedPool has
+// it. It fails with a Refused of its label or its directories, as
+// refusedPool has it, and as CheckNewPool does otherwise.
+func (s *Setup) CheckPool(pool accounts.NewPool) (CheckedPool, error) {
 	checked, err := s.Accounts.CheckNewPool(pool)
 	if err != nil {
-		return nil, refusedPool(err)
+		return CheckedPool{}, refusedPool(err)
 	}
-	return checked.Missing(s.Root), nil
+	return CheckedPool{Dirs: checked.WrittenDirs, Missing: checked.Missing(s.Root)}, nil
 }
 
 // refusedPool is err, a pool to make refused, as an accounts.NewPoolError

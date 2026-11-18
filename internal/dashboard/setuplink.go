@@ -240,8 +240,22 @@ const (
 	offerAdding   = "Adding the line to the end of %s"
 )
 
-// offerKeys are the offer card's keys.
-var offerKeys = []Key{{Key: "enter", Does: "add it"}, {Key: "n", Does: "I'll add it myself"}}
+// The offer card's keys: enter adds the line; n leaves it to add by hand,
+// or, where it's offered for the completions alone, goes without them, as
+// the step then ends.
+var (
+	addIt         = Key{Key: "enter", Does: "add it"}
+	addItYourself = Key{Key: "n", Does: "I'll add it myself"}
+	noCompletions = Key{Key: "n", Does: "no completions"}
+)
+
+// offerKeys are the offer card's keys, of the line sh offers.
+func offerKeys(sh setup.ShellFound) []Key {
+	if sh.Situation == setup.OfferCompletions {
+		return []Key{addIt, noCompletions}
+	}
+	return []Key{addIt, addItYourself}
+}
 
 // offerCard is the offer card open over the claude link page, at the
 // screen's time, width cells wide as the dashboard Card's rule has it: nil
@@ -266,7 +280,7 @@ func (o SetupOfferCard) card(width int, now time.Time, sh setup.ShellFound) *set
 	says := func(text string, k ink) []line {
 		return indented(line{{text, k}}.wrap(content-offerSaysAt), offerSaysAt)
 	}
-	body, keys := says(fmt.Sprintf(offerCan, sh.Where, sh.Gains()), secondaryInk), offerKeys
+	body, keys := says(fmt.Sprintf(offerCan, sh.Where, sh.Gains()), secondaryInk), offerKeys(sh)
 	if o.Adding {
 		body, keys = indented([]line{waiting(now, fmt.Sprintf(offerAdding, sh.Where))}, offerSaysAt), []Key{Quit}
 	}

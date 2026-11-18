@@ -125,13 +125,16 @@ func TestTheOfferCardNamesTheFileSetupFound(t *testing.T) {
 
 // Where the shell runs switchboard's claude already, the card offers the
 // line for switchboard's completions, as setup words what it gains, on the
-// row frame 8 says it.
+// row frame 8 says it, its n going without them, as the step then ends.
 func TestTheOfferCardOfTheCompletionsNamesThem(t *testing.T) {
 	s := linkScreen(offering(SetupOfferCard{}), func(s *Setup) { s.Link.Shell.Situation = setup.OfferCompletions })
 	c := setupDrawn(s, 160, 37)
-	want := "Setup can add one line to the end of ~/.zshrc, so your shell loads switchboard's completions:"
-	if got := offerRow(c, offerCanRow); got != offerInside(3, want) {
-		t.Errorf("row %d reads\n%q\nwant\n%q", offerCanRow, got, offerInside(3, want))
+	can := "Setup can add one line to the end of ~/.zshrc, so your shell loads switchboard's completions:"
+	keys := "enter add it   n no completions"
+	for y, want := range map[int]string{offerCanRow: offerInside(3, can), offerKeysRow: offerInside(126-2-len(keys), keys)} {
+		if got := offerRow(c, y); got != want {
+			t.Errorf("row %d reads\n%q\nwant\n%q", y, got, want)
+		}
 	}
 }
 

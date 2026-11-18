@@ -290,7 +290,7 @@ func (a *app) sayUnfenced(errOut io.Writer, pools config.Pools) error {
 	for _, p := range pools {
 		for _, dir := range p.Missing(a.Root) {
 			if _, err := fmt.Fprintf(errOut, "switchboard: %s isn't a directory, so no session starts in it yet: if it's on this Mac by another name, fence the pool %s anew with %s\n",
-				dir, prose.Quoted(p.Label), a.command("pool edit", p.ID, "--dirs")); err != nil {
+				prose.Clean(dir), prose.Quoted(p.Label), a.command("pool edit", p.ID, "--dirs")); err != nil {
 				return err
 			}
 		}

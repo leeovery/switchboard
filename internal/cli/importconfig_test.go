@@ -182,6 +182,27 @@ func TestImportOnAMacWithNoConfigLaysDownTheFoldersConfig(t *testing.T) {
 	}
 }
 
+// A fenced folder is looked for where every verb looks for it, on the
+// filesystem the CLI is given, never on the disk itself: one there is
+// warned of by none, though the disk lacks it.
+func TestImportLooksForTheFencedFoldersOnTheFilesystemItsGiven(t *testing.T) {
+	deps, _ := newMacDeps(t)
+	home, err := deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.Root = fstest.MapFS{strings.TrimPrefix(filepath.Join(home, "Code", "acme"), "/"): &fstest.MapFile{Mode: fs.ModeDir}}
+	dir := t.TempDir()
+	withConfig(t, macFolder(t, dir, "0123456789abcdef"), laidConfig)
+	if _, err := os.Stat(filepath.Join(home, "Code", "acme")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("~/Code/acme: %v, want it absent on disk", err)
+	}
+
+	if got := run(t, deps, "import", dir); got.code != 0 || got.stderr != "" {
+		t.Errorf("switchboard import = %+v, want it laid down, warning of nothing", got)
+	}
+}
+
 // The config laid down comes with the accounts record seeded from the
 // folder's: the accounts and pools that config configures alone, each
 // account with its organization, never the marks the folder's copy carries,

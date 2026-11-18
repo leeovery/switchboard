@@ -59,10 +59,14 @@ Each pool holds these:
 | `pool` | string | The id of the pool. |
 | `pool_label` | string | The label of the pool. |
 | `dirs` | list of strings | The folders of the fence, as the config writes them, `~/` included. Empty for the unfenced pool. |
-| `paths` | list of strings | The folders of the fence in full, `~/` replaced by your home folder. These are the folders the router fences sessions by. A folder the config can't resolve is left out. Empty for the unfenced pool. |
+| `paths` | list of strings | The folders of the fence in full: one for each of `dirs`, in the same order, absolute and cleaned, with `~/` replaced by your home folder. Empty for the unfenced pool. |
 | `accounts` | list of objects | The accounts in the pool, in the order of the config, as `{account, label, primary}`. |
 
 `primary` is set only on the primary of the pool.
+
+The router matches a session's folder to `paths` more loosely than an exact string compare. It
+follows links on both sides, and ignores case and how accents are written. So a folder that
+doesn't equal any of `paths` as text can still be inside the fence.
 
 If the config names no pools, `pools` lists the pools the router routes for, or else those the
 accounts record keeps. It's empty only if none of them names a pool, as before the router has made

@@ -315,6 +315,9 @@ func TestRAsksTheShellAgain(t *testing.T) {
 		{name: "switchboard's claude: done", again: linkThrough, want: map[int]string{
 			8: fact(linkRow), 10: fact(shellThrough), 12: fact(hookInstalled), 36: keyLine("", skillRight),
 		}},
+		{name: "switchboard's claude, the line offered for its completions: done, the card never reopened", again: linkForCompletions, want: map[int]string{
+			8: fact(linkRow), 10: fact(linkForCompletions.Shell.Said), 12: fact(hookInstalled), 36: keyLine("", skillRight),
+		}},
 		{name: "anything else: by hand, as it now says", again: inFront, want: map[int]string{
 			8: fact(linkRow), 10: fact(inFront.Shell.Said), 13: pressR, 36: keyLine("r check again", byHandRight),
 		}},
@@ -331,6 +334,9 @@ func TestRAsksTheShellAgain(t *testing.T) {
 			}
 			if h.steps.links != 1 {
 				t.Errorf("Link ran %d times, want once: r asks again", h.steps.links)
+			}
+			if h.model.offer != nil {
+				t.Error("asking again opened the offer card, want it opened once, never on asking again")
 			}
 		})
 	}

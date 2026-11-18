@@ -1285,9 +1285,12 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   the move is done, a config naming no pools has its pools as they stand, from the accounts record,
   as `launch.PoolsOf` gives them, so such a router is read as above.
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries,
-  its JSON giving each pool's directories twice: `dirs` as the config writes them, and `paths` as
-  the config resolves them, absolute and clean, as the router fences sessions by them, one it can't
-  resolve left out of `paths`. `pool add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
+  its JSON giving each pool's directories twice: `dirs` as the config writes them, and `paths`,
+  one for each of them, in order, as the config resolves them, absolute and clean (a directory it
+  can't resolve fails the config's load, so none is ever left out). The router matches a session's
+  directory to them with links resolved on both sides, ignoring case and how accents are written
+  (`launch`'s `fencesHolding`), so an exact compare of strings can miss. `pool add <label>
+  [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
   label with `--label`, replaces its directories with `--dirs` and clears them with `--unfence`; and
   `pool remove <id>` removes one that has no accounts. Leaving a second pool unfenced is refused,
@@ -1323,12 +1326,13 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
   beside each account's day's `pool` and in its `pools`; `history`, `history --windows` and
-  `sessions` name the pool they read at their top, `sessions` saying too where it read its list,
-  its `source` `router` where the router listed its sessions, else `ledger`; and `pool` lists
-  every pool so. The status document gives its own pool as `pool_id` and `pool_label`, as its
-  `pool` is the room, and as it gives its accounts' labels in its `accounts`, not on each event,
-  its events name their pool by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps
-  it, else, of a pool the record keeps but the config doesn't name, as the config last wrote it.
+  `sessions` name the pool they read at their top, `sessions` saying too where it read its list, its
+  `source` `router` where the router listed its sessions, else `ledger`; and `pool` lists every pool
+  so. The status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the
+  room, and as it gives its accounts' labels in its `accounts`, not on each event, its events name
+  their pool by its id, as they name their accounts. A removed pool is labelled as the accounts
+  record keeps it, else, of a pool the record keeps but the config doesn't name, as the config last
+  wrote it.
 - **The skill** tells Claude to pass `--pool "$SWITCHBOARD_POOL"`, the session's pool's id, to the
   verbs, so that a session reads its own pool, named explicitly. Outside a pool, as in a config
   without pools or a session not started through switchboard, it's empty, and `--pool ""` is no
@@ -1480,14 +1484,16 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
     directory left empty passed over; with none, the pool's unfenced. `enter` elsewhere has
     `accounts.Registry.CheckNewPool` check it, by the config's own rules, a refusal said under the
     label or under the directory refused, which `config.DirError` places; once it passes, the card
-    that opened it holds it among its pools, chosen, and `esc` goes back to that card. Of a
-    directory that isn't on this Mac, as `config.Pool.Missing` finds it, that card warns under
-    Pool's hint while the pool's chosen, in `accent.attention`, `~/Code/acme isn't a directory on
-    this Mac, so no session starts in it yet`, as `pool add` warns of one: a warning, never a
-    refusal, as the directory may be made later. Its keys are `tab next`, `enter create pool`
-    and `esc back`, `enter add a directory` on `+ another directory`; the card under it says
-    `enter new pool` while its Pool is on `new pool`. The pool held is written with the account, in the one edit that adds it, after its token, or moves it,
-    under an id drawn as `pool add` draws one (`accounts.NewPool`).
+    that opened it holds it among its pools, chosen, its directories as the config would write
+    them, `setup.CheckedPool`'s, so the hint and the warning name them alike, and `esc` goes back
+    to that card. Of a directory that isn't on this Mac, as `config.Pool.Missing` finds it, that
+    card warns under Pool's hint while the pool's chosen, in `accent.attention`, `~/Code/acme isn't
+    a directory on this Mac, so no session starts in it yet`, as `pool add` warns of one: a warning,
+    never a refusal, as the directory may be made later. Its keys are `tab next`, `enter create
+    pool` and `esc back`, `enter add a directory` on `+ another directory`; the card under it says
+    `enter new pool` while its Pool is on `new pool`. The pool held is written with the account, in
+    the one edit that adds it, after its token, or moves it, under an id drawn as `pool add` draws
+    one (`accounts.NewPool`).
   - The add card's `enter` checks the pool chosen and any new pool with the account, as
     `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
     Pool, a pool removed meanwhile among them, on the edit card too; with no plan chosen, once the
@@ -2856,16 +2862,22 @@ show.
      off to a file of switchboard's own, which puts its claude first and loads its completions.` and
      `It does nothing once switchboard is gone, and nothing else in ~/.zshrc changes.` Its keys:
      `enter add it`, `n I'll add it myself`.
-   - **The offer for the completions** (owner's call, 18 Nov 2026), where the shell runs
-     switchboard's `claude` already, as through a `PATH` kept in another file, but the startup file
-     it reads lacks switchboard's line, the one thing that loads its completions: the same card,
-     where setup could offer the line, its reason `so your shell loads switchboard's completions`
-     in place of `so your shell finds switchboard's claude first` (`OfferCompletions`, worded by
-     `ShellFound.Gains`). Your shell's row is `✓`, adding `· switchboard's line isn't in ~/.zshrc,
-     so its completions don't load`. Nothing is left to put right by hand, so `n` and `esc` end the
-     step, as where the shell runs switchboard's `claude` and the line is in; a line setup couldn't
-     add says why on the row, and ends it alike. Where the file can't be looked in, a new terminal
-     may read another, or a line of another switchboard's is there, nothing is offered.
+   - **The offer for the completions** (owner's call, 18 Nov 2026), where the shell's `PATH`
+     finds switchboard's `claude` already, as one kept in another file does, but switchboard's
+     completions aren't loaded and the startup file it reads lacks switchboard's line. The login
+     shell says whether they're loaded in the same asking, by the mechanism each registers a
+     command's with: zsh's `_comps[switchboard]`, which `compdef` sets; bash's `complete -p
+     switchboard`; fish's `complete -c switchboard` listing any. It says they're missing only where
+     it can take them, as switchboard's file loads them only there: zsh once `compdef` is defined,
+     bash where bash-completion is loaded, fish always. An alias in front that runs the link by its
+     path is never offered it, as the line would change which `claude` `PATH` finds. The card is
+     the same, its reason `so your shell loads switchboard's completions` in place of `so your
+     shell finds switchboard's claude first` (`OfferCompletions`, worded by `ShellFound.Gains`),
+     and its `n` is `n no completions`. Your shell's row is `✓`, adding `· switchboard's
+     completions aren't loaded: its line isn't in ~/.zshrc`. Nothing is left to put right by hand,
+     so `n` and `esc` end the step, installing the hook; a line setup couldn't add says why on the
+     row, and ends it alike. Where the file can't be looked in, a new terminal may read another, or
+     a line of another switchboard's is there, nothing is offered.
    - **By hand** (frame 11), declined, or where setup writes nothing: `Add this line to your shell's
      startup file yourself, after anything else there that changes PATH:` and the line; `Or, where
      you keep your PATH another way, put this directory first on it:` and the directory; then `Then
@@ -3188,7 +3200,8 @@ not the owner's decisions:
   directory is written from `$HOME`, as it goes on `PATH`.
 - **The step ends with the session hook:**
   - It runs at once where the shell runs switchboard's claude, or where the step stopped before
-    asking. From by hand, it runs on `enter leave it for now`.
+    asking; where the line's offered for the completions, once the offer card closes, whatever
+    its answer. From by hand, it runs on `enter leave it for now`.
   - The step is under way, `q quit` alone, until the hook answers. Then the page shows its row,
     with a warning where it couldn't be installed, and `enter next: Skill`: leaving by hand takes
     a second `enter`.
