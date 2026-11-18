@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,21 +70,23 @@ func TestAnAccountsDayOfNoWorkNamesThePoolItWasInAsTheDayWasSummarised(t *testin
 	}
 }
 
-// A day summarised again, as lines come to be filed under it, takes the pool
-// its account of no work is in then: the record is exact only of days
-// summarised before the account moves. Where none places it then, as once
-// it's removed, or a reader summarises the day as it reads it, it knows no
-// less than before, naming the pool the summary before named.
-func TestADayOfNoWorkSummarisedAgainNamesThePoolItsAccountIsInThen(t *testing.T) {
+// A day of no work keeps the pool it was first summarised in, however it's
+// summarised again: as a line comes to be filed under it, or as a new
+// summary version summarises every kept day again; by the router, its
+// account moved or removed since, or by a reader as it reads it.
+func TestADayOfNoWorkKeepsThePoolItWasFirstSummarisedIn(t *testing.T) {
 	tests := []struct {
 		name   string
 		poolOf func(string) (string, bool)
 		by     string
-		want   string
+		// older has the day summarised again as one of an older version, as
+		// a new version finds it, else as a line is filed under it.
+		older bool
 	}{
-		{name: "moved to another pool since", poolOf: placedIn(first), by: "the router", want: first},
-		{name: "removed since", poolOf: placedNowhere, by: "the router", want: acme},
-		{name: "by a reader", by: "a reader", want: acme},
+		{name: "a line filed since, its account moved to another pool", poolOf: placedIn(first), by: "the router"},
+		{name: "a line filed since, its account removed", poolOf: placedNowhere, by: "the router"},
+		{name: "a line filed since, by a reader", by: "a reader"},
+		{name: "of an older version, its account moved to another pool", poolOf: placedIn(first), by: "the router", older: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,7 +94,14 @@ func TestADayOfNoWorkSummarisedAgainNamesThePoolItsAccountIsInThen(t *testing.T)
 			if before := accountOf(summarisedBy(t, dir, history, on(1, 10, 0), placedIn(acme)), "personal"); before.Pool != acme {
 				t.Fatalf("personal's day of no work is %+v, summarised first, want it in %q", before, acme)
 			}
-			holdLines(t, dir, date, inPool(asked("2", on(0, 22, 0)), acme))
+			requests := 1
+			if tt.older {
+				written := strings.Replace(heldSummary(t, dir, date), `{"version":7,`, `{"version":6,`, 1)
+				writeFile(t, dir, "day-"+date+".json", []byte(written))
+			} else {
+				holdLines(t, dir, date, inPool(asked("2", on(0, 22, 0)), acme))
+				requests = 2
+			}
 
 			var got ledger.Summary
 			if tt.by == "a reader" {
@@ -99,26 +109,27 @@ func TestADayOfNoWorkSummarisedAgainNamesThePoolItsAccountIsInThen(t *testing.T)
 			} else {
 				got = summarisedBy(t, dir, history, on(3, 10, 0), tt.poolOf)
 			}
-			if work := accountOf(got, "work"); len(work.Models) != 1 || work.Models[0].Upstream != 2 {
-				t.Fatalf("work's day is %+v, want it summarised again, of its 2 requests", work)
+			if work := accountOf(got, "work"); got.Version != 7 || len(work.Models) != 1 || work.Models[0].Upstream != requests {
+				t.Fatalf("the day is of version %d, work's %+v; want it summarised again, as version 7, of work's %d requests", got.Version, work, requests)
 			}
-			if personal := accountOf(got, "personal"); personal.Pool != tt.want {
-				t.Errorf("personal's day of no work, summarised again, is %+v, want it in %q", personal, tt.want)
+			if personal := accountOf(got, "personal"); personal.Pool != acme {
+				t.Errorf("personal's day of no work, summarised again, is %+v, want it in %q still, as it was first summarised", personal, acme)
 			}
 		})
 	}
 }
 
 // A day summarised before idle days named their pools names none for an
-// account that did no work, and summarised again by a ledger that places it
-// nowhere still names none, so a read goes by the pool it's in now.
+// account that did no work, and keeps none for good: summarised again by a
+// ledger that places the account in a pool, it still names none, so a read
+// goes by the pool it's in now.
 func TestADayOfNoWorkSummarisedBeforeNamesNoPoolAndKeepsNone(t *testing.T) {
 	_, dir, history := idleDay(t)
 	if before := accountOf(summarisedBy(t, dir, history, on(1, 10, 0), nil), "personal"); before.Pool != "" {
 		t.Fatalf("personal's day of no work is %+v, summarised by a ledger told no pools, want it in none", before)
 	}
 	holdLines(t, dir, date, inPool(asked("2", on(0, 22, 0)), acme))
-	if personal := accountOf(summarisedBy(t, dir, history, on(3, 10, 0), placedNowhere), "personal"); personal.Pool != "" {
+	if personal := accountOf(summarisedBy(t, dir, history, on(3, 10, 0), placedIn(acme)), "personal"); personal.Pool != "" {
 		t.Errorf("personal's day of no work, summarised again, is %+v, want it in none still", personal)
 	}
 }
@@ -126,8 +137,8 @@ func TestADayOfNoWorkSummarisedBeforeNamesNoPoolAndKeepsNone(t *testing.T) {
 // A day of no work's pool is renamed as its work's would be, as an import
 // gives another Mac's pool the one here holding its accounts; one naming
 // none is never given the pool work in none is, as which pool it was in was
-// never recorded; and two days of no work of one account, renamed so, merge
-// into one naming the pool either named.
+// never recorded; and two days of one account, renamed so, merge into one
+// naming the pool either named, where neither worked, else its work's pool.
 func TestADayOfNoWorksPoolIsRenamedAsWorksIs(t *testing.T) {
 	const theirs = "x9z9"
 	idle := func(account, pool string) string {
@@ -161,6 +172,12 @@ func TestADayOfNoWorksPoolIsRenamedAsWorksIs(t *testing.T) {
 			name: "two ids of one account, one naming a pool", days: []string{idle("ab3k", ""), idle("personal", theirs)},
 			rename:  ledger.Renaming{Account: renaming("ab3k", "personal")},
 			changes: true, want: map[string]string{"personal": theirs},
+		},
+		{
+			name:    "two ids of one account, one idle naming a pool, the other worked in another",
+			days:    []string{`{"account":"ab3k","pool":"` + acme + `",` + workJSON(on(0, 9, 0)) + `}`, idle("personal", theirs)},
+			rename:  ledger.Renaming{Account: renaming("ab3k", "personal")},
+			changes: true, want: map[string]string{"personal": acme},
 		},
 	}
 	for _, tt := range tests {

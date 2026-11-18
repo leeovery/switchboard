@@ -90,16 +90,17 @@ func TestAnAccountsPoolIsTheConfigsElseTheRecordsKeptForItOnceRemoved(t *testing
 }
 
 // What's of an account is of the pool it's placed in, or of every pool where
-// none places it, as an account removed before pools.
+// none places it, as an account removed before pools; it's placed in the
+// pool it's placed in alone, and in none where none places it.
 func TestWhatsOfAnAccountIsOfItsPoolElseOfEvery(t *testing.T) {
 	poolOf := status.AccountPools(pooledAccounts, func() identity.Record { return keptRecord })
 	tests := []struct {
-		account string
-		in      []string
+		account    string
+		in, placed []string
 	}{
-		{account: "work", in: []string{acme}},
-		{account: "side", in: []string{firstPool}},
-		{account: "lapsed", in: []string{acme}},
+		{account: "work", in: []string{acme}, placed: []string{acme}},
+		{account: "side", in: []string{firstPool}, placed: []string{firstPool}},
+		{account: "lapsed", in: []string{acme}, placed: []string{acme}},
 		{account: "spare", in: []string{acme, firstPool}},
 		{account: "unknown", in: []string{acme, firstPool}},
 	}
@@ -107,6 +108,9 @@ func TestWhatsOfAnAccountIsOfItsPoolElseOfEvery(t *testing.T) {
 		for _, pool := range []string{acme, firstPool} {
 			if got, want := status.AccountIn(tt.account, pool, poolOf), slices.Contains(tt.in, pool); got != want {
 				t.Errorf("AccountIn(%s, %s) = %v, want %v", tt.account, pool, got, want)
+			}
+			if got, want := status.AccountPlacedIn(tt.account, pool, poolOf), slices.Contains(tt.placed, pool); got != want {
+				t.Errorf("AccountPlacedIn(%s, %s) = %v, want %v", tt.account, pool, got, want)
 			}
 		}
 	}

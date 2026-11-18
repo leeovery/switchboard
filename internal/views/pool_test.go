@@ -112,12 +112,14 @@ func TestAPoolsDaysHoldItsWorkAndItsOwnIdleAccounts(t *testing.T) {
 }
 
 // An account's day of no work that names the pool it was in as the day was
-// summarised shows in that pool's read alone, as a worked day's work does,
-// whatever pool it's in now: so the pool an account left keeps its days
-// spent capped there, and the pool it joined, or another, never shows them.
-// One naming none, as a day summarised before idle days named their pools,
-// goes by the pool the account is in now.
-func TestAnAccountsDayOfNoWorkShowsInThePoolItNamesAlone(t *testing.T) {
+// summarised shows in that pool's read, as a worked day's work does, and in
+// the read of the pool the account is in now, as its windows are its own:
+// so the pool an account left keeps its days spent capped there, and the
+// pool it joined keeps them in the account's weeks. One that names a pool,
+// of an account none places now, shows in that pool alone; one naming none,
+// as a day summarised before idle days named their pools, goes by the pool
+// the account is in now.
+func TestAnAccountsDayOfNoWorkShowsInThePoolItNamesAndThePoolItsInNow(t *testing.T) {
 	day := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
 	capped := 30
 	idleIn := func(account, pool string) ledger.AccountDay {
@@ -135,8 +137,8 @@ func TestAnAccountsDayOfNoWorkShowsInThePoolItNamesAlone(t *testing.T) {
 		read views.PoolRead
 		want []string
 	}{
-		{name: "Acme's", read: acmeRead, want: []string{"lapsed", "side"}},
-		{name: "Default's", read: views.PoolRead{ID: "b2n8", First: acmeRead.First, PoolOf: acmeRead.PoolOf}, want: []string{"spare", "work"}},
+		{name: "Acme's", read: acmeRead, want: []string{"lapsed", "side", "work"}},
+		{name: "Default's", read: views.PoolRead{ID: "b2n8", First: acmeRead.First, PoolOf: acmeRead.PoolOf}, want: []string{"side", "spare", "work"}},
 		{name: "the kept pool's", read: views.PoolRead{ID: "x9z9", First: acmeRead.First, PoolOf: acmeRead.PoolOf}, want: []string{"gone"}},
 		{name: "every pool's", read: views.PoolRead{}, want: []string{"gone", "lapsed", "side", "spare", "work"}},
 	}

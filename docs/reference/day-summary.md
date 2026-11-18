@@ -35,7 +35,7 @@ account read, has no `accounts`.
 | Field | Type | Meaning |
 |---|---|---|
 | `account` | string | The account, by id only. Left out of the requests no account answered. |
-| `pool` | string | The pool all the account's work was in that day. On a day of no work, the pool the account was in. |
+| `pool` | string | The pool all the account's work was in that day. If the account sent no requests, the pool it was in when the day was summarised. |
 | `models` | list of objects | The requests of the account, by the model each asked for. |
 | `sessions` | number | How many sessions the requests were of. |
 | `session_ids` | list of strings | The ids of those sessions. |
@@ -47,7 +47,9 @@ account read, has no `accounts`.
 
 - the requests named no pool;
 - the requests were in more than one pool;
-- the account did no work, and no pool held it when the day was summarised.
+- the account sent no requests, and no pool held it when the day was summarised;
+- the account sent no requests, and the day was summarised by v1.0.1 or earlier;
+- the account sent no requests, and the day is today's, as `history` and the dashboard work it out.
 
 A pool in which the account did no work, such as one named only by a move that moved no session, isn't
 counted.
@@ -114,18 +116,34 @@ filed without a pool since, for example by an older release after a downgrade. T
 the one the [accounts record](accounts-record.md) marks `first`, if the config has it. If not, it's
 the first pool in the config.
 
-## A pool on a day of no work
+## The pool of an account with no requests
 
-An account that sent no request still gets a day, for its windows. Its `pool` is the pool the
-router had the account in when it summarised the day. `history` and the dashboard show that day in
-that pool only. So a pool keeps the days an account spent capped there after the account moves on.
+```bash
+jq '.accounts[] | {account, pool, minutes_at_cap}' day-2026-11-12.json
+```
 
-- **Exact until a move.** A day summarised again takes the pool the account is in then. If no pool
-  holds the account then, the day keeps the pool it named.
-- **Older days name none.** A day summarised before switchboard recorded this has no `pool`. It
-  shows in the pool the account is in now.
-- **Older releases** pass over `pool` on a day of no work. The `version` stays `7`.
-- **Imports** rename the pool of a day of no work the same way as the pool of a worked day.
+```json
+{
+  "account": "work",
+  "pool": "q7mt",
+  "minutes_at_cap": 95
+}
+```
+
+An account that sent no requests still gets a day, for its windows. The day's `pool` is the pool
+the router had the account in when it first summarised the day. `history` and the dashboard show
+that day in that pool, and in the pool the account is in now. So a pool keeps the days an account
+spent capped there after the account moves on.
+
+- **Fixed for good.** A day summarised again keeps the `pool` it named first, or none if it named
+  none.
+- **A move just after midnight** files the day under the new pool. The router summarises a day an
+  hour after it ends.
+- **Older days name none.** A day summarised by v1.0.1 or earlier has no `pool` for such an
+  account. It shows in the pool the account is in now.
+- **Older releases** pass over this `pool`, and drop it if they summarise the day again. The
+  `version` stays `7`.
+- **Imports** rename this `pool` the same way as the pool of a worked day.
 
 ## Which accounts get a day
 

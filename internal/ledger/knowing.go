@@ -47,8 +47,9 @@ func (s Summary) made(lines int, held *Summary) Summary {
 // held that the lines no longer give kept; and its work in every pool
 // together their work summed where that counts more, as where some of one
 // pool's lines were lost and others filed since in another, so its pools
-// always add up to its whole. A day of no work names the pool it was placed
-// in afresh, as IdlePools places it, else held's, as IdlePool reads each.
+// always add up to its whole. A day of no work names the pool held's
+// named, as IdlePool reads it, fixed as IdlePools says, else the one it was
+// placed in afresh.
 func (a AccountDay) knowing(held AccountDay) AccountDay {
 	a = a.pooled(knowingAll(a.poolDays(), held.poolDays(), PoolDay.key, PoolDay.knowing, strings.Compare))
 	a.Work = a.Work.knowing(held.Work)
@@ -56,7 +57,7 @@ func (a AccountDay) knowing(held AccountDay) AccountDay {
 		a.Work = whole
 	}
 	if a.Idle() {
-		a.Pool = cmp.Or(a.Pool, held.IdlePool())
+		a.Pool = cmp.Or(held.IdlePool(), a.Pool)
 	}
 	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)
 	a.Limits = limitsKnowing(a.Limits, held.Limits)

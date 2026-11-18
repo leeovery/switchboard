@@ -794,13 +794,13 @@ func TestAnotherMacsFolderTakenInAgainAfterItsMoveToPoolsCountsEachDayOnce(t *te
 	}
 }
 
-// Another Mac's folder holding its config, as a Mac taking over from it
-// imports, has its first pool's lines taken in as the pool here holding that
-// pool's accounts, whatever id each Mac gave its pool; and a pool of its
-// none of whose accounts this Mac configures kept apart, its lines naming it
-// still, and the answer saying so.
-func TestAnotherMacsFolderHoldingItsConfigIsTakenInAsThePoolHereHoldingItsAccounts(t *testing.T) {
-	const firstHere, firstThere, client = "q7mt", "b2n8", "c1nt"
+// takingOver is importConfig's router configuring work alone, in the pool
+// firstHere, its first, as its accounts record notes it, and the folder of
+// another Mac staged for it to take over from, holding that Mac's config and
+// accounts record: work in its first pool, firstThere, and x9x9, which the
+// router doesn't configure, in client.
+func takingOver(t *testing.T, firstHere, firstThere, client string) (router.Config, string) {
+	t.Helper()
 	cfg := importConfig(t)
 	cfg.Accounts, cfg.Pools = config.Accounts{{ID: "work", Label: "Work", Pool: firstHere}}, config.Pools{{ID: firstHere, Label: "Default"}}
 	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
@@ -809,7 +809,7 @@ func TestAnotherMacsFolderHoldingItsConfigIsTakenInAsThePoolHereHoldingItsAccoun
 	}); err != nil {
 		t.Fatal(err)
 	}
-	staged, date := folder(cfg, 1), dateOf(10)
+	staged := folder(cfg, 1)
 	stageManifest(t, staged, export.Manifest{Install: otherInstall, IDs: true, Accounts: true, Config: true})
 	data, err := identity.Record{
 		Accounts: []identity.Entry{{ID: "work", Organization: "test-org-work", Added: stagedOn, Configured: true}, {ID: "x9x9", Organization: "test-org-client", Added: stagedOn, Configured: true}},
@@ -821,6 +821,18 @@ func TestAnotherMacsFolderHoldingItsConfigIsTakenInAsThePoolHereHoldingItsAccoun
 	put(t, identity.NewFile(staged).Path(), data, stagedOn)
 	theirConfig := "[[account]]\nid = \"work\"\npool = \"" + firstThere + "\"\n\n[[account]]\nid = \"x9x9\"\npool = \"" + client + "\"\n"
 	put(t, export.ConfigFile(staged), []byte(theirConfig), stagedOn)
+	return cfg, staged
+}
+
+// Another Mac's folder holding its config, as a Mac taking over from it
+// imports, has its first pool's lines taken in as the pool here holding that
+// pool's accounts, whatever id each Mac gave its pool; and a pool of its
+// none of whose accounts this Mac configures kept apart, its lines naming it
+// still, and the answer saying so.
+func TestAnotherMacsFolderHoldingItsConfigIsTakenInAsThePoolHereHoldingItsAccounts(t *testing.T) {
+	const firstHere, firstThere, client = "q7mt", "b2n8", "c1nt"
+	cfg, staged := takingOver(t, firstHere, firstThere, client)
+	date := dateOf(10)
 	lines := requestLines.linesOf(date, 1, 2)
 	model := `"model":"` + opus + `"`
 	stageLines(t, staged, requestLines, date, pooledAfter(lines[0], model, firstThere), pooledAfter(lines[1], model, client))
@@ -832,6 +844,33 @@ func TestAnotherMacsFolderHoldingItsConfigIsTakenInAsThePoolHereHoldingItsAccoun
 	wantHeld(t, cfg, date, []string{pooledAfter(lines[0], model, firstHere), pooledAfter(lines[1], model, client)})
 	if _, held := readRecord(t, cfg.StateDir).PoolByID(firstThere); held {
 		t.Errorf("once imported, the record holds the other Mac's first pool, want it taken in as %s alone", firstHere)
+	}
+}
+
+// Another Mac's summary of a day its accounts sent nothing on is copied in
+// with each account's day of no work naming its pool as the import names the
+// pool's work: the pool here holding its accounts, else the pool kept apart.
+func TestAnotherMacsDayOfNoWorkIsTakenInNamingThePoolsTheImportGivesIt(t *testing.T) {
+	const firstHere, firstThere, client = "q7mt", "b2n8", "c1nt"
+	cfg, staged := takingOver(t, firstHere, firstThere, client)
+	date := dateOf(10)
+	idle := `{"version":7,"day":%q,"lines":0,"accounts":[{"account":"work","pool":%q,"sessions":0,"moved_on":0,"moved_off":0,"highest":{"5h":1}},` +
+		`{"account":"x9x9","pool":%q,"sessions":0,"moved_on":0,"moved_off":0,"highest":{"5h":1}}]}` + "\n"
+	put(t, ledger.SummaryFile(ledger.Dir(staged), date), fmt.Appendf(nil, idle, date, firstThere, client), stamped(stagedOn))
+
+	if got := importNow(t, cfg); got.Summaries != 1 {
+		t.Fatalf("Import() = %+v, want the summary copied in", got)
+	}
+	var summary ledger.Summary
+	if err := json.Unmarshal([]byte(stateOf(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)).data), &summary); err != nil {
+		t.Fatal(err)
+	}
+	pools := make(map[string]string)
+	for _, a := range summary.Accounts {
+		pools[a.Account] = a.IdlePool()
+	}
+	if want := map[string]string{"work": firstHere, "x9x9": client}; !maps.Equal(pools, want) {
+		t.Errorf("once imported, the day's accounts' days of no work name the pools %v, want %v", pools, want)
 	}
 }
 

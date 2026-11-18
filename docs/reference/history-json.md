@@ -47,6 +47,8 @@ Once the config has pools, the history is of one pool:
 
 - the work each request recorded in the pool at the time;
 - the work from before pools, counted in the first pool;
+- the days an account that has left the pool spent in it sending no requests, such as a day at its
+  cap;
 - the windows, plans and weeks of the accounts in the pool now.
 
 The windows of an account are its own, whatever pool it's in.

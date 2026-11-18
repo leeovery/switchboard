@@ -1051,7 +1051,7 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   because an account's pool can change and the config keeps no history of it.
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
   partway through a day: summary version 7 (see The request ledger). An account's day of no work
-  names the pool the router had the account in as it summarised the day (see below).
+  names the pool the router had the account in as it first summarised the day (see below).
 - **Events:** the events of a session's work name its pool: `started` and `moved`, the pool the
   session's request was routed within, and `pin` and `auto`, the pool whose pin was set or
   cleared, or the session's, of its own pin. What befalls an account, a limit, a cap or a refusal,
@@ -1178,43 +1178,48 @@ pool recorded at the time: the requests and the Log, sessions, Projects, what wo
 Accounts' totals. An account's window facts in a day's summary, its limits and minutes at its cap,
 show:
 
-- on a day it worked, in the pool it's in now, as they're the account's, and in each pool it worked
-  in that day, as the past stands;
-- on a day it did no work, in the pool the day's summary names alone, the pool the router had it in
-  as it summarised the day, as a worked day's work goes by the pool recorded at the time: so the
-  pool an account left keeps its days spent capped there, and the pool it joined never shows them;
-- and on a day of no work whose summary names no pool, as one summarised before idle days named
-  theirs, in the pool it's in now.
+- in the pool it's in now, on every day, as they're the account's;
+- in a pool it left, on the days it worked there, as the past stands;
+- and in a pool it left, on the days it did no work at all, where the day's summary names that pool,
+  the pool the router had the account in as it first summarised the day.
 
-The router names an idle day's pool from its pool table, the owner that names a request's
-(`ledger.IdlePools`, given `poolTable.in`), as the pools stand as it summarises the day, which a
-config's change reaches within its next look: none where no pool holds the account, as once it's
-removed, or before pools. The pool views read it by the pool's read, `views.PoolRead`, an idle day
-naming a pool shown in that pool's read alone, as a request recorded there is, so an account none
-places now, whose windows show in every pool, shows its idle days only where they name. Its limits:
+So the pool an account left keeps its days spent capped there, and the pool it joined keeps them
+too, in the account's weeks. An account none places now, whose windows show in every pool, shows
+an idle day naming a pool in that pool alone. The router places an idle account by its pool table,
+the owner that routes by the pools (`ledger.IdlePools`, given `poolTable.in`, as `poolTable.of`
+names a request's pool), as the pools stand as it summarises the day: none where no pool holds the
+account, as once it's removed, or before pools. A pool's read shows such a day by the pool's read,
+`views.PoolRead`, by the pool the day names, as `keeps` has it of a request's, or by the pool the
+account is in now. Its limits:
 
-- **Exact only before a move.** A day summarised again, as a line comes to be filed under it, or as
-  a later summary version summarises every kept day again, takes the pool the account is in then; where none holds it then, as once it's removed, it keeps the
-  pool it named, as a summary written again knows no less. So a day summarised again after a move
-  names the new pool.
-- **No backfill, no version.** The days summarised before it name none, and are never given one: a
-  new summary version would summarise every kept day again and stamp each with today's pool. An
-  older release passes over an idle day's `pool`, reading the day as one that names none.
+- **Fixed when first summarised.** An account's idle day takes its pool the first time its day is
+  summarised, and keeps it for good: a day summarised again, as a line comes to be filed under it
+  or a new summary version summarises every kept day again, keeps the pool its summary before
+  named, or none where it named none; and two ids of one account merged into one keep the pool
+  either day named, where neither worked.
+- **A move before the day is summarised.** The router summarises a day an hour after it ends, so an
+  account moved after midnight but before then has its idle day filed under its new pool.
+- **No backfill, no version.** The days summarised before it name none, and keep none, so they go
+  by the pool the account is in now. No summary version marks it, as a version would summarise every
+  kept day again.
+- **An older release drops it.** An older release passes over an idle day's `pool` as it reads a
+  day, and one that summarises a day again drops it, as on a downgrade, or in a handover's overlap,
+  as the release going summarises a day the new one wrote.
 - **Readers name none.** A reader summarising a day as it reads it, as today's, names no pool for an
-  idle day, as the pool the account is in now, which a read then goes by, is the pool it's in then;
-  one summarising a day again keeps the pool the router's summary named.
-- **Renamed as work is.** An import gives an idle day's pool another Mac's pool's id here as it gives
-  a worked day's, or keeps it apart under its own id, read with `--pool` and that id alone, as an
-  account removed there or moved, then imported, keeps its idle days where they were; and a day
-  from before pools, given the first pool where its work named none, gives an idle day naming none
-  no pool, as which pool its account was in was never recorded.
+  idle day, the pool the account is in now being its pool then; it never writes the summary, so it
+  never becomes a summary before a router's.
+- **Renamed as work is.** An import gives an idle day's pool another Mac's pool's id here as it
+  gives a worked day's, or keeps it apart under its own id, read with `--pool` and that id alone,
+  so an account removed there or moved, then imported, keeps its idle days where they were. A day
+  from before pools, its work in none given the first pool, gives an idle day naming none no pool,
+  as which pool its account was in was never recorded.
 
 So an account moved out keeps its work in the pool it left, and the days it spent there idle, and
-is named there by its label, as a removed account is shown, with where it is now in place of when it was removed: in text.faint on
-the screens that draw a removed account so, and in the verbs' text as `work (now in Acme)`
-(`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a
-column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
-Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
+is named there by its label, as a removed account is shown, with where it is now in place of when
+it was removed: in text.faint on the screens that draw a removed account so, and in the verbs' text
+as `work (now in Acme)` (`status.MovedOf`, read through the names of every view and verb).
+`history`'s totals give it a column of its own there, and its JSON lists it under `moved`, with its
+pool's id and label. Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 
 ### Reading a pool
 
@@ -9491,10 +9496,10 @@ from the first day a router that has it runs, so nothing before then is in it.
     account's, once, whatever pool it's in.
     - `pool`: the id of the pool all the account's work that day was in, left out where its lines
       named none, as every line did before pools, and where its work was in more than one pool. Of
-      a day it did no work, the id of the pool the router had it in as it summarised the day,
-      left out where none held it, and in a day summarised before idle days named theirs, which
-      came after version 7 with no version of its own: see Pools' What's recorded for the rule,
-      and its limits.
+      a day it did no work, the id of the pool the router had it in as it first summarised the
+      day, kept for good; left out where none held it, and in a day summarised before idle days
+      named theirs, which came after version 7 with no version of its own: see Pools' What's
+      recorded for the rule, and its limits.
     - `pools`: where its work was in more than one pool, each pool's, in the order of their ids,
       that of the lines that named none first, its `pool` left out: its `models`, `sessions`,
       `session_ids`, `moved_on` and `moved_off`, counted of the pool's lines alone as the account's

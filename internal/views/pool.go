@@ -227,14 +227,15 @@ func (p PoolRead) summary(s ledger.Summary) ledger.Summary {
 }
 
 // showsIdle reports whether the read shows the windows of an account's day,
-// one of no work in the pool read: by the pool a day of no work at all
-// named as it was summarised, as ledger.AccountDay's IdlePool reads it,
-// where it names one, as keeps has it of a request's; else by the pool the
-// account is in now, as holds has it, as of a day that worked in another
-// pool, an account's windows being its own.
+// one of no work in the pool read, an account's windows being its own: in
+// the pool the account is in now, as holds has it; and, of a day of no work
+// at all that names the pool its account was in as it was summarised, as
+// ledger.AccountDay's IdlePool reads it, in that pool too, as keeps has it
+// of a request's, but in no other where none places the account now, as
+// status.AccountPlacedIn has it.
 func (p PoolRead) showsIdle(day ledger.AccountDay) bool {
 	if pool := day.IdlePool(); pool != "" {
-		return p.keeps(pool)
+		return p.keeps(pool) || status.AccountPlacedIn(day.Account, p.ID, p.PoolOf)
 	}
 	return p.holds(day.Account)
 }
