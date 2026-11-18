@@ -172,9 +172,10 @@ Until it is, `setup` offers once to add one line to the end of your shell's star
 the file and shows the line first. `enter` adds it, and `n` leaves it to you.
 
 If your shell already runs switchboard's `claude`, because you keep your `PATH` in another file,
-`setup` asks your shell whether switchboard's completions are loaded. If they aren't, `setup` still
-offers the line once, this time for the completions. `n` declines it, and the step is done either
-way.
+`setup` asks your shell whether switchboard's completions are loaded. If your shell can take
+completions and has none of switchboard's, `setup` still offers the line once, this time for the
+completions. `n` declines it, and the step is done either way. For when no offer comes, see
+[Troubleshooting: the claude link](../troubleshooting/claude-link.md).
 
 | Key | What it does |
 |---|---|

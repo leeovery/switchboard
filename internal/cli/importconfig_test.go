@@ -203,6 +203,20 @@ func TestImportLooksForTheFencedFoldersOnTheFilesystemItsGiven(t *testing.T) {
 	}
 }
 
+// The fenced folder import warns of is made safe to show, as pool add's
+// warning makes it: a control in it, as a config edited by hand can hold,
+// never reaches the terminal.
+func TestImportWarnsOfAFencedFolderMadeSafeToShow(t *testing.T) {
+	deps, _ := newMacDeps(t)
+	dir := t.TempDir()
+	withConfig(t, macFolder(t, dir, "0123456789abcdef"), strings.Replace(laidConfig, `"~/Code/acme"`, `"~/Code/ac\u001b[2Jme"`, 1))
+
+	got := run(t, deps, "import", dir)
+	if got.code != 0 || strings.ContainsRune(got.stderr, '\x1b') || !strings.Contains(got.stderr, "isn't a directory, so no session starts in it yet") {
+		t.Errorf("switchboard import = %+v, want it to warn of the folder, no control in it", got)
+	}
+}
+
 // The config laid down comes with the accounts record seeded from the
 // folder's: the accounts and pools that config configures alone, each
 // account with its organization, never the marks the folder's copy carries,

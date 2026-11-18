@@ -2869,15 +2869,15 @@ show.
      command's with: zsh's `_comps[switchboard]`, which `compdef` sets; bash's `complete -p
      switchboard`; fish's `complete -c switchboard` listing any. It says they're missing only where
      it can take them, as switchboard's file loads them only there: zsh once `compdef` is defined,
-     bash where bash-completion is loaded, fish always. An alias in front that runs the link by its
-     path is never offered it, as the line would change which `claude` `PATH` finds. The card is
-     the same, its reason `so your shell loads switchboard's completions` in place of `so your
-     shell finds switchboard's claude first` (`OfferCompletions`, worded by `ShellFound.Gains`),
-     and its `n` is `n no completions`. Your shell's row is `✓`, adding `· switchboard's
-     completions aren't loaded: its line isn't in ~/.zshrc`. Nothing is left to put right by hand,
-     so `n` and `esc` end the step, installing the hook; a line setup couldn't add says why on the
-     row, and ends it alike. Where the file can't be looked in, a new terminal may read another, or
-     a line of another switchboard's is there, nothing is offered.
+     bash where bash-completion is loaded outside POSIX mode, fish always. An alias in front that
+     runs the link by its path is never offered it, as the line would change which `claude` `PATH`
+     finds. The card is the same, its reason `so your shell loads switchboard's completions` in
+     place of `so your shell finds switchboard's claude first` (`OfferCompletions`, worded by
+     `ShellFound.Gains`), and its `n` is `n no completions`. Your shell's row is `✓`, adding `·
+     switchboard's completions aren't loaded: its line isn't in ~/.zshrc`. Nothing is left to put
+     right by hand, so `n` and `esc` end the step, installing the hook; a line setup couldn't add
+     says why on the row, and ends it alike. Where the file can't be looked in, a new terminal may
+     read another, or a line of another switchboard's is there, nothing is offered.
    - **By hand** (frame 11), declined, or where setup writes nothing: `Add this line to your shell's
      startup file yourself, after anything else there that changes PATH:` and the line; `Or, where
      you keep your PATH another way, put this directory first on it:` and the directory; then `Then
@@ -3200,8 +3200,9 @@ not the owner's decisions:
   directory is written from `$HOME`, as it goes on `PATH`.
 - **The step ends with the session hook:**
   - It runs at once where the shell runs switchboard's claude, or where the step stopped before
-    asking; where the line's offered for the completions, once the offer card closes, whatever
-    its answer. From by hand, it runs on `enter leave it for now`.
+    asking. Where the line's offered for the completions, it runs once `n` or `esc` closes the
+    offer card; after `enter`, once the line's added and the shell asked again, or at once where
+    it couldn't be added. From by hand, it runs on `enter leave it for now`.
   - The step is under way, `q quit` alone, until the hook answers. Then the page shows its row,
     with a warning where it couldn't be installed, and `enter next: Skill`: leaving by hand takes
     a second `enter`.

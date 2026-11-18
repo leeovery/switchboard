@@ -48,9 +48,10 @@ const (
 	// OfferLine is a startup file without switchboard's line, which setup
 	// offers to add, as AddLine does.
 	OfferLine
-	// OfferCompletions is a shell that runs switchboard's claude already,
-	// as through a PATH kept in another file, but whose startup file is
-	// without switchboard's line, which setup offers to add for its
+	// OfferCompletions is a shell whose PATH finds switchboard's claude
+	// already, as one kept in another file does, that says it can take
+	// switchboard's completions but has none, and whose startup file is
+	// without switchboard's line, which setup offers to add for the
 	// completions alone, as AddLine does.
 	OfferCompletions
 	// OtherLine is switchboard's line in the startup file reading another

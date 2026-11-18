@@ -704,8 +704,13 @@ func (s *fakeSteps) CheckAdding(adding setup.Adding) (accounts.Adding, error) {
 	return accounts.Adding{Account: config.NewAccount{Label: adding.Label, Plan: plan, Pool: adding.Pool}, NewPool: adding.NewPool}, err
 }
 
-// CheckPool keeps the pool, passing it, its directories written as given,
-// those poolMissing names missing, but where poolErr fails it.
+// fakeHome is the home of the fake steps' user, which a directory typed in
+// full within is written from ~/, as the config writes one.
+const fakeHome = "/home/user/"
+
+// CheckPool keeps the pool, passing it, its directories written as the
+// config writes them, one in fakeHome from ~/, those poolMissing names
+// missing, but where poolErr fails it.
 func (s *fakeSteps) CheckPool(pool accounts.NewPool) (setup.CheckedPool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -713,7 +718,14 @@ func (s *fakeSteps) CheckPool(pool accounts.NewPool) (setup.CheckedPool, error) 
 	if s.poolErr != nil {
 		return setup.CheckedPool{}, s.poolErr
 	}
-	return setup.CheckedPool{Dirs: pool.Dirs, Missing: s.poolMissing}, nil
+	written := make([]string, len(pool.Dirs))
+	for i, dir := range pool.Dirs {
+		written[i] = dir
+		if rest, ok := strings.CutPrefix(dir, fakeHome); ok {
+			written[i] = "~/" + rest
+		}
+	}
+	return setup.CheckedPool{Dirs: written, Missing: s.poolMissing}, nil
 }
 
 // fakeEdit is an edit EditAccount was given, of the account id.

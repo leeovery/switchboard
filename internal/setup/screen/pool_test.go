@@ -196,7 +196,9 @@ func TestTheNewPoolCardFromTheAddCard(t *testing.T) {
 
 // A new pool with a directory that isn't on this Mac passes, the card that
 // opened it warning of it under Pool's hint while it's chosen, as pool add
-// warns of one, the account made with it all the same.
+// warns of one, the account made with it all the same. One typed in full in
+// the home is held as the config writes it, from ~/, so the hint and the
+// warning name it alike.
 func TestTheAddCardWarnsOfANewPoolsDirectoryNotOnThisMac(t *testing.T) {
 	steps := pooledSteps()
 	steps.poolMissing = []string{"~/Code/cleint"}
@@ -207,7 +209,7 @@ func TestTheAddCardWarnsOfANewPoolsDirectoryNotOnThisMac(t *testing.T) {
 	}
 	h.typeIn("Client")
 	h.pressAndDeliver("tab")
-	h.typeIn("~/Code/cleint")
+	h.typeIn(fakeHome + "Code/cleint")
 	h.pressAndDeliver("enter")
 	warning := "~/Code/cleint isn't a directory on this Mac, so no session starts in it yet"
 	hint := "only sessions started in ~/Code/cleint use it"
@@ -224,8 +226,8 @@ func TestTheAddCardWarnsOfANewPoolsDirectoryNotOnThisMac(t *testing.T) {
 	if len(h.steps.adds) != 1 || h.steps.adds[0].NewPool == nil {
 		t.Fatalf("CheckAdding was asked %+v, want Client 1 with Client to make, warned of or not", h.steps.adds)
 	}
-	if got := h.steps.nextMake(t); got.NewPool == nil || got.NewPool.Label != "Client" {
-		t.Errorf("MakeToken was asked %+v, want Client made with the account", got)
+	if got := h.steps.nextMake(t); got.NewPool == nil || got.NewPool.Label != "Client" || !slices.Equal(got.NewPool.Dirs, []string{"~/Code/cleint"}) {
+		t.Errorf("MakeToken was asked %+v, want Client made with the account, its directory as the config writes it", got)
 	}
 }
 

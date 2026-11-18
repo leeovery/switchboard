@@ -121,7 +121,8 @@ func (a Answer) Through() bool {
 }
 
 // Which asks the login shell which claude it runs, whether PATH's is link,
-// switchboard's claude link, and where it reads its startup file. The
+// switchboard's claude link, where it reads its startup file, and whether
+// switchboard's completions are loaded, or missing where it can take them. The
 // shell's started as a new terminal's is, login and interactive, in the
 // environment one starts in, so the PATH setup runs with can't answer for
 // it: HOME, USER, LOGNAME, SHELL, TMPDIR, TERM, TMUX and the locale's
@@ -178,8 +179,8 @@ const (
 // completed asks sh whether switchboard's completions are registered, as
 // each shell registers a command's: zsh's compdef puts it in _comps, bash's
 // complete gives it a spec, and fish's complete lists it; else, where sh can
-// take them, as switchboard's file for it loads them only there, that
-// they're missing, saying nothing otherwise.
+// take them, as switchboard's file for it loads them only there, bash
+// outside POSIX mode alone, that they're missing, saying nothing otherwise.
 func completed(sh Shell) string {
 	switch sh {
 	case Zsh:
@@ -187,7 +188,7 @@ func completed(sh Shell) string {
 	case Fish:
 		return "if complete -c switchboard | string length -q; " + loadedSaid + "; else; " + missingSaid + "; end"
 	}
-	return "if complete -p switchboard >/dev/null 2>&1; then " + loadedSaid + "; elif declare -F _get_comp_words_by_ref >/dev/null 2>&1; then " + missingSaid + "; fi"
+	return "if complete -p switchboard >/dev/null 2>&1; then " + loadedSaid + "; elif declare -F _get_comp_words_by_ref >/dev/null 2>&1 && ! shopt -oq posix; then " + missingSaid + "; fi"
 }
 
 // loginEnv is the environment a new terminal's shell starts in, taken from
