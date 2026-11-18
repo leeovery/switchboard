@@ -135,7 +135,8 @@ type Ledger struct {
 	days   days
 	// summarising is held while a round summarises its part of the days, as
 	// SummariseSome does, from the readings history's writer's goroutine as
-	// well as Run's.
+	// well as Run's; while an import takes a day in, as Import does, and while
+	// a day is renamed, as RenameDay does.
 	summarising sync.Mutex
 	// left are the summaries the last round left as they are, of days with no
 	// lines that don't read as their days', each as its file looked then, by
@@ -165,6 +166,10 @@ type Ledger struct {
 	// summarises once it has looked at the day's files, before it reads them:
 	// a prune may come between the two, as tests have it there.
 	looked func(date string)
+	// importing, where it's set, is called as an import takes summarising,
+	// on Run's goroutine, before it waits for it: as tests have it, to know
+	// the import is under way.
+	importing func()
 	// unwritable is set once a line couldn't be put as JSON, which is logged
 	// once. Only Run's goroutine touches it.
 	unwritable bool

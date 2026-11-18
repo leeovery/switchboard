@@ -51,7 +51,8 @@ account read, has no `accounts`.
 - the account sent no requests, and the day was first summarised by v1.0.1 or earlier;
 - the account sent no requests, and the day is one the router hasn't summarised yet, for example
   today, which `history` and the dashboard work out from the lines;
-- the account came into the day's summary after the router first summarised the day.
+- the account sent no requests and came into the day's summary after the router first summarised
+  it, unless an import carried in a pool another Mac recorded.
 
 A pool in which the account did no work, such as one named only by a move that moved no session, isn't
 counted.
@@ -137,8 +138,8 @@ the router had the account in when it first summarised the day. `history` and th
 that day in that pool, and in the pool the account is in now. So a pool keeps the days an account
 spent capped there after the account moves on.
 
-- **Fixed for good.** A day summarised again keeps the `pool` it named first, or none if it named
-  none.
+- **Fixed for good.** A day summarised again keeps the `pool` it named first. A day that named
+  none gets one only from an import.
 - **A move on the day, or before the router first summarises it,** files the day under the new
   pool. This happens, for example, if the router moved the account because it's capped, or if you
   moved the account while the router was stopped.
@@ -148,7 +149,8 @@ spent capped there after the account moves on.
   `version` stays `7`.
 - **Imports** rename this `pool` the same way as the pool of a worked day. The summary that the day
   keeps gets the `pool` that either Mac recorded for each account without requests. If both Macs
-  recorded one for an account, the summary that the day keeps decides.
+  recorded one for an account, the summary that the day keeps decides. If only one Mac recorded a
+  `pool`, the day gets that `pool`.
 
 ## Which accounts get a day
 

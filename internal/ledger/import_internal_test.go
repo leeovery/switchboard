@@ -5,10 +5,12 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -100,31 +102,34 @@ func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, can
 	l.summarising.Lock()
 	endRound = sync.OnceFunc(l.summarising.Unlock)
 	t.Cleanup(endRound)
+	importing := importsUnderWay(l)
 	answered := make(chan error, 1)
 	go func() {
 		_, err := l.Import(ctx, day)
 		answered <- err
 	}()
-	takenUp(t, l)
+	takenUp(t, importing)
 	return answered, cancel, endRound
 }
 
-// takenUp returns once l's writer is busy with work it has taken up, as a
-// day's take waiting on l's summaries, so a piece of work asked of it waits,
-// failing the test where it isn't within a few seconds.
-func takenUp(t *testing.T, l *Ledger) {
+// importsUnderWay has l tell of an import taking its summaries, on its
+// writer's goroutine, before it waits for them, and returns what's closed
+// once one does. It's to be called before the import is asked for.
+func importsUnderWay(l *Ledger) <-chan struct{} {
+	importing := make(chan struct{})
+	l.importing = sync.OnceFunc(func() { close(importing) })
+	return importing
+}
+
+// takenUp returns once an import is under way, as importing, from
+// importsUnderWay, tells, failing the test where it isn't within a few
+// seconds.
+func takenUp(t *testing.T, importing <-chan struct{}) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
-		err := l.writer.Do(ctx, func() {})
-		cancel()
-		if errors.Is(err, context.DeadlineExceeded) {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("gave up waiting for the ledger's writer to take the day's take up")
-		}
+	select {
+	case <-importing:
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for the ledger's writer to take the day's take up")
 	}
 }
 
@@ -199,12 +204,13 @@ func TestADayIsTakenInWholeOnceTheReadingsHistorysRoundIsDone(t *testing.T) {
 		imported ImportedDay
 		err      error
 	}
+	importing := importsUnderWay(l)
 	answered := make(chan answer, 1)
 	go func() {
 		imported, err := l.Import(t.Context(), day)
 		answered <- answer{imported, err}
 	}()
-	takenUp(t, l)
+	takenUp(t, importing)
 	if lines, _ := holding(l, day); lines {
 		t.Error("the day's lines were taken in as the round held the summaries, want them taken in once it's done")
 	}
@@ -288,6 +294,20 @@ func TestTheLedgerHoldsNoLineOfADayAsItsTakeOrElseItsFilesTell(t *testing.T) {
 				t.Errorf("holdsNoLine(%s) = %v, %v, want %v", date, got, err, tt.want)
 			}
 		})
+	}
+}
+
+// A day whose lines an import merged, of which the ledger holds no summary,
+// can neither have the summary staged copied in nor carried from: so it's
+// left unread, and one that can't be read fails nothing.
+func TestASummaryStagedThatCanBeNeitherCopiedNorCarriedFromIsLeftUnread(t *testing.T) {
+	logger := logs.For("router")
+	d := days{files: Files(t.TempDir(), logger), logger: logger}
+	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
+	day := StagedDay{Date: date, Summary: filepath.Join(t.TempDir(), "gone.json")}
+
+	if copied, err := d.copyOver(day, dayfile.Imported{Taken: dayfile.Merged, Lines: 1}); err != nil || copied {
+		t.Errorf("copyOver() = %v, %v; want nothing copied, and no failure", copied, err)
 	}
 }
 
@@ -435,32 +455,66 @@ func TestADayACompressStoppedPartwayLeftSummarisesEachLineOnceImported(t *testin
 	}
 }
 
-// A summary given another's days of no work keeps every field it's written
-// with, those a later release added among them, as written, and takes in the
-// other's days that name a pool, of the accounts it holds no day of, as the
-// other writes them, in the order of their ids; where it takes none, it's
-// itself.
+// A summary given another's days of no work takes in each that names a pool:
+// whole, of an account it holds no day of, in the order of their ids; or its
+// pool alone, into a day of no work naming none. A worked day, or one naming
+// a pool, stands. Every other field, and every account's day it held, those
+// a later release added among them, is kept as written, byte for byte; where
+// it takes none, it's itself.
 func TestDaysOfNoWorkCarriedIntoASummaryKeepEveryFieldAsWritten(t *testing.T) {
-	into := `{"version":7,"day":"2026-10-05","lines":1,"later":{"kept":true},"accounts":[` +
-		`{"account":"side","pool":"l3ft","sessions":0,"moved_on":0,"moved_off":0,"later":1},` +
-		`{"account":"work","pool":"q7mt","sessions":1,"moved_on":0,"moved_off":0}]}`
-	from := `{"version":7,"day":"2026-10-05","lines":0,"accounts":[` +
-		`{"account":"side","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0},` +
-		`{"account":"spare","sessions":0,"moved_on":0,"moved_off":0},` +
-		`{"account":"x9x9","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":2}]}`
-	got, took, err := carriedIdle([]byte(into), []byte(from))
-	want := `{"version":7,"day":"2026-10-05","lines":1,"later":{"kept":true},"accounts":[` +
-		`{"account":"side","pool":"l3ft","sessions":0,"moved_on":0,"moved_off":0,"later":1},` +
-		`{"account":"work","pool":"q7mt","sessions":1,"moved_on":0,"moved_off":0},` +
-		`{"account":"x9x9","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":2}]}`
-	if err != nil || !took || string(got) != want {
-		t.Errorf("carriedIdle() = %s, %v, %v; want %s, true", got, took, err, want)
+	const (
+		head    = `{"version":7,"day":"2026-10-05","lines":1,"later":{"kept":true},"accounts":`
+		idleOf  = `{"account":"%s","pool":"%s","sessions":0,"moved_on":0,"moved_off":0}`
+		noPool  = `{"account":"side","sessions":0,"moved_on":0,"moved_off":0,"later":1}`
+		worked  = `{"account":"work","models":[{"model":"m","upstream":1,"sessions":1}],"sessions":1,"moved_on":0,"moved_off":0}`
+		spaced  = `{"account":"side", "pool":"l3ft", "sessions":0,"moved_on":0,"moved_off":0, "later":1}`
+		another = `{"account":"x9x9","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":2}`
+	)
+	idle := func(account, pool string) string { return fmt.Sprintf(idleOf, account, pool) }
+	summary := func(accounts ...string) string { return head + "[" + strings.Join(accounts, ",") + "]}" }
+	tests := []struct {
+		name, into, from, want string
+	}{
+		{
+			name: "an account it holds no day of, whole",
+			into: summary(spaced, worked),
+			from: summary(idle("side", "c1nt"), `{"account":"spare","sessions":0,"moved_on":0,"moved_off":0}`, another, idle("x9x9", "q7mt")),
+			want: summary(spaced, worked, another),
+		},
+		{
+			name: "a pool alone, into a day of no work naming none",
+			into: summary(noPool, worked),
+			from: summary(idle("side", "c1nt"), idle("work", "c1nt")),
+			want: summary(`{"account":"side","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":1}`, worked),
+		},
+		{
+			name: "none, against days naming none and a worked day",
+			into: summary(spaced, worked),
+			from: summary(noPool, idle("work", "c1nt")),
+			want: summary(spaced, worked),
+		},
+		{
+			name: "into the accounts written last, as Go reads them",
+			into: `{"accounts":[],"accounts":[` + noPool + `]}`,
+			from: summary(idle("side", "c1nt")),
+			want: `{"accounts":[],"accounts":[{"account":"side","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":1}]}`,
+		},
+		{
+			name: "into a summary of no accounts",
+			into: `{"version":7,"day":"2026-10-05","lines":0}`,
+			from: summary(another),
+			want: `{"version":7,"day":"2026-10-05","lines":0,"accounts":[` + another + `]}`,
+		},
 	}
-	if again, took, err := carriedIdle(got, []byte(from)); err != nil || took || string(again) != string(got) {
-		t.Errorf("carriedIdle() again = %s, %v, %v; want the summary as it was, nothing taken", again, took, err)
-	}
-	none := `{"version":7,"day":"2026-10-05","lines":0}`
-	if got, took, err := carriedIdle([]byte(none), []byte(from)); err != nil || !took || !bytes.Contains(got, []byte(`"accounts":[{"account":"side"`)) {
-		t.Errorf("carriedIdle() into a summary of no accounts = %s, %v, %v; want its accounts those carried", got, took, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, took, err := carriedIdle([]byte(tt.into), []byte(tt.from))
+			if wantTook := tt.want != tt.into; err != nil || took != wantTook || string(got) != tt.want {
+				t.Errorf("carriedIdle() = %s, %v, %v; want %s, %v", got, took, err, tt.want, wantTook)
+			}
+			if again, took, err := carriedIdle(got, []byte(tt.from)); err != nil || took || string(again) != string(got) {
+				t.Errorf("carriedIdle() again = %s, %v, %v; want the summary as it was, nothing taken", again, took, err)
+			}
+		})
 	}
 }

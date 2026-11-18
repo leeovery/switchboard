@@ -85,9 +85,9 @@ A summary comes in only if this Mac has none for the day, or an empty one that c
 while the summary in the folder counts some.
 
 Either way, the summary the day keeps learns the pools of the accounts that sent no requests that
-day. If the summary in the folder names the pool of such an account, and this Mac's summary has no
-day for that account, the pool comes in. The same holds the other way round, if the summary in the
-folder is copied in.
+day. Say the summary in the folder names the pool of such an account. The pool comes in if this
+Mac's summary has no day for that account, or a day without requests that names no pool. The same
+holds the other way round, if the summary in the folder is copied in.
 
 Each line is told apart from the lines of other Macs. So an import repeated, or of the folder this
 Mac exported, adds nothing.

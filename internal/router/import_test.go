@@ -260,8 +260,9 @@ func filesUnder(t *testing.T, dir string) map[string]fileState {
 // directory once its readings history has made the round it makes as it
 // starts, and returns its answer, failing the test where the import fails.
 // The router answers before that round, whose summarising before the
-// history's prune would otherwise race the import, and could summarise a day
-// from the lines just taken in before its summary staged is looked at.
+// history's prune could otherwise come before the import or after it, as it
+// fell: never between a day's take and the look at its summary, but
+// summarising the days the tests stage, before or after, as it found them.
 func importNow(t *testing.T, cfg router.Config) router.Imported {
 	t.Helper()
 	rt := newRouterFrom(t, cfg)
@@ -888,11 +889,16 @@ const (
 )
 
 // idleDays are a day's accounts' days of no work, as a summary writes them,
-// each of the account given, in the pool given, by the account's id.
+// each of the account given, in the pool given, naming none where it's "", by
+// the account's id.
 func idleDays(pools map[string]string) []string {
 	var days []string
 	for _, account := range slices.Sorted(maps.Keys(pools)) {
-		days = append(days, fmt.Sprintf(`{"account":%q,"pool":%q,"sessions":0,"moved_on":0,"moved_off":0,"highest":{"5h":0.1}}`, account, pools[account]))
+		pool := ""
+		if pools[account] != "" {
+			pool = fmt.Sprintf(`"pool":%q,`, pools[account])
+		}
+		days = append(days, fmt.Sprintf(`{"account":%q,%s"sessions":0,"moved_on":0,"moved_off":0,"highest":{"5h":0.1}}`, account, pool))
 	}
 	return days
 }
@@ -989,40 +995,68 @@ func TestADayMergedByAnImportKeepsThePoolsItsDaysOfNoWorkNamed(t *testing.T) {
 }
 
 // A day this Mac holds the lines of, whose summary staged comes with no
-// lines, isn't summarised again: its summary carries x9x9's day of no work,
-// an account only the other Mac had, naming the pool it named.
+// lines, isn't summarised again: its summary takes the days of no work the
+// other Mac's named a pool for: x9x9's, an account only the other Mac had,
+// whole; and side's, where this Mac's names none, as one summarised before
+// pools were recorded, its pool alone.
 func TestADaySummaryStagedAloneCarriesTheOtherMacsDaysOfNoWork(t *testing.T) {
-	cfg, staged := takingOver(t, idleHere, idleThere, idleClient)
-	date := dateOf(10)
-	put(t, requestLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, pooledAfter(requestLine(1, date), `"model":"`+opus+`"`, idleHere)), now)
-	put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(daySummary(date, 1, idleHere)), now)
-	put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(daySummary(date, 0, "", idleDays(map[string]string{"x9x9": idleClient})...)), stamped(stagedOn))
+	tests := []struct {
+		name string
+		// held are the pools of this Mac's summary's days of no work.
+		held map[string]string
+	}{
+		{name: "an account this Mac's summary holds no day of", held: map[string]string{}},
+		{name: "a day of no work this Mac's summary names no pool for", held: map[string]string{"side": ""}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, staged := takingOver(t, idleHere, idleThere, idleClient)
+			cfg.Accounts = append(cfg.Accounts, config.Account{ID: "side", Label: "Side", Pool: idleHere})
+			date := dateOf(10)
+			put(t, requestLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, pooledAfter(requestLine(1, date), `"model":"`+opus+`"`, idleHere)), now)
+			put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(daySummary(date, 1, idleHere, idleDays(tt.held)...)), now)
+			put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(daySummary(date, 0, "", idleDays(map[string]string{"side": idleClient, "x9x9": idleClient})...)), stamped(stagedOn))
 
-	importNow(t, cfg)
-	want := map[string]string{"x9x9": idleClient}
-	if pools, upstream := idlePools(t, cfg, date); upstream != 1 || !maps.Equal(pools, want) {
-		t.Errorf("once imported, the day's days of no work name the pools %v, of %d requests; want %v, of this Mac's 1", pools, upstream, want)
+			importNow(t, cfg)
+			want := map[string]string{"side": idleClient, "x9x9": idleClient}
+			if pools, upstream := idlePools(t, cfg, date); upstream != 1 || !maps.Equal(pools, want) {
+				t.Errorf("once imported, the day's days of no work name the pools %v, of %d requests; want %v, of this Mac's 1", pools, upstream, want)
+			}
+		})
 	}
 }
 
-// A summary staged copied over this Mac's, one of the readings alone, keeps
-// the days of no work this Mac's named that the copy holds none of: side's,
-// in the pool it was in then.
+// A summary staged copied over this Mac's, one of the readings alone, takes
+// the days of no work this Mac's named a pool for: side's, in the pool it was
+// in then, whole where the copy holds no day of side, its pool alone where
+// the copy's names none, as one summarised before pools were recorded.
 func TestASummaryCopiedInKeepsThisMacsDaysOfNoWork(t *testing.T) {
-	cfg, staged := takingOver(t, idleHere, idleThere, idleClient)
-	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "side", Label: "Side", Pool: idleHere})
-	date := dateOf(10)
-	put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(daySummary(date, 0, "", idleDays(map[string]string{"side": idleLeft})...)), now)
-	lines := stageLines(t, staged, requestLines, date, pooledAfter(requestLine(1, date), `"model":"`+opus+`"`, idleThere))
-	copied := strings.Replace(daySummary(date, 1, idleThere), `"lines":1,`, fmt.Sprintf(`"lines":1,"bytes":{"plain":0,"compressed":%d},`, len(lines)), 1)
-	put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(copied), stamped(stagedOn))
-
-	if got := importNow(t, cfg); got.Summaries != 1 {
-		t.Fatalf("Import() = %+v, want the summary staged copied in", got)
+	tests := []struct {
+		name string
+		// theirs are the pools of the copy's days of no work.
+		theirs map[string]string
+	}{
+		{name: "an account the copy holds no day of", theirs: map[string]string{}},
+		{name: "a day of no work the copy names no pool for", theirs: map[string]string{"side": ""}},
 	}
-	want := map[string]string{"side": idleLeft}
-	if pools, upstream := idlePools(t, cfg, date); upstream != 1 || !maps.Equal(pools, want) {
-		t.Errorf("once imported, the day's days of no work name the pools %v, of %d requests; want %v, of the copy's 1", pools, upstream, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, staged := takingOver(t, idleHere, idleThere, idleClient)
+			cfg.Accounts = append(cfg.Accounts, config.Account{ID: "side", Label: "Side", Pool: idleHere})
+			date := dateOf(10)
+			put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(daySummary(date, 0, "", idleDays(map[string]string{"side": idleLeft})...)), now)
+			lines := stageLines(t, staged, requestLines, date, pooledAfter(requestLine(1, date), `"model":"`+opus+`"`, idleThere))
+			copied := strings.Replace(daySummary(date, 1, idleThere, idleDays(tt.theirs)...), `"lines":1,`, fmt.Sprintf(`"lines":1,"bytes":{"plain":0,"compressed":%d},`, len(lines)), 1)
+			put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(copied), stamped(stagedOn))
+
+			if got := importNow(t, cfg); got.Summaries != 1 {
+				t.Fatalf("Import() = %+v, want the summary staged copied in", got)
+			}
+			want := map[string]string{"side": idleLeft}
+			if pools, upstream := idlePools(t, cfg, date); upstream != 1 || !maps.Equal(pools, want) {
+				t.Errorf("once imported, the day's days of no work name the pools %v, of %d requests; want %v, of the copy's 1", pools, upstream, want)
+			}
+		})
 	}
 }
 
