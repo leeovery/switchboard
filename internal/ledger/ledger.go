@@ -177,11 +177,12 @@ type Ledger struct {
 // day has ended, by now's clock, and longer where its summary isn't written,
 // or doesn't stand, as settled says, and summarises its days with the
 // readings history, and the accounts' caps as caps gives them, logging what
-// can't be done with them to logger; and digests them, and holds its rounds,
-// as the options given say, neither without them.
+// can't be done with them to logger; and digests them, holds its rounds and
+// places its accounts' days of no work in pools, as the options given say,
+// none of them without them.
 func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger, opts ...Option) *Ledger {
 	o := optionsOf(opts)
-	l := &Ledger{days: days{files: Files(dir, logger), history: history, caps: caps, logger: logger, firstPool: o.firstPool}}
+	l := &Ledger{days: days{files: Files(dir, logger), history: history, caps: caps, logger: logger, firstPool: o.firstPool, idlePools: o.idlePools}}
 	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.round,
 		Spare: func(date string) bool { return !l.days.settled(date) }, Held: o.held})
 	if o.digester != nil {
@@ -561,14 +562,16 @@ func (l *Ledger) overdue(day dueDay) bool {
 
 // days are the ledger's days where they lie, in its directory: their lines,
 // and their summaries beside them, summarised with the readings history, and
-// the accounts' caps, what can't be done with them logged; and what gives
-// the first pool's id, as FirstPool says, nil for none.
+// the accounts' caps, what can't be done with them logged; what gives the
+// first pool's id, as FirstPool says, nil for none; and what places each
+// account's day of no work in a pool, as IdlePools says, nil for none.
 type days struct {
 	files     *dayfile.Files
 	history   History
 	caps      Caps
 	logger    *slog.Logger
 	firstPool func() string
+	idlePools func(account string) (string, bool)
 }
 
 // errNotTheDaysSummary is the error of a summary held of a day that doesn't

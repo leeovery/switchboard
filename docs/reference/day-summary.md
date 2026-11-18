@@ -35,7 +35,7 @@ account read, has no `accounts`.
 | Field | Type | Meaning |
 |---|---|---|
 | `account` | string | The account, by id only. Left out of the requests no account answered. |
-| `pool` | string | The pool all the account's work was in that day. |
+| `pool` | string | The pool all the account's work was in that day. On a day of no work, the pool the account was in. |
 | `models` | list of objects | The requests of the account, by the model each asked for. |
 | `sessions` | number | How many sessions the requests were of. |
 | `session_ids` | list of strings | The ids of those sessions. |
@@ -47,7 +47,7 @@ account read, has no `accounts`.
 
 - the requests named no pool;
 - the requests were in more than one pool;
-- the account did no work that day.
+- the account did no work, and no pool held it when the day was summarised.
 
 A pool in which the account did no work, such as one named only by a move that moved no session, isn't
 counted.
@@ -113,6 +113,19 @@ Once the move to pools is done, work in no pool counts as the first pool's. That
 filed without a pool since, for example by an older release after a downgrade. The first pool is
 the one the [accounts record](accounts-record.md) marks `first`, if the config has it. If not, it's
 the first pool in the config.
+
+## A pool on a day of no work
+
+An account that sent no request still gets a day, for its windows. Its `pool` is the pool the
+router had the account in when it summarised the day. `history` and the dashboard show that day in
+that pool only. So a pool keeps the days an account spent capped there after the account moves on.
+
+- **Exact until a move.** A day summarised again takes the pool the account is in then. If no pool
+  holds the account then, the day keeps the pool it named.
+- **Older days name none.** A day summarised before switchboard recorded this has no `pool`. It
+  shows in the pool the account is in now.
+- **Older releases** pass over `pool` on a day of no work. The `version` stays `7`.
+- **Imports** rename the pool of a day of no work the same way as the pool of a worked day.
 
 ## Which accounts get a day
 

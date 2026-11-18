@@ -1050,7 +1050,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 - **Request lines record their pool:** `pool`, its id. It's recorded at the time of the request,
   because an account's pool can change and the config keeps no history of it.
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
-  partway through a day: summary version 7 (see The request ledger).
+  partway through a day: summary version 7 (see The request ledger). An account's day of no work
+  names the pool the router had the account in as it summarised the day (see below).
 - **Events:** the events of a session's work name its pool: `started` and `moved`, the pool the
   session's request was routed within, and `pin` and `auto`, the pool whose pin was set or
   cleared, or the session's, of its own pin. What befalls an account, a limit, a cap or a refusal,
@@ -1177,13 +1178,39 @@ pool recorded at the time: the requests and the Log, sessions, Projects, what wo
 Accounts' totals. An account's window facts in a day's summary, its limits and minutes at its cap,
 show:
 
-- in the pool it's in now, on every day, as they're the account's;
-- in a pool it left, on the days it worked there, as the past stands;
-- and not on the days it did no work in a pool it left, as a day's summary keeps no pool for an
-  account that sent nothing (recording one is in the Backlog).
+- on a day it worked, in the pool it's in now, as they're the account's, and in each pool it worked
+  in that day, as the past stands;
+- on a day it did no work, in the pool the day's summary names alone, the pool the router had it in
+  as it summarised the day, as a worked day's work goes by the pool recorded at the time: so the
+  pool an account left keeps its days spent capped there, and the pool it joined never shows them;
+- and on a day of no work whose summary names no pool, as one summarised before idle days named
+  theirs, in the pool it's in now.
 
-So an account moved out keeps its work in the pool it left, and is named there by its label, as a
-removed account is shown, with where it is now in place of when it was removed: in text.faint on
+The router names an idle day's pool from its pool table, the owner that names a request's
+(`ledger.IdlePools`, given `poolTable.in`), as the pools stand as it summarises the day, which a
+config's change reaches within its next look: none where no pool holds the account, as once it's
+removed, or before pools. The pool views read it by the pool's read, `views.PoolRead`, an idle day
+naming a pool shown in that pool's read alone, as a request recorded there is, so an account none
+places now, whose windows show in every pool, shows its idle days only where they name. Its limits:
+
+- **Exact only before a move.** A day summarised again, as a line comes to be filed under it, or as
+  a later summary version summarises every kept day again, takes the pool the account is in then; where none holds it then, as once it's removed, it keeps the
+  pool it named, as a summary written again knows no less. So a day summarised again after a move
+  names the new pool.
+- **No backfill, no version.** The days summarised before it name none, and are never given one: a
+  new summary version would summarise every kept day again and stamp each with today's pool. An
+  older release passes over an idle day's `pool`, reading the day as one that names none.
+- **Readers name none.** A reader summarising a day as it reads it, as today's, names no pool for an
+  idle day, as the pool the account is in now, which a read then goes by, is the pool it's in then;
+  one summarising a day again keeps the pool the router's summary named.
+- **Renamed as work is.** An import gives an idle day's pool another Mac's pool's id here as it gives
+  a worked day's, or keeps it apart under its own id, read with `--pool` and that id alone, as an
+  account removed there or moved, then imported, keeps its idle days where they were; and a day
+  from before pools, given the first pool where its work named none, gives an idle day naming none
+  no pool, as which pool its account was in was never recorded.
+
+So an account moved out keeps its work in the pool it left, and the days it spent there idle, and
+is named there by its label, as a removed account is shown, with where it is now in place of when it was removed: in text.faint on
 the screens that draw a removed account so, and in the verbs' text as `work (now in Acme)`
 (`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a
 column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
@@ -9463,8 +9490,11 @@ from the first day a router that has it runs, so nothing before then is in it.
     its windows, its `highest`, `rise`, `resets`, `limits`, minutes and `read_before`, stay the
     account's, once, whatever pool it's in.
     - `pool`: the id of the pool all the account's work that day was in, left out where its lines
-      named none, as every line did before pools, where its work was in more than one pool, and
-      where it did no work.
+      named none, as every line did before pools, and where its work was in more than one pool. Of
+      a day it did no work, the id of the pool the router had it in as it summarised the day,
+      left out where none held it, and in a day summarised before idle days named theirs, which
+      came after version 7 with no version of its own: see Pools' What's recorded for the rule,
+      and its limits.
     - `pools`: where its work was in more than one pool, each pool's, in the order of their ids,
       that of the lines that named none first, its `pool` left out: its `models`, `sessions`,
       `session_ids`, `moved_on` and `moved_off`, counted of the pool's lines alone as the account's
@@ -12797,7 +12827,6 @@ was dropped binds a later choice, the design proper says so.
 | A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
-| An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
 | Setup's card for a new pool warns of a fence folder that isn't on this Mac, as `pool add` and `pool edit` do | open: after v1 | [setup-fence-folder-warning](../ideas/2026-11-17--setup-fence-folder-warning.md) |
 | `history --windows --json` names the pool it read, as `history --json` and `sessions --json` do | open: after v1 | [history-windows-json-pool](../ideas/2026-11-17--history-windows-json-pool.md) |
 | `pool --json` gives each fence folder resolved, absolute, beside `dirs` as written | open: after v1 | [pool-json-resolved-paths](../ideas/2026-11-17--pool-json-resolved-paths.md) |
