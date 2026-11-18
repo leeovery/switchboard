@@ -1,6 +1,8 @@
 package views
 
 import (
+	"cmp"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -23,6 +25,10 @@ type eventFacts struct {
 	// runsOut is when each account the run's pressure events told of runs
 	// out, by its id, cleaned, as the latest of them to say said it.
 	runsOut map[string]time.Time
+	// lifts are when each hold the router didn't end lifted, by its key, as
+	// holdLifts pairs them: nil, as for events told one at a time, pairs
+	// none.
+	lifts map[eventKey]time.Time
 }
 
 // eventFact is what's told of an event beyond its own fields, as eventFacts
@@ -46,6 +52,9 @@ type eventFact struct {
 	// joined are the windows that joined the event after it began, in its
 	// order, each named as windows are, with when it joined.
 	joined []joinedWindow
+	// lifted is when a hold lifted, as liftOf has it: zero for any other
+	// event, and a hold not known to have lifted.
+	lifted time.Time
 	// pool is the label of the pool whose sessions' own pins a pin set or
 	// cleared with force cleared, where there are several pools, as
 	// eventFacts' pool labels it: "" where there are one or none, so it
@@ -58,6 +67,51 @@ type eventFact struct {
 type joinedWindow struct {
 	name string
 	at   time.Time
+}
+
+// told takes in e, the next event of the run, as take does, and returns its
+// facts with when it lifted, where it's a hold, as liftOf has it.
+func (f *eventFacts) told(e Event) eventFact {
+	fact := f.take(e.Event)
+	fact.lifted = f.liftOf(e)
+	return fact
+}
+
+// liftOf is when the hold e lifted: its until, where the router ended it in
+// the run it began, within the days an event can change; else when the room
+// again that told its lift came, as holdLifts pairs them; zero for any other
+// event, and a hold not known to have lifted.
+func (f *eventFacts) liftOf(e Event) time.Time {
+	if e.Event.Kind != status.EventHeld {
+		return time.Time{}
+	}
+	return cmp.Or(e.Event.Until, f.lifts[e.Key.same()])
+}
+
+// holdLifts pairs each hold of events the router didn't end, as across a
+// restart, or past the days an event can change, with its lift: the first
+// room again of its account after it, by when each happened, that names the
+// cause of a hold lifting, as the router tells a hold's lift. A hold none
+// follows hasn't lifted, as far as events tell, and isn't among them; nor is
+// one a newer hold of its account follows first.
+func holdLifts(events []Event) map[eventKey]time.Time {
+	lifts := make(map[eventKey]time.Time)
+	open := make(map[string]eventKey)
+	byTime := slices.SortedFunc(slices.Values(events), func(a, b Event) int {
+		return cmp.Or(a.Event.At.Compare(b.Event.At), a.Key.Run.Compare(b.Key.Run), cmp.Compare(a.Key.ID, b.Key.ID))
+	})
+	for _, e := range byTime {
+		switch held, ok := open[e.Event.Account]; {
+		case e.Event.Kind == status.EventHeld && e.Event.Until.IsZero():
+			open[e.Event.Account] = e.Key.same()
+		case e.Event.Kind == status.EventHeld:
+			delete(open, e.Event.Account)
+		case e.Event.Kind == status.EventRoom && e.Event.Reason != "" && ok:
+			lifts[held] = e.Event.At
+			delete(open, e.Event.Account)
+		}
+	}
+	return lifts
 }
 
 // take takes in e, the next event of the run, and returns its facts.

@@ -1,11 +1,11 @@
 package router
 
 import (
-	"cmp"
 	"maps"
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -83,22 +83,32 @@ func (r *recent) refused(e Refused, now time.Time) {
 	r.countWaiting(h)
 }
 
-// readHeld keeps the hold the API's refusal of an account's read started at
-// now, as news, its cause in the words StaleCause's Said gives it, counting
-// the moves it forced that came first. A read refused again while it holds
+// readHeld keeps the hold the API's refusal of an account's read started, as
+// news, as it's told at now, its cause in the words StaleCause's Said gives
+// it, counting the moves it forced that came first. One told late is kept
+// from when it began, as Since says, but no earlier than the files take an
+// event back, its true start in Since. A read refused again while it holds
 // is never told, so it's never joined: nor is its lift, which room again
 // tells.
 func (r *recent) readHeld(e ReadHeld, now time.Time) {
 	cause, _ := status.RefusedRead(e.Refused).Said()
-	h := r.keep(happening{Kind: status.EventHeld, Account: e.Account, Reason: cause, Status: e.Status}, cmp.Or(e.Since.UTC(), now))
-	r.countWaiting(h)
+	held := happening{Kind: status.EventHeld, Account: e.Account, Reason: cause, Status: e.Status}
+	at := now
+	if e.Late {
+		held.Since = e.Since.UTC()
+		at = score.Later(held.Since, now.AddDate(0, 0, 1-events.ChangesFor))
+	}
+	r.countWaiting(r.keep(held, at))
 }
 
 // holdLifted ends at now the hold of the account's read refused, kept and
-// able to change, as room again tells its lift, so a move after it is never
-// counted in it, as readHolding has it.
+// able to change, that began by then, as room again a look at now tells its
+// lift, so a move after it is never counted in it, as readHolding has it: a
+// hold told since the look read the accounts is one after the lift, and
+// holds on.
 func (r *recent) holdLifted(account string, now time.Time) {
-	if h, ok := r.find(readHolding(account, now)); ok {
+	holds := readHolding(account, now)
+	if h, ok := r.find(func(h *happening) bool { return holds(h) && !h.At.After(now) }); ok {
 		h.Until = now
 		h.mark()
 	}

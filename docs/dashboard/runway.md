@@ -45,7 +45,7 @@ Words under a lane say when a stretch without room starts, and when the account 
 | `out ~16:05` | Forecast to run out at 16:05. |
 | `caps ~15:45` | Forecast to reach its cap at 15:45. |
 | `resets Sun 01:00` | Room comes back as the window resets. |
-| `lifts 19:00` | One hold ends here, and another follows straight on. |
+| `lifts 19:00` | One limit or cap ends here, and another follows straight on. |
 
 - `~` marks a time forecast at the account's pace. How the router forecasts a week is in
   [Routing rules](../reference/routing.md).
@@ -53,7 +53,7 @@ Words under a lane say when a stretch without room starts, and when the account 
   weekday, the time carries the date, such as `out ~Thu 12 Nov`.
 - If a cap or a run-out ends as the window resets, the words say `resets` in place of `back`.
 - A limit always says `back`, whenever it lifts.
-- If one hold runs straight into another, only the last says when the account is back:
+- If one limit or cap runs straight into another, only the last says when the account is back:
   `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`.
 
 ## The `Σ pool` lane

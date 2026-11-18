@@ -139,7 +139,7 @@ marks no primary, the first account counts as one, and `--primary` on it marks i
 `--primary=false` is refused: give `--primary` to another account instead.
 
 Sessions already running keep the token they started on until they restart. That's the token of the
-former primary, or for a pinned session, of its pinned account. If the router held back the account
+former primary, or for a pinned session, of its pinned account. If the router kept back the account
 a session was to start on, or didn't route that account yet, the session took another account's
 token. If every account was so, the session took that account's token after all. Artifacts and
 uploads go out on the account whose token the session holds, and `edit` says so.

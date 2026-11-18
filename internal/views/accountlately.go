@@ -2,6 +2,7 @@ package views
 
 import (
 	"slices"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -104,16 +105,16 @@ func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, 
 		return e.Kind, t.pressedHere(e)
 	case status.EventCap, status.EventLimit, status.EventRefused, status.EventHeld:
 		if s.cameFrom(e) {
-			return status.EventMoved, cameFromHeld(e, f)
+			return status.EventMoved, cameFromHeld(e, f, t.now)
 		}
-		full, _ := befell(e, f)
+		full, _ := befell(e, f, t.now)
 		return e.Kind, heldBack(nil, e, f, full, false)
 	case status.EventPin:
 		return e.Kind, s.pinnedHere(t, e)
 	case status.EventForeign:
 		return e.Kind, Said{Words: clause(prose.ForeignToken)}
 	}
-	full, _ := befell(e, f)
+	full, _ := befell(e, f, t.now)
 	return e.Kind, Said{Words: clause(full)}
 }
 
@@ -141,8 +142,8 @@ func (t latelyTeller) pressedHere(e status.Event) Said {
 // cameFromHeld tells of the sessions another account's cap, limit, refusal
 // or hold moved onto the account: "3 sessions came from work: work reached
 // its cap".
-func cameFromHeld(e status.Event, f eventFact) Said {
-	what, _ := befell(e, f)
+func cameFromHeld(e status.Event, f eventFact, now time.Time) Said {
+	what, _ := befell(e, f, now)
 	return Said{Subject: clause(prose.SessionCount(f.moved)), Words: clause(" came from "), Object: account(e.Account),
 		Rest: slices.Concat(clause(": "), account(e.Account), clause(" "+what))}
 }

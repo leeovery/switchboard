@@ -95,8 +95,8 @@ Once the move is done, an event of these kinds without a pool is in the first po
 | `held` | string | On `restart` only, why the binary the router would become refuses to start. That puts off the restart. |
 | `windows` | list of strings | The keys of the windows the event is of. |
 | `joined` | object | On `limit` or `cap`, when each window joined it after it began, by key. |
-| `until` | time | When a limit, cap or refusal ends, or a window runs out or resets. |
-| `since` | time | When the rate of a `pressure` event is measured from. |
+| `until` | time | When a limit, cap, refusal or `held` hold ends, or a window runs out or resets. |
+| `since` | time | When the rate of a `pressure` event is measured from. On a `held` event told late, when the hold began. |
 
 | Kind | `reason` holds |
 |---|---|
@@ -107,14 +107,20 @@ Once the move is done, an event of these kinds without a pool is in the first po
 | `health` | Why the router turned unhealthy, in words for a person. |
 
 - **`joined`** shows, for example, the 5-hour window joining a cap on Fable's week. A window
-  it leaves out was in the cap from `at`. It's left out if no window joined.
+  it leaves out was in the limit or cap from `at`. It's left out if no window joined.
 - **`until`** is brought forward to the lift if a limit or a refusal lifts early. A `held` event
-  gets an `until` only when the hold lifts, because no time ends a hold. That `until` is the time
-  of the `room` event that tells of the lift.
+  gets an `until` only if its hold lifts in the same run of the router, within 8 days, at the
+  time of the `room` event that tells of the lift.
+- **A hold's lift** is the first `room` event of its account after the `held` event that has a
+  `reason`. Pair them that way, because a hold across a restart, or longer than 8 days, has no
+  `until`. Whether an account is held now is in the status document, never in a missing
+  `until`.
 - **A hold is told once.** Another refused read during the hold adds no event. After a restart, a
   hold that already has a `held` event gets no new one.
 - **A hold from before this event existed** gets a `held` event once, when the router first starts
-  on a version that tells holds. Its `at` is when the hold began, and no notification goes out.
+  on a version that tells holds. No notification goes out. The event's `since` is when the hold
+  began. The event's `at` is the same, but no more than 7 days back, so the event files can take
+  it. Such an event has no `status`, because nothing kept the read's answer.
 
 ## Counts and settings
 

@@ -520,11 +520,21 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     document reads with its `until` as a live hold. The state file is saved at once as a hold
     starts, so a router stopped in that minute doesn't tell it a second time.
   - **Its lift is room again,** `room`, as a read comes back clean or a new token starts the
-    account's probes afresh, its `reason` the cause that lifted, and the `held` event ends there,
-    its `until` the lift's time. The router's looks see a hold as no room, whatever's known of the
-    account's quota, as its first read can be the one refused. A hold lifts only on a clean read
-    or a new token, so its lift is news once, never the flapping a refused token's would be. A
-    move after the lift never counts in the lifted hold: it waits for the hold that starts next.
+    account's probes afresh, its `reason` the cause that lifted. The router's looks see a hold as
+    no room, whatever's known of the account's quota, as its first read can be the one refused. A
+    hold lifts only on a clean read or a new token, so its lift is news once, never the flapping a
+    refused token's would be.
+  - **The `held` event ends at its lift** where the router can end it, in the run it began and
+    within the 8 days an event can change: its `until` the lift's time. A move after the lift
+    never counts in the lifted hold, but waits for the hold that starts next; and a hold told
+    after the look that tells the lift read the accounts isn't ended by it.
+  - **The views pair a hold with its lift,** as a lapsed subscription's hold outlasts a restart
+    and 8 days: where the `held` event has no `until`, its lift is the first `room` of its
+    account after it that names a cause (`views`' `holdLifts`, one owner, which the Log's row,
+    its card and LATELY read): `subscription lapsed (403), till 08:24` in the Log, `held
+    (subscription lapsed), till 08:24` in LATELY, `lifted: 08:24` on the card. A hold none follows
+    says nothing of when on its row; its card says `till: a read comes back clean` only while the
+    status document has the account held now, and nothing of when otherwise.
   - **Its moves name the cause:** a move off a held account, or a pin yielding from one, gives
     `had its read refused, its subscription ended` or `had its read refused, its token refused`,
     fixed whys, as every why is (see the reasons above), which the views word as the cards do:
@@ -532,15 +542,20 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     `lapsed` or `read refused`, never `refused`, the upstream's word. Each counts in the hold's
     event, its `forced_by` the hold's `id`, as a limit's, a cap's and a refusal's do.
   - **One owner gives a move's why and what it counts in,** the router's `unable`, so they can't
-    disagree: a request that went out on the account and came back with its limit or a refusal
-    says that, and counts in the limit or the refusal, a hold or not; one that didn't is held by
-    the hold first, whatever else holds the account.
+    disagree: a request that went out on the account says what it met there, and counts in what
+    that names, its limit or its refusal, as the view has it, a hold or not, and in nothing where
+    it met neither, as when it was throttled; one that didn't is held by the hold first, whatever
+    else holds the account.
   - **Told once:** a read refused again while it holds, for either cause, tells nothing new, and a
     read that fails otherwise neither starts one nor lifts one.
   - **Across a restart:** the state file keeps whether each hold has been told, `held_told`. A
     hold told before is told by neither event nor notification as the router starts; its lift is
     room again all the same. A hold a router from before kept, never told, is told once as the
-    router starts, its `at` when the hold began, and posts nothing, as its news is old.
+    router starts, and posts nothing, as its news is old: its `since` when it began, which its
+    card gives as `held since`, and its `at` the same, but no earlier than the event files take an
+    event back, 7 days before now; with no `status`, as nothing kept the read's answer. A router
+    taken back to a version from before and then upgraded again tells such a hold a second time,
+    a second row with no notification: accepted, as a router from before keeps no `held_told`.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -4656,7 +4671,7 @@ at every width.
   | `╎` in `accent.attention` | `cap` | `work reached its cap: 3 sessions moved to side` |
   | `■` in `state.destructive` | `limit` | `personal reached its 5-hour limit: 2 sessions moved to side` |
   | `■` in `state.destructive` | `refused` | `work refused (401): 2 sessions moved to side` |
-  | `■` in `state.destructive` | `held` | `work held (subscription lapsed): 2 sessions moved to side`; short, `work held: 2 moved to side` |
+  | `■` in `state.destructive` | `held` | `work held (subscription lapsed): 2 sessions moved to side`, and once it has lifted `work held (subscription lapsed), till 08:24: …`; short, `work held: 2 moved to side` |
   | `■` in `state.destructive` | `foreign` | `work's token is another subscription's`; short, `work: wrong token` |
   | `◇` in `text.subtle` | `primed` | `side primed: its 5-hour window started` |
   | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset`; as a hold lifts, `work open again: hold lifted (subscription lapsed)` |
@@ -7446,7 +7461,7 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `╎` `accent.attention` | `cap` | the account | `95% of its 5-hour window: its 3 sessions move to side as their next requests come` |
 | `■` `state.destructive` | `limit` | the account | `its 5-hour window, till 23:58: its session moves to side` |
 | `■` `state.destructive` | `refused` | the account | `its token refused (401), till 14:00: its 2 sessions move to side`, or a request refused alone, `its opus requests refused (403), till 14:00` (settled in the plan) |
-| `■` `state.destructive` | `held` | the account | `subscription lapsed (403): its 2 sessions move to side as their next requests come`, or `token refused (401)`; its card headed `work held`, with `why`, `answer` and `till: a read comes back clean`, or once it has lifted `lifted: 08:24` (see 401s and 403s) |
+| `■` `state.destructive` | `held` | the account | `subscription lapsed (403): its 2 sessions move to side as their next requests come`, or `token refused (401)`, and once it has lifted `token refused (401), till 08:24`; its card headed `work held`, with `why`, `answer`, `held since` for one told late, and `lifted: 08:24`, or while the account is held now `till: a read comes back clean` (see 401s and 403s) |
 | `■` `state.destructive` | `foreign` | the account | `its token is another subscription's`, its card headed `work's token is another subscription's` (see Account identity) |
 | `◇` `text.subtle` | `primed` | the account | `its 5-hour window started, resets at 12:05` |
 | `✓` `state.positive` | `open` | the account | `its 5-hour window reset`; as a hold lifts, `hold lifted (subscription lapsed)`, its card's `hold` item `lifted (subscription lapsed)` |
@@ -9102,10 +9117,9 @@ posts, but for a token's year, which has no key: see Config.
   a shared window spent, or at its reserve, or that a hold held, and has come back: `work · Work
   has room again`. The upstream's refusal isn't quota, so one lifting is no news, or a revoked
   token would be announced every ten minutes; a hold lifts only as a read comes back clean or the
-  account takes a new token, so its lift is told once. An account both out of quota and refused or held has room again once each is
-  past. The router
-  looks at the accounts on every event and every 15 seconds, so a limit lifting or a window
-  resetting with no traffic is noticed.
+  account takes a new token, so its lift is told once. An account both out of quota and refused or
+  held has room again once each is past. The router looks at the accounts on every event and every
+  15 seconds, so a limit lifting or a window resetting with no traffic is noticed.
 - **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
 - **A token's year:** an account whose token's year is up within 30 days, and again within
   7, as `internal/status` works it out, once per token per threshold. It has no key in
@@ -11223,7 +11237,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
   and `misses` (see The router's rounds), and of a read refused why and since when, `refused_read`
-  and `refused_since` (see 401s and 403s), the hold curve, `hold` (see Forecasting run-outs), and
+  and `refused_since`, and whether that hold has been told, `held_told` (see 401s and 403s), the
+  hold curve, `hold` (see Forecasting run-outs), and
   the hashes of every configured account's tokens, with a usable token or not: see Accounts and
   tokens; and the token-year notifications told, an account's against the token they were told
   for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
@@ -11719,8 +11734,11 @@ verbs).
     refused before it since a read came back clean (see 401s and 403s): `reason` the cause, in the
     cards' words, `subscription lapsed` or `token refused`; `status` the API's answer, 403 or 401;
     and `count` and `to`, as a cap's are. No time lifts it, so it has no `until` till `room`
-    tells its lift, when it ends there. A read refused again while it holds tells nothing, and
-    nor does a restart finding in the state file a hold told before.
+    tells its lift, when it ends there, in the run it began and within 8 days; past those, its
+    lift is the `room` that follows it, as the views pair them. A read refused again while it
+    holds tells nothing, and nor does a restart finding in the state file a hold told before. One
+    a router from before kept, never told, is told once as the router starts, with `since` when it
+    began, and no `status`.
   - `primed`: a prime that started its window: `windows` the window it started, and `until` its
     reset.
   - `room`: room again: an account that could take no request, at its limit or its cap, or held,

@@ -72,7 +72,7 @@ A document that falls back for `before pools` is of every account, never of one 
 ### `pool`
 
 `pool` holds `accounts`, the ids of the accounts it sums: every account in the pool, or only the
-pinned ones while the pool's pin holds. `pinned` is set if those are the accounts the pin names.
+pinned ones while the pool's pin is set. `pinned` is set if those are the accounts the pin names.
 The `windows` of `pool` hold one entry for each window:
 
 | Field | Type | Meaning |
@@ -112,7 +112,7 @@ Each entry is `{at, account, kind, window, cap, refused}`.
 | `prime` | The router primes the account. |
 
 `refused` is set if the account is back from a refusal of its token. `window` is left out of a
-prime, and of an account held back from every request.
+prime, and of an account kept back from every request.
 
 ### `demand`
 
@@ -152,7 +152,7 @@ How the week forecast uses these is in [Routing rules](routing.md).
 | `in_flight` | How many requests the router had in flight. |
 | `exporting` | The folder of an export under way that the restart waits for. |
 | `by_hand` | Set if the router was run by hand, with `serve`. |
-| `held` | Why the binary the router would become refuses to start. That holds the restart. |
+| `held` | Why the binary the router would become refuses to start. That puts off the restart. |
 
 ### `moving`
 

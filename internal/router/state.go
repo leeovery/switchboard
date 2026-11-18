@@ -544,8 +544,10 @@ func (u *usage) liftedSince(id string, was []limit, now time.Time) []LimitLifted
 // reads the account whole, as take has it. A probe on the token the account
 // holds, however it went, checks that token, as unchecked says. The state file
 // keeps how a probe on the account's own token went, its error with nothing
-// shaped like a token in it, as a routine change, and a reading that reads
-// otherwise than before, or retires a window or has one back, as news.
+// shaped like a token in it, as a routine change, but a hold it starts, as
+// news, so a router stopped soon after never tells it again; and a reading
+// that reads otherwise than before, or retires a window or has one back, as
+// news.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) probeTaken {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -1774,7 +1776,7 @@ func (s *state) untold() []ReadHeld {
 	for _, id := range slices.Sorted(maps.Keys(s.usage)) {
 		if u := s.usage[id]; u.readRefused() && !u.heldTold {
 			u.heldTold = true
-			untold = append(untold, ReadHeld{Account: id, Refused: u.refusedRead, Since: u.refusedSince})
+			untold = append(untold, ReadHeld{Account: id, Refused: u.refusedRead, Late: true, Since: u.refusedSince})
 		}
 	}
 	return untold

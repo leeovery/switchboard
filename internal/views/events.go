@@ -140,18 +140,27 @@ func (t *Telling) NamingPools(label func(id string) string) *Telling {
 	return t
 }
 
+// pairing has t tell each hold of events with its lift, as holdLifts pairs
+// them, where they're all read before any is told: told one at a time, a
+// hold is known to have lifted only as the router ended it. It returns t.
+func (t *Telling) pairing(events []Event) *Telling {
+	t.facts.lifts = holdLifts(events)
+	return t
+}
+
 // Line is the event e's line, its times in now's time zone, as the Log's
 // Events has it.
 func (t *Telling) Line(e status.Event, now time.Time) EventLine {
-	line, _ := t.tell(e, now)
+	line, _ := t.tell(Event{Event: e}, now)
 	return line
 }
 
 // tell is the event e's line, as Line has it, and its facts, worked out
 // over the events told before it.
-func (t *Telling) tell(e status.Event, now time.Time) (EventLine, eventFact) {
+func (t *Telling) tell(read Event, now time.Time) (EventLine, eventFact) {
+	e := read.Event
 	at := e.At.In(now.Location())
-	fact := t.facts.take(e)
+	fact := t.facts.told(read)
 	line := EventLine{Kind: KindWord(e.Kind)}
 	if tell, ok := tellers[e.Kind]; ok {
 		line.Account, line.What = tell(e, fact, at)
@@ -251,13 +260,14 @@ func loggedRefusal(e status.Event, f eventFact, at time.Time) (status.Words, sta
 
 // loggedHold tells of an account held as the API refused its read: why, as
 // the router gives the cause, and the status it answered, "subscription
-// lapsed (403)", and the sessions it moved, as their next requests came.
-func loggedHold(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
+// lapsed (403)"; till when, where it has lifted, as its facts say; and the
+// sessions it moved, as their next requests came.
+func loggedHold(e status.Event, f eventFact, at time.Time) (status.Words, status.Words) {
 	what := holdCause(e)
 	if e.Status != 0 {
 		what += " (" + strconv.Itoa(e.Status) + ")"
 	}
-	return account(e.Account), append(clause(what), moving(f, true)...)
+	return account(e.Account), append(clause(what+till(f.lifted, at)), moving(f, true)...)
 }
 
 // holdCause is why the API refused the read that held an account, the hold
@@ -268,12 +278,15 @@ func holdCause(e status.Event) string {
 }
 
 // holdSaid says an account was held, the hold e, and why, as holdCause has
-// it: "held (subscription lapsed)", or "held" where it doesn't say.
-func holdSaid(e status.Event) string {
+// it, and till when, where it has lifted, as its facts f say, at at, when it
+// began: "held (subscription lapsed), till 08:24", or "held" where it says
+// neither.
+func holdSaid(e status.Event, f eventFact, at time.Time) string {
+	said := "held"
 	if cause := holdCause(e); cause != "" {
-		return "held (" + cause + ")"
+		said += " (" + cause + ")"
 	}
-	return "held"
+	return said + till(f.lifted, at)
 }
 
 // heldTill is till when a hold holds, as no time lifts it.

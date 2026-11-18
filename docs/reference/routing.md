@@ -55,7 +55,7 @@ A session resumed in another pool keeps its account in the first pool, for the p
 running there.
 
 A Claude Sonnet 5.5 session never moves for idling or a compaction, because its thinking works only
-on the account that produced it. A pin of one session holds it through a compaction too.
+on the account that produced it. A pin of one session keeps it there through a compaction too.
 
 ## Moving after a compaction
 

@@ -78,5 +78,5 @@ See [How it works](../how-it-works.md) for what doesn't go through the router.
 ## Related
 
 - [`switchboard service`](../commands/service.md): install, restart and check the service.
-- [Upgrades and restarts](upgrades.md): a restart held, or one that waits.
+- [Upgrades and restarts](upgrades.md): a restart put off, or one that waits.
 - [Logs](logs.md): where the logs are, and how to read a line.

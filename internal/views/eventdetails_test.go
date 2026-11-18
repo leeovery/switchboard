@@ -177,9 +177,9 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 		{name: "a refusal of no answer given", event: status.Event{Kind: status.EventRefused, Account: "work", Until: october(7, 14, 0)},
 			headline: "work's token refused", happened: []string{"till: 14:00"}},
 		{name: "a hold, its subscription ended", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403},
-			headline: "work held", happened: []string{"why: subscription lapsed", "answer: 403", "till: a read comes back clean"}},
+			headline: "work held", happened: []string{"why: subscription lapsed", "answer: 403"}},
 		{name: "a hold of no answer given", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "token refused"},
-			headline: "work held", happened: []string{"why: token refused", "till: a read comes back clean"}},
+			headline: "work held", happened: []string{"why: token refused"}},
 		{name: "a hold lifted", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403, Until: october(7, 14, 0)},
 			headline: "work held", happened: []string{"why: subscription lapsed", "answer: 403", "lifted: 14:00"}},
 		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
@@ -222,6 +222,58 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			want := append([]string{"event: " + tt.headline}, tt.happened...)
 			if got := itemsSaid(d.Happened); d.Headline.String() != tt.headline || !slices.Equal(got, want) {
 				t.Errorf("the card's headline is %q, its items %q; want %q, %q", d.Headline, got, tt.headline, want)
+			}
+		})
+	}
+}
+
+// A hold's card says when it lifted: as the router ended it, else as the
+// first room again of its account after it that names a hold lifting told
+// it; and where no event tells its lift, that it holds till a read comes
+// back clean only while the account is held now, and nothing of when
+// otherwise. One told late says when it began.
+func TestAHoldsCardSaysWhenItLifted(t *testing.T) {
+	at, run, now := october(7, 13, 0), october(7, 8, 0), october(7, 15, 0)
+	began := at.Add(-10 * 24 * time.Hour)
+	held := status.Event{ID: 1, At: at, Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403}
+	ended := held
+	ended.Until = october(7, 14, 0)
+	late := held
+	late.Since = began
+	room := func(account, reason string) status.Event {
+		return status.Event{ID: 2, At: october(7, 13, 30), Kind: status.EventRoom, Account: account, Reason: reason}
+	}
+	tests := []struct {
+		name    string
+		events  []status.Event
+		heldNow bool
+		want    []string
+		// row is what the hold's row says after its cause and status.
+		row string
+	}{
+		{name: "ended by the router", events: []status.Event{ended}, want: []string{"lifted: 14:00"}, row: ", till 14:00"},
+		{name: "lifted as room again told, the router never ending it", events: []status.Event{held, room("work", "subscription lapsed")}, want: []string{"lifted: 13:30"}, row: ", till 13:30"},
+		{name: "room again of another account, held now", events: []status.Event{held, room("side", "token refused")}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "room again naming no hold, held no longer", events: []status.Event{held, room("work", "")}},
+		{name: "never lifted, held now", events: []status.Event{held}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "never lifted, held no longer", events: []status.Event{held}},
+		{name: "told late, held now", events: []status.Event{late}, heldNow: true, want: []string{"held since: " + prose.Dated(at, began), "till: a read comes back clean"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			read := views.ReadEvents(nil, at, at).Look(liveAt(tt.events, now), run)
+			heldNow := func(id string) bool { return tt.heldNow && id == "work" }
+			table := views.LogEvents(views.LogEventSources{From: at, Events: read, HeldNow: heldNow, Now: now})
+			d, ok := table.Details(views.EventKey{Run: run, ID: 1}, views.LogRead{})
+			if !ok {
+				t.Fatal("there are no details of the hold")
+			}
+			want := append([]string{"event: work held", "why: subscription lapsed", "answer: 403"}, tt.want...)
+			if got := itemsSaid(d.Happened); !slices.Equal(got, want) {
+				t.Errorf("the card's items are %q, want %q", got, want)
+			}
+			if got, want := table.Rows[0].Line.What.String(), "subscription lapsed (403)"+tt.row; got != want {
+				t.Errorf("the hold's row says %q, want %q", got, want)
 			}
 		})
 	}

@@ -1,6 +1,7 @@
 package views
 
 import (
+	"cmp"
 	"net/http"
 	"slices"
 	"strconv"
@@ -156,6 +157,12 @@ func (t EventsTable) Details(key EventKey, read LogRead) (EventDetails, bool) {
 	return d.details(), true
 }
 
+// holdsNow reports whether the account with the given id is held now, as
+// the table's heldNow says: false where it says nothing.
+func (t EventsTable) holdsNow(id string) bool {
+	return t.heldNow != nil && t.heldNow(id)
+}
+
 // detailing works out an event's details: the event, told; the table it's
 // of; and the Log's read, which holds the ledger's lines read.
 type detailing struct {
@@ -281,10 +288,12 @@ func (d detailing) happened() []DetailItem {
 		if e.Status != 0 {
 			items.add("answer", valued(strconv.Itoa(e.Status)))
 		}
-		if e.Until.IsZero() {
+		items.add("held since", d.timeWords(e.Since))
+		switch {
+		case !d.fact.lifted.IsZero():
+			items.add("lifted", d.timeWords(d.fact.lifted))
+		case d.table.holdsNow(e.Account):
 			items.add("till", saidWords(heldTill))
-		} else {
-			items.add("lifted", d.timeWords(e.Until))
 		}
 	case status.EventPrimed:
 		items.add("window", d.windowsWords())
@@ -603,7 +612,7 @@ func (d detailing) followed() *Followed {
 	case !holdsBack(d.event.Kind):
 		return nil
 	}
-	f := &Followed{Till: d.event.Until, Family: prose.Clean(d.event.Family)}
+	f := &Followed{Till: cmp.Or(d.event.Until, d.fact.lifted), Family: prose.Clean(d.event.Family)}
 	var inAll Worth
 	priced := 0
 	for _, e := range d.table.told {

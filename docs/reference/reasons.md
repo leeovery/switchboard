@@ -65,7 +65,7 @@ pass over one you don't know. In the forms below, `<id>` is the id of an account
 
 ## The whys
 
-| Why | What held the account back |
+| Why | What kept the account back |
 |---|---|
 | `hit its limit` | It answered the request with its limit reached. |
 | `was refused` | It refused the request. |

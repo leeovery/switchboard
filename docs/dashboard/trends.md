@@ -40,8 +40,8 @@ the chart are the account's name, its marks and its words, such as
 
 The room left comes first. If the reading is stale, why comes next, as `usage` says it:
 `subscription lapsed` or `token refused` in red, or `not read since 14:20`. The rest are the words
-[Runway](runway.md) gives the account at the same width. A hold shorter than one column of Runway
-can go unsaid, on a card as on Runway. A wider terminal can bring it out, and so can collapsing the
+[Runway](runway.md) gives the account at the same width. A limit or cap shorter than one column of
+Runway can go unsaid, on a card as on Runway. A wider terminal can bring it out, and so can collapsing the
 labels on Runway with `a`.
 
 | Mark | Means |
@@ -63,8 +63,8 @@ A card takes its colour from its week's state, as a lane on Runway does:
 | If the week | The card is drawn in |
 |---|---|
 | lasts to its reset | the ramp's first colour |
-| runs out at its pace, or its cap holds it | the attention colour |
-| is held by a limit, or its token is refused | red |
+| runs out at its pace, or is at its cap | the attention colour |
+| is at a limit, or its token is refused | red |
 
 - An account not read yet shows its words from Runway and an empty chart, with only now drawn.
 - An account the router doesn't have yet, just added to the config, shows its label only.

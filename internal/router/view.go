@@ -166,6 +166,21 @@ func (v view) holding(id string) (Hold, int) {
 	return 0, 0
 }
 
+// tried returns what held the request back on the account with the given
+// id it went out on, as why, what it met there, says, and the identity of
+// the limit, where that's what did: its limit, where the view has it
+// limited; its refusing the request, where the view has it refusing; and
+// nothing otherwise, as of a request throttled.
+func (v view) tried(id, why string) (Hold, int) {
+	switch limit, limited := v.limited[id]; {
+	case why == status.WhyLimit && limited:
+		return HeldByLimit, limit
+	case why == status.WhyRefused && slices.Contains(v.refused, id):
+		return HeldByRefusal, 0
+	}
+	return 0, 0
+}
+
 // heldByRead is why the API refused the last read of the account with the
 // given id, where that holds it back from the request, as readRefused has
 // it: zero where it doesn't.

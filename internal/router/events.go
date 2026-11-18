@@ -132,13 +132,15 @@ type RefusalLifted struct {
 // its failure didn't say. It's told as the hold starts alone, not as reads
 // are refused again while it holds, nor as a restart finds in the state file
 // a hold told before; its lift is room again, as the accounts are looked at.
-// Since is when a hold the state file kept, never told, began, as a router
-// from before kept it, told once as the router starts: zero for one that
-// starts now. One told late is old news, which no notification posts.
+// Late is a hold the state file kept, never told, as a router from before
+// kept it, told once as the router starts, and Since when it began: Status
+// is 0, as nothing kept it. One told late is old news, which no notification
+// posts.
 type ReadHeld struct {
 	Account string
 	Refused quota.ReadRefusal
 	Status  int
+	Late    bool
 	Since   time.Time
 }
 

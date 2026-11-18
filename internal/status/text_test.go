@@ -1631,3 +1631,20 @@ func TestWindowLabelsInWords(t *testing.T) {
 		}
 	}
 }
+
+// A moment says an account is held while its last read was refused for a
+// cause status knows, and of no account it doesn't give.
+func TestAMomentSaysWhichAccountsAreHeldByTheirReadRefused(t *testing.T) {
+	doc := status.Document{Source: status.SourceRouter, Accounts: []status.Account{
+		{ID: "work", TokenSet: true, RefusedRead: quota.SubscriptionEnded},
+		{ID: "side", TokenSet: true, RefusedRead: quota.TokenRefused},
+		{ID: "personal", TokenSet: true},
+		{ID: "later", TokenSet: true, RefusedRead: quota.ReadRefusal("something_new")},
+	}}
+	m := doc.At(time.Date(2026, 10, 1, 14, 0, 0, 0, time.UTC), score.Policy{})
+	for id, want := range map[string]bool{"work": true, "side": true, "personal": false, "later": false, "gone": false} {
+		if got := m.HeldByRead(id); got != want {
+			t.Errorf("HeldByRead(%q) = %v, want %v", id, got, want)
+		}
+	}
+}

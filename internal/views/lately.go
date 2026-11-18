@@ -108,10 +108,10 @@ func latelyFacts(m status.Moment, events []Event) map[eventKey]eventFact {
 	told := slices.SortedFunc(slices.Values(events), func(a, b Event) int {
 		return cmp.Or(a.Key.Run.Compare(b.Key.Run), cmp.Compare(a.Key.ID, b.Key.ID))
 	})
-	facts := eventFacts{name: m.NameOf}
+	facts := eventFacts{name: m.NameOf, lifts: holdLifts(events)}
 	byKey := make(map[eventKey]eventFact, len(told))
 	for _, e := range told {
-		byKey[e.Key.same()] = facts.take(e.Event)
+		byKey[e.Key.same()] = facts.told(e)
 	}
 	return byKey
 }
@@ -252,8 +252,8 @@ func (t latelyTeller) pressured(e status.Event, f eventFact) (Said, Said) {
 // limit", or "personal at its limit"; "work refused (401)"; "work held
 // (subscription lapsed)", or "work held"; and the sessions it moved, as
 // heldBack has them.
-func (latelyTeller) held(e status.Event, f eventFact) (Said, Said) {
-	full, short := befell(e, f)
+func (t latelyTeller) held(e status.Event, f eventFact) (Said, Said) {
+	full, short := befell(e, f, t.now)
 	return heldBack(account(e.Account), e, f, " "+full, false), heldBack(account(e.Account), e, f, " "+short, true)
 }
 
@@ -269,8 +269,8 @@ func (latelyTeller) disowned(e status.Event, _ eventFact) (Said, Said) {
 // first, then what befell it, as befell says: "side primed: its 5-hour
 // window started", or short, "side primed"; "work open again: its 5-hour
 // window reset", or short, "work open again".
-func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
-	full, short := befell(e, f)
+func (t latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
+	full, short := befell(e, f, t.now)
 	return Said{Subject: account(e.Account), Words: clause(" " + full)}, Said{Subject: account(e.Account), Words: clause(" " + short)}
 }
 
@@ -279,11 +279,12 @@ func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
 // 5-hour limit", in the windows it began with, and "at its limit"; the
 // upstream's answer, as status.RefusalAnswer says it, "refused (401)", or of
 // a model family's alone, "refused (403, opus)"; "held (subscription
-// lapsed)", as holdSaid says, and "held"; "primed: its 5-hour window
+// lapsed)", and till when, where it has lifted, as holdSaid says it in now's
+// time zone, and "held"; "primed: its 5-hour window
 // started", the windows the prime started, and "primed"; and "open again:
 // its 5-hour window reset", or what else lifted, as roomSaid says, and
 // "open again". It's nothing of any other kind.
-func befell(e status.Event, f eventFact) (full, short string) {
+func befell(e status.Event, f eventFact, now time.Time) (full, short string) {
 	switch e.Kind {
 	case status.EventCap:
 		return "reached its cap", status.AtCap
@@ -293,7 +294,7 @@ func befell(e status.Event, f eventFact) (full, short string) {
 		answer := status.RefusalAnswer(e.Status, e.Family)
 		return answer, answer
 	case status.EventHeld:
-		return holdSaid(e), "held"
+		return holdSaid(e, f, e.At.In(now.Location())), "held"
 	case status.EventPrimed:
 		return "primed: " + its(f.windows, "its window") + " started", "primed"
 	case status.EventRoom:

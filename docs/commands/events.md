@@ -39,7 +39,7 @@ The events cover:
 - accounts on a [hold](../glossary.md) because Anthropic refused their usage read;
 - accounts found holding another subscription's token;
 - pins set and cleared;
-- restarts falling due, or held;
+- restarts falling due, or put off;
 - the router's health.
 
 They're listed oldest first, under the day each happened on. Each event shows once, as it last

@@ -33,7 +33,7 @@ curl -s --unix-socket control.sock \
 | `DELETE /pin` | Clears a pool's pin. |
 | `POST /refresh` | Probes the accounts whose usage is older than `{"max_age": "30m"}`. |
 | `GET /history` | Each account's use of a window over its current length, for the charts. |
-| `GET /stream` | Each routed request as it happens, a JSON object a line, held open. |
+| `GET /stream` | Each routed request as it happens, a JSON object a line, kept open. |
 | `POST /restart` | Restarts the router now, without waiting for a quiet moment. |
 | `GET /import` and `POST /import` | Whether an import is running, and taking in a staged import. |
 

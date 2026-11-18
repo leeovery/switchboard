@@ -318,24 +318,24 @@ type unableOn struct {
 // unable says why the account with the given id can't take the request, and
 // what holds it back, one owner of both, so a move's reason and the event it
 // counts in agree: what went wrong when the request went out on it, held as
-// the view has it; else that its last read was refused, and why, which holds
-// it back till a read comes back clean, whatever else does; else that it has
-// reached its reserve, when that alone holds it back; else that it has no
-// room, held as the view has it.
+// that says, as the view's tried has it; else that its last read was refused, and
+// why, which holds it back till a read comes back clean, whatever else does;
+// else that it has reached its reserve, when that alone holds it back; else
+// that it has no room, held as the view has it.
 func (s situation) unable(id string) unableOn {
-	by, limit := s.accounts.holding(id)
-	a, tried := s.req.attempt(id)
-	cause := s.accounts.heldByRead(id)
-	switch {
-	case tried:
+	if a, tried := s.req.attempt(id); tried {
+		by, limit := s.accounts.tried(id, a.Why)
 		return unableOn{why: a.Why, by: by, limit: limit}
-	case cause != 0:
-		return unableOn{why: status.WhyHeldBy(cause), by: HeldByRead}
-	case s.accounts.reserved(id):
-		return unableOn{why: status.WhyReserve, by: by, limit: limit}
-	default:
-		return unableOn{why: status.WhyNoRoom, by: by, limit: limit}
 	}
+	if cause := s.accounts.heldByRead(id); cause != 0 {
+		return unableOn{why: status.WhyHeldBy(cause), by: HeldByRead}
+	}
+	why := status.WhyNoRoom
+	if s.accounts.reserved(id) {
+		why = status.WhyReserve
+	}
+	by, limit := s.accounts.holding(id)
+	return unableOn{why: why, by: by, limit: limit}
 }
 
 // noRoom is where a request goes when no account has room for it, for the

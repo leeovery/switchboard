@@ -9,7 +9,9 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -154,10 +156,10 @@ func TestAHoldKeptButNeverToldIsToldOnceAsTheRouterStarts(t *testing.T) {
 
 	h := restarted(t, clock, path)
 	h.looks(2)
-	if want := []Event{ReadHeld{Account: "work", Refused: quota.SubscriptionEnded, Since: start}}; !reflect.DeepEqual(h.heard, want) {
+	if want := []Event{ReadHeld{Account: "work", Refused: quota.SubscriptionEnded, Late: true, Since: start}}; !reflect.DeepEqual(h.heard, want) {
 		t.Errorf("as the router starts, it tells of %+v, want %+v", h.heard, want)
 	}
-	want := []status.Event{{ID: 1, At: start, Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed"}}
+	want := []status.Event{{ID: 1, At: start, Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Since: start}}
 	if got := h.r.recent.events(); !reflect.DeepEqual(got, want) {
 		t.Errorf("events() = %+v, want %+v", got, want)
 	}
@@ -206,30 +208,47 @@ func (h *restarting) looks(n int) {
 
 // A move off an account both at its limit and held by its read refused
 // counts in what its reason says held it there, one owner giving both: a
-// request that went out on it and hit its limit, in the limit's event; one
+// request that went out on it, in what its attempt there met, its limit or
+// its refusal, nothing where it met neither, as when it was throttled; one
 // that didn't, in the hold's, as the hold holds it back whatever else does.
 func TestAMoveOffALimitedAndHeldAccountCountsInWhatItsReasonSays(t *testing.T) {
 	tests := []struct {
 		name   string
 		tried  []Attempt
 		reason string
-		// forcedBy is the kind of the event the move counts in, and the
-		// other the kind of the one counting none.
-		forcedBy, other string
+		// held is what the move is held by, and counts the count of each
+		// kind of event the account's hold and limit told.
+		held   Hold
+		counts map[string]int
 	}{
 		{
-			name: "tried there", tried: []Attempt{{Account: "work", Why: whyLimit}}, reason: "moved: work hit its limit",
-			forcedBy: status.EventLimit, other: status.EventHeld,
+			name: "its limit hit there", tried: []Attempt{{Account: "work", Why: whyLimit}}, reason: "moved: work hit its limit",
+			held: HeldByLimit, counts: map[string]int{status.EventLimit: 1, status.EventHeld: 0},
+		},
+		{
+			name: "refused there", tried: []Attempt{{Account: "work", Why: whyRefused}}, reason: "moved: work was refused",
+			held: HeldByRefusal, counts: map[string]int{status.EventLimit: 0, status.EventHeld: 0},
+		},
+		{
+			name: "throttled there", tried: []Attempt{{Account: "work", Why: whyThrottled}}, reason: "moved: work was throttled",
+			counts: map[string]int{status.EventLimit: 0, status.EventHeld: 0},
 		},
 		{
 			name: "untried", reason: "moved: work had its read refused, its subscription ended",
-			forcedBy: status.EventHeld, other: status.EventLimit,
+			held: HeldByRead, counts: map[string]int{status.EventLimit: 0, status.EventHeld: 1},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
-			r := newTestRouter(t, clock.read, &stubProber{})
+			var moves []Moved
+			cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+			cfg.Events = func(e Event) {
+				if m, ok := e.(Moved); ok {
+					moves = append(moves, m)
+				}
+			}
+			r := newTestRouterOf(t, cfg)
 			defer r.probes.stop()
 			readWorkFirst(r)
 			r.recent.look()
@@ -239,18 +258,89 @@ func TestAMoveOffALimitedAndHeldAccountCountsInWhatItsReasonSays(t *testing.T) {
 			r.recent.hear(reached)
 			choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work", Tried: tt.tried})
 
-			byKind := make(map[string]status.Event)
+			if len(moves) != 1 || moves[0].Reason != tt.reason || moves[0].Held != tt.held {
+				t.Fatalf("the moves = %+v, want one, %q, held by %v", moves, tt.reason, tt.held)
+			}
+			counts, ids := make(map[string]int), make(map[string]int)
+			var moved status.Event
 			for _, e := range r.recent.events() {
-				byKind[e.Kind] = e
+				switch e.Kind {
+				case status.EventMoved:
+					moved = e
+				case status.EventLimit, status.EventHeld:
+					counts[e.Kind], ids[e.Kind] = e.Count, e.ID
+				}
 			}
-			moved, forcing, other := byKind[status.EventMoved], byKind[tt.forcedBy], byKind[tt.other]
-			if moved.Reason != tt.reason || moved.ForcedBy != forcing.ID || forcing.ID == 0 {
-				t.Errorf("the move = %+v, want it %q, forced by %s's event, %d", moved, tt.reason, tt.forcedBy, forcing.ID)
+			if !reflect.DeepEqual(counts, tt.counts) {
+				t.Errorf("the account's events count %v, want %v", counts, tt.counts)
 			}
-			if forcing.Count != 1 || other.Count != 0 {
-				t.Errorf("the %s counts %d and the %s %d, want 1 and none", tt.forcedBy, forcing.Count, tt.other, other.Count)
+			for kind, count := range tt.counts {
+				if count == 1 && moved.ForcedBy != ids[kind] {
+					t.Errorf("the move = %+v, want it forced by the %s's event, %d", moved, kind, ids[kind])
+				}
 			}
 		})
+	}
+}
+
+// A hold the look that tells its lift didn't read, told since the look read
+// the accounts, holds on: the lift ends the hold before it alone.
+func TestALiftEndsNoHoldToldAfterTheLookReadTheAccounts(t *testing.T) {
+	k := newTelling(t)
+	k.reads(0.5, 0.5)
+	k.look()
+	k.hear(workLapsed)
+	k.r.change(func() { k.r.holdLifted("work", start.Add(-time.Second)) })
+	if held := k.r.events()[0]; !held.Until.IsZero() {
+		t.Errorf("the hold told at %v, after the look at %v, = %+v, want it holding on", held.At, start.Add(-time.Second), held)
+	}
+	k.r.change(func() { k.r.holdLifted("work", start) })
+	if held := k.r.events()[0]; !held.Until.Equal(start) {
+		t.Errorf("the hold told by the look = %+v, want it ended at %v", held, start)
+	}
+}
+
+// A hold begun before the events files take an event back, told late as a
+// router from before kept it, is filed from as far back as they take one,
+// its true start in since, and reads back from the files.
+func TestAHoldToldLateIsFiledWhereTheFilesReadItBack(t *testing.T) {
+	clock := &testClock{now: start}
+	r := newTestRecent(clock)
+	files := fileEvents(t, r)
+	began := start.Add(-10 * day)
+	r.hear(ReadHeld{Account: "work", Refused: quota.SubscriptionEnded, Late: true, Since: began})
+
+	want := status.Event{ID: 1, At: start.AddDate(0, 0, 1-events.ChangesFor), Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Since: began}
+	if got := r.events(); !reflect.DeepEqual(got, []status.Event{want}) {
+		t.Errorf("events() = %+v, want %+v", got, want)
+	}
+	reader := events.NewReader(files.stateDir, at(start), logger)
+	files.stop()
+	var read []status.Event
+	for line := range reader.Between(start.Add(-11*day), start.Add(day)) {
+		read = append(read, line.Event)
+	}
+	if !reflect.DeepEqual(read, []status.Event{want}) {
+		t.Errorf("the files read back %+v, want %+v", read, want)
+	}
+}
+
+// A refused read that starts a hold is news, which the state file keeps at
+// once, so a router stopped soon after doesn't tell it again; one refused
+// again while it holds is routine.
+func TestAHoldStartingIsSavedAtOnce(t *testing.T) {
+	var changes, routine changeCount
+	s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
+	s.record("work", []quota.Window{session, soonWeek}, s.mark())
+	changes, routine = 0, 0
+	probesEnd(s, "work", []error{errSubscriptionEnded})
+	if changes != 1 || routine != 0 {
+		t.Errorf("a hold starting told of %d changes and %d routine ones, want 1 and 0", changes, routine)
+	}
+	changes, routine = 0, 0
+	probesEnd(s, "work", []error{errSubscriptionEnded})
+	if changes != 0 || routine != 1 {
+		t.Errorf("a read refused again told of %d changes and %d routine ones, want 0 and 1", changes, routine)
 	}
 }
 
@@ -495,6 +585,10 @@ func TestAHoldIsToldOfAsALimitIs(t *testing.T) {
 		},
 		{
 			name: "with limits off", held: ReadHeld{Account: "2", Refused: quota.SubscriptionEnded, Status: http.StatusForbidden},
+			want: []string{moved},
+		},
+		{
+			name: "told late, as a router from before kept it", limits: true, held: ReadHeld{Account: "2", Refused: quota.SubscriptionEnded, Late: true, Since: start.Add(-10 * day)},
 			want: []string{moved},
 		},
 	}

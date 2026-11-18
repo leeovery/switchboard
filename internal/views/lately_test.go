@@ -106,6 +106,8 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 			full: "work held (token refused)", short: "work held", subject: "work"},
 		{name: "a hold giving no cause", event: status.Event{Kind: status.EventHeld, Account: "work"},
 			full: "work held", subject: "work"},
+		{name: "a hold the router ended", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "token refused", Status: 401, Until: at(13, 30)},
+			full: "work held (token refused), till 13:30", short: "work held", subject: "work"},
 		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
 			full: "work's token is another subscription's", short: "work: wrong token", subject: "work"},
 		{name: "a prime", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: at(18, 50)},

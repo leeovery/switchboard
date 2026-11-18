@@ -88,6 +88,10 @@ type LogEventSources struct {
 	// PoolNamed labels a pool by its id where there are several, as
 	// Telling's NamingPools has it: nil where there are one or none.
 	PoolNamed func(id string) string
+	// HeldNow reports whether the account with the given id is held now, as
+	// status.Moment's HeldByRead says, which a hold's card reads where no
+	// event tells its lift: nil says none is.
+	HeldNow func(id string) bool
 	// Totals are the figures of the days it spans, as LogSources' are, which
 	// its day rules say; and Oldest the oldest day the ledger keeps, as
 	// LogSources' is, which its oldest day's line says where it reaches it.
@@ -114,9 +118,10 @@ type EventsTable struct {
 	Today EventCount
 	// told are every event of the days it spans, those the filter hides
 	// among them, and names names a window by its key, as Details reads
-	// them.
-	told  []toldEvent
-	names func(key string) string
+	// them; heldNow is LogEventSources' HeldNow.
+	told    []toldEvent
+	names   func(key string) string
+	heldNow func(id string) bool
 	// filed is the oldest day it reads back to, and first the first day it
 	// spans.
 	filed OldestDay
@@ -159,10 +164,11 @@ func LogEvents(src LogEventSources) EventsTable {
 	if whole := src.Read.wholeFrom(); whole.Start.After(first.Start) {
 		first = whole
 	}
-	telling, held := NewTelling(src.Names).NamingPools(src.PoolNamed), src.Held.at(src.Now)
-	table := EventsTable{names: src.Names, filed: src.Filed, first: first}
-	for _, e := range src.Events.Events() {
-		line, fact := telling.tell(e.Event, src.Now)
+	read := src.Events.Events()
+	telling, held := NewTelling(src.Names).NamingPools(src.PoolNamed).pairing(read), src.Held.at(src.Now)
+	table := EventsTable{names: src.Names, filed: src.Filed, first: first, heldNow: src.HeldNow}
+	for _, e := range read {
+		line, fact := telling.tell(e, src.Now)
 		if !first.Holds(e.Event.At) {
 			continue
 		}

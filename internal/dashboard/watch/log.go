@@ -240,7 +240,7 @@ func (m Model) logEventSources(filter views.EventFilter, now time.Time) views.Lo
 	t := m.log
 	return views.LogEventSources{
 		From: t.from.Start, Events: m.events.read, Held: m.held, Read: t.read, Filter: filter, Names: m.cfg.WindowName, PoolNamed: m.cfg.PoolNamed,
-		Totals: t.totals, Oldest: t.oldest, Filed: t.filed, Now: now,
+		HeldNow: m.moment(now).HeldByRead, Totals: t.totals, Oldest: t.oldest, Filed: t.filed, Now: now,
 	}
 }
 

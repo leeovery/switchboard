@@ -89,7 +89,7 @@ switchboard: the router isn't running — connecting directly on b6s7 · Work
 ```
 
 - **The token** is `--account`'s, or else the primary's, or else the first usable one. It skips
-  an account the router held back when it stopped, unless you named that account with `--account`.
+  an account the router kept back when it stopped, unless you named that account with `--account`.
   That's an account whose last read Anthropic refused, or whose token belongs to another
   subscription.
 - **A direct session isn't routed or recorded,** and it can spend the reserve you keep on the primary.
