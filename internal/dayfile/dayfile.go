@@ -28,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 const (
@@ -336,6 +338,19 @@ func openHeld(path string, exclusive bool, open func(path string) (*os.File, err
 		_ = file.Close()
 	}
 	return nil, &fs.PathError{Op: "open", Path: path, Err: errKeptReplaced}
+}
+
+// holdAcross holds file, one of a day's plain files, open, against other
+// processes, as Files says: exclusive, to rename a file rewritten into its
+// place, else shared, to append to it. It waits while another process holds
+// it otherwise, and lets go as file closes. Where it can't hold it, as on a
+// file system without locks, it carries on without.
+func holdAcross(file *os.File, exclusive bool) {
+	if exclusive {
+		_ = filelock.Lock(file)
+		return
+	}
+	_ = filelock.LockShared(file)
 }
 
 // stillAt reports whether file is still the one at path.

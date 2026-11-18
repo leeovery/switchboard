@@ -46,9 +46,6 @@ v1.
 - **A login shell changed since setup** (`chsh`): uninstall asks the shell the account logs in with
   now, so a startup line setup put in the old shell's files, under another `ZDOTDIR`, is missed;
   uninstall says what it couldn't find rather than claiming it's gone.
-- **A fifth file lock:** the dashboard's prefs take a `flock` on the state directory
-  (`internal/theme`), a fifth copy beside the four [one-file-lock](2026-11-04--one-file-lock.md)
-  names.
 
 ## The second v1 fix round
 
