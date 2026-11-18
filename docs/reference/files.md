@@ -93,8 +93,8 @@ the file a login bash reads, and terminals on macOS start a login bash.
 ## Locks and markers
 
 - **`accounts.lock` and `import.lock` stay** after their process ends, because the lock goes with
-  the process that held it. A file left there holds nothing.
-- **A second import is refused** while `import.lock` is held.
+  the process that took it. A file left there holds nothing.
+- **A second import is refused** while `import.lock` is taken.
 - **`pools.moved`** means the move gave the first pool to everything from before pools. That's
   every request line, every day summary, and every event that names a pool: `started`, `moved`,
   `pin` and `auto`.

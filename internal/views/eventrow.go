@@ -16,8 +16,8 @@ type EventRow struct {
 	EventLine
 }
 
-// Row is the row of the event h, a line of the router's files, told as Line
-// tells it, a hold with its lift where Pairing paired them, its times in
+// Row is the row of the event h, a line of the router's files, its line
+// told as the Log's Events tell it, a hold with its lift where Pairing paired them, its times in
 // now's time zone.
 func (t *Telling) Row(h events.Held, now time.Time) EventRow {
 	line, _ := t.tell(filedEvent(h.Line), now)

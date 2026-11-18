@@ -433,7 +433,7 @@ func TestAnEventsCardSaysWhatFollowed(t *testing.T) {
 				{Session: d28c, To: "side", Move: &views.EventMove{Cost: cents(182)}},
 				{Session: f7a3, To: "side"},
 			},
-			Till: eventAt.Add(2*time.Hour + 39*time.Minute), InAll: cents(182),
+			Till: "till 17:10", InAll: cents(182),
 		}, want: []string{
 			"WHAT FOLLOWED",
 			"├ d28c         moved to side   $1.82",
@@ -457,7 +457,7 @@ func TestAnEventsCardSaysWhatFollowed(t *testing.T) {
 			Moves: []views.FollowedMove{{Session: d28c, To: "side", Move: &views.EventMove{Rewrote: true}}}, Unpriced: 1,
 		}, want: []string{"WHAT FOLLOWED", "├ d28c         moved to side   unpriced", "└ in all       unpriced to cache them again"}},
 		{name: "a family's refusal, till the next day", followed: &views.Followed{
-			Till: time.Date(2026, 10, 2, 1, 15, 0, 0, now.Location()), Family: "opus",
+			Till: "till Fri 01:15", Family: "opus",
 		}, want: []string{"WHAT FOLLOWED", "└ opus         go elsewhere till Fri 01:15"}},
 		{name: "a move", followed: &views.Followed{
 			Move: &views.EventMove{Request: "3f2a91c4", Written: 182_004, Cost: cents(182)},

@@ -210,8 +210,8 @@ func (h *restarting) looks(n int) {
 // counts in what its reason says held it there, one owner giving both: a
 // request that went out on it, in what its attempt there met, its limit or
 // its refusal, nothing where it met neither, as when it left for a new
-// token; one
-// that didn't, in the hold's, as the hold holds it back whatever else does.
+// token; one that didn't, in the hold's, as the hold holds it back whatever
+// else does.
 func TestAMoveOffALimitedAndHeldAccountCountsInWhatItsReasonSays(t *testing.T) {
 	tests := []struct {
 		name   string

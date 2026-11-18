@@ -103,7 +103,7 @@ the router can't copy it, it warns once in `router.log`.
 |---|---|
 | `<dir>` is a file, or can't be made or written | `export` says so and stops there. |
 | A day in the state directory can't be read | `export` exports the rest, names each day it passed over and why, then exits `1`. |
-| The router still owes the move of your record onto account ids | `export` refuses until the move is done, and says what holds it up. |
+| The router still owes the move of your record onto account ids | `export` refuses until the move is done, and says what's delaying it. |
 
 ```
 switchboard: couldn't export the request ledger of 2026-10-30: open /Users/you/.local/state/switchboard/ledger/requests-2026-10-30.jsonl.gz: permission denied

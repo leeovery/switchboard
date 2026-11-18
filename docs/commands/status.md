@@ -1,8 +1,8 @@
 # `switchboard status`: where every account stands
 
-`status` shows where every account stands right now: each window, what holds an account back, and
-which account is best next. On a terminal it prints text. In a pipe or an agent shell it prints the
-status document as JSON.
+`status` shows where every account stands right now: each window, what keeps an account back,
+and which account is best next. On a terminal it prints text. In a pipe or an agent shell it
+prints the status document as JSON.
 
 ```console
 $ switchboard status
@@ -53,14 +53,14 @@ line says which it did, and how healthy the router is.
 | The config can't be read, and the router is down | `status` fails with the config error only. |
 
 A config can't be read, for example, if an upgrade brings rules that refuse it. The router then
-holds its restart into the new version until you fix the config.
+puts off its restart into the new version until you fix the config.
 
 ## What the text shows
 
 The text runs in this order:
 
 1. Each window of each account: its use, its reset, and where it's heading.
-2. What holds an account back, such as a limit or its reserve.
+2. What keeps an account back, such as a limit or its reserve.
 3. Whether an account is under pressure, and the rate that judges it.
 4. The sessions routed in the last hour, a line each, with the account each model goes to.
 5. The priming schedule.

@@ -148,15 +148,8 @@ func (t *Telling) pairing(events []Event) *Telling {
 	return t
 }
 
-// Line is the event e's line, its times in now's time zone, as the Log's
-// Events has it.
-func (t *Telling) Line(e status.Event, now time.Time) EventLine {
-	line, _ := t.tell(Event{Event: e}, now)
-	return line
-}
-
-// tell is the event e's line, as Line has it, and its facts, worked out
-// over the events told before it.
+// tell is the event e's line, its times in now's time zone, as the Log's
+// Events has it, and its facts, worked out over the events told before it.
 func (t *Telling) tell(read Event, now time.Time) (EventLine, eventFact) {
 	e := read.Event
 	at := e.At.In(now.Location())

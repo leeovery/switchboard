@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -26,7 +27,7 @@ func toldBetween(from, to time.Time) []toldEvent {
 	telling := views.NewTelling(status.NameOfKey)
 	var told []toldEvent
 	for e := range happened.Between(from, to) {
-		line := telling.Line(e.Event, now)
+		line := telling.Row(events.Held{Line: e}, now)
 		told = append(told, toldEvent{at: e.At.In(now.Location()).Format(time.TimeOnly), kind: line.Kind, account: line.Account.String(), what: line.What.String()})
 	}
 	return told

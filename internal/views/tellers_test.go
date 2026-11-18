@@ -80,7 +80,7 @@ func TestTheLogAndLATELYSayTheSameFactsOfTheSameEvents(t *testing.T) {
 			telling := views.NewTelling(m.NameOf)
 			logged := make(map[int]string)
 			for _, e := range slices.Backward(hm.Live) {
-				logged[e.ID] = loggedAlike.Replace(telling.Line(e, hm.Now).What.String())
+				logged[e.ID] = loggedAlike.Replace(rowLine(telling, e, hm.Now).What.String())
 			}
 			for _, s := range views.Lately(m, len(hm.Live), views.SessionDirs{}) {
 				for _, say := range sayings {

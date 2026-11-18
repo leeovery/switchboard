@@ -1,7 +1,6 @@
 package views
 
 import (
-	"cmp"
 	"net/http"
 	"slices"
 	"strconv"
@@ -115,10 +114,12 @@ type AccountThen struct {
 type Followed struct {
 	// Moves are the moves the event counted, in the order they came.
 	Moves []FollowedMove
-	// Till is when new sessions go elsewhere till, as the event says: zero
-	// where it doesn't. Family is the model family whose requests alone go
+	// Till says till when new sessions go elsewhere, as the event says, beside
+	// it: of a hold, till it lifted, as status.HeldTill says it, "till 15 Oct
+	// 09:00"; of any other, as status.Till does, "till 23:58"; "" where it
+	// doesn't say. Family is the model family whose requests alone go
 	// elsewhere, of a refusal of its alone: "" for every request.
-	Till   time.Time
+	Till   string
 	Family string
 	// InAll is what the moves cost together, as their rows say each: nil
 	// where no move's cost is known, or their sum passes what
@@ -413,6 +414,16 @@ func (d detailing) capWords() DetailWords {
 	return DetailWords{{Text: prose.Percent(used), Kind: DetailUse, Use: used}, {Text: " of " + its(d.fact.windows, "its window")}}
 }
 
+// followedTill says till when new sessions go elsewhere after the event, as
+// Followed's Till has it: of a hold, till it lifted; of any other, till its
+// until.
+func (d detailing) followedTill() string {
+	if d.event.Kind == status.EventHeld {
+		return status.HeldTill(d.row.At, d.fact.lifted)
+	}
+	return status.Till(d.row.At, d.event.Until)
+}
+
 // timeWords say a time, as prose.Dated says it beside the event: none for
 // zero.
 func (d detailing) timeWords(t time.Time) DetailWords {
@@ -623,7 +634,7 @@ func (d detailing) followed() *Followed {
 	case !holdsBack(d.event.Kind):
 		return nil
 	}
-	f := &Followed{Till: cmp.Or(d.event.Until, d.fact.lifted), Family: prose.Clean(d.event.Family)}
+	f := &Followed{Till: d.followedTill(), Family: prose.Clean(d.event.Family)}
 	var inAll Worth
 	priced := 0
 	for _, e := range d.table.told {

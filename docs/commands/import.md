@@ -190,7 +190,7 @@ switchboard: passed over /Users/you/Dropbox/switchboard/mac-0123456789abcdef: it
 | `<dir>` holds no Mac folder, or every folder was passed over | `import` fails, saying so. |
 | A folder was exported by a newer switchboard | `import` fails. Upgrade switchboard to import it. |
 | The router is older than `import` | It fails, and says to restart the router. |
-| The router still owes the move of your record onto account ids | It refuses until the move is done, and says what holds it up. |
+| The router still owes the move of your record onto account ids | It refuses until the move is done, and says what's delaying it. |
 | Another import is running | It refuses with `Error: an import is running already`, and leaves the running one alone. |
 | The router refuses, or a day can't be taken in | It fails, saying why. What came in stays, and importing again takes in the rest. |
 

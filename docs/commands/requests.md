@@ -70,7 +70,7 @@ pool an account is in now comes from the config, or from the accounts record for
 - The JSON names each account by its id, as the files keep it. Every field is in
   [Reference](../reference/ledger.md).
 - Just after an upgrade that moves your record, `requests` refuses until the router has moved it.
-  It says what holds the move up.
+  It says what's delaying the move.
 - Once you have a second pool, the text names the pool it read, such as `pool Acme`.
 
 ## Examples

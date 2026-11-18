@@ -1,7 +1,7 @@
 # `switchboard usage`: every account's windows, as they stand
 
 `switchboard usage` prints the windows of every account once, into the scrollback, with the time
-they were read. You can hold it against one printed an hour before.
+they were read. You can compare it with one printed an hour before.
 
 ```bash
 switchboard usage

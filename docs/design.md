@@ -536,7 +536,10 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     by the same rule, as `events.md` says): `subscription lapsed (403), till 08:24` in the Log,
     `held (subscription lapsed), till 08:24` in LATELY, `lifted: 08:24` on the card. A hold's
     times a week or more from its start carry their date, as `till 28 Sep 15:08` (`prose`'
-    `DatedAfar`), as a hold, unlike a limit, can last past a week. A hold none follows says
+    `DatedAfar`), as a hold, unlike a limit, can last past a week: on its row, in LATELY, on its
+    card's `held since` and `lifted`, and in WHAT FOLLOWED, whose till views word, `status`'
+    `HeldTill` for a hold and `Till` for any other. The date shows no year, as `Past`'s doesn't:
+    accepted, as only a hold over a year long reads ambiguously. A hold none follows says
     nothing of when on its row; its card says `till: a read comes back clean` only of its
     account's last hold, while the status document has the account held now, and nothing of
     when otherwise, so an older hold a newer one followed never says it holds. The Log's Events
@@ -560,9 +563,9 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     router starts, and posts nothing, as its news is old: its `since` when it began, which its
     card gives as `held since`, and its `at` the same, but no earlier than the event files take an
     event back, 7 days before now; with no `status`, as nothing kept the read's answer. One whose
-    start the state file doesn't give is filed at now, with no `since`. A router
-    taken back to a version from before and then upgraded again tells such a hold a second time,
-    a second row with no notification: accepted, as a router from before keeps no `held_told`.
+    start the state file doesn't give is filed at now, with no `since`. A router taken back to a
+    version from before and then upgraded again tells such a hold a second time, a second row
+    with no notification: accepted, as a router from before keeps no `held_told`.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of

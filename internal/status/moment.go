@@ -504,7 +504,7 @@ func (m Moment) Account(id string) (AccountNow, bool) {
 // moment doesn't give.
 func (m Moment) HeldByRead(id string) bool {
 	a, ok := m.Account(id)
-	return ok && a.RefusedRead != 0
+	return ok && a.heldByRead()
 }
 
 // HeldByReadIDs are the ids of the accounts held at Now, their last read
@@ -512,11 +512,17 @@ func (m Moment) HeldByRead(id string) bool {
 func (m Moment) HeldByReadIDs() []string {
 	var ids []string
 	for _, a := range m.Accounts {
-		if a.RefusedRead != 0 {
+		if a.heldByRead() {
 			ids = append(ids, a.ID)
 		}
 	}
 	return ids
+}
+
+// heldByRead reports whether the account is held, its last read refused, as
+// its RefusedRead says.
+func (a AccountNow) heldByRead() bool {
+	return a.RefusedRead != 0
 }
 
 // Title names the account by its id and label, as the account's Title does.

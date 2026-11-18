@@ -200,7 +200,7 @@ func (a Account) Window(key string) (quota.Window, bool) {
 // each while it holds.
 func (a AccountNow) heldBy(now time.Time) []string {
 	var held []string
-	if a.RefusedRead != 0 {
+	if a.heldByRead() {
 		held = append(held, refusedReadRouting(a.RefusedRead).String())
 	}
 	if a.Held {

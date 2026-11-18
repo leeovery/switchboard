@@ -73,8 +73,8 @@ fences, and commands read it without `--pool`.
 The router writes the first pool, `Default`, into the config when it first starts. That happens
 after setup on a new Mac, and after an upgrade from before pools. Until then, `add` asks you to
 start the router with `switchboard service install`. If the router is running,
-`switchboard logs router` says what holds it up. If you put back a config from before pools, the
-router gives the pools back to it.
+`switchboard logs router` says what's delaying it. If you put back a config from before pools,
+the router gives the pools back to it.
 
 A new pool has no accounts. Until you add one, a session started in its folders refuses to start.
 Add an account with `accounts add --pool`, or move one in with `accounts edit --pool`. See

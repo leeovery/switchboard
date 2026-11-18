@@ -86,7 +86,7 @@ start it, then add the pool again:
 switchboard service install
 ```
 
-If the router is running, its log says what holds it up:
+If the router is running, its log says what's delaying it:
 
 ```bash
 switchboard logs router

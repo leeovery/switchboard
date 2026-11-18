@@ -56,9 +56,15 @@ stood.
 In the JSON, an event that changed is printed again, and its last line is how it stands. Each line
 carries its `run` and `id`.
 
-In the text, a hold says when it lifted, even across a restart. In the JSON, a `held` event stands
-as the router filed it. Pair it with its lift by the rule in the
-[events reference](../reference/events.md).
+In the text, a hold says when it lifted, even across a restart:
+
+```console
+  09:00        held  work  subscription lapsed (403), till 12:40
+  12:40        open  work  hold lifted (subscription lapsed)
+```
+
+In the JSON, a `held` event stands as the router filed it. Pair each `held` event with its `room`
+event by the rule in the [events reference](../reference/events.md).
 
 ## Events in a pool
 

@@ -74,12 +74,13 @@ func Dated(now, t time.Time) string {
 // DatedAfar shows t in now's time zone as Dated does, but a week or more
 // from now's day, before or after it, its date in place of its weekday, as
 // Past shows a time over a week back, such as "28 Sep 15:08", as a span that
-// can run past a week, a hold's, would read as this week's.
+// can run past a week, a hold's, would read as this week's. It shows no
+// year, as Past doesn't.
 func DatedAfar(now, t time.Time) string {
-	if days := daysBetween(t, now); days >= 7 || days <= -7 {
-		return t.In(now.Location()).Format(pastLayout)
+	if WithinWeek(now, t) && WithinWeek(t.In(now.Location()), now) {
+		return Dated(now, t)
 	}
-	return Dated(now, t)
+	return t.In(now.Location()).Format(pastLayout)
 }
 
 // RunOut shows t, when a window is projected to run out, in now's time zone:

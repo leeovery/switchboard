@@ -46,8 +46,8 @@ func detailsSaid(d views.EventDetails) viewstest.Details {
 		for _, m := range f.Moves {
 			said.Followed = append(said.Followed, status.ShownID(m.Session)+": to "+m.To+" "+moveCostSaid(m.Move))
 		}
-		if !f.Till.IsZero() {
-			said.Followed = append(said.Followed, "new sessions: "+strings.TrimSpace(f.Family+" till "+prose.Dated(at, f.Till)))
+		if f.Till != "" {
+			said.Followed = append(said.Followed, "new sessions: "+strings.TrimSpace(f.Family+" "+f.Till))
 		}
 		if inAll := f.InAllSaid(); inAll != "" {
 			said.Followed = append(said.Followed, "in all: "+inAll)
@@ -234,7 +234,8 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 // older unlifted; and where no event tells its lift, that it holds till a
 // read comes back clean only while the account is held now and it's the
 // account's last hold, and nothing of when otherwise. One told late says
-// when it began. Its times a week or more from its own carry their date.
+// when it began. Its times a week or more from its own carry their date,
+// WHAT FOLLOWED's till among them.
 func TestAHoldsCardSaysWhenItLifted(t *testing.T) {
 	at, run, now := october(7, 13, 0), october(7, 8, 0), october(7, 15, 0)
 	before := october(6, 8, 0)
@@ -258,7 +259,8 @@ func TestAHoldsCardSaysWhenItLifted(t *testing.T) {
 		key     views.EventKey
 		heldNow bool
 		want    []string
-		// row is what the hold's row says after its cause and status.
+		// row is what the hold's row says after its cause and status, its
+		// till WHAT FOLLOWED's after its ", ".
 		row string
 	}{
 		{name: "ended by the router", live: []status.Event{ended}, want: []string{"lifted: 14:00"}, row: ", till 14:00"},
@@ -300,6 +302,9 @@ func TestAHoldsCardSaysWhenItLifted(t *testing.T) {
 			}
 			if got, want := d.Row.Line.What.String(), "subscription lapsed (403)"+tt.row; got != want {
 				t.Errorf("the hold's row says %q, want %q", got, want)
+			}
+			if got, want := d.Followed.Till, strings.TrimPrefix(tt.row, ", "); got != want {
+				t.Errorf("WHAT FOLLOWED says new sessions go elsewhere %q, want %q", got, want)
 			}
 		})
 	}
