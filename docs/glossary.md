@@ -75,6 +75,11 @@ folder the session started in. Tools often start `claude -p` there.
 **Session.** One conversation in Claude Code, from start to exit. A resumed session carries on the
 same conversation, but starts a new process.
 
+**Session name.** What the dashboard calls a session: the name of the terminal session it started
+in, read from zmx or tmux as `claude` starts. A session started outside both takes the name of its
+Claude Code worktree, or else the first 8 characters of its id. See
+[Sessions](dashboard/sessions.md).
+
 **The service.** The LaunchAgent that runs the router at login and restarts it when needed.
 
 **Slug.** The name Claude Code makes from a folder's path, with every character but an ASCII

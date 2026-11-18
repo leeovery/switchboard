@@ -147,6 +147,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		Home:         home,
 		Project:      a.FindProject,
 		Processes:    a.Processes,
+		TmuxSession:  a.TmuxSession,
 		EvalSymlinks: filepath.EvalSymlinks,
 		Worktree:     launch.FindWorktree,
 		InstallPaths: claude.InstallPaths(home),

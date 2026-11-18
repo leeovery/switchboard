@@ -21,14 +21,18 @@ const (
 	endedApart = 2
 )
 
-// The List's columns' widths, in cells: the session's least, its id and
-// listDirLeast cells of its directory, and its natural, its id and its
-// directory at its most; and the most on's least takes, where the widest
-// name is wider.
+// The List's columns' widths, in cells: a session's directory's least, as
+// the Overview's SESSIONS cuts it; the session's least, listProjectLeast
+// cells of its project, as the List cuts one before its name, and as many
+// of its name as the dashboard shows of an id; its natural, a project and a
+// name of listNameMost cells each, either taking what the other leaves; and
+// the most on's least takes, where the widest name is wider.
 const (
 	listDirLeast     = 6
-	listSessionLeast = status.IDShown + 1 + listDirLeast
-	listSessionWhole = status.IDShown + 1 + views.SessionDirMost
+	listProjectLeast = 6
+	listNameMost     = 14
+	listSessionLeast = listProjectLeast + 1 + status.IDShown
+	listSessionWhole = 2*listNameMost + 1
 	listOnLeast      = 14
 )
 
@@ -262,7 +266,7 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 // LogMeasured's naturals has them, of measured where it's of the log.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
-	log, words := f.SessionsTab.Log, sessionWords{m: m, now: now}
+	log, words := f.SessionsTab.Log, sessionWords{m: m, now: now, project: true, glyphs: nerdFont(f.NerdFont)}
 	measured := f.SessionsTab.Measured
 	if measured.of != log {
 		measured = MeasureLog(log, now)
@@ -417,7 +421,7 @@ func endedRule(c *canvas, y, width int, said line) {
 // of what's in flight as last known, as asKnown has it; each column's
 // words, as says has them, cut to its cells; and where lit says, lit across
 // width cells.
-func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views.ListedSession, width int, lit bool) {
+func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views.PeriodSession, width int, lit bool) {
 	mark := rowMarkInks[s.Mark]
 	if s.Mark == views.MarkAsking || s.Mark == views.MarkAnswering {
 		mark = asKnown(s.Activity, mark)
@@ -434,37 +438,63 @@ func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views
 // sessionWords say what the List's columns say of a session, of the moment
 // m at now, grouped by the day each ended, as the List and Projects'
 // SESSIONS group them: its end and its start said on that day, and a start
-// on another day with that day, as the rules name the days.
+// on another day with that day, as the rules name the days. Where project
+// says, as on the List, a session is named after its project, as a
+// project's SESSIONS, under the project, names one without it; and glyphs
+// draws the marks of its name.
 type sessionWords struct {
-	m   status.Moment
-	now time.Time
+	m       status.Moment
+	now     time.Time
+	project bool
+	glyphs  nerdFont
 }
 
 // says is what the column says of the session, in its cells: the session
-// named as sessionIn names it, its id in text.secondary; the model of its
-// latest request, its id less claude-, and its requests counted, in
-// text.muted; its routing in a word or two, as its BriefSaid says it, each
-// account named as the moment names it, cut as the Log cuts its routing, a
-// move's cost kept whole; and the rest as their own say them.
-func (w sessionWords) says(col listColumn, s views.ListedSession) line {
+// named as named names it; the model of its latest request, its id less
+// claude-, and its requests counted, in text.muted; its routing in a word or
+// two, as its BriefSaid says it, each account named as the moment names it,
+// cut as the Log cuts its routing, a move's cost kept whole; and the rest as
+// their own say them.
+func (w sessionWords) says(col listColumn, s views.PeriodSession) line {
 	switch col.part {
 	case listSession:
-		return sessionIn(s.Session, s.Dir, secondaryInk, col.width)
+		return w.named(s, col.width)
 	case listOn:
-		return w.onSays(s)
+		return w.onSays(s.ListedSession)
 	case listModel:
 		return line{{modelNamed(s.Model), mutedInk}}
 	case listState:
-		return w.stateSays(s)
+		return w.stateSays(s.ListedSession)
 	case listStarted:
-		return w.startedSays(s)
+		return w.startedSays(s.ListedSession)
 	case listRequests:
 		return line{{prose.Grouped(s.Requests), mutedInk}}
 	case listWorth:
-		return worthSays(s)
+		return worthSays(s.ListedSession)
 	default:
 		return rowWordsIn(s.Routing.BriefSaid(), func(id string) string { return named(w.m, id) }, col.width)
 	}
+}
+
+// named names the session in the cells given: where w's project says and
+// it has one, its project, as Projects names the project's row, in
+// text.muted, and a space; then its name, as its ShownName has it, a
+// worktree's marked as glyphs marks one, in text.secondary. Its name keeps
+// its cells first: the project is cut with an ellipsis to what the name
+// leaves it, listProjectLeast at the least, and the name to what's left, as
+// prose.Cut cuts.
+func (w sessionWords) named(s views.PeriodSession, cells int) line {
+	shown := s.ShownName()
+	name := shown.Name
+	if shown.Worktree {
+		name = w.glyphs.worktree() + name
+	}
+	if !w.project || s.ProjectName == "" {
+		return line{{prose.Cut(name, cells), secondaryInk}}
+	}
+	project := prose.Cut(s.ProjectName, max(listProjectLeast, cells-1-ansi.StringWidth(name)))
+	rest := cells - 1 - ansi.StringWidth(project)
+	return line{{project, mutedInk}, {" " + prose.Cut(name, rest), secondaryInk}}
 }
 
 // sessionIn names the session with the given id, running in dir, in the

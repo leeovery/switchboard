@@ -61,7 +61,7 @@ func goldenWorld() (lines, zoned []ledger.Line) {
 	s0 := line("r0", "s", at(5, 10, 0), foldOpus, "work", "new")
 	s0.Class, s0.Prompt = ledger.ClassMain, "p0"
 	s1 := line("r1", "s", at(7, 10, 0), foldOpus, "work", "sticky")
-	s1.Dir, s1.Project, s1.Class, s1.Prompt, s1.Usage = "/code/app", "/code/app", ledger.ClassMain, "p1", usage(3000, 0)
+	s1.Dir, s1.Project, s1.Name, s1.Class, s1.Prompt, s1.Usage = "/code/app", "/code/app", "deploy", ledger.ClassMain, "p1", usage(3000, 0)
 	s1.Answer.Stop, s1.Answer.Tools = "tool_use", []string{"Read", "Edit"}
 	s2 := line("r2", "s", at(7, 10, 5), foldHaiku, "work", "new")
 	s2.Class, s2.AgentID, s2.Prompt = "subagent", "a1", "p1"
@@ -82,7 +82,7 @@ func goldenWorld() (lines, zoned []ledger.Line) {
 	o2 := line("", "o", at(8, 12, 0), foldSonnet, "side", "sticky")
 	o4 := line("o4", "o", at(8, 13, 0).Add(250*time.Millisecond), foldHaiku, "work", "sticky")
 	first := int64(500)
-	o4.Class, o4.AgentID, o4.Dir, o4.Project, o4.TotalMS, o4.FirstMS = "subagent", "a2", "/code/site/web", "/code/site", 1500, &first
+	o4.Class, o4.AgentID, o4.Dir, o4.Project, o4.Name, o4.TotalMS, o4.FirstMS = "subagent", "a2", "/code/site/web", "/code/site", "review", 1500, &first
 	o4.Answer.Stop, o4.Answer.Tools = "tool_use", []string{"Bash"}
 	o4.Usage = json.RawMessage(`{"Input_Tokens":7,"cache_creation_input_tokens":1200,"cache_read_input_tokens":500,` +
 		`"cache_creation":{"ephemeral_5m_input_tokens":1000},"output_tokens":120,"server_tool_use":{"web_search_requests":2}}`)

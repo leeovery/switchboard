@@ -608,6 +608,30 @@ func TestLoadNotifications(t *testing.T) {
 	}
 }
 
+func TestLoadWhetherTheDashboardDrawsNerdFontGlyphs(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		want   config.Dashboard
+	}{
+		{name: "not without the table, as a font without them draws boxes"},
+		{name: "not with the table empty", config: "[dashboard]\n"},
+		{name: "where it's turned on", config: "[dashboard]\nnerd_font = true\n", want: config.Dashboard{NerdFont: true}},
+		{name: "not where it's turned off", config: "[dashboard]\nnerd_font = false\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := load(writeConfig(t, tt.config+accountTOML("work")))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.Dashboard != tt.want {
+				t.Errorf("Load() dashboard = %+v, want %+v", cfg.Dashboard, tt.want)
+			}
+		})
+	}
+}
+
 // keeps are the tables that say how long something is kept: each by its
 // name, how long it keeps it where it doesn't say, and how long the config
 // loaded from it has it kept.
@@ -914,6 +938,11 @@ func TestLoadReportsProblems(t *testing.T) {
 			name:   "unknown notifications key",
 			config: "[notifications]\nsound = true\n" + work,
 			want:   []string{`unknown key "notifications.sound"`},
+		},
+		{
+			name:   "unknown dashboard key",
+			config: "[dashboard]\nnerd_fonts = true\n" + work,
+			want:   []string{`unknown key "dashboard.nerd_fonts"`},
 		},
 		{
 			name:   "unknown prime key",

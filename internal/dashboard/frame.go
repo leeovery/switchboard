@@ -167,6 +167,9 @@ type Frame struct {
 	Loading bool
 	// Log is the Log's sub-tab shown, its tables and how each stands.
 	Log LogPage
+	// NerdFont is set where the terminal's font draws Nerd Font's glyphs, as
+	// the config's [dashboard] nerd_font says, and the dashboard draws them.
+	NerdFont bool
 
 	// held is the moment of a document as At holds it, and built the
 	// Overview's sections and Accounts' form as Built built them, each for

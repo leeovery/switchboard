@@ -262,6 +262,7 @@ var recordEdits = map[string]func(r *lineRecord){
 	"end":      func(r *lineRecord) { r.end.sec++ },
 	"dir":      func(r *lineRecord) { r.dir = "/code/other" },
 	"project":  func(r *lineRecord) { r.project = "/code/other" },
+	"name":     func(r *lineRecord) { r.name = "review" },
 	"model":    func(r *lineRecord) { r.model = foldHaiku },
 	"account":  func(r *lineRecord) { r.account = "personal" },
 	"reason":   func(r *lineRecord) { r.reason = "sticky" },

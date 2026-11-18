@@ -40,15 +40,15 @@ ON ACCOUNTS
 
 SESSIONS
   session              on        state        started    requests   worth
-↑ d28c switchboard     side      asking       12:02           445  $48.20
+↑ router-fix           side      asking       12:02           445  $48.20
   ended yesterday  ──────────────────────────────────────────────────────
-▸ b9c4 switchboard     side      ended 18:46  13:20           595  $73.00
-  9814 switchboard     personal  ended 16:45  Mon 12:08       201  $22.65
-  3a3a fix-login       personal  ended 15:23  Mon 11:37       179  $20.56
-  1cb3 pools           side      ended 13:27  Mon 10:39       159  $18.20
-  0084 pools           side      ended 12:17  Mon 13:27       192  $22.23
-  31e1 switchboard     side      ended 11:33  Mon 12:34       146  $17.19
-  96f9 release         work      ended 11:23  Mon 09:36       142  $16.63
+▸ dashboard            side      ended 18:46  13:20           595  $73.00
+  settings             personal  ended 16:45  Mon 12:08       201  $22.65
+  fix-login            personal  ended 15:23  Mon 11:37       179  $20.56
+  pools                side      ended 13:27  Mon 10:39       159  $18.20
+  pools                side      ended 12:17  Mon 13:27       192  $22.23
+  router-fix           side      ended 11:33  Mon 12:34       146  $17.19
+  release              work      ended 11:23  Mon 09:36       142  $16.63
 
 
 

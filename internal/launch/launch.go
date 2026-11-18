@@ -64,6 +64,10 @@ type Launcher struct {
 	// worktrees it's in, as FindWorktree does, so the pool Dir is in is its
 	// repository's too: nil for none.
 	Worktree func(dir string) Worktree
+	// TmuxSession asks tmux the name of the session this process runs in, as
+	// TmuxSession does, which names a routed session inside tmux (see
+	// terminalName): nil asks none.
+	TmuxSession func() (string, error)
 	// InstallPaths are where Claude Code's installers put it, tried in order
 	// when it isn't on PATH.
 	InstallPaths []string
@@ -349,7 +353,7 @@ func (l Launcher) routeUnread(ctx context.Context, path string, args []string, r
 func (l Launcher) routed(path string, args []string, state routerState, c choice, pin string, in place, unread error) error {
 	own, project := l.own(), l.project(in)
 	env := own.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).
-		pinnedTo(pin).workingIn(l.told(state, project)).inPool(state.told(in.id())).
+		pinnedTo(pin).workingIn(l.told(state, project)).named(l.toldName(state)).inPool(state.told(in.id())).
 		withOrUnset(PoolEnv, in.id()).withOrUnset(projectEnv, project).hinting()
 	l.routedThrough(state, c, pin, in, path, unread)
 	return l.execSession(path, args, env, own)
@@ -388,7 +392,7 @@ func (l Launcher) routedThrough(state routerState, c choice, pin string, in plac
 // says: Stderr hears so.
 func (l Launcher) connectDirectly(path string, args []string, state routerState, c choice, in place) error {
 	own := l.own()
-	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("", "").inPool("").
+	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("", "").named("").inPool("").
 		withOrUnset(PoolEnv, in.id()).withOrUnset(projectEnv, l.project(in))
 	attrs := []any{"mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why}
 	if in.pooled() {
@@ -422,11 +426,11 @@ func (l Launcher) Direct(args []string, pools config.Pools) error {
 
 // OwnLogin returns env, an environment as os.Environ gives it, as Claude Code
 // starts on its own login, as Direct starts it: as the user set it (see own),
-// without the token, the base URL, a pin, the directory, project or pool told
-// the router, nor the session's pool or project, nor any mark of
+// without the token, the base URL, a pin, the directory, project, name or
+// pool told the router, nor the session's pool or project, nor any mark of
 // switchboard's.
 func OwnLogin(env []string) []string {
-	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv, PoolEnv, projectEnv).pinnedTo("").workingIn("", "").inPool("")
+	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv, PoolEnv, projectEnv).pinnedTo("").workingIn("", "").named("").inPool("")
 }
 
 // Local starts Claude Code with args, which run one of its local

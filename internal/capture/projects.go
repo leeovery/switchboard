@@ -49,10 +49,10 @@ var projectWeeks = []projectWeek{
 }
 
 // projectPlace is where a session's requests run: its directory, the project
-// its lines name, "" as a line from before projects names none, and the
-// model they ask for.
+// its lines name, "" as a line from before projects names none, the model
+// they ask for, and the terminal session it was started in, "" for none.
 type projectPlace struct {
-	dir, project, model string
+	dir, project, model, terminal string
 }
 
 // placeIn is a session's place in the project given, at its root, asking
@@ -67,6 +67,13 @@ func worktreeOf(name, model string) projectPlace {
 	return projectPlace{dir: switchboardProject + "/.claude/worktrees/" + name, project: switchboardProject, model: model}
 }
 
+// inTerminal is the place of a session started in the terminal session with
+// the given name.
+func (p projectPlace) inTerminal(name string) projectPlace {
+	p.terminal = name
+	return p
+}
+
 // beforeProjects is the place as a line from before projects names it: its
 // directory alone.
 func (p projectPlace) beforeProjects() projectPlace {
@@ -79,15 +86,16 @@ func (p projectPlace) beforeProjects() projectPlace {
 // sessionThisWeek gives them: of switchboard's eight this week six, one in
 // its worktree fix-login, two in pools, and one in release, its lines from
 // before projects; of website's five three; of infra's five two; and of
-// api's four one.
+// api's four one. Three were started in terminal sessions, the rest
+// outside every one.
 var weekPlaces = map[string][]projectPlace{
 	"work": {worktreeOf("release", opus55).beforeProjects()},
 	"personal": {
-		worktreeOf("fix-login", opus55), placeIn(switchboardProject, opus55), placeIn(websiteProject, sonnet55),
+		worktreeOf("fix-login", opus55), placeIn(switchboardProject, opus55).inTerminal("settings"), placeIn(websiteProject, sonnet55).inTerminal("landing"),
 		placeIn(websiteProject, opus55), placeIn(infraProject, opus5),
 	},
 	"side": {
-		worktreeOf("pools", opus55), worktreeOf("pools", sonnet55), placeIn(switchboardProject, opus55),
+		worktreeOf("pools", opus55), worktreeOf("pools", sonnet55), placeIn(switchboardProject, opus55).inTerminal("router-fix"),
 		placeIn(websiteProject, sonnet55), placeIn(infraProject, opus55), placeIn(apiProject, opus55),
 	},
 }
@@ -145,7 +153,7 @@ func (r projectRun) lines() []ledger.Line {
 		}
 		lines[i] = ledger.Line{
 			At: r.from.Add(time.Duration(i) * step).UTC(), Request: fmt.Sprintf("%s-%s-%d-%d", r.session[:8], r.account, r.d, i), Kind: ledger.KindMessage,
-			Session: r.session, Dir: r.place.dir, Project: r.place.project, Model: r.place.model, Account: r.account,
+			Session: r.session, Dir: r.place.dir, Project: r.place.project, Name: r.place.terminal, Model: r.place.model, Account: r.account,
 			Status: 200, Attempts: 1, Class: ledger.ClassMain, Agent: claudeCodeAgent, Usage: usage,
 		}
 	}

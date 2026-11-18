@@ -70,6 +70,7 @@ The router looks at the config every 3 seconds:
 | A pool, or which pool an account is in | Taken up within about 3 seconds. |
 | `[export] dir` | Taken up within about 3 seconds. The next export goes to the new folder. |
 | Removing an account | Within about 3 seconds, sessions still on its token count as the primary's. |
+| `[dashboard] nerd_font` | Taken up when the dashboard next opens. |
 | Anything else, such as a new account | Taken up when the router restarts. |
 | The file, and it doesn't load | The router keeps the config it has, and logs a warning. |
 
@@ -240,6 +241,22 @@ How to use the export for backups and a second Mac is on [Backups and a new Mac]
 `window` compares the accounts one window at a time. `account` shows each account's windows
 together. `usage --by` overrides it for one printout. Pressing `b` on the dashboard overrides it
 from then on.
+
+## Dashboard: `[dashboard]`
+
+```toml
+[dashboard]
+# your terminal font is a Nerd Font
+nerd_font = true
+```
+
+| Key | Default | What it does |
+|---|---|---|
+| `nerd_font` | `false` | Draws the Nerd Font icons, such as the tree before a worktree's name. |
+
+A font without the Nerd Font icons draws each one as a box, so they're off unless you turn them
+on. The dashboard reads `nerd_font` as it opens. Where the tree shows is on
+[Sessions](dashboard/sessions.md).
 
 ## Prices: `[prices]`
 

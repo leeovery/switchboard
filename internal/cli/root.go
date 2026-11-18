@@ -65,6 +65,10 @@ type Deps struct {
 	// so run finds the session a claude is started within, through the
 	// processes that started it: nil tells of none.
 	Processes launch.Processes
+	// TmuxSession asks tmux the name of the session run runs in, as
+	// launch.TmuxSession does, which run tells the router, inside tmux, as
+	// the session's name: nil asks none.
+	TmuxSession func() (string, error)
 	// RepositoryOf returns the project of the repository a directory is in,
 	// and whether it's in one, as launch.RepositoryOf does, which a
 	// scratchpad's session is read against where its slug names a worktree

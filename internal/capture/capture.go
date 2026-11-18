@@ -85,6 +85,9 @@ type Fixture struct {
 	// second, and a pool with no accounts draws its page: none, as before
 	// pools, where it's unset.
 	pool status.ShownPool
+	// nerdFont draws the Nerd Font glyphs the dashboard has, as the config's
+	// [dashboard] nerd_font turns them on.
+	nerdFont bool
 	// setup is set for a fixture of setup's screen, drawn by its own model
 	// rather than the watch.
 	setup *setupShown
@@ -271,22 +274,23 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 // as the fixture's settling finds it; the tab its preferences keep, which
 // it opens on, the Overview where it's unset, and the Log's columns they
 // keep shown; the requests a minute that fill a trace's height, where its
-// frame pins them otherwise than the frames' usual; and the pool it shows,
-// where it shows one.
+// frame pins them otherwise than the frames' usual; the pool it shows,
+// where it shows one; and whether it draws Nerd Font's glyphs.
 type page struct {
-	name    string
-	size    watch.Size
-	world   func(accountWorlds) accountWorld
-	keys    []tea.KeyPressMsg
-	before  earlier
-	gone    bool
-	goneFor time.Duration
-	view    dashboard.View
-	log     dashboard.LogTicks
-	scale   float64
-	loading bool
-	looked  *looked
-	pool    status.ShownPool
+	name     string
+	size     watch.Size
+	world    func(accountWorlds) accountWorld
+	keys     []tea.KeyPressMsg
+	before   earlier
+	gone     bool
+	goneFor  time.Duration
+	view     dashboard.View
+	log      dashboard.LogTicks
+	scale    float64
+	loading  bool
+	looked   *looked
+	pool     status.ShownPool
+	nerdFont bool
 }
 
 // looked is a page's moment as a later look at the router has it: after
@@ -319,7 +323,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	router := routerOf(w, now)
 	if p.looked != nil {
 		was := router
-		was.sessions, was.stream = p.looked.listed(now.Add(-p.before.by)), nil
+		was.sessions, was.stream = routedInTerminals(p.looked.listed(now.Add(-p.before.by))), nil
 		was.doc.Events = slices.DeleteFunc(slices.Clone(was.doc.Events), func(e status.Event) bool { return e.Kind == status.EventLimit })
 		router = was.then(now, router)
 	}
@@ -329,7 +333,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
 		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), moved: movedOf(w.gone, p.pool.ID), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
-		pool: p.pool,
+		pool: p.pool, nerdFont: p.nerdFont,
 	}
 }
 
@@ -539,6 +543,7 @@ var pages = []page{
 	{name: "projects-many-114x40", size: watch.Size{Width: 114, Height: 40}, world: accountWorlds.manyProjects, keys: toProjects()},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
+	{name: "sessions-list-nerd-font-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]"), nerdFont: true},
 	{name: "sessions-switchboard-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSessions()},
 	{name: "sessions-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions("]")},

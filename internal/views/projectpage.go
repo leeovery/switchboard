@@ -57,10 +57,14 @@ type AccountShare struct {
 // SESSIONS row it, in the List's form, so it's drawn in the List's columns:
 // its requests and their worth over the period. EndedOn is the date of the
 // local day it ended on, as its rule groups it, by its last request; ""
-// while it runs.
+// while it runs. ProjectName names its project, on Sessions' List alone,
+// as Projects names the project's row: "" on a project's SESSIONS, which
+// the project heads, and of a session with no directory or of temporary
+// folders.
 type PeriodSession struct {
 	ListedSession
-	EndedOn string
+	EndedOn     string
+	ProjectName string
 }
 
 // page is the project's page, its row given, the page built of in.
@@ -164,7 +168,8 @@ func earliestKnown(a, b time.Time) time.Time {
 
 // listedEnded is the session as the List lists one that ended, of the days
 // it ran on in the period, as their records tell it: in the directory, and
-// of the project, it last named, as projects reads them together;
+// of the project, it last named, as projects reads them together, and
+// named by the terminal session it last named;
 // its requests and their worth; started at its first request and ended at
 // its last, or of none, its last line; named as names has it of what names
 // it over its days, as no router lists it; and brought to its account, as
@@ -174,7 +179,7 @@ func earliestKnown(a, b time.Time) time.Time {
 func (st *sessionTally) listedEnded(price pricing, projects status.Projects) ListedSession {
 	ended := cmp.Or(st.lastRequest, st.lastLine)
 	s := ListedSession{
-		Session: st.id, Dir: st.dir, Project: projects.Of(st.project, st.dir), Requests: st.requests, Worth: st.worth,
+		Session: st.id, Dir: st.dir, Project: projects.Of(st.project, st.dir), Name: st.name, Requests: st.requests, Worth: st.worth,
 		Started: st.firstRequest, Ended: ended, Activity: Activity{Doing: Ended, Since: ended, LastSeen: ended},
 	}
 	s.Account, s.Model = st.naming.names(nil)

@@ -132,7 +132,7 @@ func (s Scenario) based() *base {
 	}
 	b.current, b.latest = windowsAsTheyRun(w.history)
 	if w.routed != nil {
-		b.listed = w.routed(start)
+		b.listed = routedInTerminals(w.routed(start))
 	}
 	b.pins = make(map[string]ownPin)
 	for _, l := range b.listed {

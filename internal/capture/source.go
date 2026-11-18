@@ -63,7 +63,7 @@ func routerOf(w accountWorld, now time.Time) source {
 	doc := w.document(now)
 	s := source{doc: doc, health: startedAt(routerRun(now)), trails: w.trails(doc, now), stream: w.stream, now: now}
 	if w.routed != nil {
-		s.sessions = w.routed(now)
+		s.sessions = routedInTerminals(w.routed(now))
 	}
 	return s
 }

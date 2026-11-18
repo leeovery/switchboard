@@ -42,6 +42,7 @@ puts `pool_label` after it too.
 | `session` | string | The session id of the request. |
 | `dir` | string | The directory `claude` started Claude Code in, with your home as `~`. |
 | `project` | string | The repository that directory is in, with your home as `~`. See below. |
+| `name` | string | The name of the terminal session `claude` started Claude Code in. See below. |
 | `pool` | string | The id of the pool the request was routed within. |
 | `model` | string | The model the request asked for. |
 | `account` | string | The account whose answer the client got, by id only. |
@@ -58,6 +59,12 @@ puts `pool_label` after it too.
   longer `dir` is cut from its start, with `…` for what's cut, and a longer `project` is left out.
   Lines that v0.9.0 and earlier filed held 200 bytes of each, so a folder in a Claude Code
   scratchpad often shows cut there, with no `project`.
+- **`name`** is the zmx session name, else the tmux session name, read once as `claude` starts.
+  It's left out outside both, and on lines filed before switchboard recorded it. It holds 100
+  bytes at most, cleaned of control characters. A rename of the terminal session after the start
+  never reaches the line.
+- **`name` came in after `schema` 1,** and keeps it at 1. A reader that doesn't know `name`
+  passes over it.
 
 ### The project of a line
 

@@ -254,6 +254,7 @@ var fieldsStored = []fieldStored{
 	{field: "end", set: func(r *lineRecord) { r.end = instantOf(time.Time{}) }, want: `{"e":{"s":-62135596800}}`},
 	{field: "dir", set: func(r *lineRecord) { r.dir = "/code/app" }, want: `{"d":"/code/app"}`},
 	{field: "project", set: func(r *lineRecord) { r.project = "/code/app" }, want: `{"pj":"/code/app"}`},
+	{field: "name", set: func(r *lineRecord) { r.name = "deploy" }, want: `{"nm":"deploy"}`},
 	{field: "model", set: func(r *lineRecord) { r.model = foldOpus }, want: `{"m":"claude-opus-5-5"}`},
 	{field: "account", set: func(r *lineRecord) { r.account = "work" }, want: `{"ac":"work"}`},
 	{field: "reason", set: func(r *lineRecord) { r.reason = "sticky" }, want: `{"rs":"sticky"}`},

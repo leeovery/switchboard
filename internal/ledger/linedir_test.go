@@ -68,3 +68,31 @@ func TestAProjectIsGivenAsALineGivesItWholeOrNotAtAll(t *testing.T) {
 		})
 	}
 }
+
+func TestASessionsNameIsGivenAsALineGivesItCleanedAndCut(t *testing.T) {
+	const nameMost = 100
+	tests := []struct {
+		name, given, want string
+	}{
+		{name: "a terminal session's name", given: "deploy", want: "deploy"},
+		{name: "none", given: "", want: ""},
+		{name: "spaces kept between words", given: "fix login", want: "fix login"},
+		{name: "control characters and runs of spaces cleaned", given: " fix\x1b[31m\tlogin\n ", want: "fix [31m login"},
+		{name: "a Nerd Font glyph kept", given: "\uf1bb web", want: "\uf1bb web"},
+		{name: "as long as a line holds, whole", given: strings.Repeat("a", nameMost), want: strings.Repeat("a", nameMost)},
+		{name: "longer, cut at the end of a character", given: strings.Repeat("☃", nameMost), want: strings.Repeat("☃", nameMost/len("☃"))},
+		{name: "cut after a space, the space let go", given: strings.Repeat("a", nameMost-1) + " b", want: strings.Repeat("a", nameMost-1)},
+		{name: "a token hidden", given: "sk-ant-oat01-fake_name-token-shaped", want: redact.Placeholder},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ledger.LineName(tt.given)
+			if got != tt.want {
+				t.Errorf("LineName(%q) = %q, want %q", tt.given, got, tt.want)
+			}
+			if again := ledger.LineName(got); again != got {
+				t.Errorf("LineName(%q) = %q, want it as it is, as a line given it gives it again", got, again)
+			}
+		})
+	}
+}

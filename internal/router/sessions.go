@@ -57,6 +57,10 @@ type assignment struct {
 	// Project the project its last request to name either named, or "".
 	Dir     string `json:"dir,omitempty"`
 	Project string `json:"project,omitempty"`
+	// Name is the name of the terminal session the session's last request to
+	// name a directory, a project or a name was started in, as the request
+	// ledger gives it, or "".
+	Name string `json:"name,omitempty"`
 	// Pool is the id of the pool the assignment is in, as its key names it:
 	// "" in a config from before pools, or as the state file kept it from a
 	// router that didn't know pools, which counts as the first pool, as a
@@ -97,6 +101,16 @@ func (a assignment) projectAfter(req Request) string {
 	return req.Project
 }
 
+// nameAfter is the name the assignment names once req is noted on it: req's,
+// where it names a directory, a project or a name, so a session resumed
+// outside every terminal session is named by none; else the one it named.
+func (a assignment) nameAfter(req Request) string {
+	if req.Dir == "" && req.Project == "" && req.Name == "" {
+		return a.Name
+	}
+	return req.Name
+}
+
 // forgotten reports whether the assignment has gone unused for forgetAfter
 // at now.
 func (a assignment) forgotten(now time.Time) bool {
@@ -110,9 +124,9 @@ func (a assignment) same(b assignment) bool {
 }
 
 // usedAgain reports whether a is b used again, and nothing more: the same
-// assignment, with the same pin, directory, project, pool and reason.
+// assignment, with the same pin, directory, project, name, pool and reason.
 func (a assignment) usedAgain(b assignment) bool {
-	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Project == b.Project && a.Pool == b.Pool && a.Reason == b.Reason
+	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Project == b.Project && a.Name == b.Name && a.Pool == b.Pool && a.Reason == b.Reason
 }
 
 // inUTC is the assignment with its times in UTC.
@@ -130,14 +144,15 @@ type entry struct {
 // export is the assignment as the control API gives it.
 func (e entry) export() status.Assignment {
 	return status.Assignment{
-		Model:      e.model,
-		Account:    e.Account,
-		Dir:        e.Dir,
-		Project:    e.Project,
-		Pinned:     e.Pin != "" && e.Pin == e.Account,
-		Reason:     e.Reason,
-		AssignedAt: e.AssignedAt,
-		LastSeen:   e.LastSeen,
+		Model:       e.model,
+		Account:     e.Account,
+		Dir:         e.Dir,
+		Project:     e.Project,
+		SessionName: e.Name,
+		Pinned:      e.Pin != "" && e.Pin == e.Account,
+		Reason:      e.Reason,
+		AssignedAt:  e.AssignedAt,
+		LastSeen:    e.LastSeen,
 	}
 }
 
@@ -287,7 +302,7 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 		a.Reason = d.reason
 	}
 	a.Pin, a.Pool, a.LastSeen, a.by = req.Pin, req.Pool, now, req.ID
-	a.Dir, a.Project = a.dirAfter(req), a.projectAfter(req)
+	a.Dir, a.Project, a.Name = a.dirAfter(req), a.projectAfter(req), a.nameAfter(req)
 	s.assignments[k] = a.inUTC()
 	if a.usedAgain(found) {
 		s.usedAgain()

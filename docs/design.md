@@ -3565,8 +3565,10 @@ Every view speaks as `usage` does:
   apart: the pool to each account's cap, the room new sessions can take, and `all accounts` to each
   account's limit.
 - **A session is named by the first 4 characters of its id,** and, where switchboard knows it, the
-  directory it was started in. A request of it in flight is `asking`, until its answer's first
-  byte, then `answering`.
+  directory it was started in; but on Sessions' List and a project's SESSIONS, by its session
+  name, the terminal session it was started in, else its worktree's, else its id cut to 8 (see
+  Sessions, The List; the owner's call, 18 November 2026). A request of it in flight is `asking`,
+  until its answer's first byte, then `answering`.
 - **Times** read `16:30` for today and `Sun 21:00` for another day, `~` before one projected.
 
 ### The page
@@ -5523,8 +5525,10 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   - **No new version:** the day's heads and digests keep each session's directory and project as
     its lines named them, so the rule needs no new version of either.
 
-  Inside a project a session keeps its own directory's name, so a worktree's session reads
-  `fix-login`.
+  Inside a project a session is named by its session name alone, as the List names it after its
+  project (see Sessions, The List), so a worktree's session started outside zmx and tmux reads
+  `fix-login`, and one started in the tmux session `router-fix` reads `router-fix`: the project is
+  the row above it (the owner's call, 18 November 2026).
   A session is one project's, the one of where its latest day ran, as its story places it, so one
   whose days name it two ways, as across the upgrade that began recording projects, counts once.
   Sessions of no directory make one `no directory` row. Projects are named as `status.ProjectNames`
@@ -5672,7 +5676,8 @@ Switchboard stays live, with no dial. The frames are in the Paper file
 `sessions-switchboard-mixed-160` (work and personal without a 5-hour window). The List as a log is
 in the Paper file *Switchboard · Entities*, on page `p-3-0` (round 3, signed off 13 November 2026),
 and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73x61` and
-`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. Columns and rows are at 160 by 37
+`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. The List under `nerd_font` is
+`sessions-list-nerd-font-160`. Columns and rows are at 160 by 37
 unless they say otherwise.
 
 **The heading row,** row 4: `SESSIONS` in `text.muted`; three spaces; the sub-tabs, `Switchboard`
@@ -6006,7 +6011,7 @@ each at least its least and at most its natural:
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
-| `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
+| `session` | 11 | 29 | Its project, as Projects names the project's row, in `text.muted`; a space and its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`: the name keeps its cells first, and the project is cut with `…` to what it leaves, at its least 6; the name is cut with `…` to the rest. Of no project, or of temporary folders, its session name alone |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
@@ -6015,6 +6020,20 @@ each at least its least and at most its natural:
 | `worth` | 7, or the widest the log says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
 
+- **A session's name** (the owner's call, 18 November 2026) is the terminal session it was
+  started in, as `run` read it once at its launch (see Launching) and its lines and the router's
+  listing keep it, the last to name a place naming it, so a session resumed outside every terminal
+  session is named by none; else, where it runs in a worktree Claude Code made, as the project fold
+  knows one by its path (`status.WorktreeName`, `<repo>/.claude/worktrees/<name>`, or a folder
+  in it, the innermost of one made in another's), the worktree's name; else its id cut to 8
+  (`status.ShortID`). It's worked out once, in `views` (`ListedSession.ShownName`), which says
+  where it's a worktree's, and read alike by the List and a project's SESSIONS. Its project's name
+  is Projects' row's (`PeriodSession.ProjectName`, set on the List alone). Its directory no longer
+  names it here: the project does, beside it.
+- **The worktree's tree:** a worktree's name carries Nerd Font's `fa-tree`, U+F1BB, and a space
+  ahead of it, where the config's `[dashboard] nerd_font = true` says the font draws it; off by
+  default, as a font without it draws a box. Every Nerd Font glyph goes through one owner
+  (`dashboard.nerdFont`), which gives what stands in for it: here, nothing, the name plain.
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
   what shows, giving way in this order as the frame narrows, so `routing` never shows beside either
@@ -9169,7 +9188,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   object:
 
   ```json
-  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "project": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "project": "~/Code/project", "name": "router-fix", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
   - `at`: when it arrived, before its body was read, in UTC, to the millisecond.
@@ -9190,7 +9209,14 @@ from the first day a router that has it runs, so nothing before then is in it.
     `~/Code/api` for a session in `~/Code/api/.claude/worktrees/fix-login`, or, for a `claude`
     `run` started within a session outside every repository, that session's (see A session's page,
     A project); left out where a request names none, as every line from before it was told does.
-    `model`: the model it asked for. Each is cut to 200 bytes once anything shaped like a token in
+    `name`: the terminal session `run` started `claude` in, as it tells the router (see Launching),
+    cleaned and cut to 100 bytes (`ledger.LineName`); left out where a request names none, as
+    outside zmx and tmux, and on every line from before it was told. It was added to the v1 line
+    as a field a line may leave out, so it needed no new version of the line: a reader from before
+    passes over it, and one reading a line from before finds none. The day's heads and digests
+    keep it with each session, as they keep its directory and project, so they took new versions
+    (`RowsVersion` 6, `DigestVersion` 4), each read whole from the lines once, as an old head
+    would stand without the names its lines hold. `model`: the model it asked for. Each is cut to 200 bytes once anything shaped like a token in
     it is hidden, a session's id and a model's at their end, as the request stream cuts them, but
     a directory and a project, which are kept whole to 1024 bytes, macOS's `PATH_MAX`, the longest
     working directory the system gives: a directory past that is cut at its start, `…` standing
@@ -11405,6 +11431,9 @@ dir = "~/Dropbox/Switchboard"      # where the router exports the history, hourl
 [usage]                            # optional: how usage and the dashboard lay out their windows
 by = "window"                      # window or account: the accounts compared a window at a time, or each account's windows together
 
+[dashboard]                        # optional: how the dashboard draws
+nerd_font = false                  # true where the terminal's font is a Nerd Font, to draw its glyphs, as a worktree's tree
+
 [prices.plans]                     # optional: what a plan costs, in US dollars a month, in place of the built-in price
 max = 90
 
@@ -11474,6 +11503,10 @@ fails as it is; one that parses has every problem reported at once:
   account's windows together; `window` unless given. It's the layout `usage` prints and the
   dashboard's Overview opens with: `usage --by` overrides it for one printout, and the Overview's
   `b` for the dashboard, which remembers the choice (see `usage`, the printout, and The Overview).
+- **`[dashboard]`**: `nerd_font`, `false` unless given, says the terminal's font is a Nerd Font, so
+  the dashboard draws its glyphs, as the tree before a worktree's session name (see Sessions, The
+  List; the owner's call, 18 November 2026). Off by default, as a font without them draws a box
+  for each. The dashboard reads it as it opens; the router never reads it.
 - **`[prices]`** overrides the price table built into switchboard (see The request ledger).
   `[prices.plans]` gives a plan's price, by its name, `pro`, `max` or `ultra`, in US dollars a
   month; by its old name too, but a plan priced by both is an error naming the two keys.
@@ -11528,6 +11561,12 @@ fails as it is; one that parses has every problem reported at once:
   path is passed over, never refusing the request, and the request names no project: its session's
   project is then its directory's, as a line from before projects has it. It's read as cheaply as
   the directory, from the header alone.
+- `X-Switchboard-Name: <name>`, set by `run` beside the directory, names the terminal session
+  `run` started in (see Launching), encoded as the directory is. The router reads it as the line
+  keeps it (`ledger.LineName`), cleaned and cut to 100 bytes, so a header sent by hand can't put a
+  control character on a screen or run a line long. One that's missing or doesn't decode names
+  none, and never refuses the request nor changes where it goes: the name is a label, read by
+  nothing that routes. Like every `X-Switchboard-` header, it never goes upstream.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
   its answer in, to count it for the request stream (see Control API): gzip, deflate and identity,
   in the order the client gave them, or identity where it offered none of those. A request passed
@@ -11551,7 +11590,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving, restart}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's. `restart` is the restart it has due, as the status document's `restart`, left out where none is, given here for a pool it can't give a document of, as one added since it started, which waits on that restart: the dashboard says it on such a pool's status line |
 | `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below. It, `GET /sessions`, `GET /history`, `GET /stream`, `POST /refresh` and `DELETE /pin` take `?pool=<id>`, and answer for that pool, else the one the verbs act on, refusing with a 400 `{error, pools, named}` where there's none, or the pool named isn't configured (see Reading a pool); `POST /pin` takes its pool from the accounts it names; and `GET /sessions/{id}` and a session's pin take `?pool=<id>` as they say. Each stream event names its request's `pool`, where there are pools |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, project, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `project`, the project its last request of the model to name a directory or a project named, kept and left out alike, so it's always that of the directory named with it, and left out by a router from before; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. With `?pool=<id>`, it answers for the session in that pool, a 404 where it was never seen there; without, for the pool it was routed in last, as a session resumed in another pool has work in each. 404 for a session never seen |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, project, name, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `project`, the project its last request of the model to name a directory or a project named, kept and left out alike, so it's always that of the directory named with it, and left out by a router from before; `name`, the terminal session its last request of the model to name a directory, a project or a name was started in, kept and left out alike, so a session resumed outside every terminal session is named by none; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. With `?pool=<id>`, it answers for the session in that pool, a 404 where it was never seen there; without, for the pool it was routed in last, as a session resumed in another pool has work in each. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Each acts in one pool: the one `?pool=<id>` names, a 404 for a session never seen there; else, for a pin, the account's pool, where the session runs there, routed within the hour; else the pool the session was routed in last, where a pin to an account outside it is a 400 (see Pinning in a pool). 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
@@ -11798,12 +11837,22 @@ verbs).
   a moment with no request in flight, and one run by hand with `serve` until it's run again (see
   Proxy rules). The project header goes with it, and only with it, naming the repository that
   directory is in, which `run` finds by walking up from it, as A project says, shown from home
-  alike, as `~/Code/api`. It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
+  alike, as `~/Code/api`. The name header goes to such a router too, naming the terminal session
+  `run` started in (the owner's call, 18 November 2026), read once, in one place
+  (`Launcher.terminalName`): `ZMX_SESSION` where it's set, as zmx sets it; else, inside tmux, as
+  `TMUX` says, the tmux session's name, as `tmux display-message -p '#S'` prints it, given a second
+  at most; else none. A tmux that fails, or isn't there, names none, and the launch goes on, logging
+  it at debug. The name is text from outside, so it's cleaned and cut as a line keeps it
+  (`ledger.LineName`: `prose.Clean`, anything token-shaped hidden, 100 bytes at most) before it's
+  encoded as the directory is, and the router cleans and cuts it again as it reads it. A rename
+  of the terminal session after the launch isn't followed: nothing polls, nothing reads Claude
+  Code's own files, and no verb renames a session (the owner's call). A name inherited from a session this one is started within goes:
+  what this launch reads is the only one. It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
   send a base URL the headers it sends the API directly, the prompt each request serves and its
   class among them, which the router records (see The request ledger); but where the environment
   sets it already, as to `0`, which turns them off, it's left as it is, though not where it's set
   empty, which Claude Code reads as unset (settled in the plan). An unhealthy router is routed
-  through exactly as a healthy one is, the token, pin, directory, project and hints alike, and
+  through exactly as a healthy one is, the token, pin, directory, project, name and hints alike, and
   `run` says so in a
   line on stderr: `switchboard: the router is unhealthy (5 of the 8 requests in the last 5 minutes
   failed) — starting claude through it all the same`, logging `starting claude` at warn with

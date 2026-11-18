@@ -12,6 +12,7 @@
       },
       "d": "/code/app",
       "pj": "/code/app",
+      "nm": "deploy",
       "m": "claude-opus-5-5",
       "ac": "side",
       "rs": "moved: work hit its limit",

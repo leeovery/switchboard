@@ -195,7 +195,7 @@ func TestUnderProjectsListIsTheListAndUnderSessionsTheView(t *testing.T) {
 				}
 				want := map[int]Under{
 					first - 1: UnderNothing, every - 1: UnderNothing, every: UnderNothing, every + 2: UnderNothing,
-					rowOf("d28c "): UnderView, rowOf("d28c ") + 1: UnderView,
+					rowOf("d28c5e17"): UnderView, rowOf("d28c5e17") + 1: UnderView,
 				}
 				for y := first; y <= every-2; y++ {
 					want[y] = UnderProjectsList

@@ -246,6 +246,9 @@ type Config struct {
 	// Home is the user's home directory, which a session's page shows a
 	// directory under as ~: "" shows it whole.
 	Home string
+	// NerdFont is set where the terminal's font draws Nerd Font's glyphs, as
+	// the config's [dashboard] nerd_font says, for the dashboard to draw them.
+	NerdFont bool
 	// Projects reads each session's project, as every view of it reads it.
 	Projects status.Projects
 	// Scrolling is which way the Mac scrolls, as the dashboard read it as it
@@ -1040,6 +1043,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Session:          m.session.frame(),
 		Loading:          m.loading(now),
 		Log:              m.log.page,
+		NerdFont:         m.cfg.NerdFont,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
 		f.Accounts = m.accounts.standing(f)
