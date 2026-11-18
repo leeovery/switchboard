@@ -250,6 +250,34 @@ func TestEventsTellAMoveAfterMidnightWhenThePressureToldTheDayBeforeRunsOut(t *t
 	}
 }
 
+// A hold lifted across a restart says when it lifted, as the Log's Events
+// say it: its lift is the room again of its account a later run told,
+// paired with it as the text is told; the JSON prints each as it was filed.
+func TestEventsTellAHoldLiftedAcrossARestartWhenItLifted(t *testing.T) {
+	deps := testDeps(nil, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow }
+	held := eventLine(runOne, 1, status.Event{At: october(7, 9, 0, 0), Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403})
+	lifted := eventLine(runTwo, 1, status.Event{At: october(7, 12, 40, 0), Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"})
+	fileEvent(t, deps, "2026-10-07", held)
+	fileEvent(t, deps, "2026-10-07", lifted)
+	text := `Wed 7 Oct 2026, so far
+  09:00        held  work  subscription lapsed (403), till 12:40
+  12:40        open  work  hold lifted (subscription lapsed)
+`
+	for _, tt := range []struct {
+		forms []printForm
+		want  string
+	}{{forms: prettyForms(), want: text}, {forms: jsonForms(), want: printedJSON(t, held, lifted)}} {
+		for _, form := range tt.forms {
+			t.Run(form.name, func(t *testing.T) {
+				if got := form.run(t, deps, "events"); got.stdout != tt.want || got.code != 0 {
+					t.Errorf("switchboard events %s printed\n%s(%d, %s)\nwant\n%s", strings.Join(form.args, " "), got.stdout, got.code, got.stderr, tt.want)
+				}
+			})
+		}
+	}
+}
+
 func TestEventsWithoutAnyFilesSaysThereAreNone(t *testing.T) {
 	deps := testDeps(nil, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }

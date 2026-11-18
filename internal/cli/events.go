@@ -188,7 +188,8 @@ func (p eventsJSON) follow(h events.Held) error {
 }
 
 // eventsText prints the events as text, under the day each happened on, a
-// line each, as views.Telling tells them.
+// line each, as views.Telling tells them, each hold listed with its lift, as
+// its Pairing pairs them, as the Log's Events do.
 type eventsText struct {
 	out     io.Writer
 	now     func() time.Time
@@ -219,7 +220,9 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 	}
 	var rows []views.EventRow
 	p.widths = []int{len(indent) + prose.DatedWidth()}
-	for h := range held {
+	read := slices.Collect(held)
+	p.telling.Pairing(read)
+	for _, h := range read {
 		r := p.telling.Row(h, now).Named(p.names)
 		if r.At.Before(from) {
 			continue

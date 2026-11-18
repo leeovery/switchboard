@@ -144,7 +144,7 @@ func (t *Telling) NamingPools(label func(id string) string) *Telling {
 // them, where they're all read before any is told: told one at a time, a
 // hold is known to have lifted only as the router ended it. It returns t.
 func (t *Telling) pairing(events []Event) *Telling {
-	t.facts.lifts = holdLifts(events)
+	t.facts.holds = holdLifts(events)
 	return t
 }
 
@@ -267,7 +267,7 @@ func loggedHold(e status.Event, f eventFact, at time.Time) (status.Words, status
 	if e.Status != 0 {
 		what += " (" + strconv.Itoa(e.Status) + ")"
 	}
-	return account(e.Account), append(clause(what+till(f.lifted, at)), moving(f, true)...)
+	return account(e.Account), append(clause(what+heldTill(f.lifted, at)), moving(f, true)...)
 }
 
 // holdCause is why the API refused the read that held an account, the hold
@@ -286,11 +286,11 @@ func holdSaid(e status.Event, f eventFact, at time.Time) string {
 	if cause := holdCause(e); cause != "" {
 		said += " (" + cause + ")"
 	}
-	return said + till(f.lifted, at)
+	return said + heldTill(f.lifted, at)
 }
 
-// heldTill is till when a hold holds, as no time lifts it.
-const heldTill = "a read comes back clean"
+// holdsTill is till when a hold holds, as no time lifts it.
+const holdsTill = "a read comes back clean"
 
 // liftedSaid says a hold lifted, as room again e tells it, and why it held,
 // as holdCause has it: "lifted (subscription lapsed)", "" where e names no
@@ -429,10 +429,22 @@ func its(names []string, none string) string {
 // till says until when what's told holds, as status.Till says it, as ",
 // till 23:58", shown beside at: nothing where it doesn't say.
 func till(until, at time.Time) string {
-	if said := status.Till(at, until); said != "" {
-		return ", " + said
+	return clauseAfter(status.Till(at, until))
+}
+
+// heldTill says until when a hold held, lifted at lifted, as
+// status.HeldTill says it, as ", till 08:24", or a week or more after at,
+// ", till 28 Sep 15:08": nothing where it doesn't say.
+func heldTill(lifted, at time.Time) string {
+	return clauseAfter(status.HeldTill(at, lifted))
+}
+
+// clauseAfter is the clause said after a comma: nothing where it's "".
+func clauseAfter(said string) string {
+	if said == "" {
+		return ""
 	}
-	return ""
+	return ", " + said
 }
 
 // pinAccounts are the global pin's accounts, as pinnedNames has them, joined

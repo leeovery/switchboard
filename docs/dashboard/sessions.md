@@ -25,7 +25,7 @@ Each session's requests travel its cord: out as they go, and back as the answer 
 refusal bounces back red, as `✕ 429`.
 
 When a limit moves a session, the session joins the group of its new account. A short red cord
-hangs from the old jack while the limit holds, one for each session the limit moved. A move made
+hangs from the old jack while the limit is in force, one for each session the limit moved. A move made
 for any other reason leaves a faint cord for 3 seconds.
 
 `Σ pool` has no line, because no session runs on it. The Overview, Runway and `usage` show it.

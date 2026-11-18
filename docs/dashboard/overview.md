@@ -107,7 +107,7 @@ auto`, or only `pinned to personal` if the rest doesn't fit.
 
 ### Pinned accounts
 
-While a pin holds, each account it names says `● pinned` beside its state, if there's room. Room
+While a pin is in force, each account it names says `● pinned` beside its state, if there's room. Room
 is tighter on some rows:
 
 | If | ROUTING |

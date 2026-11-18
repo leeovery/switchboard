@@ -27,7 +27,7 @@ the foot says how long a column lasts, such as `a column ≈ 69 minutes`.
 - The past is dimmed.
 - Under each name is how much of its week the account has used, such as `week 34%`.
 - Every window that all models share counts, the 5-hour among them. A lane shows no room wherever
-  any of those windows holds the account back.
+  any of those windows keeps the account back.
 
 Until the router has a day of your sessions, for example on a new install, it assumes the use on
 each account stays where it is. A run-out may then show earlier than it will come. If the

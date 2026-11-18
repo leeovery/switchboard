@@ -530,11 +530,17 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     after the look that tells the lift read the accounts isn't ended by it.
   - **The views pair a hold with its lift,** as a lapsed subscription's hold outlasts a restart
     and 8 days: where the `held` event has no `until`, its lift is the first `room` of its
-    account after it that names a cause (`views`' `holdLifts`, one owner, which the Log's row,
-    its card and LATELY read): `subscription lapsed (403), till 08:24` in the Log, `held
-    (subscription lapsed), till 08:24` in LATELY, `lifted: 08:24` on the card. A hold none follows
-    says nothing of when on its row; its card says `till: a read comes back clean` only while the
-    status document has the account held now, and nothing of when otherwise.
+    account after it that names a cause, from whatever run, unless another `held` of the account
+    comes first (`views`' `holdLifts`, one owner, which the Log's row, its card, LATELY and
+    `switchboard events`' text read; its JSON prints the events as filed, for a reader to pair
+    by the same rule, as `events.md` says): `subscription lapsed (403), till 08:24` in the Log,
+    `held (subscription lapsed), till 08:24` in LATELY, `lifted: 08:24` on the card. A hold's
+    times a week or more from its start carry their date, as `till 28 Sep 15:08` (`prose`'
+    `DatedAfar`), as a hold, unlike a limit, can last past a week. A hold none follows says
+    nothing of when on its row; its card says `till: a read comes back clean` only of its
+    account's last hold, while the status document has the account held now, and nothing of
+    when otherwise, so an older hold a newer one followed never says it holds. The Log's Events
+    are built again as the accounts held change, so the card follows the document.
   - **Its moves name the cause:** a move off a held account, or a pin yielding from one, gives
     `had its read refused, its subscription ended` or `had its read refused, its token refused`,
     fixed whys, as every why is (see the reasons above), which the views word as the cards do:
@@ -544,8 +550,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   - **One owner gives a move's why and what it counts in,** the router's `unable`, so they can't
     disagree: a request that went out on the account says what it met there, and counts in what
     that names, its limit or its refusal, as the view has it, a hold or not, and in nothing where
-    it met neither, as when it was throttled; one that didn't is held by the hold first, whatever
-    else holds the account.
+    it met neither, as when it left the account for a new token; one that didn't is held by the
+    hold first, whatever else holds the account.
   - **Told once:** a read refused again while it holds, for either cause, tells nothing new, and a
     read that fails otherwise neither starts one nor lifts one.
   - **Across a restart:** the state file keeps whether each hold has been told, `held_told`. A
@@ -553,7 +559,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     room again all the same. A hold a router from before kept, never told, is told once as the
     router starts, and posts nothing, as its news is old: its `since` when it began, which its
     card gives as `held since`, and its `at` the same, but no earlier than the event files take an
-    event back, 7 days before now; with no `status`, as nothing kept the read's answer. A router
+    event back, 7 days before now; with no `status`, as nothing kept the read's answer. One whose
+    start the state file doesn't give is filed at now, with no `since`. A router
     taken back to a version from before and then upgraded again tells such a hold a second time,
     a second row with no notification: accepted, as a router from before keeps no `held_told`.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
@@ -7461,7 +7468,7 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `╎` `accent.attention` | `cap` | the account | `95% of its 5-hour window: its 3 sessions move to side as their next requests come` |
 | `■` `state.destructive` | `limit` | the account | `its 5-hour window, till 23:58: its session moves to side` |
 | `■` `state.destructive` | `refused` | the account | `its token refused (401), till 14:00: its 2 sessions move to side`, or a request refused alone, `its opus requests refused (403), till 14:00` (settled in the plan) |
-| `■` `state.destructive` | `held` | the account | `subscription lapsed (403): its 2 sessions move to side as their next requests come`, or `token refused (401)`, and once it has lifted `token refused (401), till 08:24`; its card headed `work held`, with `why`, `answer`, `held since` for one told late, and `lifted: 08:24`, or while the account is held now `till: a read comes back clean` (see 401s and 403s) |
+| `■` `state.destructive` | `held` | the account | `subscription lapsed (403): its 2 sessions move to side as their next requests come`, or `token refused (401)`, and once it has lifted `token refused (401), till 08:24`; its card headed `work held`, with `why`, `answer`, `held since` for one told late, and `lifted: 08:24`, or, of its account's last hold while the account is held now, `till: a read comes back clean` (see 401s and 403s) |
 | `■` `state.destructive` | `foreign` | the account | `its token is another subscription's`, its card headed `work's token is another subscription's` (see Account identity) |
 | `◇` `text.subtle` | `primed` | the account | `its 5-hour window started, resets at 12:05` |
 | `✓` `state.positive` | `open` | the account | `its 5-hour window reset`; as a hold lifts, `hold lifted (subscription lapsed)`, its card's `hold` item `lifted (subscription lapsed)` |

@@ -85,16 +85,16 @@ func (r *recent) refused(e Refused, now time.Time) {
 
 // readHeld keeps the hold the API's refusal of an account's read started, as
 // news, as it's told at now, its cause in the words StaleCause's Said gives
-// it, counting the moves it forced that came first. One told late is kept
-// from when it began, as Since says, but no earlier than the files take an
-// event back, its true start in Since. A read refused again while it holds
-// is never told, so it's never joined: nor is its lift, which room again
-// tells.
+// it, counting the moves it forced that came first. One that says when it
+// began, as one told late does, is kept from then, as Since says, but no
+// earlier than the files take an event back, its true start in Since; one
+// that doesn't is kept from now. A read refused again while it holds is
+// never told, so it's never joined: nor is its lift, which room again tells.
 func (r *recent) readHeld(e ReadHeld, now time.Time) {
 	cause, _ := status.RefusedRead(e.Refused).Said()
 	held := happening{Kind: status.EventHeld, Account: e.Account, Reason: cause, Status: e.Status}
 	at := now
-	if e.Late {
+	if !e.Since.IsZero() {
 		held.Since = e.Since.UTC()
 		at = score.Later(held.Since, now.AddDate(0, 0, 1-events.ChangesFor))
 	}

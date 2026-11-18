@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -229,42 +230,67 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 
 // A hold's card says when it lifted: as the router ended it, else as the
 // first room again of its account after it that names a hold lifting told
-// it; and where no event tells its lift, that it holds till a read comes
-// back clean only while the account is held now, and nothing of when
-// otherwise. One told late says when it began.
+// it, from whatever run, a newer hold of its account between leaving the
+// older unlifted; and where no event tells its lift, that it holds till a
+// read comes back clean only while the account is held now and it's the
+// account's last hold, and nothing of when otherwise. One told late says
+// when it began. Its times a week or more from its own carry their date.
 func TestAHoldsCardSaysWhenItLifted(t *testing.T) {
 	at, run, now := october(7, 13, 0), october(7, 8, 0), october(7, 15, 0)
-	began := at.Add(-10 * 24 * time.Hour)
+	before := october(6, 8, 0)
 	held := status.Event{ID: 1, At: at, Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403}
-	ended := held
+	ended, endedLate, late, filedHold := held, held, held, held
+	filedHold.At = october(7, 7, 0)
 	ended.Until = october(7, 14, 0)
-	late := held
-	late.Since = began
+	endedLate.Until = october(15, 9, 0)
+	late.Since = at.Add(-10 * 24 * time.Hour)
+	newer := held
+	newer.ID, newer.At = 2, october(7, 13, 10)
 	room := func(account, reason string) status.Event {
-		return status.Event{ID: 2, At: october(7, 13, 30), Kind: status.EventRoom, Account: account, Reason: reason}
+		return status.Event{ID: 3, At: october(7, 13, 30), Kind: status.EventRoom, Account: account, Reason: reason}
 	}
 	tests := []struct {
-		name    string
-		events  []status.Event
+		name string
+		// filed are the events of the run before, and live those of the
+		// run now, the hold the card is of its first.
+		filed   []events.Line
+		live    []status.Event
+		key     views.EventKey
 		heldNow bool
 		want    []string
 		// row is what the hold's row says after its cause and status.
 		row string
 	}{
-		{name: "ended by the router", events: []status.Event{ended}, want: []string{"lifted: 14:00"}, row: ", till 14:00"},
-		{name: "lifted as room again told, the router never ending it", events: []status.Event{held, room("work", "subscription lapsed")}, want: []string{"lifted: 13:30"}, row: ", till 13:30"},
-		{name: "room again of another account, held now", events: []status.Event{held, room("side", "token refused")}, heldNow: true, want: []string{"till: a read comes back clean"}},
-		{name: "room again naming no hold, held no longer", events: []status.Event{held, room("work", "")}},
-		{name: "never lifted, held now", events: []status.Event{held}, heldNow: true, want: []string{"till: a read comes back clean"}},
-		{name: "never lifted, held no longer", events: []status.Event{held}},
-		{name: "told late, held now", events: []status.Event{late}, heldNow: true, want: []string{"held since: " + prose.Dated(at, began), "till: a read comes back clean"}},
+		{name: "ended by the router", live: []status.Event{ended}, want: []string{"lifted: 14:00"}, row: ", till 14:00"},
+		{name: "ended by the router over a week on", live: []status.Event{endedLate}, want: []string{"lifted: 15 Oct 09:00"}, row: ", till 15 Oct 09:00"},
+		{name: "lifted as room again told, the router never ending it", live: []status.Event{held, room("work", "subscription lapsed")}, want: []string{"lifted: 13:30"}, row: ", till 13:30"},
+		{
+			name: "lifted as room again of a later run told", filed: []events.Line{{Event: filedHold, Run: before}}, live: []status.Event{room("work", "subscription lapsed")},
+			key: views.EventKey{Run: before, ID: 1}, want: []string{"lifted: 13:30"}, row: ", till 13:30",
+		},
+		{name: "a newer hold before room again", live: []status.Event{held, newer, room("work", "subscription lapsed")}},
+		{name: "a newer hold, held now", live: []status.Event{held, newer}, heldNow: true},
+		{name: "the newer hold, held now", live: []status.Event{held, newer}, key: views.EventKey{Run: run, ID: 2}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "room again of another account, held now", live: []status.Event{held, room("side", "token refused")}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "room again naming no hold, held no longer", live: []status.Event{held, room("work", "")}},
+		{name: "never lifted, held now", live: []status.Event{held}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "never lifted, held no longer", live: []status.Event{held}},
+		{name: "told late, held now", live: []status.Event{late}, heldNow: true, want: []string{"held since: 27 Sep 13:00", "till: a read comes back clean"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			read := views.ReadEvents(nil, at, at).Look(liveAt(tt.events, now), run)
+			var files views.Events
+			if tt.filed != nil {
+				files = filedLines(tt.filed)
+			}
+			read := views.ReadEvents(files, at, at).Look(liveAt(tt.live, now), run)
 			heldNow := func(id string) bool { return tt.heldNow && id == "work" }
 			table := views.LogEvents(views.LogEventSources{From: at, Events: read, HeldNow: heldNow, Now: now})
-			d, ok := table.Details(views.EventKey{Run: run, ID: 1}, views.LogRead{})
+			key := tt.key
+			if key.ID == 0 {
+				key = views.EventKey{Run: run, ID: 1}
+			}
+			d, ok := table.Details(key, views.LogRead{})
 			if !ok {
 				t.Fatal("there are no details of the hold")
 			}
@@ -272,7 +298,7 @@ func TestAHoldsCardSaysWhenItLifted(t *testing.T) {
 			if got := itemsSaid(d.Happened); !slices.Equal(got, want) {
 				t.Errorf("the card's items are %q, want %q", got, want)
 			}
-			if got, want := table.Rows[0].Line.What.String(), "subscription lapsed (403)"+tt.row; got != want {
+			if got, want := d.Row.Line.What.String(), "subscription lapsed (403)"+tt.row; got != want {
 				t.Errorf("the hold's row says %q, want %q", got, want)
 			}
 		})

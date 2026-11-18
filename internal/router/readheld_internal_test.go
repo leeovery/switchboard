@@ -209,7 +209,8 @@ func (h *restarting) looks(n int) {
 // A move off an account both at its limit and held by its read refused
 // counts in what its reason says held it there, one owner giving both: a
 // request that went out on it, in what its attempt there met, its limit or
-// its refusal, nothing where it met neither, as when it was throttled; one
+// its refusal, nothing where it met neither, as when it left for a new
+// token; one
 // that didn't, in the hold's, as the hold holds it back whatever else does.
 func TestAMoveOffALimitedAndHeldAccountCountsInWhatItsReasonSays(t *testing.T) {
 	tests := []struct {
@@ -230,7 +231,7 @@ func TestAMoveOffALimitedAndHeldAccountCountsInWhatItsReasonSays(t *testing.T) {
 			held: HeldByRefusal, counts: map[string]int{status.EventLimit: 0, status.EventHeld: 0},
 		},
 		{
-			name: "throttled there", tried: []Attempt{{Account: "work", Why: whyThrottled}}, reason: "moved: work was throttled",
+			name: "left for a new token there", tried: []Attempt{{Account: "work", Why: whyNewToken}}, reason: "moved: work has a new token",
 			counts: map[string]int{status.EventLimit: 0, status.EventHeld: 0},
 		},
 		{
@@ -322,6 +323,18 @@ func TestAHoldToldLateIsFiledWhereTheFilesReadItBack(t *testing.T) {
 	}
 	if !reflect.DeepEqual(read, []status.Event{want}) {
 		t.Errorf("the files read back %+v, want %+v", read, want)
+	}
+}
+
+// A hold told late that doesn't say when it began is filed at now, as one
+// told as it starts is.
+func TestAHoldToldLateNotSayingWhenItBeganIsFiledAtNow(t *testing.T) {
+	r := newTestRecent(&testClock{now: start})
+	r.hear(ReadHeld{Account: "work", Refused: quota.SubscriptionEnded, Late: true})
+
+	want := status.Event{ID: 1, At: start, Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed"}
+	if got := r.events(); !reflect.DeepEqual(got, []status.Event{want}) {
+		t.Errorf("events() = %+v, want %+v", got, want)
 	}
 }
 
@@ -589,6 +602,10 @@ func TestAHoldIsToldOfAsALimitIs(t *testing.T) {
 		},
 		{
 			name: "told late, as a router from before kept it", limits: true, held: ReadHeld{Account: "2", Refused: quota.SubscriptionEnded, Late: true, Since: start.Add(-10 * day)},
+			want: []string{moved},
+		},
+		{
+			name: "told late, when it began unknown", limits: true, held: ReadHeld{Account: "2", Refused: quota.SubscriptionEnded, Late: true},
 			want: []string{moved},
 		},
 	}

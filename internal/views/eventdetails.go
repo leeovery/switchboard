@@ -288,12 +288,12 @@ func (d detailing) happened() []DetailItem {
 		if e.Status != 0 {
 			items.add("answer", valued(strconv.Itoa(e.Status)))
 		}
-		items.add("held since", d.timeWords(e.Since))
+		items.add("held since", d.heldWords(e.Since))
 		switch {
 		case !d.fact.lifted.IsZero():
-			items.add("lifted", d.timeWords(d.fact.lifted))
-		case d.table.holdsNow(e.Account):
-			items.add("till", saidWords(heldTill))
+			items.add("lifted", d.heldWords(d.fact.lifted))
+		case d.fact.holding && d.table.holdsNow(e.Account):
+			items.add("till", saidWords(holdsTill))
 		}
 	case status.EventPrimed:
 		items.add("window", d.windowsWords())
@@ -416,10 +416,21 @@ func (d detailing) capWords() DetailWords {
 // timeWords say a time, as prose.Dated says it beside the event: none for
 // zero.
 func (d detailing) timeWords(t time.Time) DetailWords {
+	return d.shownWords(prose.Dated, t)
+}
+
+// heldWords say a time of a hold, as prose.DatedAfar says it beside the
+// event, as a hold can run past a week: none for zero.
+func (d detailing) heldWords(t time.Time) DetailWords {
+	return d.shownWords(prose.DatedAfar, t)
+}
+
+// shownWords say a time as shows shows it beside the event: none for zero.
+func (d detailing) shownWords(shows func(now, t time.Time) string, t time.Time) DetailWords {
 	if t.IsZero() {
 		return nil
 	}
-	return valued(prose.Dated(d.row.At, t))
+	return valued(shows(d.row.At, t))
 }
 
 // knownWords name the request an event was known from: "7f3a's request at

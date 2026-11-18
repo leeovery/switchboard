@@ -64,7 +64,7 @@ The router stopped or restarted while you pinned, and closed the request without
 have made the pin first.
 
 ```bash
-# Shows any pin that holds
+# Shows any pin in force
 switchboard status
 # Pin again if it isn't there
 switchboard pin <id>

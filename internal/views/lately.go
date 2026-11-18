@@ -108,7 +108,7 @@ func latelyFacts(m status.Moment, events []Event) map[eventKey]eventFact {
 	told := slices.SortedFunc(slices.Values(events), func(a, b Event) int {
 		return cmp.Or(a.Key.Run.Compare(b.Key.Run), cmp.Compare(a.Key.ID, b.Key.ID))
 	})
-	facts := eventFacts{name: m.NameOf, lifts: holdLifts(events)}
+	facts := eventFacts{name: m.NameOf, holds: holdLifts(events)}
 	byKey := make(map[eventKey]eventFact, len(told))
 	for _, e := range told {
 		byKey[e.Key.same()] = facts.told(e)

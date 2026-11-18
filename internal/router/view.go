@@ -170,7 +170,7 @@ func (v view) holding(id string) (Hold, int) {
 // id it went out on, as why, what it met there, says, and the identity of
 // the limit, where that's what did: its limit, where the view has it
 // limited; its refusing the request, where the view has it refusing; and
-// nothing otherwise, as of a request throttled.
+// nothing otherwise, as of a request left for a new token.
 func (v view) tried(id, why string) (Hold, int) {
 	switch limit, limited := v.limited[id]; {
 	case why == status.WhyLimit && limited:

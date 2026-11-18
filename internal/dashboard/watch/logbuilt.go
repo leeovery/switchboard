@@ -57,18 +57,21 @@ func (b *requestsBasis) same(o requestsBasis) bool {
 // eventsBasis is what the Log's Events are made of: what the Log holds, as
 // held counts its changes; the events held, as theirs count their changes;
 // the store their rows are told by, as stored counts its changes; the
-// filter; and the day.
+// accounts held now, their reads refused, by their ids, which a hold's card
+// reads; the filter; and the day.
 type eventsBasis struct {
-	held   int
-	events int
-	stored int
-	shows  views.EventFilter
-	day    string
+	held       int
+	events     int
+	stored     int
+	heldByRead []string
+	shows      views.EventFilter
+	day        string
 }
 
 // same reports whether b is o, the Events made of one as of the other.
 func (b *eventsBasis) same(o eventsBasis) bool {
-	return b != nil && b.held == o.held && b.events == o.events && b.stored == o.stored && b.shows.Equal(o.shows) && b.day == o.day
+	return b != nil && b.held == o.held && b.events == o.events && b.stored == o.stored && slices.Equal(b.heldByRead, o.heldByRead) &&
+		b.shows.Equal(o.shows) && b.day == o.day
 }
 
 // panelBasis is what the Log's panel's figures are made of: what the Log
@@ -146,7 +149,9 @@ func (m Model) requestsBasis(filter views.LogFilter, now time.Time) requestsBasi
 // eventsBasis is what the Log's Events are made of at now, through the
 // filter given.
 func (m Model) eventsBasis(shows views.EventFilter, now time.Time) eventsBasis {
-	return eventsBasis{held: m.log.held, events: m.events.changes, stored: m.stored, shows: shows, day: views.Today(now).Date}
+	return eventsBasis{
+		held: m.log.held, events: m.events.changes, stored: m.stored, heldByRead: m.moment(now).HeldByReadIDs(), shows: shows, day: views.Today(now).Date,
+	}
 }
 
 // panelBasis is what the Log's panel p's figures are made of at now.

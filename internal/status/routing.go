@@ -308,13 +308,26 @@ func Till(now, t time.Time) string {
 	return clauseAt("till ", now, t)
 }
 
+// HeldTill says until when a hold held, lifting at t, as Till does, but as
+// DatedAfar shows t, as a hold can run past a week: "till 08:24", or "till
+// 28 Sep 15:08"; "" where that's unknown.
+func HeldTill(now, t time.Time) string {
+	return clauseShown("till ", prose.DatedAfar, now, t)
+}
+
 // clauseAt is the words given then t as Dated shows it at now: "" where t is
 // unknown.
 func clauseAt(words string, now, t time.Time) string {
+	return clauseShown(words, prose.Dated, now, t)
+}
+
+// clauseShown is the words given then t as shows shows it at now: "" where t
+// is unknown.
+func clauseShown(words string, shows func(now, t time.Time) string, now, t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return words + prose.Dated(now, t)
+	return words + shows(now, t)
 }
 
 // startsAt says when the lapsed window of the account with the given id

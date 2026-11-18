@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -237,9 +238,15 @@ func filedBetween(filed Events, from, to time.Time) []Event {
 	}
 	var found []Event
 	for line := range filed.Between(from, to) {
-		found = append(found, Event{Key: EventKey{Run: line.Run, ID: line.ID}, Event: line.Event})
+		found = append(found, filedEvent(line))
 	}
 	return found
+}
+
+// filedEvent is the line of the router's files as an Event, keyed by its
+// run and id.
+func filedEvent(line events.Line) Event {
+	return Event{Key: EventKey{Run: line.Run, ID: line.ID}, Event: line.Event}
 }
 
 // hold holds e in place of any version of its event held.

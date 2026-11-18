@@ -1,7 +1,7 @@
 # Accounts in the status document
 
 Each entry in `accounts` of the [status document](status-json.md) is one account in the pool, in
-the order of the config. It says how full each window is, and what holds the account back.
+the order of the config. It says how full each window is, and what keeps the account back.
 
 ```bash
 switchboard status --json | jq \
@@ -37,7 +37,7 @@ from:
 | If the document comes from | `refused_read` means |
 |---|---|
 | The router | The router sends the account nothing until a read comes back clean, unless Anthropic refused the reads of every account in the pool. |
-| Probing, with no router running | The probe was refused. The router holds the account back once it reads the account the same way. |
+| Probing, with no router running | The probe was refused. The router puts the account on a [hold](../glossary.md) once it reads the account the same way. |
 
 See [Troubleshooting: an account's token or subscription](../troubleshooting/tokens.md).
 
@@ -88,14 +88,15 @@ These come from the router only. A document built by probing leaves them out.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `limit` | object | A limit that holds the account, as `{id, windows, until}`. |
-| `refused` | object | A refusal that holds the account, as `{until, status, family}`. |
+| `limit` | object | A limit in force on the account, as `{id, windows, until}`. |
+| `refused` | object | A refusal in force on the account, as `{until, status, family}`. |
 | `pressure` | object | How fast the pressure window is used, and where it's heading. |
 | `rates` | list of objects | How fast each window has been used lately. |
 | `sessions` | number | How many sessions went to the account in the last hour. |
 
-- **`limit.windows`** names the windows reached. If it names none, the limit holds every request.
-- **`refused.family`** is set if the refusal holds back only the requests of one model family.
+- **`limit.windows`** names the windows reached. If it names none, the limit keeps back every
+  request.
+- **`refused.family`** is set if the refusal keeps back only the requests of one model family.
 - **`pressure`** holds `window`, `rate`, `recent`, `since`, `runs_out` and `under`. The account is
   under pressure while `under` is set: the window runs out before it resets.
 

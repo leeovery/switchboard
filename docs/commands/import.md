@@ -77,7 +77,7 @@ like any other. A folder with no export in it at all is passed over without a wo
 |---|---|
 | A day this Mac doesn't hold | Copies it in. |
 | A day this Mac holds already | Adds the lines this Mac doesn't hold. |
-| A line held more times in the folder than on this Mac | Adds it the extra times, for example an event that changed back to how it stood. |
+| A line found more times in the folder than on this Mac | Adds it the extra times, for example an event that changed back to how it stood. |
 | A day's summary | Copies it in if this Mac holds no line of that day. Otherwise this Mac keeps its own. See below. |
 | Lines older than `[ledger] keep`, or readings older than `[history] keep` | Leaves them out, as the router would remove them. Their summaries still come in. |
 
@@ -143,7 +143,7 @@ the pool. Work that names no pool goes to the first pool of the Mac that recorde
 
 `imported_before` means the pool was kept apart, under its id, before this import began. Now its
 accounts sit in one pool here, so its new days go to that pool. Any days taken in before stay
-under the id, because a line held already stands against the same line in another pool. Read
+under the id, because a line taken in already stands against the same line in another pool. Read
 them with `--pool` and the id. `import` says so at each import, even if no days came in before.
 
 A pool kept apart keeps its record here. Read it with `--pool` and its id. `import` names each

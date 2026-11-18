@@ -59,7 +59,7 @@ func TestServe(t *testing.T) {
 	doc := srv.waitForStatus(t, func(doc status.Document) bool {
 		work, _ := doc.Account("work")
 		side, _ := doc.Account("side")
-		return len(work.Windows) == 3 && side.Error != ""
+		return len(work.Windows) == 3 && side.Error != "" && len(doc.Events) > 0
 	})
 	if doc.Source != "router" || doc.Router != (status.Health{Healthy: true}) {
 		t.Errorf("source = %q, router = %+v, want router, healthy, having routed nothing", doc.Source, doc.Router)
@@ -75,9 +75,13 @@ func TestServe(t *testing.T) {
 	if want := forecast.WorkedOut(claude.Policy()).ComingUp; !reflect.DeepEqual(doc.ComingUp, want) {
 		t.Errorf("the router has coming up\n%+v\nwant the probe's readings', their weeks forecast by its demand %+v, as its pace since start doesn't go:\n%+v", doc.ComingUp, *doc.Demand, want)
 	}
+	if len(doc.Events) != 1 || doc.Events[0].Kind != status.EventHeld || doc.Events[0].Account != "side" || doc.Events[0].Status != http.StatusUnauthorized {
+		t.Errorf("the router tells the events %+v, want side's hold alone, its read refused with a 401", doc.Events)
+	}
 	doc.Source, doc.Router, doc.Demand, doc.ComingUp = probed.Source, probed.Router, probed.Demand, probed.ComingUp
+	doc.Events, doc.EventsKept = probed.Events, probed.EventsKept
 	if !reflect.DeepEqual(doc, probed) {
-		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source, health, demand and what's coming up:\n%+v", doc, probed)
+		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source, health, demand, what's coming up and the events it tells:\n%+v", doc, probed)
 	}
 	want := []string{
 		"test-token-side claude-fable-5", "test-token-side claude-fable-5-1", "test-token-side claude-haiku-4-5-20251001",

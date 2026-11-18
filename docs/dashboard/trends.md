@@ -41,8 +41,8 @@ the chart are the account's name, its marks and its words, such as
 The room left comes first. If the reading is stale, why comes next, as `usage` says it:
 `subscription lapsed` or `token refused` in red, or `not read since 14:20`. The rest are the words
 [Runway](runway.md) gives the account at the same width. A limit or cap shorter than one column of
-Runway can go unsaid, on a card as on Runway. A wider terminal can bring it out, and so can collapsing the
-labels on Runway with `a`.
+Runway can go unsaid, on a card as on Runway. A wider terminal can bring it out, and so can
+collapsing the labels on Runway with `a`.
 
 | Mark | Means |
 |---|---|
@@ -56,7 +56,8 @@ The dotted line goes straight to where the week is forecast to be, if the router
 as it would. That's the pace Runway goes by, and [Routing rules](../reference/routing.md) explains
 it. The line falls to where the week runs out, then runs along the floor it meets, its cap or
 empty, to the reset. Or it ends at the room the week will have left when it resets. If a cap or a
-limit already holds the account, `✕` marks the column where that hold began, if it's known.
+limit is already in force on the account, `✕` marks the column where the cap or limit began, if
+it's known.
 
 A card takes its colour from its week's state, as a lane on Runway does:
 

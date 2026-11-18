@@ -17,9 +17,22 @@ type EventRow struct {
 }
 
 // Row is the row of the event h, a line of the router's files, told as Line
-// tells it, its times in now's time zone.
+// tells it, a hold with its lift where Pairing paired them, its times in
+// now's time zone.
 func (t *Telling) Row(h events.Held, now time.Time) EventRow {
-	return EventRow{At: h.At.In(now.Location()), Session: h.Session, EventLine: t.Line(h.Event, now)}
+	line, _ := t.tell(filedEvent(h.Line), now)
+	return EventRow{At: h.At.In(now.Location()), Session: h.Session, EventLine: line}
+}
+
+// Pairing has t tell each hold of the lines held, those of the router's
+// files read before any is told, with its lift, as the Log's Events pair
+// them. It returns t.
+func (t *Telling) Pairing(held []events.Held) *Telling {
+	read := make([]Event, len(held))
+	for i, h := range held {
+		read[i] = filedEvent(h.Line)
+	}
+	return t.pairing(read)
 }
 
 // Named is the row with each account its line names named as n names it.
