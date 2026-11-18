@@ -1318,12 +1318,12 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
-  beside each account's day's `pool` and in its `pools`; `history` and `sessions` name the pool
-  they read at their top, `sessions` saying too where it read its list, its `source` `router`
-  where the router listed its sessions, else `ledger`; and `pool` lists every pool so. The
-  status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the room, and
-  as it gives its accounts' labels in its `accounts`, not on each event, its events name their pool
-  by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps
+  beside each account's day's `pool` and in its `pools`; `history`, `history --windows` and
+  `sessions` name the pool they read at their top, `sessions` saying too where it read its list,
+  its `source` `router` where the router listed its sessions, else `ledger`; and `pool` lists
+  every pool so. The status document gives its own pool as `pool_id` and `pool_label`, as its
+  `pool` is the room, and as it gives its accounts' labels in its `accounts`, not on each event,
+  its events name their pool by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps
   it, else, of a pool the record keeps but the config doesn't name, as the config last wrote it.
 - **The skill** tells Claude to pass `--pool "$SWITCHBOARD_POOL"`, the session's pool's id, to the
   verbs, so that a session reads its own pool, named explicitly. Outside a pool, as in a config
@@ -3377,8 +3377,9 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       in the verdict's words, with how many weeks it hit its limit, the share it had left at a
       reset, on average, and how many weeks the rest would have been short `without_it`, then every
       account's together, marked `all`.
-  - **`history --windows`:** one object, `{"windows": [{account, window, readings}]}`, printed in
-    place of the blocks (settled in the plan): each account's every window's readings over the days
+  - **`history --windows`:** one object, `{"pool": …, "pool_label": …, "windows": [{account,
+    window, readings}]}`, printed in place of the blocks (settled in the plan): the pool it read,
+    as `history` and `sessions` name it, and each account's every window's readings over the days
     asked for, each `{at, utilization, resets_at, status, source}`, as the readings history holds
     them (see Files).
   - **`sessions`:** one object,
@@ -12799,7 +12800,6 @@ was dropped binds a later choice, the design proper says so.
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
 | An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
 | Setup's card for a new pool warns of a fence folder that isn't on this Mac, as `pool add` and `pool edit` do | open: after v1 | [setup-fence-folder-warning](../ideas/2026-11-17--setup-fence-folder-warning.md) |
-| `history --windows --json` names the pool it read, as `history --json` and `sessions --json` do | open: after v1 | [history-windows-json-pool](../ideas/2026-11-17--history-windows-json-pool.md) |
 | `pool --json` gives each fence folder resolved, absolute, beside `dirs` as written | open: after v1 | [pool-json-resolved-paths](../ideas/2026-11-17--pool-json-resolved-paths.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
 | Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |
