@@ -3566,9 +3566,9 @@ Every view speaks as `usage` does:
   account's limit.
 - **A session is named by the first 4 characters of its id,** and, where switchboard knows it, the
   directory it was started in; but on Sessions' List and a project's SESSIONS, by its session
-  name, the terminal session it was started in, else its worktree's, else its id cut to 8 (see
-  Sessions, The List; the owner's call, 18 November 2026). A request of it in flight is `asking`,
-  until its answer's first byte, then `answering`.
+  name: the terminal session it was started in, else its worktree's, else those 4 characters of
+  its id (the owner's call, 18 November 2026; see Sessions, The List). A request of it in flight is
+  `asking`, until its answer's first byte, then `answering`.
 - **Times** read `16:30` for today and `Sun 21:00` for another day, `~` before one projected.
 
 ### The page
@@ -5525,10 +5525,11 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   - **No new version:** the day's heads and digests keep each session's directory and project as
     its lines named them, so the rule needs no new version of either.
 
-  Inside a project a session is named by its session name alone, as the List names it after its
-  project (see Sessions, The List), so a worktree's session started outside zmx and tmux reads
-  `fix-login`, and one started in the tmux session `router-fix` reads `router-fix`: the project is
-  the row above it (the owner's call, 18 November 2026).
+  Inside a project a session is named by its session name alone, the project being the row
+  above it (the owner's call, 18 November 2026), as the List names it after its project (see
+  Sessions, The List): a worktree's session started outside zmx and tmux reads `fix-login`, and
+  one started in the tmux session `router-fix` reads `router-fix`. Two rows that read alike each
+  add their id, as the List's do.
   A session is one project's, the one of where its latest day ran, as its story places it, so one
   whose days name it two ways, as across the upgrade that began recording projects, counts once.
   Sessions of no directory make one `no directory` row. Projects are named as `status.ProjectNames`
@@ -6011,7 +6012,7 @@ each at least its least and at most its natural:
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
-| `session` | 11 | 29 | Its project, as Projects names the project's row, in `text.muted`; a space and its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`: the name keeps its cells first, and the project is cut with `…` to what it leaves, at its least 6; the name is cut with `…` to the rest. Of no project, or of temporary folders, its session name alone |
+| `session` | 11 | 29 | Two cells, with no dot: its project, as Projects names the project's row, in `text.muted`, in a column of its own within this one, as wide as the widest project of the log, cut with `…` to leave the widest name whole, up to 14 cells of it, at its least 6, blank of a session of no project or of temporary folders, so the names line up; a space, then its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`, and a twin's id after it in `text.subtle`, cut with `…` to the rest, a twin's id kept whole |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
@@ -6020,20 +6021,38 @@ each at least its least and at most its natural:
 | `worth` | 7, or the widest the log says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
 
-- **A session's name** (the owner's call, 18 November 2026) is the terminal session it was
-  started in, as `run` read it once at its launch (see Launching) and its lines and the router's
-  listing keep it, the last to name a place naming it, so a session resumed outside every terminal
-  session is named by none; else, where it runs in a worktree Claude Code made, as the project fold
-  knows one by its path (`status.WorktreeName`, `<repo>/.claude/worktrees/<name>`, or a folder
-  in it, the innermost of one made in another's), the worktree's name; else its id cut to 8
-  (`status.ShortID`). It's worked out once, in `views` (`ListedSession.ShownName`), which says
-  where it's a worktree's, and read alike by the List and a project's SESSIONS. Its project's name
-  is Projects' row's (`PeriodSession.ProjectName`, set on the List alone). Its directory no longer
-  names it here: the project does, beside it.
-- **The worktree's tree:** a worktree's name carries Nerd Font's `fa-tree`, U+F1BB, and a space
-  ahead of it, where the config's `[dashboard] nerd_font = true` says the font draws it; off by
-  default, as a font without it draws a box. Every Nerd Font glyph goes through one owner
-  (`dashboard.nerdFont`), which gives what stands in for it: here, nothing, the name plain.
+- **A session's name.** The owner chose, on 18 November 2026: a session is named by the
+  terminal session it was started in, as `run` reads it once at its launch (see Launching), a
+  rename since never followed; else by its worktree's name; else by its id. The List shows its
+  project, then its name; a project's SESSIONS its name alone. A worktree's name carries Nerd
+  Font's `fa-tree`, U+F1BB, under the config's `nerd_font`, off by default. The project and the
+  name are two things that may share words, as zmx's `switchboard-Kk5phk` under `switchboard`,
+  so the name shows whole: in a table, such as the List, as two cells with no dot; and where the
+  two read as one phrase, as in a session page's heading, as a breadcrumb,
+  `switchboard · switchboard-Kk5phk`, the dot in `text.muted`.
+- **How the name is built.** The name a session's lines and the router's listing keep is that of
+  its last request to name a place, so a session resumed outside every terminal session is named
+  by none. A worktree is one Claude Code made, as the project fold knows one by its path
+  (`status.WorktreeName`: `<repo>/.claude/worktrees/<name>` or a folder in it, the innermost of
+  one made in another's), as a worktree made elsewhere has no folder of a known shape to name it.
+  The id is its first 4 characters (`status.ShownID`), as every other view names a session. The
+  name is worked out once, in `views` (`PeriodSession.ShownName`), which says where it's a
+  worktree's, and read alike by the List and a project's SESSIONS; the project's name is
+  Projects' row's (`PeriodSession.ProjectName`, set on the List alone). The row shows neither the
+  id beside the name nor the directory: the project stands for the directory, and the id would
+  take the cells the name needs.
+- **Twins:** two rows of one list that show the same project and name, as every pane of one tmux
+  session does, and every `/clear` or `claude -p` under one zmx session, each add their id after
+  the name, in `text.subtle`, as `ProjectNames` sets two projects of one name apart
+  (`views.twinsApart`, as the rows are made). A row named by its id has none added.
+- **The project's column:** the List's projects take a column of their own within `session`, as
+  wide as the widest project of the log, measured as `started` is so it holds still as the List
+  scrolls, but cut to leave the widest name whole, up to 14 cells of it, at its least 6, so the
+  names line up; one long name is cut rather than cut every project. Within `session`'s 29 cells
+  at most, a short project leaves the name more.
+- **The tree:** every Nerd Font glyph goes through one owner (`dashboard.nerdFont`), which gives
+  what stands in for it without one: here, nothing, the name plain, as a font without the glyph
+  draws a box.
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
   what shows, giving way in this order as the frame narrows, so `routing` never shows beside either
@@ -7771,13 +7790,23 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   more.
 
 **The heading** (row 4): `SESSION` in `text.muted`; three spaces; the session's id cut to 4, as the
-dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
-`text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
-(`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words (the owner's call,
-17 October 2026); one space; a rule of `─` in `border`; two spaces; and, ending at the last column,
-`esc` bold `accent.key` and ` back` in `text.muted`. While it loads, three spaces and `loading…` in
-`text.subtle` go before the rule; on a phone, two, as its parts are spaced there (settled in the
-plan).
+dashboard shows ids, bold `text.primary`; three spaces; its project and its session name as one
+phrase, a breadcrumb, `switchboard · router-fix`, each bold `text.primary`, the ` · ` in
+`text.muted` (the owner's call, 18 November 2026); two spaces; the directory as the ledger holds
+it, the home as `~` (`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words
+(the owner's call, 17 October 2026); one space; a rule of `─` in `border`; two spaces; and,
+ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
+three spaces and `loading…` in `text.subtle` go before the rule; on a phone, two, as its parts are
+spaced there (settled in the plan).
+- **The breadcrumb** takes the place the directory's last part had: the project stands for it,
+  and the path after it still says where the session ran. Its project is as Projects names one
+  shown alone (`SessionPage.ProjectName`), and its name as the List's (`SessionPage.Shown`), a
+  worktree's marked as the List marks one. A session named by its id shows its project alone, as
+  the id is beside it already; one of no project, or of temporary folders, its name alone; and
+  one whose page is still loading, which names neither yet, the directory's last part, as before.
+  Cut short, the project gives way first, the dot and the name kept whole while a cell of it fits.
+  It's the one place the dashboard shows the project and the name as one phrase: the Overview's
+  SESSIONS, the Switchboard's calls and the Log name a session by its id and directory.
 
 **Now** (rows 6 and 7). They take this wide form only where every part of each fits whole at its
 least, each measured for the session's own kind:
@@ -8117,9 +8146,9 @@ page), the page heads itself shorter, and its story has no heading; the rest is 
 each form taken where its parts fit, as the wide page's rules give way:
 
 - **Rows 0, 1 and 3:** the title, the tabs and the status line, as every page's phone has them.
-- **Row 5, the heading:** `SESSION` in `text.muted`, two spaces, the id and the directory's name,
-  bold `text.primary`, two spaces apart, and while it loads, two spaces and `loading…`; `esc back`
-  at the right. No path and no rule.
+- **Row 5, the heading:** `SESSION` in `text.muted`, two spaces, the id and the breadcrumb, as
+  the wide heading has them, two spaces apart, and while it loads, two spaces and `loading…`;
+  `esc back` at the right. No path and no rule.
 - **Rows 7 and 8,** the now rows' short form, as the wide one doesn't fit: `↑ asking  on side ▲
   since 14:31`, coloured as row 6 is; then `moved from work: its cap` in `text.muted`, `work` in
   `text.secondary`, and at the right `2h 40m` in `text.secondary`. No models and no windows.
@@ -9215,8 +9244,13 @@ from the first day a router that has it runs, so nothing before then is in it.
     as a field a line may leave out, so it needed no new version of the line: a reader from before
     passes over it, and one reading a line from before finds none. The day's heads and digests
     keep it with each session, as they keep its directory and project, so they took new versions
-    (`RowsVersion` 6, `DigestVersion` 4), each read whole from the lines once, as an old head
-    would stand without the names its lines hold. `model`: the model it asked for. Each is cut to 200 bytes once anything shaped like a token in
+    (`RowsVersion` 6, `DigestVersion` 4), as the project did: a day from before the upgrade holds
+    no name, so its old head and digest would still read right, but every field they store is in
+    their version, the rule their tests hold, so a change of what they store can't ship unseen.
+    The cost is the router building every day's digest again once, oldest first, some 2½ minutes
+    of CPU for a year of busy days, some 5 minutes as it runs paced to half a core, then the
+    heads, each day read raw till its own is built (see A digest a day). `model`: the model it
+    asked for. Each is cut to 200 bytes once anything shaped like a token in
     it is hidden, a session's id and a model's at their end, as the request stream cuts them, but
     a directory and a project, which are kept whole to 1024 bytes, macOS's `PATH_MAX`, the longest
     working directory the system gives: a directory past that is cut at its start, `…` standing
@@ -9704,8 +9738,9 @@ from the first day a router that has it runs, so nothing before then is in it.
   answer read the `claude` package's, and a session's state, its part and the part's times the
   views', which the ledger carries as it's given and never reads. The envelope's version is 3,
   since its entries name their pools and hold a split session's states apart, and
-  `views.DigestVersion` 3, since a session's state and its requests hold their project beside
-  their directory (2 from phase 2 of the digests; see Milestones): a digest of another version
+  `views.DigestVersion` 4, since a session's state and its requests hold the terminal session it
+  was started in beside their project and directory (3 since they held their project, 2 from
+  phase 2 of the digests; see Milestones): a digest of another version
   of either is read past, its sessions read raw, and the router digests its day again. The
   envelope's 3 builds every day's digest again once, oldest first, as each rests
   on the day before's: on the busy world, 5,000 requests a day, some 0.4 s of CPU a day, as before
@@ -9880,9 +9915,10 @@ from the first day a router that has it runs, so nothing before then is in it.
   seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
   they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 5, since a row and a
-    side's session hold their project beside their directory and name the pools their lines
-    recorded, each of which was version 4 alone, so a head of 4 is built again); its day, and the
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 6, since a row and a
+    side's session hold the terminal session they were started in; 5 since they held their
+    project beside their directory and named the pools their lines recorded, each of which was
+    version 4 alone; so a head of an older version is built again); its day, and the
     day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the
     summary it was built against; how many lines the day's read gave; `rests_on`, each day beside
     it whose files gave it a line, as a change of time zone files one, with the lines the ledger
@@ -11505,8 +11541,9 @@ fails as it is; one that parses has every problem reported at once:
   `b` for the dashboard, which remembers the choice (see `usage`, the printout, and The Overview).
 - **`[dashboard]`**: `nerd_font`, `false` unless given, says the terminal's font is a Nerd Font, so
   the dashboard draws its glyphs, as the tree before a worktree's session name (see Sessions, The
-  List; the owner's call, 18 November 2026). Off by default, as a font without them draws a box
-  for each. The dashboard reads it as it opens; the router never reads it.
+  List). Off by default, as a font without them draws a box for each (the owner's call, 18
+  November 2026). It has a table of its own, as no other key is the dashboard's alone: `[usage]`
+  lays out `usage` too. The dashboard reads it as it opens; the router never reads it.
 - **`[prices]`** overrides the price table built into switchboard (see The request ledger).
   `[prices.plans]` gives a plan's price, by its name, `pro`, `max` or `ultra`, in US dollars a
   month; by its old name too, but a plan priced by both is an error naming the two keys.
@@ -11838,16 +11875,33 @@ verbs).
   Proxy rules). The project header goes with it, and only with it, naming the repository that
   directory is in, which `run` finds by walking up from it, as A project says, shown from home
   alike, as `~/Code/api`. The name header goes to such a router too, naming the terminal session
-  `run` started in (the owner's call, 18 November 2026), read once, in one place
-  (`Launcher.terminalName`): `ZMX_SESSION` where it's set, as zmx sets it; else, inside tmux, as
-  `TMUX` says, the tmux session's name, as `tmux display-message -p '#S'` prints it, given a second
-  at most; else none. A tmux that fails, or isn't there, names none, and the launch goes on, logging
-  it at debug. The name is text from outside, so it's cleaned and cut as a line keeps it
-  (`ledger.LineName`: `prose.Clean`, anything token-shaped hidden, 100 bytes at most) before it's
-  encoded as the directory is, and the router cleans and cuts it again as it reads it. A rename
-  of the terminal session after the launch isn't followed: nothing polls, nothing reads Claude
-  Code's own files, and no verb renames a session (the owner's call). A name inherited from a session this one is started within goes:
-  what this launch reads is the only one. It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
+  `run` started in. The owner chose its source on 18 November 2026: `ZMX_SESSION` where it's set,
+  as zmx sets it; else, inside tmux, as `TMUX` says, the tmux session's name; else none; read once,
+  as the launch starts, a rename since not followed, with no poll, no read of Claude Code's own
+  files and no verb to rename a session. It's read in one place (`Launcher.terminalName`), tmux
+  asked by `tmux display-message -p '#S'`, given a second at most, after the router's health is
+  known. A tmux that fails, or isn't there, names none, and the launch goes on, logging it at
+  debug. A name of digits alone names none, so the fallbacks name the session: tmux numbers the
+  sessions it isn't given a name for, `0`, `1` and on, which say nothing of the work. The name is
+  text from outside, so it's cleaned and cut as a line keeps it (`ledger.LineName`:
+  `prose.Clean`, anything token-shaped hidden, 100 bytes at most) before it's encoded as the
+  directory is, and the router cleans and cuts it again as it reads it. A name inherited from a
+  session this one is started within goes: what this launch reads is the only one.
+- **A worktree `claude` makes:** run as `claude -w <name>` or `claude --worktree <name>`, or
+  `--worktree=<name>`, Claude Code makes the worktree, or opens the one it made before, at
+  `.claude/worktrees/<name>` in the repository's root, as its docs say, and starts in it. `run`
+  reads the flag before Claude Code has made the worktree, so it tells the router that worktree
+  as the directory, in place of the one it's run in (`claude.WorktreeArg`, `Launcher.startedIn`),
+  where the directory is in a repository, its root as the project finds it, so the session's
+  lines name the worktree from its first request and its name falls back to the worktree's. The
+  pool and the project stay those of the directory it's run in, which are the worktree's too: a
+  worktree follows its repository. The flag's value is read as Claude Code reads an optional one:
+  the next argument where it doesn't start with `-`, the last flag's where it's given twice, none
+  past `--`. A flag with no name, as Claude Code then makes one up, and a name of other
+  characters than letters, digits, `.`, `-` and `_`, as a prompt after the flag is, which Claude
+  Code's docs give no rule for, leave the directory as it is. A `WorktreeCreate` hook that places
+  worktrees elsewhere isn't seen, and the router is told the path Claude Code would have used.
+- **The hints:** `run` sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
   send a base URL the headers it sends the API directly, the prompt each request serves and its
   class among them, which the router records (see The request ledger); but where the environment
   sets it already, as to `0`, which turns them off, it's left as it is, though not where it's set

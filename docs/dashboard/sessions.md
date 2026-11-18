@@ -61,20 +61,28 @@ scroll under it, so the day always shows.
 ## Session names: your terminal's
 
 ```
-switchboard router-fix
-switchboard fix-login
-api 0b5c6f2e
+switchboard  router-fix
+switchboard  fix-login
+api          billing 2b6d
+api          billing 5e7d
+api          0b5c
 ```
 
-Each session takes the name of the terminal session you started it in. `claude` reads the name
-once, as it starts Claude Code. If you rename the terminal session later, the session name stays.
+Each session takes the name of the [terminal session](../glossary.md) you started it in. `claude`
+reads the name once, when it starts Claude Code. If you rename the terminal session later, the
+session name stays.
 
 | If you started the session | Its session name is |
 |---|---|
 | Inside a zmx session | The zmx session's name |
-| Inside a tmux session | The tmux session's name |
+| Inside a tmux session you named | The tmux session's name |
+| With `claude --worktree <name>` | The worktree's name, if no terminal session names it |
 | Outside both, in a Claude Code worktree | The worktree's name |
-| Anywhere else | The first 8 characters of its id |
+| Anywhere else | The first 4 characters of its id |
+
+The project and the name are two columns, so the names line up. If two rows show the same project
+and name, each adds the first 4 characters of its id, faint. For example, every pane of one tmux
+session gives its sessions one name.
 
 If your terminal uses a Nerd Font, set `nerd_font = true` under `[dashboard]` in
 [the config](../configuration.md). A worktree's name then carries a tree icon. Without a Nerd

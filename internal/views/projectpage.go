@@ -60,11 +60,13 @@ type AccountShare struct {
 // while it runs. ProjectName names its project, on Sessions' List alone,
 // as Projects names the project's row: "" on a project's SESSIONS, which
 // the project heads, and of a session with no directory or of temporary
-// folders.
+// folders. Twinned is set where another row of its list shows the same
+// project and name, as twinsApart has it, so ShownName gives its id too.
 type PeriodSession struct {
 	ListedSession
 	EndedOn     string
 	ProjectName string
+	Twinned     bool
 }
 
 // page is the project's page, its row given, the page built of in.
@@ -72,7 +74,7 @@ func (p *projectTally) page(row ProjectRow, in PeriodInput) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
 	page := ProjectPage{ProjectRow: row, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
 	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, in.Began, p.days, &p.hours)
-	page.Sessions = periodRows(p.sessions, in)
+	page.Sessions = periodRows(p.sessions, in, nil)
 	return page
 }
 
@@ -115,9 +117,11 @@ func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
 // the order inPeriodOrder has: each of in's List as the List has it, its
 // requests and worth those of the period, started at the earlier of the
 // List's start and its first request, as the days and the walk back before
-// them found it; each other as listedEnded has it. It's the one way a
-// session of the period is rowed, a project's or the List's.
-func periodRows(sessions map[string]*sessionTally, in PeriodInput) []PeriodSession {
+// them found it; each other as listedEnded has it; each named by its project
+// as projects names it, by its id, none for nil; and those that show alike
+// told apart, as twinsApart has it. It's the one way a session of the period
+// is rowed, a project's or the List's.
+func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[string]string) []PeriodSession {
 	listed := make(map[string]ListedSession, len(in.List.Sessions))
 	for _, s := range in.List.Sessions {
 		listed[s.Session] = s
@@ -132,13 +136,14 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput) []PeriodSessi
 		} else {
 			s = st.listedEnded(price, in.Projects)
 		}
-		row := PeriodSession{ListedSession: s.named(in.Names)}
+		row := PeriodSession{ListedSession: s.named(in.Names), ProjectName: projects[st.id]}
 		if !s.Running {
 			row.EndedOn = dayfile.DateOf(cmp.Or(s.Ended, in.Now))
 		}
 		rows = append(rows, row)
 	}
 	slices.SortFunc(rows, inPeriodOrder)
+	twinsApart(rows)
 	return rows
 }
 

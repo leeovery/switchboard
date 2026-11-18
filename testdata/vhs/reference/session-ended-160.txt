@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-SESSION   b9c4   switchboard  ~/Code/switchboard ─────────────────────────────────────────────────────────────────────────────────────────────────────  esc back
+SESSION   b9c4   switchboard · dashboard  ~/Code/switchboard ─────────────────────────────────────────────────────────────────────────────────────────  esc back
 
 ended yesterday 18:46   ran on work, then side from 14:58: work reached its cap                                             started yesterday 13:20 · ran 5h 26m
 opus-5-5   kept until 29 Dec

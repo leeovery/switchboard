@@ -61,9 +61,10 @@ type LogSessionSources struct {
 // LogSession is a session of today's as the Log's panel lists it, each fact
 // the List's of it, so the two never disagree.
 type LogSession struct {
-	// ID is its whole id, and Dir the directory it runs in, as the List has
-	// it: "" where none names one.
-	ID, Dir string
+	// ID is its whole id, Dir the directory it runs in, and Name the
+	// terminal session it was started in, as the List has them: "" where
+	// none names one.
+	ID, Dir, Name string
 	// Account is the account it's on now, as the List names it, following
 	// its main thread: "" where none is known.
 	Account string
@@ -135,7 +136,7 @@ func LogSessions(src LogSessionSources) []LogSession {
 	for _, id := range counted {
 		listed := by.listed(id, held.storyOf(id))
 		sessions = append(sessions, LogSession{
-			ID: id, Dir: listed.Dir, Account: listed.Account, Lines: src.Lines[id], Events: src.Events[id],
+			ID: id, Dir: listed.Dir, Name: listed.Name, Account: listed.Account, Lines: src.Lines[id], Events: src.Events[id],
 			Activity: listed.Activity, Started: firsts[id],
 		})
 	}
@@ -149,17 +150,17 @@ func LogSessions(src LogSessionSources) []LogSession {
 // tickedSession is the session with the given id, ticked, as the panel lists
 // it with no lines nor events today, so not started today: as the List has
 // it, from its story s, where the store holds its lines; else as the find
-// found it, among found, its directory as its day's lines named it,
+// found it, among found, its directory and name as its day's lines named them,
 // ended at its last request, its account not known; else its id alone, with
 // what the router and the request stream say of it.
 func tickedSession(by lister, id string, found []FoundSession, s *story) LogSession {
 	listed := by.listed(id, s)
-	ticked := LogSession{ID: id, Dir: listed.Dir, Account: listed.Account, Activity: listed.Activity}
+	ticked := LogSession{ID: id, Dir: listed.Dir, Name: listed.Name, Account: listed.Account, Activity: listed.Activity}
 	i := slices.IndexFunc(found, func(f FoundSession) bool { return f.ID == id })
 	if i < 0 {
 		return ticked
 	}
-	ticked.Dir = cmp.Or(ticked.Dir, found[i].Dir)
+	ticked.Dir, ticked.Name = cmp.Or(ticked.Dir, found[i].Dir), cmp.Or(ticked.Name, found[i].Name)
 	if !s.begun {
 		ticked.Activity = Activity{Doing: Ended, Since: found[i].Last, LastSeen: found[i].Last}
 	}

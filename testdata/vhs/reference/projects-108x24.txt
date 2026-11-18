@@ -17,7 +17,7 @@ switchboard  ~/Code/switchboard                                                 
 
 SESSIONS
   session                        on        model       state        started    requests   worth
-↑ router-fix                     side      opus-5-5    asking       12:02           445  $48.20
+↑ router-fix d28c                side      opus-5-5    asking       12:02           445  $48.20
   ended yesterday  ─────────────────────────────────────────────────────────────────────────────────────────
 ▸ dashboard                      side      opus-5-5    ended 18:46  13:20           595  $73.00
 

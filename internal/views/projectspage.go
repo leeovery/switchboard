@@ -149,11 +149,7 @@ func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 			projectNamed[id] = names[p.path]
 		}
 	}
-	rows := periodRows(sessions, in)
-	for i := range rows {
-		rows[i].ProjectName = projectNamed[rows[i].Session]
-	}
-	return SessionLog{Period: in.Period, Sessions: rows, All: t.totals(), list: in.List}
+	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), list: in.List}
 }
 
 // tallied are the projects of in's period, each tallied of the days d holds

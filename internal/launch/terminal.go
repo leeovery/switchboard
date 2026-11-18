@@ -1,6 +1,8 @@
 package launch
 
 import (
+	"strings"
+
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
@@ -16,11 +18,11 @@ const (
 // terminalName is the name of the terminal session the launch runs in, as
 // the router is told it, read once, as Claude Code starts, so a rename since
 // isn't followed: ZMX_SESSION's, where it's set; else, inside tmux, the tmux
-// session's, as TmuxSession asks it; else none, as where tmux can't say. It's
-// cleaned and cut as ledger.LineName has it, as it's text from outside.
+// session's, as TmuxSession asks it; else none, as where tmux can't say. Each
+// is read as namedBy reads it.
 func (l Launcher) terminalName() string {
 	env := environ(l.Environ)
-	if name := ledger.LineName(env.get(zmxSessionEnv)); name != "" {
+	if name := namedBy(env.get(zmxSessionEnv)); name != "" {
 		return name
 	}
 	if env.get(tmuxEnv) == "" || l.TmuxSession == nil {
@@ -31,7 +33,19 @@ func (l Launcher) terminalName() string {
 		logger.Debug("tmux didn't name its session; the session goes unnamed", "error", err)
 		return ""
 	}
-	return ledger.LineName(name)
+	return namedBy(name)
+}
+
+// namedBy is the name given, cleaned and cut as ledger.LineName has it, as
+// it's text from outside; none where that's all digits, as tmux numbers the
+// sessions it isn't given a name for, 0, 1 and on: a number names no
+// session, and the fallbacks name it better.
+func namedBy(name string) string {
+	name = ledger.LineName(name)
+	if strings.Trim(name, "0123456789") == "" {
+		return ""
+	}
+	return name
 }
 
 // toldName is the name of the terminal session the router in state is told

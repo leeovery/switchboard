@@ -216,11 +216,11 @@ func (f Frame) sessionTargets(doc status.Document, now time.Time) []Target {
 	return targets
 }
 
-// heading draws the page's heading: SESSION, the session's id and its
-// directory's name; wide, the directory, its home as ~, cut from its start
-// to leave what's said of its loading, and the rule after it a cell at
-// least; what's said of its loading, as loadingSaid has it; wide, the rule;
-// and at the right, esc back.
+// heading draws the page's heading: SESSION, the session's id, and what
+// names it, as named has it; wide, the directory, its home as ~, cut from
+// its start to leave what's said of its loading, and the rule after it a
+// cell at least; what's said of its loading, as loadingSaid has it; wide,
+// the rule; and at the right, esc back.
 func (d sessionDrawn) heading(c *canvas) {
 	y, apart := d.l.heading, sessionShortApart
 	if d.l.wide {
@@ -232,8 +232,8 @@ func (d sessionDrawn) heading(c *canvas) {
 	room := end - loading.width()
 	x := c.text(0, y, "SESSION", headingInk) + apart
 	x = c.text(x, y, status.ShownID(d.page.Session), titleInk)
-	if name := status.DirName(d.page.Dir, room-x-apart); name != "" {
-		x = c.text(x+apart, y, name, titleInk)
+	if named := d.named(room - x - apart); len(named) > 0 {
+		x = c.line(x+apart, y, named)
 	}
 	if d.l.wide {
 		if path := status.DirPath(d.page.Dir, d.shown.Home, room-x-ruleGap-2); path != "" {
@@ -244,6 +244,32 @@ func (d sessionDrawn) heading(c *canvas) {
 	if d.l.wide {
 		c.text(x+1, y, rule(end-x-1), borderInk)
 	}
+}
+
+// named is what names the session in the heading after its id, in the cells
+// given: where its page names its project or its name, the two as one
+// phrase, a breadcrumb, its project, then " · " in text.muted, then its
+// name, a worktree's marked as the frame's Nerd Font marks one, either
+// alone where the other's none, each in text.title, the project cut with an
+// ellipsis while the dot and the name fit whole beside a cell of it; else,
+// as while it loads, its directory's name, as status.DirName cuts it; none where no cell
+// is left.
+func (d sessionDrawn) named(cells int) line {
+	project, name := d.page.ProjectName, nerdFont(d.NerdFont).marked(d.page.Shown)
+	if project == "" && name == "" {
+		if dir := status.DirName(d.page.Dir, cells); dir != "" {
+			return line{{dir, titleInk}}
+		}
+		return nil
+	}
+	if project == "" || name == "" {
+		return line{{project + name, titleInk}}.fit(cells)
+	}
+	named := line{{" · ", mutedInk}, {name, titleInk}}
+	if room := cells - named.width(); room > 0 {
+		return slices.Concat(line{{project, titleInk}}.fit(room), named)
+	}
+	return slices.Concat(line{{project, titleInk}}, named).fit(cells)
 }
 
 // loadingSaid is what the heading says of the page while it loads, after

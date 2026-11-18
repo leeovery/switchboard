@@ -38,6 +38,10 @@ func TestRunTellsTheRouterTheNameOfTheTerminalSessionClaudeCodeStartsIn(t *testi
 		{name: "control characters cleaned", environ: []string{"ZMX_SESSION=fix\x1b[31m\tlogin\n"}, want: "fix [31m login"},
 		{name: "a line of its own in the name, which would end the header, cleaned", environ: []string{insideTmux}, tmux: "x\nX-Switchboard-Account: side", want: "x X-Switchboard-Account: side", wantAsked: true},
 		{name: "a long name, cut", environ: []string{"ZMX_SESSION=" + strings.Repeat("a", 300)}, want: strings.Repeat("a", 100)},
+		{name: "tmux's numbered, none", environ: []string{insideTmux}, tmux: "0\n", wantAsked: true},
+		{name: "tmux's numbered past 9, none", environ: []string{insideTmux}, tmux: "12", wantAsked: true},
+		{name: "zmx's numbered, inside tmux, tmux's", environ: []string{"ZMX_SESSION=3", insideTmux}, tmux: "review", want: "review", wantAsked: true},
+		{name: "a number in a name, kept", environ: []string{insideTmux}, tmux: "api-2", want: "api-2", wantAsked: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

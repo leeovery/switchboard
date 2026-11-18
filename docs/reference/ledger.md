@@ -59,10 +59,12 @@ puts `pool_label` after it too.
   longer `dir` is cut from its start, with `…` for what's cut, and a longer `project` is left out.
   Lines that v0.9.0 and earlier filed held 200 bytes of each, so a folder in a Claude Code
   scratchpad often shows cut there, with no `project`.
-- **`name`** is the zmx session name, else the tmux session name, read once as `claude` starts.
-  It's left out outside both, and on lines filed before switchboard recorded it. It holds 100
-  bytes at most, cleaned of control characters. A rename of the terminal session after the start
-  never reaches the line.
+- **`name`** is the zmx session's name, else the tmux session's name, read once when `claude`
+  starts. It's left out outside both, for a name of digits alone, and on lines filed before
+  switchboard recorded it. It holds 100 bytes at most, cleaned of control characters. A rename of
+  the terminal session after the start never reaches the line.
+- **`dir` for `claude --worktree <name>`** is the worktree Claude Code makes,
+  `<repository>/.claude/worktrees/<name>`, because Claude Code starts the session there.
 - **`name` came in after `schema` 1,** and keeps it at 1. A reader that doesn't know `name`
   passes over it.
 

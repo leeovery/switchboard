@@ -66,6 +66,13 @@ type SessionPage struct {
 	// its own pin cleared, as autoOf has it: "" where the router can't say,
 	// as while it doesn't answer. It's the views' alone.
 	Auto string `json:"-"`
+	// ProjectName names the project it runs in, as Projects names one shown
+	// alone: "" of temporary folders and where none is known. Shown names
+	// it as the List does, as ShownName has it, but where that's by its id,
+	// which the heading shows already: its zero value then. The heading
+	// says them together, project then name. They're the views' alone.
+	ProjectName string    `json:"-"`
+	Shown       ShownName `json:"-"`
 	// names name its accounts, as Named was given them: nil before it's
 	// named.
 	names status.Namer

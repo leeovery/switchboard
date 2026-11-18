@@ -216,6 +216,38 @@ func TestIDMatchesOnDaysNotReadYetComeFromTheSummaries(t *testing.T) {
 	}
 }
 
+// A session is found by the name of the terminal session it was started in,
+// whatever the case, today's as the find opens and a past day's once its
+// lines are read; one named otherwise isn't.
+func TestTheFindFindsASessionByItsName(t *testing.T) {
+	lines := []ledger.Line{
+		startedIn("Hotfix-2", in("~/Code/web", line(findYester, opus, "work", "new", october(6, 9, 0), smallUsage))),
+		startedIn("release", in("~/Code/api", line(findToday, opus, "work", "new", october(7, 9, 0), smallUsage))),
+	}
+	summaries := []ledger.Summary{naming("2026-10-06", findYester), naming("2026-10-07", findToday)}
+	tests := []struct {
+		typed string
+		want  []string
+	}{
+		{typed: "rele", want: []string{findToday}},
+		{typed: "hotfix", want: []string{findYester}},
+		{typed: "deploy"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.typed, func(t *testing.T) {
+			l := dayCounted{Ledger: fakeLedger{lines: lines, summaries: summaries, now: now}, read: make(map[string]int)}
+			src := views.FindSources{
+				Typed: tt.typed, Today: panelOf(lines, nil, false, views.Stream{}, nil, now),
+				Read: make(map[string][]views.DaySession), Summaries: l.Days(time.Time{}), Oldest: oldestOf(t, l, now), Now: now,
+			}
+			found := walkBack(t, l, src, len(src.Summaries))
+			if got := foundIDs(found); !slices.Equal(got, tt.want) {
+				t.Errorf("typed %q, the find finds %q, want %q", tt.typed, got, tt.want)
+			}
+		})
+	}
+}
+
 // A day summarised before version 2 names none of its sessions, so a session
 // of it is found by its id only once its lines are read.
 func TestADaySummarisedBeforeVersion2IsFoundByItsLines(t *testing.T) {

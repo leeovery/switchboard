@@ -255,8 +255,9 @@ nerd_font = true
 | `nerd_font` | `false` | Draws the Nerd Font icons, such as the tree before a worktree's name. |
 
 A font without the Nerd Font icons draws each one as a box, so they're off unless you turn them
-on. The dashboard reads `nerd_font` as it opens. Where the tree shows is on
-[Sessions](dashboard/sessions.md).
+on. The dashboard reads `nerd_font` when it opens. The tree shows before a worktree's name on
+[Sessions](dashboard/sessions.md), [Projects](dashboard/projects.md) and
+[the session page](dashboard/session-page.md).
 
 ## Prices: `[prices]`
 

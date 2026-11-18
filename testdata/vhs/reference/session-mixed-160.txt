@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-SESSION   d28c   switchboard  ~/Code/switchboard ─────────────────────────────────────────────────────────────────────────────────────────────────────  esc back
+SESSION   d28c   switchboard · router-fix  ~/Code/switchboard ────────────────────────────────────────────────────────────────────────────────────────  esc back
 
 ↑ asking   on side ▲ since 14:31, moved from work: work refused the request                                                               started 12:02 · 2h 39m
 opus-5-5 → side   haiku-4-5 → side                                                                                               side now  week 78%   5-hour 13%

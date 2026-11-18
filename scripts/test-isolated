@@ -81,10 +81,11 @@ run_tests() {
 
 # unseen reports whether the variable named is one no test may see: one that
 # configures switchboard, Claude Code or the Anthropic API, and can hold a
-# real token; tmux's, which lead to the real tmux server; or a proxy's.
+# real token; tmux's, which lead to the real tmux server; zmx's, which name
+# the real terminal session; or a proxy's.
 unseen() {
 	case $1 in
-	SWITCHBOARD_* | CLAUDE_* | ANTHROPIC_* | TMUX* | *_PROXY | *_proxy) return 0 ;;
+	SWITCHBOARD_* | CLAUDE_* | ANTHROPIC_* | TMUX* | ZMX_* | *_PROXY | *_proxy) return 0 ;;
 	esac
 	return 1
 }

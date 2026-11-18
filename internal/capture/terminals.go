@@ -23,20 +23,28 @@ var terminalNames = map[string]string{
 }
 
 // inTerminals are the lines given, each of a session terminalNames names
-// naming its terminal session, as run told the router it.
+// naming its terminal session, as run told the router it, and each other as
+// it is.
 func inTerminals(lines []ledger.Line) []ledger.Line {
 	for i := range lines {
-		lines[i].Name = terminalNames[lines[i].Session]
+		if name, ok := terminalNames[lines[i].Session]; ok {
+			lines[i].Name = name
+		}
 	}
 	return lines
 }
 
 // routedInTerminals are the sessions given, as the router lists them, each
-// terminalNames names naming its terminal session beside its directory.
+// terminalNames names naming its terminal session beside its directory, and
+// each other as it is.
 func routedInTerminals(sessions []status.Session) []status.Session {
 	for _, s := range sessions {
+		name, ok := terminalNames[s.ID]
+		if !ok {
+			continue
+		}
 		for i := range s.Assignments {
-			s.Assignments[i].SessionName = terminalNames[s.ID]
+			s.Assignments[i].SessionName = name
 		}
 	}
 	return sessions

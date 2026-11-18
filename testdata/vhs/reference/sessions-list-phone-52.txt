@@ -8,25 +8,25 @@ SESSIONS   Switchboard  List
                                        < this week >
 
   session            on        state        requests
-▸ infra terraform    side      idle 50s          153
-  website 9c2e47b1   personal  idle 9m           267
-↑ switc… router-fix  side      asking            445
-  docs handbook      personal  idle 34s          158
-↓ api api-auth       side      answering          84
-↓ mobile c61b2f8d    side      answering           4
+▸ infra  terraform   side      idle 50s          153
+  websi… 9c2e        personal  idle 9m           267
+↑ switc… rout… d28c  side      asking            445
+  docs   handbook    personal  idle 34s          158
+↓ api    api-auth    side      answering          84
+↓ mobile c61b        side      answering           4
   ended today  ─────────────────────────────────────
   mobile ios-build   personal  ended 11:21        38
-  docs guides        work      ended 10:15        12
-  infra e0c4a917     work      ended 10:02        19
-  website a8f1c5d9   side      ended 09:28        24
-  api billing        work      ended 09:05        31
-  api billing        side      ended 00:41        39
-  infra 4b0e91c7     work      ended 00:31        13
-  docs guides        side      ended 00:18        43
+  docs   guid… 3d7a  work      ended 10:15        12
+  infra  e0c4        work      ended 10:02        19
+  websi… a8f1        side      ended 09:28        24
+  api    bill… 2b6d  work      ended 09:05        31
+  api    bill… 5e7d  side      ended 00:41        39
+  infra  4b0e        work      ended 00:31        13
+  docs   guid… 8a2c  side      ended 00:18        43
   ended yesterday  ─────────────────────────────────
-▸ switch… dashboard  side      ended 18:46       595
-  switchb… settings  personal  ended 16:45       201
-  infra d29e871a     side      ended 16:27       410
+▸ switc… dashboard   side      ended 18:46       595
+  switc… settings    personal  ended 16:45       201
+  infra  d29e        side      ended 16:27       410
 this week  27 sessions · 5,410 requests
 $635.00 at API prices
   ▼ 10 more sessions

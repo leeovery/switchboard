@@ -280,7 +280,7 @@ func TestRunWithoutARouterToRouteThrough(t *testing.T) {
 		"HOME=/home/tester",
 		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
 		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
-		"ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere\nX-Switchboard-Project: ~/Code/elsewhere",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere\nX-Switchboard-Project: ~/Code/elsewhere\nX-Switchboard-Name: outer",
 	}
 	tests := []struct {
 		name      string

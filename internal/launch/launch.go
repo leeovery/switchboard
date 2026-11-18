@@ -353,7 +353,7 @@ func (l Launcher) routeUnread(ctx context.Context, path string, args []string, r
 func (l Launcher) routed(path string, args []string, state routerState, c choice, pin string, in place, unread error) error {
 	own, project := l.own(), l.project(in)
 	env := own.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).
-		pinnedTo(pin).workingIn(l.told(state, project)).named(l.toldName(state)).inPool(state.told(in.id())).
+		pinnedTo(pin).workingIn(l.told(state, args, project)).named(l.toldName(state)).inPool(state.told(in.id())).
 		withOrUnset(PoolEnv, in.id()).withOrUnset(projectEnv, project).hinting()
 	l.routedThrough(state, c, pin, in, path, unread)
 	return l.execSession(path, args, env, own)
@@ -696,20 +696,39 @@ func (l Launcher) find() (string, error) {
 	return claude.FindAfter(after, env.get("PATH"), l.InstallPaths, l.Executable)
 }
 
-// told returns the directory the router in state is told Claude Code starts
-// in, as shownDir has it, and project, the one it runs in, as shown shows
-// it, none for "", where the router takes every header of switchboard's own
-// off what it sends upstream: neither for one that doesn't, which would send
-// them on to the API, as routerState's told has it, nor where Dir isn't
-// known.
-func (l Launcher) told(state routerState, project string) (dir, shownProject string) {
+// told returns the directory the router in state is told Claude Code, run
+// with args, starts in, as startedIn has it, and project, the one it runs
+// in, none for "", each as shown shows it, where the router takes every
+// header of switchboard's own off what it sends upstream: neither for one
+// that doesn't, which would send them on to the API, as routerState's told
+// has it, nor where Dir isn't known.
+func (l Launcher) told(state routerState, args []string, project string) (dir, shownProject string) {
 	if !state.strips || l.Dir == "" {
 		return "", ""
 	}
+	dir = l.shown(l.startedIn(args))
 	if project == "" {
-		return l.shownDir(), ""
+		return dir, ""
 	}
-	return l.shownDir(), l.shown(project)
+	return dir, l.shown(project)
+}
+
+// startedIn returns the directory Claude Code, run with args, starts its
+// session in: where args name a worktree for it to make, or open, as
+// claude.WorktreeArg reads them, that worktree, in the repository Dir is in,
+// as Project finds it, as Claude Code makes it only once it starts; else
+// Dir. The pool and the project stay Dir's, which are the worktree's too:
+// a worktree follows its repository.
+func (l Launcher) startedIn(args []string) string {
+	name, ok := claude.WorktreeArg(args)
+	if !ok || l.Project == nil {
+		return l.Dir
+	}
+	root, inRepository := l.Project(l.Dir)
+	if !inRepository {
+		return l.Dir
+	}
+	return claude.WorktreePath(root, name)
 }
 
 // project returns the project the session, in in, runs in, by its path: the

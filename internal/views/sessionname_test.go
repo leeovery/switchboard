@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"maps"
 	"slices"
 	"testing"
 
@@ -9,13 +10,13 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The session of the names' tests, and its id as status.ShortID cuts it.
+// The session of the names' tests, and its id as the dashboard shows it.
 const (
 	namedSession = "9a7c41e2-0000-4000-8000-000000000001"
-	namedShortID = "9a7c41e2"
+	namedShownID = "9a7c"
 )
 
-func TestASessionIsShownByItsTerminalNameElseItsWorktreesElseItsShortID(t *testing.T) {
+func TestASessionIsShownByItsTerminalNameElseItsWorktreesElseItsID(t *testing.T) {
 	tests := []struct {
 		name      string
 		dir, told string
@@ -35,12 +36,12 @@ func TestASessionIsShownByItsTerminalNameElseItsWorktreesElseItsShortID(t *testi
 			name: "the innermost worktree's, of one made in another's", dir: "~/Code/api/.claude/worktrees/fix-login/.claude/worktrees/agent-1/web",
 			want: views.ShownName{Name: "agent-1", Worktree: true},
 		},
-		{name: "its id, cut short, in its repository", dir: "~/Code/api", want: views.ShownName{Name: namedShortID}},
-		{name: "its id, in a subfolder of its repository", dir: "~/Code/api/web", want: views.ShownName{Name: namedShortID}},
-		{name: "its id, in no directory", want: views.ShownName{Name: namedShortID}},
-		{name: "its id, in a folder named as the worktrees' folder is", dir: "/.claude/worktrees/x", want: views.ShownName{Name: namedShortID}},
+		{name: "its id, as the dashboard shows one, in its repository", dir: "~/Code/api", want: views.ShownName{Name: namedShownID}},
+		{name: "its id, in a subfolder of its repository", dir: "~/Code/api/web", want: views.ShownName{Name: namedShownID}},
+		{name: "its id, in no directory", want: views.ShownName{Name: namedShownID}},
+		{name: "its id, in a folder named as the worktrees' folder is", dir: "/.claude/worktrees/x", want: views.ShownName{Name: namedShownID}},
 		{name: "a name cleaned, as what comes from elsewhere is", told: "fix\x1b[2J\tlogin", want: views.ShownName{Name: "fix [2J login"}},
-		{name: "a name of spaces alone, none", dir: "~/Code/api", told: " \t ", want: views.ShownName{Name: namedShortID}},
+		{name: "a name of spaces alone, none", dir: "~/Code/api", told: " \t ", want: views.ShownName{Name: namedShownID}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -107,8 +108,8 @@ func TestTheLogNamesEachSessionOfThePeriodAsItsLastLineToNameAPlaceNamedIt(t *te
 	want := map[string]shown{
 		repoSession:     {project: "switchboard", ShownName: views.ShownName{Name: "review"}},
 		worktreeSession: {project: "switchboard", ShownName: views.ShownName{Name: "fix", Worktree: true}},
-		ownSession:      {project: "own/api", ShownName: views.ShownName{Name: status.ShortID(ownSession)}},
-		clientSession:   {project: "client/api", ShownName: views.ShownName{Name: status.ShortID(clientSession)}},
+		ownSession:      {project: "own/api", ShownName: views.ShownName{Name: status.ShownID(ownSession)}},
+		clientSession:   {project: "client/api", ShownName: views.ShownName{Name: status.ShownID(clientSession)}},
 	}
 	got := make(map[string]shown)
 	for _, s := range log.Sessions {
@@ -119,6 +120,68 @@ func TestTheLogNamesEachSessionOfThePeriodAsItsLastLineToNameAPlaceNamedIt(t *te
 			t.Errorf("the log shows %s as %+v, want %+v", id, got[id], w)
 		}
 	}
+}
+
+// Rows of one list that show the same project and name each show their id
+// too, on the List and on a project's SESSIONS alike; a row whose name no
+// other row shows, one of another project, and one shown by its id, don't.
+func TestRowsThatShowAlikeShowTheirIDs(t *testing.T) {
+	days := heldDays(now, slices.Concat(
+		namedAsks("deploy", projectAsks(repoSession, "/code/switchboard", "/code/switchboard", "side", october(6, 9, 0))),
+		namedAsks("deploy", projectAsks(worktreeSession, "/code/switchboard/.claude/worktrees/fix", "/code/switchboard", "work", october(6, 10, 0))),
+		namedAsks("deploy", projectAsks(ownSession, "/code/own/api", "/code/own/api", "work", october(6, 11, 0))),
+		projectAsks(clientSession, "/code/own/api", "/code/own/api", "work", october(6, 12, 0)),
+	)...)
+	in := projectsIn(views.PeriodThisWeek, now)
+	listed := map[string]views.ShownName{
+		repoSession:     {Name: "deploy", ID: status.ShownID(repoSession)},
+		worktreeSession: {Name: "deploy", ID: status.ShownID(worktreeSession)},
+		ownSession:      {Name: "deploy"},
+		clientSession:   {Name: status.ShownID(clientSession)},
+	}
+	if got := rowsShown(days.SessionLog(in).Sessions); !maps.Equal(got, listed) {
+		t.Errorf("the List shows %+v, want %+v", got, listed)
+	}
+	page, ok := days.Projects(in).Project("/code/switchboard")
+	if !ok {
+		t.Fatal("Project(/code/switchboard) found none")
+	}
+	want := map[string]views.ShownName{repoSession: listed[repoSession], worktreeSession: listed[worktreeSession]}
+	if got := rowsShown(page.Sessions); !maps.Equal(got, want) {
+		t.Errorf("switchboard's SESSIONS shows %+v, want %+v", got, want)
+	}
+}
+
+// A session's page names its project as Projects names one alone, and the
+// session as the List does, but where that's by its id, which its heading
+// shows already.
+func TestASessionsPageNamesItsProjectAndItsName(t *testing.T) {
+	tests := []struct {
+		name, dir, told string
+		wantProject     string
+		want            views.ShownName
+	}{
+		{name: "its terminal session's", dir: "~/Code/api", told: "deploy", wantProject: "api", want: views.ShownName{Name: "deploy"}},
+		{name: "its worktree's", dir: "~/Code/api/.claude/worktrees/fix-login", wantProject: "api", want: views.ShownName{Name: "fix-login", Worktree: true}},
+		{name: "none, named by its id", dir: "~/Code/api", wantProject: "api"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := pageOf(t, []ledger.Line{startedIn(tt.told, in(tt.dir, line(paged, opus, "work", "new", october(7, 9, 0), hourUsage)))}, nil)
+			if page.ProjectName != tt.wantProject || page.Shown != tt.want {
+				t.Errorf("the page names its project %q and it %+v, want %q and %+v", page.ProjectName, page.Shown, tt.wantProject, tt.want)
+			}
+		})
+	}
+}
+
+// rowsShown is how each of rows is shown, by its session's id.
+func rowsShown(rows []views.PeriodSession) map[string]views.ShownName {
+	shown := make(map[string]views.ShownName)
+	for _, r := range rows {
+		shown[r.Session] = r.ShownName()
+	}
+	return shown
 }
 
 // startedIn is l, of a session started in the terminal session given.

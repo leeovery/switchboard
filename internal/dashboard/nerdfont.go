@@ -1,5 +1,7 @@
 package dashboard
 
+import "github.com/leeovery/switchboard/internal/views"
+
 // nerdFont says whether the terminal's font draws Nerd Font's glyphs, as the
 // config's [dashboard] nerd_font says. Every Nerd Font glyph the dashboard
 // draws goes through it, which gives what stands in for one where the font
@@ -16,4 +18,12 @@ func (n nerdFont) worktree() string {
 		return ""
 	}
 	return worktreeGlyph + " "
+}
+
+// marked is the name shown, a worktree's marked as worktree marks one.
+func (n nerdFont) marked(shown views.ShownName) string {
+	if !shown.Worktree {
+		return shown.Name
+	}
+	return n.worktree() + shown.Name
 }

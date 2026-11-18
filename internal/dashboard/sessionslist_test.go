@@ -187,9 +187,9 @@ var d28cMoved = listedSession{"d28c5e17", "~/Code/switchboard", "side", asking, 
 // the row's end.
 func TestTheListsColumnsByWidth(t *testing.T) {
 	whole := "  session                        on        model      state        started          requests    worth"
-	moved := "↑ switchboard d28c5e17           side      opus-5-5   asking       12:02                 445   $48.20"
+	moved := "↑ switchboard d28c               side      opus-5-5   asking       12:02                 445   $48.20"
 	started := "  session                        on        model      state        started          requests"
-	movedStarted := "↑ switchboard d28c5e17           side      opus-5-5   asking       12:02                 445"
+	movedStarted := "↑ switchboard d28c               side      opus-5-5   asking       12:02                 445"
 	tests := []struct {
 		width      int
 		heads, row string
@@ -205,17 +205,17 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 		{
 			width: 91,
 			heads: "  session                        on        model      state        requests",
-			row:   "↑ switchboard d28c5e17           side      opus-5-5   asking            445",
+			row:   "↑ switchboard d28c               side      opus-5-5   asking            445",
 		},
 		{
 			width: 73,
 			heads: "  session                      on        model      state        requests",
-			row:   "↑ switchboard d28c5e17         side      opus-5-5   asking            445",
+			row:   "↑ switchboard d28c             side      opus-5-5   asking            445",
 		},
 		{
 			width: 52,
 			heads: "  session            on        state        requests",
-			row:   "↑ switchb… d28c5e17  side      asking            445",
+			row:   "↑ switchboard d28c   side      asking            445",
 		},
 	}
 	for _, tt := range tests {
@@ -375,8 +375,8 @@ func longListDoc() status.Document {
 }
 
 // Of long names, the List holds every name whole where it fits: at 108,
-// routing left, the 19 cells past the leasts give the session its 29, a
-// project of 23 and its name whole, and on one more, 15, so work-team-plan
+// routing left, the 19 cells past the leasts give the session its 29, its
+// projects a column of 24, the widest cut, and its names whole, and on one more, 15, so work-team-plan
 // is whole; at 73, worth and started left too, the session takes the 10
 // cells left, the project cut before the name, and on holds its 14,
 // work-team-plan still whole; and at 138, routing still left, and 173, on as
@@ -389,7 +389,7 @@ func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 		rows  []string
 	}{
 		{width: 108, rows: []string{
-			"▸ infra-terraform-modules plan   side-hustle-co…  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"▸ infra-terraform-modules  plan  side-hustle-co…  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
 			"  docs-site-getting-start… docs  work-team-plan   opus-5-5   ended 10:15  09:40                  12    $0.84",
 		}},
 		{width: 73, rows: []string{
@@ -397,11 +397,11 @@ func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 			"  docs-site-getti… docs  work-team-plan  opus-5-5   ended 10:15        12",
 		}},
 		{width: 138, rows: []string{
-			"▸ infra-terraform-modules plan   side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"▸ infra-terraform-modules  plan  side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
 			"  docs-site-getting-start… docs  work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
 		}},
 		{width: 173, rows: []string{
-			"▸ infra-terraform-modules plan   side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"▸ infra-terraform-modules  plan  side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
 			"  docs-site-getting-start… docs  work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
 		}},
 	}
@@ -710,7 +710,7 @@ func TestASessionOfNoRequestsTodayAndOfNoKnownStart(t *testing.T) {
 	f := listFrame(t, 160, 37, listOf(quiet))
 	c := f.page(framedDoc(nil, nil), routedAt)
 	y := f.top() + 1
-	if got, want := rowOf(c, y), "  db8a71e3"+strings.Repeat(" ", 23)+"side      opus-5-5   idle 9m"+strings.Repeat(" ", 30)+"0        —"; got != want {
+	if got, want := rowOf(c, y), "  db8a"+strings.Repeat(" ", 27)+"side      opus-5-5   idle 9m"+strings.Repeat(" ", 30)+"0        —"; got != want {
 		t.Errorf("its row reads\n%q\nwant\n%q", got, want)
 	}
 	if got := c.at(100, y).ink; got != faintInk {
@@ -719,16 +719,16 @@ func TestASessionOfNoRequestsTodayAndOfNoKnownStart(t *testing.T) {
 }
 
 // The List's session and account are cut with … to their cells: the
-// session's name keeps its cells first, and its project is cut to what's
-// left, 6 at the least, the name then cut to the rest; an account to the
-// widest name configured, so one not configured is cut to it.
+// session's project to what its name leaves, 14 cells of it at the most,
+// the project 6 at the least, the name then cut to the rest; an account to
+// the widest name configured, so one not configured is cut to it.
 func TestTheListCutsItsCellsToTheirWidths(t *testing.T) {
 	long := listedSession{"d28c5e17", "~/Code/a-project-named-at-length", "an-account-named-at-length", asking, routedClock(1, 12, 2), 445, 4820, views.MarkAsking, 0}
 	tests := []struct {
 		width int
 		row   string
 	}{
-		{width: 160, row: "↑ a-pro… a-terminal-named-at-l…  an-acco…  opus-5-5   asking       12:02                 445   $48.20"},
+		{width: 160, row: "↑ a-project-nam… a-terminal-na…  an-acco…  opus-5-5   asking       12:02                 445   $48.20"},
 		{width: 52, row: "↑ a-pro… a-termina…  an-acco…  asking            445"},
 	}
 	for _, tt := range tests {
