@@ -101,7 +101,7 @@ func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPa
 		Projects: m.cfg.Projects, Now: now,
 	}
 	if p.Of == dashboard.LogEvents {
-		p.Events = views.LogEvents(m.logEventSources(p.Shows, now)).Today
+		p.Events = views.LogEvents(m.logEventSources(p.Shows, nil, now)).Today
 		src.Events = p.Events.Sessions
 	} else {
 		p.Lines = m.requestsThrough(p.Filter, now).Count(views.Today(now).Date)

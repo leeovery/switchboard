@@ -95,6 +95,19 @@ func (r ranOut) roomAgain(s standing) (shortOf, bool) {
 	return held, true
 }
 
+// liftedUntold takes in the holds lifted as their accounts' tokens changed
+// while the router was down, why each was refused by its account's id, as
+// liftsUntold gives them: each held its account back since it last had
+// room, so room again tells its lift.
+func (r ranOut) liftedUntold(lifts map[string]quota.ReadRefusal) {
+	for id, refused := range lifts {
+		cause, _ := status.RefusedRead(refused).Said()
+		held := r[id]
+		held.cause = cmp.Or(held.cause, cause)
+		r[id] = held
+	}
+}
+
 // with is what has held the account back, with what holds it back as it
 // stands: the windows that leave it no room, and the cause of its read
 // refused, where there's one.

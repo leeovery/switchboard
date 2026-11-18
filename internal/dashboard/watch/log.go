@@ -84,8 +84,9 @@ func (m Model) builtLog(now time.Time) Model {
 	p := t.page
 	p.Read, p.From, p.Today, p.Totals = true, t.from, views.Today(now), t.totals
 	p.Live, p.Stream, p.Written, p.AtReach = m.answering(), m.logStream(now), t.read.WrittenTo(), t.atReach()
-	if basis := m.eventsBasis(p.Shows, now); !t.built.events.same(basis) {
-		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, now)), &basis
+	mo := m.moment(now)
+	if basis := m.eventsBasis(p.Shows, mo.HeldByReadIDs(), now); !t.built.events.same(basis) {
+		p.Events, m.log.built.events = views.LogEvents(m.logEventSources(p.Shows, mo.HeldByRead, now)), &basis
 	}
 	rows := m.logRows()
 	m.log.page = p.Lined()
@@ -234,13 +235,15 @@ func (m Model) logSources(filter views.LogFilter, now time.Time) views.LogSource
 }
 
 // logEventSources are what the Log's Events are built from at now, through
-// the filter given: of the days its read holds whole alone, as a day held
-// through a filter is to them a day not yet read, as their cards read it.
-func (m Model) logEventSources(filter views.EventFilter, now time.Time) views.LogEventSources {
+// the filter given, heldNow saying which accounts are held now, as their
+// cards read it, nil where nothing built reads a card: of the days its read
+// holds whole alone, as a day held through a filter is to them a day not yet
+// read, as their cards read it.
+func (m Model) logEventSources(filter views.EventFilter, heldNow func(id string) bool, now time.Time) views.LogEventSources {
 	t := m.log
 	return views.LogEventSources{
 		From: t.from.Start, Events: m.events.read, Held: m.held, Read: t.read, Filter: filter, Names: m.cfg.WindowName, PoolNamed: m.cfg.PoolNamed,
-		HeldNow: m.moment(now).HeldByRead, Totals: t.totals, Oldest: t.oldest, Filed: t.filed, Now: now,
+		HeldNow: heldNow, Totals: t.totals, Oldest: t.oldest, Filed: t.filed, Now: now,
 	}
 }
 

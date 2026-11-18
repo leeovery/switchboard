@@ -125,7 +125,7 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 		{name: "a restart for a reason the Log has no words for", event: status.Event{Kind: status.EventRestart, Reason: "the moon\x1b[2Jrose"},
 			kind: "restart", what: "due: the moon [2Jrose"},
 		{name: "a restart held, its binary refusing to start, saying why", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
-			kind: "restart", what: "held: invalid config /test/config.toml: account work: its label is longer than 100 characters"},
+			kind: "restart", what: "put off: invalid config /test/config.toml: account work: its label is longer than 100 characters"},
 		{name: "a restart held for nothing to be read, as due", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade, Held: "\x1b"},
 			kind: "restart", what: "due: switchboard upgraded"},
 		{name: "the router unhealthy", event: status.Event{Kind: status.EventHealth, Reason: "most requests failing"},

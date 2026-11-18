@@ -147,10 +147,10 @@ func (m Model) requestsBasis(filter views.LogFilter, now time.Time) requestsBasi
 }
 
 // eventsBasis is what the Log's Events are made of at now, through the
-// filter given.
-func (m Model) eventsBasis(shows views.EventFilter, now time.Time) eventsBasis {
+// filter given, the accounts held now, their reads refused, by their ids.
+func (m Model) eventsBasis(shows views.EventFilter, heldByRead []string, now time.Time) eventsBasis {
 	return eventsBasis{
-		held: m.log.held, events: m.events.changes, stored: m.stored, heldByRead: m.moment(now).HeldByReadIDs(), shows: shows, day: views.Today(now).Date,
+		held: m.log.held, events: m.events.changes, stored: m.stored, heldByRead: heldByRead, shows: shows, day: views.Today(now).Date,
 	}
 }
 

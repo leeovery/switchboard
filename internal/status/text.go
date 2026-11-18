@@ -299,14 +299,14 @@ func (d Document) Names(ids []string) string {
 // it ends, and nothing of service restart, which is refused meanwhile, as in
 // "restart due since Mon 14:02 (config changed), once the export into
 // /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can hold it";
-// or held, its binary refusing to start, why it refuses, and nothing of how
-// it's to come, as in "restart due since Mon 14:02 (upgraded), held: invalid
-// config".
+// or put off, its binary refusing to start, why it refuses, and nothing of
+// how it's to come, as in "restart due since Mon 14:02 (upgraded), put off:
+// invalid config".
 func (r Restart) Text(now time.Time) string {
 	due := "restart due since " + prose.Clock(now, r.Since) + " (" + prose.Clean(r.Reason) + ")"
 	switch {
 	case r.held():
-		return due + ", held: " + prose.Clean(r.Held)
+		return due + ", put off: " + prose.Clean(r.Held)
 	case r.ByHand:
 		return due + ": run switchboard serve again to take it up"
 	case r.Exporting != "":
@@ -317,12 +317,12 @@ func (r Restart) Text(now time.Time) string {
 }
 
 // Label says the restart due in a few words, as the dashboard's status line
-// gives it: "restart due (config changed)", or held, its binary refusing to
-// start, "restart held (upgraded)".
+// gives it: "restart due (config changed)", or put off, its binary refusing
+// to start, "restart put off (upgraded)".
 func (r Restart) Label() string {
 	state := "due"
 	if r.held() {
-		state = "held"
+		state = "put off"
 	}
 	return "restart " + state + " (" + prose.Clean(r.Reason) + ")"
 }

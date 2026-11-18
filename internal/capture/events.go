@@ -457,11 +457,11 @@ func (h happenings) atPersonalsLimit() []status.Event {
 // lapsed are the lapsed world's events: the auto world's to side's prime at
 // 13:50, side held at 08:05, its token refused as it was read, and room
 // again at 08:24 as a new token lifted it, before any session ran on it, the
-// hold's event ending there;
-// personal held at 13:41, as the first probe after its last read at 13:35
-// was refused its organization's login, moving 41e0 and 9c2e to side as
-// their next requests came; work's token refused at 14:20, as refusal says,
-// moving d28c and db8a to side; and c61b started on side, the router's best.
+// hold's event ending there; personal held at 13:41, as the first probe
+// after its last read at 13:35 was refused its organization's login, moving
+// 41e0 and 9c2e to side as their next requests came; work's token refused
+// at 14:20, as refusal says, moving d28c and db8a to side; and c61b started
+// on side, the router's best.
 func (h happenings) lapsed(refusal status.Refusal) []status.Event {
 	refused, lapsed, lifted := h.today(14, 20, 0), h.today(13, 41, 0), h.today(8, 24, 30)
 	return slices.Concat(

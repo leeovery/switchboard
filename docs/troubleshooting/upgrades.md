@@ -27,13 +27,13 @@ the config right, this is what you'll see:
 |---|---|
 | `switchboard status` | The router's status document, with the restart put off, then the config error. |
 | `usage`, or a dashboard you open now | They fail on the config. |
-| A dashboard already open | `restart held (upgraded)` on the status line. |
+| A dashboard already open | `restart put off (upgraded)` on the status line. |
 | Each `claude` you start | It says it couldn't read the config, and goes through the router all the same. |
 | The router's log | The refusal, at warn. |
 
 `claude` starts without switchboard only if the router doesn't answer.
 
-`switchboard status` reads `restart due since Mon 14:02 (upgraded), held:`, then the reason.
+`switchboard status` reads `restart due since Mon 14:02 (upgraded), put off:`, then the reason.
 The router asks again once you change the config, or the binary changes again.
 
 Put the config right as the error says. The router restarts itself at its next quiet moment, once

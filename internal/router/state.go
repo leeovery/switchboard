@@ -57,12 +57,17 @@ type usage struct {
 	// nothing, until a reading comes in, to backingOff. refusedSince is when
 	// its read was first refused, of the refusals refusedRead has kept in a
 	// row, which the hold runs from, zero while none has; and heldTold
-	// whether that hold has been told of, as ReadHeld.
+	// whether that hold has been told of, as ReadHeld. liftUntold is why a
+	// hold told before a restart was refused, where the state file kept it of
+	// a token the account no longer holds, so the token's change lifted it
+	// while the router was down: room again is yet to tell that lift, as
+	// liftsUntold hands it on; "" otherwise.
 	probeErr     string
 	refusedRead  quota.ReadRefusal
 	misses       int
 	refusedSince time.Time
 	heldTold     bool
+	liftUntold   quota.ReadRefusal
 	// warned holds, by key, when each window the last probe couldn't read was
 	// last warned of, as warnOf has it. It's kept in memory alone.
 	warned map[string]time.Time
@@ -1757,6 +1762,8 @@ func (u *usage) recall(kept savedReading, token tokenKept, shared func(key strin
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
 		u.probeErr, u.refusedRead = redact.Text(kept.ProbeError), kept.RefusedRead
 		u.refusedSince, u.heldTold = u.refusalKept(kept, now), kept.HeldTold && u.readRefused()
+	} else if kept.HeldTold {
+		u.liftUntold = kept.RefusedRead
 	}
 	if !token.usable {
 		u.probesAfreshOnItsToken()
@@ -1764,6 +1771,26 @@ func (u *usage) recall(kept savedReading, token tokenKept, shared func(key strin
 	u.unchecked = !token.held()
 	return !u.probed.Equal(kept.Probed) || u.misses != kept.Misses || u.probeErr != kept.ProbeError ||
 		u.refusedRead != kept.RefusedRead || !u.refusedSince.Equal(kept.RefusedSince) || u.heldTold != kept.HeldTold
+}
+
+// liftsUntold are why the holds told before a restart were refused, by the
+// ids of their accounts, where each account's token changed while the router
+// was down, which lifted the hold, as recall keeps them, each handed on once,
+// for room again to tell its lift.
+func (s *state) liftsUntold() map[string]quota.ReadRefusal {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var lifts map[string]quota.ReadRefusal
+	for id, u := range s.usage {
+		if u.liftUntold == "" {
+			continue
+		}
+		if lifts == nil {
+			lifts = make(map[string]quota.ReadRefusal)
+		}
+		lifts[id], u.liftUntold = u.liftUntold, ""
+	}
+	return lifts
 }
 
 // untold are the holds of the accounts' reads refused never told of, as a

@@ -101,14 +101,12 @@ func (r *recent) readHeld(e ReadHeld, now time.Time) {
 	r.countWaiting(r.keep(held, at))
 }
 
-// holdLifted ends at now the hold of the account's read refused, kept and
-// able to change, that began by then, as room again a look at now tells its
-// lift, so a move after it is never counted in it, as readHolding has it: a
-// hold told since the look read the accounts is one after the lift, and
-// holds on.
+// holdLifted ends at now the hold of the account's read refused, as
+// openHold has it, begun by then, as room again a look at now tells its
+// lift, so a move after it is never counted in it: a hold told since the
+// look read the accounts is one after the lift, and holds on.
 func (r *recent) holdLifted(account string, now time.Time) {
-	holds := readHolding(account, now)
-	if h, ok := r.find(func(h *happening) bool { return holds(h) && !h.At.After(now) }); ok {
+	if h, ok := r.openHold(account, now, now); ok {
 		h.Until = now
 		h.mark()
 	}
@@ -284,7 +282,7 @@ func (r *recent) forcing(e Moved, now time.Time) (*happening, bool) {
 		}
 		return r.find(refusalHolding(e.From, r.state.family(e.Model), now))
 	case HeldByRead:
-		return r.find(readHolding(e.From, now))
+		return r.openHold(e.From, now, now)
 	}
 	return nil, false
 }
@@ -383,13 +381,17 @@ func (r *recent) capEvent(account string, now time.Time) (*happening, bool) {
 	return h, ok && h.changes(now)
 }
 
-// readHolding returns what picks out the events of the account's holds that
-// haven't lifted and can change at now: the newest is the one that holds, if
-// any does, as a hold starts afresh only once the one before it has lifted.
-func readHolding(account string, now time.Time) func(h *happening) bool {
-	return func(h *happening) bool {
-		return h.Kind == status.EventHeld && h.Account == account && h.Until.IsZero() && h.changes(now)
-	}
+// openHold returns the event of the account's newest hold begun by then,
+// kept, where it hasn't lifted and can change at now, reporting false
+// otherwise. Only the newest can hold, as a hold starts afresh only once the
+// one before it has lifted: an older one left open, as one that lifted while
+// its account was out of quota, or within the look that told the next one,
+// holds nothing. r.mu must be held.
+func (r *recent) openHold(account string, then, now time.Time) (*happening, bool) {
+	h, ok := r.find(func(h *happening) bool {
+		return h.Kind == status.EventHeld && h.Account == account && !h.At.After(then)
+	})
+	return h, ok && h.Until.IsZero() && h.changes(now)
 }
 
 // refusalHolding returns what picks out the events of the account's refusals

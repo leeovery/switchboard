@@ -83,11 +83,11 @@ func restartWhy(reason string) string {
 }
 
 // restartSaid says what befell a restart, the event e, in the Log's words: it
-// fell due, and why, as "due: the config changed"; or it's held, its binary
-// refusing to start, and why it refuses, as "held: invalid config".
+// fell due, and why, as "due: the config changed"; or it's put off, its
+// binary refusing to start, and why it refuses, as "put off: invalid config".
 func restartSaid(e status.Event) string {
 	if held := restartHeld(e); held != "" {
-		return "held: " + held
+		return "put off: " + held
 	}
 	if reason := restartWhy(e.Reason); reason != "" {
 		return "due: " + reason

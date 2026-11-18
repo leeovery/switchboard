@@ -89,8 +89,9 @@ pass over one you don't know. In the forms below, `<id>` is the id of an account
 
 - **`has a new token`** sends the request on elsewhere.
 - **`had its read refused`** means the account's subscription has ended, or its token is
-  refused. The rest of the why says which. The router holds the account back until a read comes
-  back clean. See [Troubleshooting: an account's token or subscription](../troubleshooting/tokens.md).
+  refused. The rest of the why says which. The router holds the account back until a read
+  comes back clean. See
+  [Troubleshooting: an account's token or subscription](../troubleshooting/tokens.md).
 - **`left the pool`** sends the request elsewhere, or moves the session off the account. With one
   pool, an account that left the config `has no room` instead.
 - **`has no room` appears in `tried`** for an account that left the config while one pool is

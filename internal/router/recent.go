@@ -335,9 +335,12 @@ func (r *recent) look() {
 // were last looked at, and remembers how they stand: each that has come under
 // pressure, as pressed says, and each that has room again, as the
 // notifications judge it, with the windows that held it back, and the cause
-// of the hold that did, where one did. The first look at an account calls for
-// none, as there's nothing yet to compare it with.
+// of the hold that did, where one did, a hold its token's change lifted
+// while the router was down among them, as liftsUntold gives them. The first
+// look at an account calls for none, as there's nothing yet to compare it
+// with.
 func (r *recent) news(accounts []status.Account, standings standings) []status.Event {
+	r.short.liftedUntold(r.state.liftsUntold())
 	var news []status.Event
 	for _, a := range accounts {
 		if r.pressed(a) {

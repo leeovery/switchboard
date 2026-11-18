@@ -362,11 +362,14 @@ type Event struct {
 	// kept Joined.
 	Joined map[string]time.Time `json:"joined,omitempty"`
 	// Until is when a limit lifts, the last of a cap's windows resets, a
-	// refusal ends, a window a prime started resets, or a window under
-	// pressure runs out.
+	// refusal ends, a window a prime started resets, a window under pressure
+	// runs out, or a hold lifts: set on a hold only where it lifts in the
+	// same run of the router as it began, within the days an event can
+	// change.
 	Until time.Time `json:"until,omitzero"`
 	// Since is when the rate an account came under pressure at is measured
-	// from, when it's its recent rate.
+	// from, when it's its recent rate; or when a hold told late began, set
+	// on a hold only then, where the state file says.
 	Since time.Time `json:"since,omitzero"`
 	// Count is how many sessions a limit, a cap, a refusal or a hold moved
 	// while it held, each once.

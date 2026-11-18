@@ -320,7 +320,7 @@ restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): sw
 
 best next: personal · Personal
 from the router: healthy  ·  no sessions  ·  routing automatically
-restart due since Mon 13:12 (upgraded), held: invalid config
+restart due since Mon 13:12 (upgraded), put off: invalid config
 `,
 		},
 		{
@@ -1251,12 +1251,12 @@ func TestRestart(t *testing.T) {
 		{
 			name:    "held, its binary refusing to start, which neither waiting nor service restart gets past",
 			restart: status.Restart{Reason: "upgraded", Since: since, InFlight: 1, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
-			want:    "restart due since Mon 13:02 (upgraded), held: invalid config /test/config.toml: account work: its label is longer than 100 characters",
+			want:    "restart due since Mon 13:02 (upgraded), put off: invalid config /test/config.toml: account work: its label is longer than 100 characters",
 		},
 		{
 			name:    "held, with an export under way, which the end of gets it no further",
 			restart: status.Restart{Reason: "upgraded", Since: since, Held: "invalid config", Exporting: "/Volumes/Backup/Switchboard"},
-			want:    "restart due since Mon 13:02 (upgraded), held: invalid config",
+			want:    "restart due since Mon 13:02 (upgraded), put off: invalid config",
 		},
 	}
 	for _, tt := range tests {
@@ -1281,7 +1281,7 @@ func TestARestartsLabelSaysWhetherItsDueOrHeldAndWhy(t *testing.T) {
 		want    string
 	}{
 		{name: "due", restart: status.Restart{Reason: "config changed", InFlight: 3}, want: "restart due (config changed)"},
-		{name: "held, its binary refusing to start", restart: status.Restart{Reason: "upgraded", Held: "invalid config"}, want: "restart held (upgraded)"},
+		{name: "held, its binary refusing to start", restart: status.Restart{Reason: "upgraded", Held: "invalid config"}, want: "restart put off (upgraded)"},
 		{name: "held for nothing to be read, as due", restart: status.Restart{Reason: "upgraded", Held: "\x1b"}, want: "restart due (upgraded)"},
 		{name: "a reason from elsewhere, cleaned", restart: status.Restart{Reason: "upgraded\x1b[2J"}, want: "restart due (upgraded [2J)"},
 	}

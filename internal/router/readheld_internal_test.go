@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 // The holds a refused read starts, as the router tells of them.
@@ -139,6 +141,28 @@ func TestAHoldKeptAcrossARestartIsToldOfAgainByNothing(t *testing.T) {
 	}
 }
 
+// A hold told before a restart, whose account's token changed while the
+// router was down, lifted then, as a new token lifts a hold: the first look
+// that finds the account with room tells that lift as room again, with the
+// hold's cause, as one lifted while the router ran is told.
+func TestAHoldLiftedByANewTokenWhileTheRouterWasDownIsToldAsItsRoomAgain(t *testing.T) {
+	path := filepath.Join(t.TempDir(), stateFileName)
+	clock := &testClock{now: start}
+	before := newTestFile(clock.read, resolve(testConfigured, testTokens.Read, unrecorded))
+	before.load(path)
+	before.state.record("work", []quota.Window{session, soonWeek}, before.state.mark())
+	probesEnd(before.state, "work", []error{errSubscriptionEnded})
+	before.save()
+
+	h := restartedOn(t, clock, path, tokenstest.Files{"work": renewedToken, "side": sideToken})
+	probesEnd(h.r.state, "work", []error{nil})
+	h.looks(2)
+	want := []status.Event{{ID: 1, At: start, Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"}}
+	if got := h.r.recent.events(); !reflect.DeepEqual(got, want) {
+		t.Errorf("once work is read on its new token, events() = %+v, want %+v, told once", got, want)
+	}
+}
+
 // A hold the state file kept that was never told of, as a router from
 // before kept it, is told of once as the router starts, from when it began,
 // and posts nothing, as its news is old; a restart after tells it again by
@@ -187,8 +211,15 @@ type restarting struct {
 // notifications of limits and room again on.
 func restarted(t *testing.T, clock *testClock, path string) *restarting {
 	t.Helper()
+	return restartedOn(t, clock, path, testTokens)
+}
+
+// restartedOn starts a router on the state file at path, as restarted does,
+// its accounts holding the tokens files hold.
+func restartedOn(t *testing.T, clock *testClock, path string, files tokenstest.Files) *restarting {
+	t.Helper()
 	h := &restarting{notifier: &noting{}}
-	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg := testConfig(clock.read, &stubProber{}, files.Read)
 	cfg.Events = func(e Event) { h.heard = append(h.heard, e) }
 	cfg.Notifier, cfg.Notifications = h.notifier, config.Notifications{Limits: true, Room: true}
 	h.r = newTestRouterOf(t, cfg)
@@ -198,10 +229,11 @@ func restarted(t *testing.T, clock *testClock, path string) *restarting {
 }
 
 // looks has the router look at the accounts n times, as recent and the
-// notifications do.
+// notifications do, the notifications taking what was told them first.
 func (h *restarting) looks(n int) {
 	for range n {
 		h.r.recent.look()
+		h.r.notifications.takeQueued(context.Background())
 		h.r.notifications.lookAfresh(context.Background())
 	}
 }
@@ -298,6 +330,30 @@ func TestALiftEndsNoHoldToldAfterTheLookReadTheAccounts(t *testing.T) {
 	k.r.change(func() { k.r.holdLifted("work", start) })
 	if held := k.r.events()[0]; !held.Until.Equal(start) {
 		t.Errorf("the hold told by the look = %+v, want it ended at %v", held, start)
+	}
+}
+
+// A move off a held account counts in the account's newest hold alone: an
+// older hold left open, as one that lifted while its account was out of
+// quota, never counts it, so a move heard before its hold starts waits for
+// that hold.
+func TestAMoveCountsInTheAccountsNewestHoldAlone(t *testing.T) {
+	k := newTelling(t)
+	k.reads(0.5, 0.5)
+	k.look()
+	k.hear(workLapsed, workTokenRefused)
+	k.r.change(func() { k.r.holdLifted("work", start) })
+	k.clock.now = start.Add(time.Minute)
+	k.hear(heldOff("one", opus, "side"), workLapsed)
+
+	var counts []int
+	for _, e := range k.r.events() {
+		if e.Kind == status.EventHeld {
+			counts = append(counts, e.Count)
+		}
+	}
+	if !slices.Equal(counts, []int{1, 0, 0}) {
+		t.Errorf("the holds, the newest first, count %v, want the move in the newest alone, the one it waited for", counts)
 	}
 }
 

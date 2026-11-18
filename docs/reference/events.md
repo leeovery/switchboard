@@ -109,11 +109,11 @@ Once the move is done, an event of these kinds without a pool is in the first po
 - **`joined`** shows, for example, the 5-hour window joining a cap on Fable's week. A window
   it leaves out was in the limit or cap from `at`. It's left out if no window joined.
 - **`until`** is brought forward to the lift if a limit or a refusal lifts early. A `held` event
-  gets an `until` only if its hold lifts in the same run of the router, within 8 days, at the
-  time of the `room` event that tells of the lift.
+  gets an `until` only if its hold lifts in the same run of the router, within 8 days. The
+  `until` is the time of the `room` event that tells of the lift.
 - **A hold's lift** is the first `room` event of the same account after it, by `at`, with a
-  `reason`, unless another `held` event of that account comes first. Then the first hold has no
-  known lift. Pair them that way, because a hold across a restart, or longer than 8 days, has no
+  `reason`. If another `held` event of that account comes first, the first hold has no known
+  lift. Pair them that way, because a hold across a restart, or longer than 8 days, has no
   `until`. Whether an account is held now is in the status document, never in a missing `until`.
 - **A hold is told once.** Another refused read during the hold adds no event. After a restart, a
   hold that already has a `held` event gets no new one.
@@ -140,6 +140,6 @@ Once the move is done, an event of these kinds without a pool is in the first po
 
 - **`force`** clears only the session pins in its own pool, if there are pools.
 - **`by` is `router`** on an `auto` event for a pool pin the router dropped as the pools changed.
-  That happens if its accounts left the pool, the pool went, or a later pin took its place.
+  That happens if its accounts left the pool, the pool went, or a later pin replaced it.
 
 How long the files stay is in [Where the files are](files.md).

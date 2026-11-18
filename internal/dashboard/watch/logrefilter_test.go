@@ -937,7 +937,7 @@ func TestTheEventsShowTheDaysHeldWholeAloneTillEachIsReadAgain(t *testing.T) {
 		t.Errorf("the Events shown, the Log read again the days %v, want %v", got, want)
 	}
 	m := h.model
-	src := m.logEventSources(m.log.page.Shows, h.clock.now)
+	src := m.logEventSources(m.log.page.Shows, m.moment(h.clock.now).HeldByRead, h.clock.now)
 	src.Read = views.LogRead{}
 	if whole := views.LogEvents(src); !reflect.DeepEqual(m.log.page.Events.Lines, whole.Lines) {
 		t.Errorf("every day read again, the Events show %d lines, want the %d of every day held whole", len(m.log.page.Events.Lines), len(whole.Lines))

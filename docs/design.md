@@ -565,7 +565,13 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     event back, 7 days before now; with no `status`, as nothing kept the read's answer. One whose
     start the state file doesn't give is filed at now, with no `since`. A router taken back to a
     version from before and then upgraded again tells such a hold a second time, a second row
-    with no notification: accepted, as a router from before keeps no `held_told`.
+    with no notification: accepted, as a router from before keeps no `held_told`. A hold told
+    before a restart, whose account's token changed while the router was down, was lifted by the
+    change: the state file's hold is of a token the account no longer holds, so the router drops
+    it, and keeps its cause for room again (`liftsUntold`), so the first look that finds the
+    account with room tells `room` with that cause, and the Log pairs the hold with it. Room
+    again's notification doesn't post for that lift, as the notifications first look at the
+    account after the restart: accepted, as its news is old.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -1111,11 +1117,11 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
   partway through a day: summary version 7 (see The request ledger).
 - **Events:** the events of a session's work name its pool: `started` and `moved`, the pool the
-  session's request was routed within, and `pin` and `auto`, the pool whose pin was set or
-  cleared, or the session's, of its own pin. What befalls an account, a limit, a cap, a refusal or a hold,
+  session's request was routed within, and `pin` and `auto`, the pool whose pin was set or cleared,
+  or the session's, of its own pin. What befalls an account, a limit, a cap, a refusal or a hold,
   names none, as its windows are its own, and the router's own events none. Which pool an event is
-  of has one rule, `status`'s, which the router's document, the verbs and the dashboard all call:
-  an event of a kind that names its pool goes by the pool it recorded, one naming none the first
+  of has one rule, `status`'s, which the router's document, the verbs and the dashboard all call: an
+  event of a kind that names its pool goes by the pool it recorded, one naming none the first
   pool's, so one naming a pool since removed is in none; any other goes by the pool of the account
   it befell, now, or, of an account since removed, the pool the accounts record keeps for it; and
   only an account nothing places, and the router's own, show in every pool. The status document
@@ -3767,8 +3773,9 @@ the mode is never out of sight. Its parts, each after `  ·  ` (two spaces, `·`
    states below.
 2. **A restart due,** while the router has one: `restart due (config changed)` in
    `accent.attention`, the reason as the status document's `restart` gives it (`config changed`,
-   `upgraded`, `time zone changed`) (settled in the plan); held, as the binary the router would
-   become refuses to start, `restart held (upgraded)` (the owner's call, 26 October 2026).
+   `upgraded`, `time zone changed`) (settled in the plan); put off, as the binary the router
+   would become refuses to start, `restart put off (upgraded)` (the owner's call, 26 October
+   2026, as `restart held`, worded `put off` once `held` came to name a hold).
 3. **The mode:** `auto` in `text.secondary`; or with a global pin, `pinned to personal` in bold
    `accent.attention`, its accounts in the config's order (`pinned to personal and side`, `pinned to
    personal, side and work`).
@@ -4687,33 +4694,33 @@ at every width.
   | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset`; as a hold lifts, `work open again: hold lifted (subscription lapsed)` |
   | `●` in `accent.key` | `pin` | `pin set by hand: new sessions go to personal` |
   | `↩` in `accent.key` | `auto` | `new sessions back to auto` |
-  | `!` in `accent.attention` | `restart` | `restart due: the config changed`; held, `restart held: <why the binary refuses>` |
+  | `!` in `accent.attention` | `restart` | `restart due: the config changed`; put off, `restart put off: <why the binary refuses>` |
   | `⊕` in `state.destructive`, or `state.positive` well again | `health` | `the router turned unhealthy: <why>`; `the router is healthy again` |
 
   A mark is one a kind, but for `■`, which a limit, a refusal, a hold and a token another
   subscription's share, each closing its account, their words telling them apart; the Log's Events
-  mark each kind the same (see The Log). The sessions a limit, a cap, a refusal or a hold moved fold into its line,
-  counted, as its event's `count` and `to` give them; a move shows
-  alone only where the line it's folded into isn't among those shown. Each sentence takes the
-  fullest of its two forms that fits whole in LATELY's room, its column or, folded, what its heading
-  holds (`latelyTold`), and is cut only where even the short one doesn't fit, so its names and
-  figures are never cut while a shorter form fits: `work at its cap: 3 moved to side`. The short
-  form keeps every name, count and time, and says less: a limit's, a prime's and room again's
-  windows go (`personal at its limit`, `side primed`, `work open again`), a count loses `sessions`
-  (`3 moved to side`), pressure's window goes (`personal under pressure: out ~16:05`), and a pin
-  is `pin set:`. The forms come from what each sentence says, never from the frame's width; the
-  room only grows with the width but where LATELY moves beside COMING UP, its column halving, the
-  one width a sentence may take its shorter form. A limit's or a cap's line names the windows it began
-  with, as it began: `work reached its Fable week limit`, a 5-hour that joined it later left to the
-  Log's card (the owner's call, 15 October 2026). A session is named by the last part of the
-  directory it ran in, `api`, as the Log names one (`views.SessionDirName`): the directory its
-  event carries, which the router records as it writes the event, so a line's name never changes
-  once told; else the session's as the List has it, the router's listing giving it, else the lines
-  the watch holds; and by its short id, `c61b`, where none names one, as of an event written before
-  events carried it: account ids are four characters too, so a short id read as an account's. The
-  Log's Events name a session the same way: a row's directory is its event's, else as the
-  session's lines last name it, and its card, in its title and its `session` item, reads the
-  row's, so the two never disagree; the short id where neither names one.
+  mark each kind the same (see The Log). The sessions a limit, a cap, a refusal or a hold moved fold
+  into its line, counted, as its event's `count` and `to` give them; a move shows alone only where
+  the line it's folded into isn't among those shown. Each sentence takes the fullest of its two
+  forms that fits whole in LATELY's room, its column or, folded, what its heading holds
+  (`latelyTold`), and is cut only where even the short one doesn't fit, so its names and figures are
+  never cut while a shorter form fits: `work at its cap: 3 moved to side`. The short form keeps
+  every name, count and time, and says less: a limit's, a prime's and room again's windows go
+  (`personal at its limit`, `side primed`, `work open again`), a count loses `sessions` (`3 moved to
+  side`), pressure's window goes (`personal under pressure: out ~16:05`), and a pin is `pin set:`.
+  The forms come from what each sentence says, never from the frame's width; the room only grows
+  with the width but where LATELY moves beside COMING UP, its column halving, the one width a
+  sentence may take its shorter form. A limit's or a cap's line names the windows it began with, as
+  it began: `work reached its Fable week limit`, a 5-hour that joined it later left to the Log's
+  card (the owner's call, 15 October 2026). A session is named by the last part of the directory it
+  ran in, `api`, as the Log names one (`views.SessionDirName`): the directory its event carries,
+  which the router records as it writes the event, so a line's name never changes once told; else
+  the session's as the List has it, the router's listing giving it, else the lines the watch holds;
+  and by its short id, `c61b`, where none names one, as of an event written before events carried
+  it: account ids are four characters too, so a short id read as an account's. The Log's Events name
+  a session the same way: a row's directory is its event's, else as the session's lines last name
+  it, and its card, in its title and its `session` item, reads the row's, so the two never disagree;
+  the short id where neither names one.
 
 **By account** (`b`) pivots the page; `[usage] by` sets its default (see The page, "What's
 remembered").
@@ -6504,22 +6511,21 @@ rows are spare. Its lines are the accounts' spans and resets, soonest first:
 No prime is listed (settled in the plan). The lines aren't capped: where they don't fit, Runway
 compacts, and then cuts them.
 
-LATELY's lines are the account events of the router's events held (see What it reads, below), as
-the Overview's LATELY words them (`views.RunwayLately`, beside the Overview's): a cap, a limit, a
+LATELY's lines are the account events of the router's events held (see What it reads, below), as the
+Overview's LATELY words them (`views.RunwayLately`, beside the Overview's): a cap, a limit, a
 refusal, a hold, coming under pressure and room again, newest first, no further back than a week
-before now; the sessions a cap, a limit, a refusal or a hold moved folded into its line, as `3 sessions moved to
-side`, each router run's own; no session's start or move alone, and no marks. Each line is the
-time, as an event's time is said, `14:31` or `Wed 23:58`, but on today's weekday a week back, by
-the calendar, by its date, `5 Nov 15:00`, as its weekday alone would read as today's (prose's
-`Befell`, which says every time in LATELY's words, the Overview's too, as `~5 Nov 23:50`), padded
-to the longest shown, in `text.secondary`; two blanks; the account bold `text.primary`, what
-befell it in `text.muted` and its object, as `3 sessions` or `~Sat 06:10`, bold
-`text.secondary`; and how long ago, right-aligned at the column's end, in `text.subtle`: `11m
-ago`, `1h 38m ago`, `1d 4h ago`, `3d ago` (prose's `Ago`). Its words are in full where they fit
-whole beside how long ago, else short. With no events, it says why, as the Overview's LATELY
-does. It lists as many lines as its rows hold, the rest unsaid. Till the files are read, it's told
-afresh at every build; once they are, only as the events held change, the day turns, or a line
-passes out of its week.
+before now; the sessions a cap, a limit, a refusal or a hold moved folded into its line, as `3
+sessions moved to side`, each router run's own; no session's start or move alone, and no marks. Each
+line is the time, as an event's time is said, `14:31` or `Wed 23:58`, but on today's weekday a week
+back, by the calendar, by its date, `5 Nov 15:00`, as its weekday alone would read as today's
+(prose's `Befell`, which says every time in LATELY's words, the Overview's too, as `~5 Nov 23:50`),
+padded to the longest shown, in `text.secondary`; two blanks; the account bold `text.primary`, what
+befell it in `text.muted` and its object, as `3 sessions` or `~Sat 06:10`, bold `text.secondary`;
+and how long ago, right-aligned at the column's end, in `text.subtle`: `11m ago`, `1h 38m ago`, `1d
+4h ago`, `3d ago` (prose's `Ago`). Its words are in full where they fit whole beside how long ago,
+else short. With no events, it says why, as the Overview's LATELY does. It lists as many lines as
+its rows hold, the rest unsaid. Till the files are read, it's told afresh at every build; once they
+are, only as the events held change, the day turns, or a line passes out of its week.
 
 **A week stepped back to** runs from its first day, as `week_starts` begins it, to its last,
 across the lanes' columns, ticked and named as the live view is.
@@ -7477,22 +7483,22 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `✓` `state.positive` | `open` | the account | `its 5-hour window reset`; as a hold lifts, `hold lifted (subscription lapsed)`, its card's `hold` item `lifted (subscription lapsed)` |
 | `●` `accent.key` | `pin` | the accounts it names | `new sessions go there, set from the command line`; with `--move`, `new and running sessions go there, …`; a session's own pin, `this session goes there, set from the dashboard` (settled in the plan) |
 | `↩` `accent.key` | `auto` | blank | `new sessions back from personal to the router's choice, set from the dashboard`; a session's own pin cleared, `this session back from side to the router's choice, …` (settled in the plan) |
-| `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan); held, as the binary the router would become refuses to start, `held: <why it refuses>` (the owner's call, 26 October 2026), its card headed `restart held`, with a `held` item |
+| `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan); put off, as the binary the router would become refuses to start, `put off: <why it refuses>` (the owner's call, 26 October 2026, as `held`, worded `put off` once `held` came to name a hold), its card headed `restart put off`, with a `put off` item |
 | `⊕` `state.destructive`, or `state.positive` well again | `health` | blank | `unhealthy: <its reason>`, or `healthy again` (settled in the plan) |
 
 - **The windows a limit or a cap began with:** its `what happened` names those alone, as LATELY's
   line does, a window that joined it later listed in its card (the owner's call, 15 October 2026).
 - **A mark a kind:** the marks are LATELY's (see The Overview) and the Log's own, each a cell wide
   in JetBrains Mono, regular and bold, one a kind but for `■`: a limit, a token refused, a hold and
-  a token another subscription's each close their account, and their words tell them apart. `✕` is a single
-  request's refusal, on a cord or a row (`✕ 429`), never an event's. `○` is never one: it says not
-  read, or not live. `◔`, `!` and `⊕`, which no frame draws, are JetBrains Mono's, regular and bold,
-  and `refused` keeps the `■` the Overview's frame 3 draws (settled in the plan).
+  a token another subscription's each close their account, and their words tell them apart. `✕` is a
+  single request's refusal, on a cord or a row (`✕ 429`), never an event's. `○` is never one: it
+  says not read, or not live. `◔`, `!` and `⊕`, which no frame draws, are JetBrains Mono's, regular
+  and bold, and `refused` keeps the `■` the Overview's frame 3 draws (settled in the plan).
 - **`open`** is the Log's word for the router's `room`: room again, as a window that held the
   account back resets, or a hold lifts. A pin cleared is never called a pin: it's `auto`.
-- **A limit's and a cap's sessions,** and a refusal's and a hold's, are those its moves counted: `its 3 sessions
-  move to side`, `its session moves to side`, or where they went to several accounts, `its 3
-  sessions move to other accounts` (settled in the plan).
+- **A limit's and a cap's sessions,** and a refusal's and a hold's, are those its moves counted:
+  `its 3 sessions move to side`, `its session moves to side`, or where they went to several
+  accounts, `its 3 sessions move to other accounts` (settled in the plan).
 
 **The day rule.** Where one day ends and the next begins, on Requests and Events alike, a line
 across the table, with no mark, a night's quiet unfolded (settled in the plan):
@@ -9147,16 +9153,16 @@ posts, but for a token's year, which has no key: see Config.
 
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
-always goes out, and so do a hold's and a token's year's: no quiet minute holds any back. As the router
-stops, what it's posting, the moves still queued and the limits still gathering go out at once,
-all within 3 seconds of the stop, after which a post still going is ended and any left fail, as
-a post that fails does, so none outlives the router or its restart in place. Any other goes out
+always goes out, and so do a hold's and a token's year's: no quiet minute holds any back. As the
+router stops, what it's posting, the moves still queued and the limits still gathering go out at
+once, all within 3 seconds of the stop, after which a post still going is ended and any left fail,
+as a post that fails does, so none outlives the router or its restart in place. Any other goes out
 only a minute or more after the last posted about its account, a limit's included: one due sooner is
 dropped, and the log says so at debug. One that fails to post is logged at warn, and dropped too;
 not having gone out, it starts no quiet minute. The log names accounts by id alone. Notifications
-never hold a request up: the router queues the limits, holds and moves it tells of, 256 at most, dropping
-any past that with a warning in the log, finds room again and warnings at its looks, and posts from
-a goroutine of its own.
+never hold a request up: the router queues the limits, holds and moves it tells of, 256 at most,
+dropping any past that with a warning in the log, finds room again and warnings at its looks, and
+posts from a goroutine of its own.
 
 The dashboard posts its own only while it probes because the router isn't there to:
 of an account with room again and a window passing the warning, as `room` and `warning` say, and
@@ -10918,10 +10924,10 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   an export of the history runs, into the folder configured or one no longer, `restart due since
   Mon 14:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered
   macOS prompt can hold it`, with no advice, as `service restart` is refused meanwhile, or, run by
-  hand, `…: run switchboard serve again to take it up`, or, held, `restart due since Mon 14:02
-  (upgraded), held: <why the binary refuses>`, with no advice, as neither a quiet moment nor
+  hand, `…: run switchboard serve again to take it up`, or, put off, `restart due since Mon 14:02
+  (upgraded), put off: <why the binary refuses>`, with no advice, as neither a quiet moment nor
   `service restart` gets past it; and the dashboard's status line, `restart due (config changed)`,
-  or `restart held (upgraded)` (see The page). The log line saying a restart is due names the
+  or `restart put off (upgraded)` (see The page). The log line saying a restart is due names the
   export it waits for where one runs, `restart due; restarting once the export under way ends and
   no request is in flight`, with its folder. `service restart` asks the router to restart now
   (`POST /restart`): it gives its requests in flight up to 30 seconds, and those it cuts off then up
@@ -11696,12 +11702,12 @@ Each account:
 ### The router's events
 
 The router tells what it decides and notices as events, each a moment: a session started or moved;
-an account under pressure, at its cap, at its limit, refused, held, primed, or with room again; routing
-set by hand; a restart falling due; and its own health turning. The status document gives the newest
-50, kept in memory (see The status document); the router also files every one, so they can be looked
-back on across restarts. The Overview's LATELY reads the newest, the Log's Events lists them all,
-those filed before them included (see The Overview, The Log), and `events` prints them (see The data
-verbs).
+an account under pressure, at its cap, at its limit, refused, held, primed, or with room again;
+routing set by hand; a restart falling due; and its own health turning. The status document gives
+the newest 50, kept in memory (see The status document); the router also files every one, so they
+can be looked back on across restarts. The Overview's LATELY reads the newest, the Log's Events
+lists them all, those filed before them included (see The Overview, The Log), and `events` prints
+them (see The data verbs).
 
 - **An event** is `{id, at, kind}` and the fields its kind needs, each left out where it doesn't.
   Each event naming a `session` carries `dir`, the directory the session ran in as the router

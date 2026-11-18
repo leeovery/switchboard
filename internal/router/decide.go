@@ -318,10 +318,10 @@ type unableOn struct {
 // unable says why the account with the given id can't take the request, and
 // what holds it back, one owner of both, so a move's reason and the event it
 // counts in agree: what went wrong when the request went out on it, held as
-// that says, as the view's tried has it; else that its last read was refused, and
-// why, which holds it back till a read comes back clean, whatever else does;
-// else that it has reached its reserve, when that alone holds it back; else
-// that it has no room, held as the view has it.
+// that says, as the view's tried has it; else that its last read was
+// refused, and why, which holds it back till a read comes back clean,
+// whatever else does; else that it has reached its reserve, when that alone
+// holds it back; else that it has no room, held as the view has it.
 func (s situation) unable(id string) unableOn {
 	if a, tried := s.req.attempt(id); tried {
 		by, limit := s.accounts.tried(id, a.Why)
