@@ -40,6 +40,23 @@ func TestAccountNamed(t *testing.T) {
 	}
 }
 
+func TestLabelOr(t *testing.T) {
+	tests := []struct{ name, label, want string }{
+		{name: "a label that shows, as it is", label: "Acme\u200b", want: "Acme\u200b"},
+		{name: "no label, the id", label: "", want: "k3f9"},
+		{name: "a label of spaces, the id", label: "  ", want: "k3f9"},
+		{name: "a label of a direction mark alone, the id", label: "\u200e", want: "k3f9"},
+		{name: "a label of characters drawn as nothing, the id", label: "\u200b\u2066", want: "k3f9"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.LabelOr(tt.label, "k3f9"); got != tt.want {
+				t.Errorf("LabelOr(%+q, k3f9) = %+q, want %+q", tt.label, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAForeignTokenIsSaidWithWhatPutsItRight(t *testing.T) {
 	tests := []struct{ id, want string }{
 		{"work", "its token is another subscription's: give it its own with switchboard accounts token work, or add that subscription as an account of its own"},
@@ -352,7 +369,7 @@ func TestCleanLeavesNothingToClean(t *testing.T) {
 			t.Errorf("Clean(%+q) = %+q, holding a bidirectional control", text, once)
 		case strings.ContainsFunc(once, prose.Prepends):
 			t.Errorf("Clean(%+q) = %+q, holding a prepended concatenation mark", text, once)
-		case prose.MapUnseen(once, dropMarksOnly) != once:
+		case prose.MapUnseen(once, markKept) != once:
 			t.Errorf("Clean(%+q) = %+q, holding a character drawn as nothing that does nothing that shows", text, once)
 		case strings.TrimFunc(once, prose.DirectionMark) != once:
 			t.Errorf("Clean(%+q) = %+q, a direction mark at its edge", text, once)
@@ -363,10 +380,10 @@ func TestCleanLeavesNothingToClean(t *testing.T) {
 	}
 }
 
-// dropMarksOnly is what a test has MapUnseen make of an unseen character that
+// markKept is what a test has MapUnseen make of an unseen character that
 // does nothing that shows: a direction mark kept, for Clean keeps those
 // within text written right to left, and anything else dropped.
-func dropMarksOnly(r rune) string {
+func markKept(r rune) string {
 	if prose.DirectionMark(r) {
 		return string(r)
 	}
@@ -422,7 +439,8 @@ func TestQuoted(t *testing.T) {
 		{name: "a right-to-left override escaped", text: "\u202Ekrow", want: `"\u202Ekrow"`},
 		{name: "an isolate escaped", text: "a\u2067b\u2069", want: `"a\u2067b\u2069"`},
 		{name: "a direction mark escaped", text: "a\u200Fb", want: `"a\u200Fb"`},
-		{name: "an Arabic number sign as it is", text: "\u0600123", want: "\"\u0600123\""},
+		{name: "an Arabic number sign escaped", text: "\u0600123", want: `"\u0600123"`},
+		{name: "an Arabic number sign at the end escaped, so it can't hide the quote", text: "Acme\u0600", want: `"Acme\u0600"`},
 		{name: "a selector after an escape escaped", text: "\u263a\u200b\ufe0f", want: "\"\u263a\\u200B\\uFE0F\""},
 		{name: "a joiner after an escape escaped", text: "\u0915\u200b\u200d\u0937", want: "\"\u0915\\u200B\\u200D\u0937\""},
 		{name: "a backslash before an escape kept apart", text: "a\\\u200B", want: `"a\\\u200B"`},

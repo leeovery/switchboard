@@ -29,7 +29,9 @@ func TestMapUnseen(t *testing.T) {
 		want    string
 	}{
 		{name: "a zero-width space dropped", text: "a\u200bb", replace: dropped, want: "ab"},
-		{name: "seen characters as they are", text: "a \u0600 b", replace: marked, want: "a \u0600 b"},
+		{name: "seen characters as they are", text: "a \u00e9 \ue0a0 b", replace: marked, want: "a \u00e9 \ue0a0 b"},
+		{name: "a prepended concatenation mark replaced, as it hides what's after it", text: "a \u0600 b", replace: marked, want: "a <600> b"},
+		{name: "a replaced prepended mark owning nothing, so the selector after it is replaced", text: "\u0600\ufe0f\u20e3", replace: marked, want: "<600><FE0F>\u20e3"},
 		{name: "a dropped character passed over, the selector after it judged on what's before", text: "\u263a\u200b\ufe0f", replace: dropped, want: "\u263a\ufe0f"},
 		{name: "a dropped character passed over, the joiner after it judged on what's before", text: "\u0915\u2063\u200d\u0937", replace: dropped, want: "\u0915\u200d\u0937"},
 		{name: "a dropped character passed over, the joiner before it judged on what's after", text: "\u0915\u200d\u200b\u0937", replace: dropped, want: "\u0915\u200d\u0937"},

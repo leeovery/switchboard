@@ -138,11 +138,22 @@ func Version(version string) string {
 // by its id alone. Both are cleaned, as Clean cleans them.
 func AccountNamed(label, id string) string {
 	id = Clean(id)
-	label = Clean(label)
-	if label == "" || strings.EqualFold(label, id) {
+	label = Clean(LabelOr(label, id))
+	if strings.EqualFold(label, id) {
 		return id
 	}
 	return label + " (" + id + ")"
+}
+
+// LabelOr is the label something is shown by: label, where any of it shows
+// once cleaned, as Clean cleans it, else id. A label of spaces, of
+// characters drawn as nothing or of direction marks alone shows as nothing,
+// so it falls back to the id, as no label does.
+func LabelOr(label, id string) string {
+	if Clean(label) == "" {
+		return id
+	}
+	return label
 }
 
 // Clean makes text safe to show on one line of a terminal: control
@@ -161,26 +172,16 @@ func Clean(text string) string {
 	if cleanASCII(text) {
 		return text
 	}
-	return tidy(text, false)
+	return tidy(text)
 }
 
-// CleanLabel cleans text as Clean does, but keeps each direction mark
-// within it, whatever it's written in, as a label taken keeps one.
-func CleanLabel(text string) string {
-	if cleanASCII(text) {
-		return text
-	}
-	return tidy(text, true)
-}
-
-// tidy is text cleaned as Clean says, keeping every direction mark within
-// it where allMarks says to, as CleanLabel does.
-func tidy(text string, allMarks bool) string {
+// tidy is text cleaned as Clean says, judged a character at a time.
+func tidy(text string) string {
 	if !hides(text) {
 		return oneLine(text)
 	}
 	replace := dropped
-	if allMarks || strings.ContainsFunc(text, rightToLeft) {
+	if strings.ContainsFunc(text, rightToLeft) {
 		replace = keptIfAMark
 	}
 	text = MapUnseen(strings.Map(unprepended, text), replace)
@@ -230,7 +231,7 @@ func unprepended(r rune) rune {
 }
 
 // keptIfAMark is what tidy has MapUnseen make of an unseen character that
-// does nothing that shows, where it keeps direction marks: a direction mark
+// does nothing that shows, in text written right to left: a direction mark
 // is kept, as it orders what's around it, and anything else dropped.
 func keptIfAMark(r rune) string {
 	if DirectionMark(r) {
@@ -240,7 +241,7 @@ func keptIfAMark(r rune) string {
 }
 
 // dropped is what tidy has MapUnseen make of an unseen character that does
-// nothing that shows, where it keeps no direction mark: nothing.
+// nothing that shows, in any other text: nothing.
 func dropped(rune) string {
 	return ""
 }
@@ -290,8 +291,10 @@ func Visible(text string) string {
 // plainly, and each character drawn as nothing, as Unseen has it, that does
 // nothing that shows, as MapUnseen has it, shown as its escape, as \u200B,
 // so what it holds shows. A bidirectional control is among them, so it
-// can't reorder the rest of the line, and so is a direction mark, which a
-// label keeps but whose part in it can't be seen. A private-use character
+// can't reorder the rest of the line; so is a direction mark, whose part in
+// it can't be seen; and so is a prepended concatenation mark, which would
+// hide the character after it, the closing quote among them. A private-use
+// character
 // shows as it is, and so does what makes an emoji, a keycap, a variant or a
 // flag, or shapes a joining script, unless an escape stands before it, as
 // an escape owns nothing after it.

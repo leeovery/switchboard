@@ -356,7 +356,7 @@ func poolEditedSays(e accounts.EditedPool) string {
 	}
 	var changed []string
 	if e.Was.Label != e.Now.Label {
-		changed = append(changed, nowAndWas("label", prose.Quoted(e.Now.Label), prose.Quoted(e.Was.Label)))
+		changed = append(changed, labelEdited(prose.Quoted(e.Now.Label), prose.Quoted(e.Was.Label)))
 	}
 	var running string
 	switch {

@@ -203,6 +203,11 @@ func TestNamesNameAccountsAsTheConfigAndTheRecordDo(t *testing.T) {
 	if got := status.ConfiguredName(configured[1]); got != (status.AccountName{Label: "side"}) {
 		t.Errorf("ConfiguredName(side, unlabelled) = %+v, want it named by its id", got)
 	}
+	for _, label := range []string{"\u200e", "\u200b\u2066", " "} {
+		if got := status.ConfiguredName(config.Account{ID: "side", Label: label}); got != (status.AccountName{Label: "side"}) {
+			t.Errorf("ConfiguredName(side, labelled %+q) = %+v, want it named by its id, as nothing of its label shows", label, got)
+		}
+	}
 }
 
 // Words name each account they name by its id as the names given say it,

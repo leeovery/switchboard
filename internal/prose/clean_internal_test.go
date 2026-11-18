@@ -36,7 +36,7 @@ func eachOf(pieces []string, most int, check func(string)) {
 func TestCleansASCIIPathAgreesWithTheWholeRule(t *testing.T) {
 	ascii := strung('a', '~', ' ', '\t', '\n', 0, 0x7f)
 	eachOf(ascii, 5, func(s string) {
-		if got, want := Clean(s), tidy(s, false); got != want {
+		if got, want := Clean(s), tidy(s); got != want {
 			t.Errorf("Clean(%q) = %q, want %q, as the whole rule makes it", s, got, want)
 		}
 	})

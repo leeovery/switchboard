@@ -174,7 +174,7 @@ func ConfiguredName(a config.Account) AccountName {
 
 // namedAs names a configured account by its label, else its id.
 func namedAs(label, id string) AccountName {
-	return AccountName{Label: cmp.Or(label, id)}
+	return AccountName{Label: prose.LabelOr(label, id)}
 }
 
 // Said is the account as the verbs' text names it, cleaned, as it's from
@@ -267,7 +267,7 @@ func (r RemovedAccounts) named(id string) AccountName {
 	if !ok {
 		return AccountName{Label: id}
 	}
-	return AccountName{Label: cmp.Or(a.Label, id), Other: true, Removed: a.Said()}
+	return AccountName{Label: prose.LabelOr(a.Label, id), Other: true, Removed: a.Said()}
 }
 
 // Named names the account of the moment with the given id, as AccountName

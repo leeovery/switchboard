@@ -44,7 +44,7 @@ var unselected = []*unicode.RangeTable{unicode.Latin, unicode.Greek, unicode.Cyr
 func Unseen(r rune) bool {
 	return (unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
 		unicode.Is(unicode.Variation_Selector, r)) &&
-		!unicode.IsSpace(r) && !unicode.Is(unicode.Prepended_Concatenation_Mark, r)
+		!unicode.IsSpace(r) && !Prepends(r)
 }
 
 // Prepends reports whether r is a prepended concatenation mark, such as an
@@ -69,7 +69,8 @@ func DirectionMark(r rune) bool {
 }
 
 // MapUnseen returns text with each unseen character that does nothing to
-// show, as a sequence owns one, replaced by what replace makes of it: ""
+// show, as a sequence owns one, and each prepended concatenation mark, which
+// hides the character after it, replaced by what replace makes of it: ""
 // to drop it, the character itself to keep it, or other text, such as an
 // escape, to show in its place. Every other character is kept as it is.
 //
@@ -93,7 +94,7 @@ func MapUnseen(text string, replace func(r rune) string) string {
 	var b strings.Builder
 	var kept recent
 	for i, r := range runes {
-		if !Unseen(r) || flagged[i] || kept.owns(r, next[i]) {
+		if !Unseen(r) && !Prepends(r) || flagged[i] || kept.owns(r, next[i]) {
 			b.WriteRune(r)
 			kept.add(r)
 			continue

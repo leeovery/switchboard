@@ -289,6 +289,8 @@ func TestPoolAddAndEditRefuse(t *testing.T) {
 			want: "Default (b2n8) is unfenced already, and only one pool can be"},
 		{name: "relabelling as another pool shows", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--label", "DEFAULT"},
 			want: `"DEFAULT" is Default (b2n8)'s label already`},
+		{name: "relabelling as another pool shows, a direction mark before its selector", accounts: strings.Replace(unfencedBesideFenced, `label = "Default"`, `label = "\u2764\ufe0f"`, 1),
+			args: []string{"pool", "edit", "q7mt", "--label", "\u2764\u200e\ufe0f"}, want: "(b2n8)'s label already"},
 		{name: "fencing a pool whose directories are written across lines", args: []string{"pool", "edit", "q7mt", "--dirs", "/work/client"},
 			accounts: strings.Replace(unfencedBesideFenced, `dirs  = ["/work/acme"]`, "dirs = [\n  \"/work/acme\",\n]", 1),
 			want:     `pool "q7mt" writes its dirs across lines, which editing`},
@@ -348,6 +350,13 @@ func TestPoolEditChangesALabelAndTheDirectories(t *testing.T) {
 			label: "Acme", dirs: []string{"/work/acme"}},
 		{name: "a label written by hand, holding what's drawn as nothing, tidied", accounts: strings.Replace(unfencedBesideFenced, `label = "Acme"`, `label = "Acme\u200b"`, 1),
 			args: []string{"--label", "Acme"}, said: `edited pool q7mt: label "Acme" (was "Acme\u200B")`, label: "Acme", dirs: []string{"/work/acme"}},
+		{name: "a label written by hand with only whitespace to tidy", accounts: strings.Replace(unfencedBesideFenced, `label = "Acme"`, `label = "Acme "`, 1),
+			args: []string{"--label", "Acme"}, said: `edited pool q7mt: label "Acme" (was written untidily)`, label: "Acme", dirs: []string{"/work/acme"}},
+		{name: "a label saved as it shows, a direction mark before its selector dropped", accounts: strings.Replace(unfencedBesideFenced, `label = "Default"`, `label = "\u2764"`, 1),
+			args: []string{"--label", "\u2764\u200e\ufe0f"}, said: "edited pool q7mt: label \"\u2764\ufe0f\" (was \"Acme\")", label: "\u2764\ufe0f", dirs: []string{"/work/acme"}},
+		{name: "the directories of a pool whose label shows nothing, its label left as it is", accounts: strings.Replace(unfencedBesideFenced, `label = "Acme"`, `label = "\u200b"`, 1),
+			args: []string{"--dirs", "/work/client"}, said: "edited pool q7mt: fenced to /work/client (was fenced to /work/acme); " + runningKeep,
+			label: "\u200b", dirs: []string{"/work/client"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

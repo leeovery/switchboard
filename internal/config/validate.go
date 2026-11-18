@@ -319,12 +319,12 @@ func wrongLabel(account, why string) error {
 }
 
 // takeLabel returns a label given to put in the file as it shows, so what's
-// saved is what's shown: cleaned as prose.CleanLabel cleans it, without the
-// characters drawn as nothing but for those that make an emoji, a keycap, a
-// variant or a flag, or shape a joining script, and the direction marks
-// within it, whatever it's written in; each run of whitespace within it one
-// space; and the whitespace and direction marks at its edges trimmed. Every other
-// character is kept. It's checked as it shows, and refused, as a label in
+// saved is what's shown: cleaned as prose.Clean cleans all that's shown,
+// without the characters drawn as nothing but for those that make an emoji,
+// a keycap, a variant or a flag, or shape a joining script; each run of
+// whitespace within it one space; and its direction marks kept only within
+// a label holding a letter written right to left, and trimmed at its edges.
+// Every other character is kept. It's checked as it shows, and refused, as a label in
 // the file isn't: when it isn't UTF-8, as TOML's text must be; when it holds
 // a control character, such as a newline or a tab, which can't show, or a
 // bidirectional embedding, override or isolate, which can reorder the rest
@@ -345,7 +345,7 @@ func takeLabel(kind, account, given string) (string, error) {
 	case strings.ContainsFunc(given, prose.Prepends):
 		return "", wrongLabel(account, "holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character")
 	}
-	label := prose.CleanLabel(given)
+	label := prose.Clean(given)
 	if given != "" && !strings.ContainsFunc(label, shows) {
 		return "", &WrongLabel{account: account, Why: blankWhy, is: ErrBlankLabel}
 	}
@@ -360,6 +360,17 @@ func takeLabel(kind, account, given string) (string, error) {
 // with names none.
 func TakeLabel(given string) (string, error) {
 	return takeLabel(accountKind, "", given)
+}
+
+// TakePoolLabel returns a label given the pool with the given id, as
+// takeLabel takes it: "" for "". A pool not yet added has no id, "", and a
+// WrongLabel it fails with names none.
+func TakePoolLabel(id, given string) (string, error) {
+	name := ""
+	if id != "" {
+		name = poolNamed(id)
+	}
+	return takeLabel(poolKind, name, given)
 }
 
 // blankBraille is the braille pattern with no dots, a symbol drawn as

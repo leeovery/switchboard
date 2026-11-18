@@ -2363,7 +2363,8 @@ formats below; the screens as signed off in Paper (see The screens, below).
   system's directories alone.
 - `accounts add <label>` registers an account, shown as the label, under the id its token's
   organization decides (see Account identity). It takes the label as it shows, and saves it so,
-  by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
+  by the one rule all that's shown is cleaned by (`prose.Clean`), so what's saved is what any
+  view or verb shows; that rule, by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
   default ignorables, the format characters and the variation selectors, but for whitespace and
   the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
   where one makes an emoji or a flag, a subdivision's only where it's England's, Scotland's or
@@ -2373,15 +2374,18 @@ formats below; the screens as signed off in Paper (see The screens, below).
   to right on what's kept: a character dropped is passed over, one shown escaped owns nothing
   after it, and the character after one is the first seen), and dropped everywhere else; a
   joiner's pictographs are symbols beyond ASCII, so one between `+` and `=` goes. Direction marks
-  are kept within it. Then each run of whitespace within it is one space, and the whitespace and
-  direction marks at its edges trimmed. It refuses a label that's none as it shows, one another
+  are kept within a label holding a letter written right to left, and dropped from any other.
+  Then each run of whitespace within it is one space, and the whitespace and direction marks at
+  its edges trimmed. A clash with another label is judged on the label as it's taken, cleaned as
+  the other is shown. It refuses a label that's none as it shows, one another
   configured account shows, ignoring case, one holding anything shaped like a token, or one over
   100 characters as it shows, holding a control character, such as a newline or a tab, a
   bidirectional embedding, override or isolate, or a prepended concatenation mark, which joins
   the character after it, so that character can draw as nothing, drawing as nothing (spaces,
   characters drawn as nothing, marks on their own or blank braille alone; a private-use glyph
   shows) or that isn't UTF-8, before it asks for the token, saving nothing. A label written in
-  the config by hand is read as it is. It always takes a token, asking for it, hidden, pointing to
+  the config by hand, or saved by a release that kept more, is read as it is, and shown through
+  `prose.Clean` as any other is. It always takes a token, asking for it, hidden, pointing to
   `claude setup-token` run while signed in to that subscription, or reading it from stdin when
   stdin isn't a terminal. An interrupt while it waits puts the terminal back as it was, showing
   what's typed again, and the command exits 130, as a shell expects of an interrupt, saving
@@ -11121,7 +11125,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
-| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown but text to copy, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped, by the rule `accounts add` takes a label by (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line, while emoji, keycaps, variants, flags and joining scripts are kept whole. A prepended concatenation mark, such as an Arabic number sign, is dropped too, as the dashboard measures it and the character after it as no cells, so that character would never show; a label refuses one. A direction mark is kept only within text holding a letter written right to left, which it orders, and dropped from any other and from the edges of all, as a terminal that orders text by direction carries a mark at a field's end on to reorder the digits and punctuation of the next; a label taken keeps those within it whatever it's written in (`prose.CleanLabel`), and shows without them where it's written left to right. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. Text to copy, such as setup's lines and a token, keeps all but its control characters (`prose.Visible`), so what's copied is what was given. `prose.Quoted` shows as escapes the characters drawn as nothing that `prose.Clean` drops, and the direction marks besides |
+| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown but text to copy, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line, while emoji, keycaps, variants, flags and joining scripts are kept whole. A prepended concatenation mark, such as an Arabic number sign, is dropped too, as the dashboard measures it and the character after it as no cells, so that character would never show; a label refuses one. A direction mark is kept only within text holding a letter written right to left, which it orders, and dropped from any other and from the edges of all, as a terminal that orders text by direction carries a mark at a field's end on to reorder the digits and punctuation of the next. A label is taken by the same rule, after its own refusals, so it's saved as it shows, and two labels clash where they're the same once cleaned; one written by hand, or saved by an earlier release, is read as written and shown cleaned. Where nothing of a label shows once cleaned, the account is named by its id (`prose.LabelOr`), wherever it's named. Accepted: a mark dropped can let a joiner or selector after it be judged on the character before the mark, and kept; a directory's name (`status.DirName`) can show a mark that was within the path only through a trailing slash. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. Text to copy, such as setup's lines and a token, keeps all but its control characters (`prose.Visible`), so what's copied is what was given. `prose.Quoted` shows as escapes the characters drawn as nothing that `prose.Clean` drops, the direction marks and the prepended concatenation marks, which would hide the closing quote |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
 Each view's data is built once, in `internal/views`, and drawn by `internal/dashboard` or printed
@@ -11327,7 +11331,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   tokens directory, the logs directory, the state directory, which the preferences hold as
   they're kept, and a day's plain file. A lock goes as its file closes, however the process
   holding it ends, so letting it go leaves its file in place; `service uninstall` removes the
-  router's copy's and the notifications' app's with what they guard.
+  router's copy's and the notifications' app's with what they guard. Accepted: the guard knows
+  the lock calls by name, so a raw `syscall.Syscall` of `SYS_FLOCK` would pass it.
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
   switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
   `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell

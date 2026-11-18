@@ -185,17 +185,38 @@ func poolAdded(added config.Pool) {
 	logger.Info("added a pool", "pool", added.ID, "fenced", added.Fenced())
 }
 
-// poolTaken fails where a pool, but the one with the given id, shows label,
-// as a PoolLabelTakenError, or where unfenced asks for the pool to be
-// unfenced and another is already, as an UnfencedError; and with
-// ErrNoPoolLabel for no label.
+// poolTaken fails where the pool with the given id, "" for one not yet
+// added, can't be shown as the label given, as poolLabelTaken says, or
+// where unfenced asks for it to be unfenced and another is already, as
+// unfencedTaken says.
 func poolTaken(pools config.Pools, id, label string, unfenced bool) error {
-	if prose.Clean(label) == "" {
+	if err := poolLabelTaken(pools, id, label); err != nil {
+		return err
+	}
+	return unfencedTaken(pools, id, unfenced)
+}
+
+// poolLabelTaken fails with ErrNoPoolLabel for a label given that shows
+// nothing; as config.TakePoolLabel does for one no pool can have; and where
+// a pool, but the one with the given id, shows the label as it's taken, as
+// a PoolLabelTakenError.
+func poolLabelTaken(pools config.Pools, id, given string) error {
+	if prose.Clean(given) == "" {
 		return ErrNoPoolLabel
+	}
+	label, err := config.TakePoolLabel(id, given)
+	if err != nil {
+		return err
 	}
 	if holder, taken := pools.Labelled(id, label); taken {
 		return &PoolLabelTakenError{Label: label, Holder: holder}
 	}
+	return nil
+}
+
+// unfencedTaken fails where unfenced asks for the pool with the given id to
+// be unfenced and another is already, as an UnfencedError.
+func unfencedTaken(pools config.Pools, id string, unfenced bool) error {
 	if other, ok := pools.Unfenced(); ok && unfenced && other.ID != id {
 		return &UnfencedError{Unfenced: other}
 	}
@@ -217,11 +238,13 @@ func (r Registry) EditPool(id string, change PoolChange) (EditedPool, error) {
 	if err != nil {
 		return EditedPool{}, err
 	}
-	label, unfencing := was.Label, change.Dirs != nil && len(*change.Dirs) == 0
+	pools, unfencing := draft.Config().Pools, change.Dirs != nil && len(*change.Dirs) == 0
 	if change.Label != nil {
-		label = *change.Label
+		if err := poolLabelTaken(pools, was.ID, *change.Label); err != nil {
+			return EditedPool{}, err
+		}
 	}
-	if err := poolTaken(draft.Config().Pools, was.ID, label, unfencing); err != nil {
+	if err := unfencedTaken(pools, was.ID, unfencing); err != nil {
 		return EditedPool{}, err
 	}
 	if err := change.apply(draft, was.ID); err != nil {
