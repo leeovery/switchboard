@@ -45,9 +45,13 @@ func texts(d drawing) []string {
 // token's own row for each of token's lines.
 func madeRows(token string) []string {
 	return slices.Concat(
-		[]string{" ✓ Long-lived authentication token created successfully!", "", " Your OAuth token (valid for 1 year):", ""},
+		[]string{" ✓ Long-lived authentication token created", "", " Your OAuth token (valid for 1 year):", ""},
 		strings.Split(token, "\n"),
-		[]string{"", " Store this token securely. You won't be able to see it again.", "", " Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>"},
+		[]string{
+			"", " Store this token securely. You won't be able to see it again.",
+			"", " Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>",
+			"", " You can revoke it later at https://claude.ai/settings/claude-code",
+		},
 	)
 }
 
@@ -284,7 +288,8 @@ func TestDrawingSaysWhetherSetupTokenMadeTheToken(t *testing.T) {
 		want    bool
 	}{
 		{name: "made", drawing: madeScreen(" " + madeToken), want: true},
-		{name: "made, with the check mark drawn otherwise", drawing: drawn(" √ Long-lived authentication token created successfully!"), want: true},
+		{name: "made, with the check mark drawn otherwise", drawing: drawn(" √ Long-lived authentication token created"), want: true},
+		{name: "made, as Claude Code 2.1.325 and before word it", drawing: drawn(" ✓ Long-lived authentication token created successfully!"), want: true},
 		{name: "signing in", drawing: drawn(" Opening browser to sign in…")},
 		{name: "nothing"},
 	}
