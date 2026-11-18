@@ -796,9 +796,7 @@ func TestAnotherMacsFolderTakenInAgainAfterItsMoveToPoolsCountsEachDayOnce(t *te
 
 // takingOver is importConfig's router configuring work alone, in the pool
 // firstHere, its first, as its accounts record notes it, and the folder of
-// another Mac staged for it to take over from, holding that Mac's config and
-// accounts record: work in its first pool, firstThere, and x9x9, which the
-// router doesn't configure, in client.
+// another Mac staged for it to take over from, as theirFolder stages it.
 func takingOver(t *testing.T, firstHere, firstThere, client string) (router.Config, string) {
 	t.Helper()
 	cfg := importConfig(t)
@@ -809,6 +807,15 @@ func takingOver(t *testing.T, firstHere, firstThere, client string) (router.Conf
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return cfg, theirFolder(t, cfg, firstThere, client)
+}
+
+// theirFolder stages the folder of another Mac for the router cfg configures
+// to take in, holding that Mac's config and accounts record: work in its
+// first pool, firstThere, and x9x9, which the router doesn't configure, in
+// client. It returns where it staged it.
+func theirFolder(t *testing.T, cfg router.Config, firstThere, client string) string {
+	t.Helper()
 	staged := folder(cfg, 1)
 	stageManifest(t, staged, export.Manifest{Install: otherInstall, IDs: true, Accounts: true, Config: true})
 	data, err := identity.Record{
@@ -821,7 +828,7 @@ func takingOver(t *testing.T, firstHere, firstThere, client string) (router.Conf
 	put(t, identity.NewFile(staged).Path(), data, stagedOn)
 	theirConfig := "[[account]]\nid = \"work\"\npool = \"" + firstThere + "\"\n\n[[account]]\nid = \"x9x9\"\npool = \"" + client + "\"\n"
 	put(t, export.ConfigFile(staged), []byte(theirConfig), stagedOn)
-	return cfg, staged
+	return staged
 }
 
 // Another Mac's folder holding its config, as a Mac taking over from it
@@ -874,51 +881,148 @@ func TestAnotherMacsDayOfNoWorkIsTakenInNamingThePoolsTheImportGivesIt(t *testin
 	}
 }
 
-// A day this Mac summarised, another Mac's lines merged into it, is
-// summarised again keeping the pools its days of no work named: side's, the
-// pool it was in as this Mac first summarised the day, though it has moved
-// since; and x9x9's, an account only the other Mac had, the pool that Mac's
-// summary named, as the import renamed it.
-func TestADayMergedByAnImportKeepsThePoolsItsDaysOfNoWorkNamed(t *testing.T) {
-	const firstHere, firstThere, client, left = "q7mt", "b2n8", "c1nt", "l3ft"
-	cfg, staged := takingOver(t, firstHere, firstThere, client)
-	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "side", Label: "Side", Pool: firstHere})
-	date := dateOf(10)
-	model := `"model":"` + opus + `"`
-	readingOf := func(account string) string {
-		return strings.Replace(readingLine(1, date), `"account":"work"`, `"account":"`+account+`"`, 1)
-	}
-	idleDay := `{"account":%q,"pool":%q,"sessions":0,"moved_on":0,"moved_off":0,"highest":{"5h":0.1}}`
-	summaryOf := func(pool string, idle ...string) string {
-		work := `{"account":"work","pool":"` + pool + `","models":[{"model":"` + opus + `","upstream":1,"sessions":1}],"sessions":1}`
-		return `{"version":7,"day":"` + date + `","lines":1,"accounts":[` + strings.Join(append(idle, work), ",") + `]}` + "\n"
-	}
-	put(t, requestLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, pooledAfter(requestLine(1, date), model, firstHere)), now)
-	put(t, readingLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, readingOf("side")), now)
-	put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(summaryOf(firstHere, fmt.Sprintf(idleDay, "side", left))), now)
-	stageLines(t, staged, requestLines, date, pooledAfter(requestLine(2, date), model, firstThere))
-	stageLines(t, staged, readingLines, date, readingOf("x9x9"))
-	put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(summaryOf(firstThere, fmt.Sprintf(idleDay, "x9x9", client))), stamped(stagedOn))
+// The pools of the import tests' days of no work: those the two Macs
+// configure, as takingOver has them, and another this Mac once had.
+const (
+	idleHere, idleThere, idleClient, idleLeft = "q7mt", "b2n8", "c1nt", "l3ft"
+)
 
-	if got := importNow(t, cfg); got.Days.Merged != 1 {
-		t.Fatalf("Import() = %+v, want the day merged", got)
+// idleDays are a day's accounts' days of no work, as a summary writes them,
+// each of the account given, in the pool given, by the account's id.
+func idleDays(pools map[string]string) []string {
+	var days []string
+	for _, account := range slices.Sorted(maps.Keys(pools)) {
+		days = append(days, fmt.Sprintf(`{"account":%q,"pool":%q,"sessions":0,"moved_on":0,"moved_off":0,"highest":{"5h":0.1}}`, account, pools[account]))
 	}
+	return days
+}
+
+// daySummary is a summary of the local day with the given date, as the
+// router writes one, of the lines given, work's requests among them in the
+// pool given, none where it's "" or there are no lines, and of the days of
+// no work given.
+func daySummary(date string, lines int, pool string, idle ...string) string {
+	accounts := idle
+	if lines > 0 {
+		accounts = append(accounts, fmt.Sprintf(`{"account":"work","pool":%q,"models":[{"model":%q,"upstream":%d,"sessions":1}],"sessions":1}`, pool, opus, lines))
+	}
+	return fmt.Sprintf(`{"version":7,"day":%q,"lines":%d,"accounts":[%s]}`+"\n", date, lines, strings.Join(accounts, ","))
+}
+
+// readingOf is the reading of the account given's window on the local day
+// with the given date, as the readings history holds it.
+func readingOf(account, date string) string {
+	return strings.Replace(readingLine(1, date), `"account":"work"`, `"account":"`+account+`"`, 1)
+}
+
+// idlePools are the pools each account's day of no work names in the
+// summary the router cfg configures holds of the local day with the given
+// date, by the account's id, and its requests upstream, every account's
+// together.
+func idlePools(t *testing.T, cfg router.Config, date string) (map[string]string, int) {
+	t.Helper()
 	var summary ledger.Summary
 	if err := json.Unmarshal([]byte(stateOf(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)).data), &summary); err != nil {
 		t.Fatal(err)
 	}
 	pools, upstream := make(map[string]string), 0
 	for _, a := range summary.Accounts {
-		pools[a.Account] = a.IdlePool()
+		if pool := a.IdlePool(); pool != "" {
+			pools[a.Account] = pool
+		}
 		for _, m := range a.Models {
 			upstream += m.Upstream
 		}
 	}
-	if upstream != 2 {
-		t.Fatalf("once imported, the day's summary is %+v, want it summarised again, of both Macs' requests", summary)
+	return pools, upstream
+}
+
+// A day this Mac summarised, another Mac's lines merged into it, is
+// summarised again keeping the pools its days of no work named: side's, the
+// pool it was in as this Mac first summarised the day, though it has moved
+// since and the other Mac's summary names another; and x9x9's, an account
+// only the other Mac had, the pool that Mac's summary named, as the import
+// renamed it: its first pool this Mac's first, its client's kept apart. A
+// line merged into the day by a later import keeps them all.
+func TestADayMergedByAnImportKeepsThePoolsItsDaysOfNoWorkNamed(t *testing.T) {
+	tests := []struct {
+		name        string
+		there, want string
+	}{
+		{name: "x9x9's pool kept apart", there: idleClient, want: idleClient},
+		{name: "x9x9's pool the other Mac's first, this Mac's first", there: idleThere, want: idleHere},
 	}
-	if want := map[string]string{"side": left, "work": "", "x9x9": client}; !maps.Equal(pools, want) {
-		t.Errorf("once imported, the day's accounts' days of no work name the pools %v, want %v", pools, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, staged := takingOver(t, idleHere, idleThere, idleClient)
+			cfg.Accounts = append(cfg.Accounts, config.Account{ID: "side", Label: "Side", Pool: idleHere})
+			date := dateOf(10)
+			model := `"model":"` + opus + `"`
+			put(t, requestLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, pooledAfter(requestLine(1, date), model, idleHere)), now)
+			put(t, readingLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, readingOf("side", date)), now)
+			put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(daySummary(date, 1, idleHere, idleDays(map[string]string{"side": idleLeft})...)), now)
+			stageLines(t, staged, requestLines, date, pooledAfter(requestLine(2, date), model, idleThere))
+			stageLines(t, staged, readingLines, date, readingOf("x9x9", date))
+			put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(daySummary(date, 1, idleThere, idleDays(map[string]string{"side": idleClient, "x9x9": tt.there})...)), stamped(stagedOn))
+
+			if got := importNow(t, cfg); got.Days.Merged != 1 {
+				t.Fatalf("Import() = %+v, want the day merged", got)
+			}
+			want := map[string]string{"side": idleLeft, "x9x9": tt.want}
+			if pools, upstream := idlePools(t, cfg, date); upstream != 2 || !maps.Equal(pools, want) {
+				t.Fatalf("once imported, the day's days of no work name the pools %v, of %d requests; want %v, summarised again of both Macs' 2", pools, upstream, want)
+			}
+
+			// A late line, as a later import to the router still running merges
+			// it, the day summarised again.
+			later := theirFolder(t, cfg, idleThere, idleClient)
+			stageLines(t, later, requestLines, date, pooledAfter(requestLine(3, date), model, idleThere))
+			put(t, ledger.SummaryFile(ledger.Dir(later), date), []byte(daySummary(date, 1, idleThere)), stamped(stagedOn))
+			if _, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context()); err != nil {
+				t.Fatalf("Import() again = %v", err)
+			}
+			if pools, upstream := idlePools(t, cfg, date); upstream != 3 || !maps.Equal(pools, want) {
+				t.Errorf("a line later, the day's days of no work name the pools %v, of %d requests; want %v still, of 3", pools, upstream, want)
+			}
+		})
+	}
+}
+
+// A day this Mac holds the lines of, whose summary staged comes with no
+// lines, isn't summarised again: its summary carries x9x9's day of no work,
+// an account only the other Mac had, naming the pool it named.
+func TestADaySummaryStagedAloneCarriesTheOtherMacsDaysOfNoWork(t *testing.T) {
+	cfg, staged := takingOver(t, idleHere, idleThere, idleClient)
+	date := dateOf(10)
+	put(t, requestLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, pooledAfter(requestLine(1, date), `"model":"`+opus+`"`, idleHere)), now)
+	put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(daySummary(date, 1, idleHere)), now)
+	put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(daySummary(date, 0, "", idleDays(map[string]string{"x9x9": idleClient})...)), stamped(stagedOn))
+
+	importNow(t, cfg)
+	want := map[string]string{"x9x9": idleClient}
+	if pools, upstream := idlePools(t, cfg, date); upstream != 1 || !maps.Equal(pools, want) {
+		t.Errorf("once imported, the day's days of no work name the pools %v, of %d requests; want %v, of this Mac's 1", pools, upstream, want)
+	}
+}
+
+// A summary staged copied over this Mac's, one of the readings alone, keeps
+// the days of no work this Mac's named that the copy holds none of: side's,
+// in the pool it was in then.
+func TestASummaryCopiedInKeepsThisMacsDaysOfNoWork(t *testing.T) {
+	cfg, staged := takingOver(t, idleHere, idleThere, idleClient)
+	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "side", Label: "Side", Pool: idleHere})
+	date := dateOf(10)
+	put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(daySummary(date, 0, "", idleDays(map[string]string{"side": idleLeft})...)), now)
+	lines := stageLines(t, staged, requestLines, date, pooledAfter(requestLine(1, date), `"model":"`+opus+`"`, idleThere))
+	copied := strings.Replace(daySummary(date, 1, idleThere), `"lines":1,`, fmt.Sprintf(`"lines":1,"bytes":{"plain":0,"compressed":%d},`, len(lines)), 1)
+	put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(copied), stamped(stagedOn))
+
+	if got := importNow(t, cfg); got.Summaries != 1 {
+		t.Fatalf("Import() = %+v, want the summary staged copied in", got)
+	}
+	want := map[string]string{"side": idleLeft}
+	if pools, upstream := idlePools(t, cfg, date); upstream != 1 || !maps.Equal(pools, want) {
+		t.Errorf("once imported, the day's days of no work name the pools %v, of %d requests; want %v, of the copy's 1", pools, upstream, want)
 	}
 }
 

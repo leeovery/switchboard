@@ -90,9 +90,9 @@ func holding(l *Ledger, day StagedDay) (lines, summary bool) {
 
 // inRound starts taking day in as a round holds l's summaries, as the
 // readings history's summarising of the days before its prune does, and
-// returns once the day's lines are in, with what Import fails with once it
-// returns, what cuts it short, and what ends the round, as the test's end
-// does too.
+// returns once l's writer has taken the take up, waiting on the round, with
+// what Import fails with once it returns, what cuts it short, and what ends
+// the round, as the test's end does too.
 func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, cancel, endRound func()) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -105,40 +105,46 @@ func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, can
 		_, err := l.Import(ctx, day)
 		answered <- err
 	}()
-	linesTakenIn(t, l, day)
+	takenUp(t, l)
 	return answered, cancel, endRound
 }
 
-// linesTakenIn returns once l holds the day's lines, failing the test where
-// it doesn't within a few seconds.
-func linesTakenIn(t *testing.T, l *Ledger, day StagedDay) {
+// takenUp returns once l's writer is busy with work it has taken up, as a
+// day's take waiting on l's summaries, so a piece of work asked of it waits,
+// failing the test where it isn't within a few seconds.
+func takenUp(t *testing.T, l *Ledger) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
-	for lines, _ := holding(l, day); !lines; lines, _ = holding(l, day) {
-		if time.Now().After(deadline) {
-			t.Fatal("gave up waiting for the day's lines to be taken in")
+	for {
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+		err := l.writer.Do(ctx, func() {})
+		cancel()
+		if errors.Is(err, context.DeadlineExceeded) {
+			return
 		}
-		time.Sleep(5 * time.Millisecond)
+		if time.Now().After(deadline) {
+			t.Fatal("gave up waiting for the ledger's writer to take the day's take up")
+		}
 	}
 }
 
-func TestADaysSummaryIsCopiedInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
+func TestADaysLinesAndSummaryAreTakenInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
 	logstest.Capture(t)
 	l := runningLedger(t)
 	day := staged(t)
 	imported, _, endRound := inRound(t, l, day)
 
-	// A copy that didn't wait on the round would be done well within this.
+	// A take that didn't wait on the round would be done well within this.
 	time.Sleep(50 * time.Millisecond)
-	if _, summary := holding(l, day); summary {
-		t.Error("the day's summary was copied in as a round held the summaries, want it copied once the round is done")
+	if lines, summary := holding(l, day); lines || summary {
+		t.Errorf("as a round held the summaries, the day's lines were taken in %v, its summary %v; want neither till the round is done", lines, summary)
 	}
 	endRound()
 	if err := <-imported; err != nil {
 		t.Fatalf("Import() = %v", err)
 	}
-	if _, summary := holding(l, day); !summary {
-		t.Error("once the round was done and the day taken in, the ledger holds no summary of it, want the one staged")
+	if lines, summary := holding(l, day); !lines || !summary {
+		t.Errorf("once the round was done and the day taken in, the ledger holds its lines %v, its summary %v; want both", lines, summary)
 	}
 }
 
@@ -160,7 +166,11 @@ func (h *listingHeld) Dates() ([]string, error) {
 	return nil, nil
 }
 
-func TestADaySummarisedFromItsLinesBetweenTheirTakeAndTheLookAtItsSummaryKeepsThatSummary(t *testing.T) {
+// The readings history's round, summarising before its prune, holds the
+// summaries before the day's lines are taken in, so the take waits for it:
+// the round never summarises the day between its take and the look at its
+// summary, and the day's lines and the summary staged are taken in after.
+func TestADayIsTakenInWholeOnceTheReadingsHistorysRoundIsDone(t *testing.T) {
 	logstest.Capture(t)
 	history := &listingHeld{held: make(chan struct{}), let: make(chan struct{})}
 	l := runningLedgerOf(t, history)
@@ -171,10 +181,9 @@ func TestADaySummarisedFromItsLinesBetweenTheirTakeAndTheLookAtItsSummaryKeepsTh
 	if err != nil {
 		t.Fatal(err)
 	}
-	// An import doesn't hold the readings history's writer off: its round,
-	// summarising before its prune, as on its first round as the router
-	// starts and on its first of each day, holds the summaries as the day's
-	// lines are taken in, then finds them.
+	// The round, summarising before its prune, as on its first round as the
+	// router starts and on its first of each day, holds the summaries as the
+	// day is to be taken in.
 	history.holding.Store(true)
 	rounded := make(chan struct{})
 	go func() {
@@ -195,15 +204,18 @@ func TestADaySummarisedFromItsLinesBetweenTheirTakeAndTheLookAtItsSummaryKeepsTh
 		imported, err := l.Import(t.Context(), day)
 		answered <- answer{imported, err}
 	}()
-	linesTakenIn(t, l, day)
+	takenUp(t, l)
+	if lines, _ := holding(l, day); lines {
+		t.Error("the day's lines were taken in as the round held the summaries, want them taken in once it's done")
+	}
 	letGo()
 	<-rounded
 
-	if got := <-answered; got.err != nil || got.imported.Summary {
-		t.Errorf("Import() = %+v, %v; want no summary copied in: the round's, of the day's lines just taken in, loses no request", got.imported, got.err)
+	if got := <-answered; got.err != nil || !got.imported.Summary {
+		t.Errorf("Import() = %+v, %v; want the summary staged copied in, the day's lines taken in after the round", got.imported, got.err)
 	}
-	if held, err := l.days.held(day.Date); err != nil || held.Lines != 1 || string(held.written) == string(stagedSummary) {
-		t.Errorf("once imported, the ledger's summary of the day holds %q (%v); want the round's, of its line, standing against the one staged, %q", held.written, err, stagedSummary)
+	if held, err := l.days.held(day.Date); err != nil || string(held.written) != string(stagedSummary) {
+		t.Errorf("once imported, the ledger's summary of the day holds %q (%v); want the one staged, %q", held.written, err, stagedSummary)
 	}
 }
 
@@ -420,5 +432,35 @@ func TestADayACompressStoppedPartwayLeftSummarisesEachLineOnceImported(t *testin
 	l.SummariseEnded(importedOn)
 	if summary, err := l.days.held(date); err != nil || summary.Lines != 3 {
 		t.Errorf("summarised before its next compress, the day's summary counts %d lines (%v), want its 3, each once", summary.Lines, err)
+	}
+}
+
+// A summary given another's days of no work keeps every field it's written
+// with, those a later release added among them, as written, and takes in the
+// other's days that name a pool, of the accounts it holds no day of, as the
+// other writes them, in the order of their ids; where it takes none, it's
+// itself.
+func TestDaysOfNoWorkCarriedIntoASummaryKeepEveryFieldAsWritten(t *testing.T) {
+	into := `{"version":7,"day":"2026-10-05","lines":1,"later":{"kept":true},"accounts":[` +
+		`{"account":"side","pool":"l3ft","sessions":0,"moved_on":0,"moved_off":0,"later":1},` +
+		`{"account":"work","pool":"q7mt","sessions":1,"moved_on":0,"moved_off":0}]}`
+	from := `{"version":7,"day":"2026-10-05","lines":0,"accounts":[` +
+		`{"account":"side","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0},` +
+		`{"account":"spare","sessions":0,"moved_on":0,"moved_off":0},` +
+		`{"account":"x9x9","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":2}]}`
+	got, took, err := carriedIdle([]byte(into), []byte(from))
+	want := `{"version":7,"day":"2026-10-05","lines":1,"later":{"kept":true},"accounts":[` +
+		`{"account":"side","pool":"l3ft","sessions":0,"moved_on":0,"moved_off":0,"later":1},` +
+		`{"account":"work","pool":"q7mt","sessions":1,"moved_on":0,"moved_off":0},` +
+		`{"account":"x9x9","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":2}]}`
+	if err != nil || !took || string(got) != want {
+		t.Errorf("carriedIdle() = %s, %v, %v; want %s, true", got, took, err, want)
+	}
+	if again, took, err := carriedIdle(got, []byte(from)); err != nil || took || string(again) != string(got) {
+		t.Errorf("carriedIdle() again = %s, %v, %v; want the summary as it was, nothing taken", again, took, err)
+	}
+	none := `{"version":7,"day":"2026-10-05","lines":0}`
+	if got, took, err := carriedIdle([]byte(none), []byte(from)); err != nil || !took || !bytes.Contains(got, []byte(`"accounts":[{"account":"side"`)) {
+		t.Errorf("carriedIdle() into a summary of no accounts = %s, %v, %v; want its accounts those carried", got, took, err)
 	}
 }

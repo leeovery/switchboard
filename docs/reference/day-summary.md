@@ -49,8 +49,9 @@ account read, has no `accounts`.
 - the requests were in more than one pool;
 - the account sent no requests, and no pool held it when the day was first summarised;
 - the account sent no requests, and the day was first summarised by v1.0.1 or earlier;
-- the account sent no requests, and `history` or the dashboard works the day out from its lines,
-  for example today, or yesterday before the router summarises it.
+- the account sent no requests, and the day is one the router hasn't summarised yet, for example
+  today, which `history` and the dashboard work out from the lines;
+- the account came into the day's summary after the router first summarised the day.
 
 A pool in which the account did no work, such as one named only by a move that moved no session, isn't
 counted.
@@ -139,14 +140,15 @@ spent capped there after the account moves on.
 - **Fixed for good.** A day summarised again keeps the `pool` it named first, or none if it named
   none.
 - **A move on the day, or before the router first summarises it,** files the day under the new
-  pool. For example, an account moved because it's capped, or moved while the router was stopped.
+  pool. This happens, for example, if the router moved the account because it's capped, or if you
+  moved the account while the router was stopped.
 - **Older days name none.** A day first summarised by v1.0.1 or earlier has no `pool` for such an
   account. It shows in the pool the account is in now.
 - **Older releases** pass over this `pool`, and drop it if they summarise the day again. The
   `version` stays `7`.
-- **Imports** rename this `pool` the same way as the pool of a worked day. If the lines of another
-  Mac merge into a day here, its accounts that only the other Mac had keep the `pool` that Mac
-  recorded.
+- **Imports** rename this `pool` the same way as the pool of a worked day. The summary that the day
+  keeps gets the `pool` that either Mac recorded for each account without requests. If both Macs
+  recorded one for an account, the summary that the day keeps decides.
 
 ## Which accounts get a day
 

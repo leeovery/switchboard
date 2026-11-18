@@ -84,6 +84,11 @@ like any other. A folder with no export in it at all is passed over without a wo
 A summary comes in only if this Mac has none for the day, or an empty one that counts no lines,
 while the summary in the folder counts some.
 
+Either way, the summary the day keeps learns the pools of the accounts that sent no requests that
+day. If the summary in the folder names the pool of such an account, and this Mac's summary has no
+day for that account, the pool comes in. The same holds the other way round, if the summary in the
+folder is copied in.
+
 Each line is told apart from the lines of other Macs. So an import repeated, or of the folder this
 Mac exported, adds nothing.
 

@@ -1168,9 +1168,10 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   2 or 1, has its lines, the events that name their pool and its summaries given this Mac's first
   pool as `import` takes them in. So each Mac gives the days from before pools its own first pool, and a request line or
   an event alike but for its pool is one as an import merges a day, the line held standing: a
-  folder taken in before its Mac moved and again after never doubles a day. A summary is never
-  merged, copied in only where this Mac knows nothing of the day, so one under another pool never
-  adds to what's held.
+  folder taken in before its Mac moved and again after never doubles a day. A summary's counts are
+  never merged, copied in only where this Mac knows nothing of the day, so one under another pool
+  never adds to what's held; only its days of no work that name a pool are carried, into whichever
+  summary the day keeps, for the accounts it holds no day of, as below.
 
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
@@ -1198,10 +1199,6 @@ account is in now. Its limits:
   the pools its summary before named, so an account that summary holds no day of, as one whose
   readings couldn't be read then, names none; and two ids of one account merged into one keep the
   pool either day named, where neither worked.
-- **An import's merge carries the other Mac's.** A day whose lines an import merges is summarised
-  again, knowing this Mac's summary. That summary holds no day of an account only the other Mac
-  had, so the import first adds to it the other Mac's idle days that name a pool, renamed as the
-  import renames the folder (`ledger`'s `carryIdle`), and those keep their pools.
 - **A move on the day, or before the router first summarises it,** files the day under the new
   pool: as an account moved because it's capped, during the day itself, or moved while the router
   was stopped, or after midnight in the hour before the router summarises the day.
@@ -1214,6 +1211,11 @@ account is in now. Its limits:
 - **Readers name none.** A reader summarising a day as it reads it, as today's, names no pool for an
   idle day, the pool the account is in now being its pool then; it never writes the summary, so it
   never becomes a summary before a router's.
+- **An import's summary knows both Macs' pools.** Whichever summary a day keeps, an import carries
+  into it the other's days of no work that name a pool, for the accounts it holds no day of (see
+  Export and import). A day whose lines an import merges, which this Mac hasn't summarised yet,
+  carries nothing: its first summary places by this Mac's pools. A carried day's `minutes_at_cap`
+  is the other Mac's reckoning, by that Mac's reserves.
 - **Renamed as work is.** An import gives an idle day's pool another Mac's pool's id here as it
   gives a worked day's, or keeps it apart under its own id, read with `--pool` and that id alone,
   so an account removed there or moved, then imported, keeps its idle days where they were. A day
@@ -10380,15 +10382,19 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   readings alone, as it does once the readings history covers a day (see The request ledger), and
   the folder's counts some: the Mac then knows nothing of the day's requests, and the folder's
   summary knows more. One that counts none gives way to none, so an import repeated copies none
-  again. The day's lines and its summary
-  are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
-  import cut short, the look sees the day's lines as the take left them. The readings history's
-  writer isn't held off: its summarising before a prune, on its first round as the router starts,
-  which may come after the router first answers, and on its first of each day, may summarise the
-  day from the lines just taken in, between the take and the look, and the folder's summary then
-  gives way to that one, which loses no request. Else the Mac's own stands, and the round
+  again. The day's lines and its summary are taken in as one, on the ledger's writer, so whatever
+  it ran before, a round, a stop or an import cut short, the look sees the day's lines as the take
+  left them. The take holds the ledger's summarising from before the day's lines until its summary
+  is decided, as a rename of a day does. So the readings history's summarising before a prune, on
+  its first round as the router starts, which may come after the router first answers, and on its
+  first of each day, comes before the take or after the summary, never between them. The ledger's
+  own rounds run on its writer, as the take does, so never wait on it. Else the Mac's own stands, and the round
   summarises again each day whose lines changed, as its files' sizes tell it, building its digest,
-  parts, head and rows again too (see The request ledger).
+  parts, head and rows again too (see The request ledger). Either way the summary the day keeps
+  knows every pool of a day of no work either Mac recorded: the folder's days of no work that name
+  a pool are carried into the Mac's own for the accounts it holds no day of, and the Mac's into
+  the folder's where that's copied in, each day as its summary writes it, every other field kept as
+  written (`ledger`'s `carriedIdle`); of an account neither recorded one for, the day names none.
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.

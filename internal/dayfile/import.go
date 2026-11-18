@@ -15,6 +15,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -66,6 +67,15 @@ func (w *Writer[T]) Import(ctx context.Context, date, staged string) (Imported, 
 // then, and with then's error; or, where it didn't wait for that, why, as Do
 // says: ctx's error, or ErrStopped.
 func (w *Writer[T]) ImportThen(ctx context.Context, date, staged string, then func(Imported) error) (Imported, error) {
+	return w.ImportHolding(ctx, date, staged, nil, then)
+}
+
+// ImportHolding takes in the file at staged as ImportThen does, holding held,
+// where it's given, from before the take until then is done, so whatever
+// else takes held goes before both or after them. held is taken on Run's
+// goroutine, between the Writer's other work, so nothing that holds it may
+// wait on the Writer.
+func (w *Writer[T]) ImportHolding(ctx context.Context, date, staged string, held sync.Locker, then func(Imported) error) (Imported, error) {
 	day, _, ok := Day(date)
 	if !ok {
 		return Imported{}, fmt.Errorf("can't import %s: %q isn't a date", staged, date)
@@ -73,6 +83,10 @@ func (w *Writer[T]) ImportThen(ctx context.Context, date, staged string, then fu
 	var imported Imported
 	var took, did error
 	if done := w.Do(ctx, func() {
+		if held != nil {
+			held.Lock()
+			defer held.Unlock()
+		}
 		if imported, took = w.files.take(stagedDay{date: date, day: day, path: staged}, w.now(), w.keep); took == nil {
 			did = then(imported)
 		}

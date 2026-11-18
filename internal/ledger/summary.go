@@ -530,12 +530,6 @@ func (s *Summary) readBefore(w accountWindow) bool {
 	return false
 }
 
-// has reports whether the summary holds a day of the account with the given
-// id.
-func (s Summary) has(account string) bool {
-	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool { return a.Account == account })
-}
-
 // tally is a day as it's summarised: each account's, by its id, "" for the
 // requests no account answered.
 type tally map[string]*accountTally

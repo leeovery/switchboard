@@ -245,18 +245,6 @@ func (a AccountDay) idleRepooled(pool func(id string) string) (AccountDay, bool)
 	return a, a.Pool != was
 }
 
-// withIdleOf returns s with the days of no work other gives that name a pool,
-// as IdlePool reads them, of the accounts s holds no day of, in the order of
-// their ids, and reports whether it took any.
-func (s Summary) withIdleOf(other Summary) (Summary, bool) {
-	taken := slices.DeleteFunc(slices.Clone(other.Accounts), func(a AccountDay) bool { return a.IdlePool() == "" || s.has(a.Account) })
-	if len(taken) == 0 {
-		return s, false
-	}
-	s.Accounts = slices.SortedFunc(slices.Values(slices.Concat(s.Accounts, taken)), func(a, b AccountDay) int { return strings.Compare(a.Account, b.Account) })
-	return s, true
-}
-
 // IdlePool is the id of the pool the account of a day of no work was in as
 // the day was summarised, as IdlePools records it: "" of a day with work,
 // whose pools are its work's, and of one that names none, as one summarised
