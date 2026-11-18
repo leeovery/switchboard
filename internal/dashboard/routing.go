@@ -168,14 +168,14 @@ type accountRouting struct {
 
 // routingTable is ROUTING of a document at a moment: each account's, in the
 // config's order; where its rows lie across the frame; the pool's accounts',
-// where it has a pool, their states counted, and their sessions and rate
+// where it has a pool, their states counted, and their sessions and trace
 // together; and the moment.
 type routingTable struct {
 	accounts     []accountRouting
 	pool         []accountRouting
 	states       status.StateCounts
 	poolSessions int
-	poolRate     int
+	poolTrace    views.Trace
 	columns      routingColumns
 	now          time.Time
 }
@@ -183,8 +183,8 @@ type routingTable struct {
 // routingTableOf is ROUTING of doc at now, as the frame draws it: each
 // account's sessions as views.SessionsOn counts them; and its pool, who's
 // out of it, its accounts' states counted, as status.CountStates counts
-// them, and their sessions and rate, as views.PoolSessions and
-// views.Traces.PoolRate have them, at now.
+// them, and their sessions and trace, as views.PoolSessions and
+// views.Traces.Pool have them, at now.
 func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	m := f.Moment(doc, now)
 	names := namesOf(m)
@@ -205,7 +205,7 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 		}
 	}
 	t.states = status.CountStates(pooled)
-	t.poolSessions, t.poolRate = views.PoolSessions(m, running), f.Traces.PoolRate(m, now)
+	t.poolSessions, t.poolTrace = views.PoolSessions(m, running), f.Traces.Pool(m)
 	return t
 }
 
@@ -629,9 +629,8 @@ func (f Frame) besidePool(c *canvas, t routingTable, x int, rows []int) {
 		},
 		func(y int) {
 			trace := f.besideTrace(x, y)
-			pool := summed(tracesOf(t.pool), func(tr views.Trace) []float64 { return tr.Cells(trace.width, t.now) })
-			f.drawCells(c, pool, trace, false)
-			c.right(f.rateEdge(trace), y, line{rateOf(t.poolRate, false).numbered(Number{Kind: NumberRate})})
+			f.drawCells(c, t.poolTrace.Cells(trace.width, t.now), trace, false)
+			c.right(f.rateEdge(trace), y, line{rateOf(t.poolTrace.Rate(t.now), false).numbered(Number{Kind: NumberRate})})
 		})
 }
 
@@ -641,15 +640,6 @@ func drawLines(rows []int, lines ...func(y int)) {
 	for i, y := range rows {
 		lines[i](y)
 	}
-}
-
-// tracesOf are the accounts' traces, in their order.
-func tracesOf(accounts []accountRouting) []views.Trace {
-	traces := make([]views.Trace, len(accounts))
-	for i, r := range accounts {
-		traces[i] = r.trace
-	}
-	return traces
 }
 
 // besideTrace is where a trace beside a block lies along row y, from column

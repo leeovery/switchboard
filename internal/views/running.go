@@ -102,9 +102,9 @@ func RunningCounts(running []Running) map[string]int {
 }
 
 // SessionsOn is how many sessions are on the account a of a moment: as
-// running counts them, as RunningCounts does, where the router listed any,
-// running not nil; else as the moment has them, those the router sent it in
-// the last hour.
+// running counts them, as RunningCounts does, where the dashboard holds the
+// router's listing, even of none, running not nil; else as the moment has
+// them, those the router sent it in the last hour.
 func SessionsOn(a status.AccountNow, running map[string]int) int {
 	if running == nil {
 		return a.Sessions

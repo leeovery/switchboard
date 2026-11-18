@@ -164,6 +164,32 @@ func TestAccountsHelpDrawsBYDAYAndWEEKSAsDetailDoes(t *testing.T) {
 	}
 }
 
+// WEEKS' mark at a cap means a week the account hit its limit, and with
+// several accounts, of all accounts, a week some account did, as all
+// accounts' weeks mark it.
+func TestAccountsHelpSaysWhatAWeekAtItsCapMeans(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		shown AccountsShown
+		want  string
+	}{
+		{"one account", oneShown, "a week it hit its limit"},
+		{"several", threeShown, "a week it hit its limit, or of all accounts, a week some account did"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parts := Frame{Width: 160, View: Accounts, Accounts: tc.shown}.accountsHelp()
+			i := slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == "DETAIL" })
+			if i < 0 {
+				t.Fatal("help has no DETAIL")
+			}
+			glyphs := parts[i].glyphs
+			if got := glyphs[len(glyphs)-1].means; got != tc.want {
+				t.Errorf("a week at its cap means %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // BY DAY's key draws a day as many cells wide as Detail draws its days, of
 // the moment the frame holds, as the watch draws help, over a frame it never
 // builds, from Compare as from Detail: the limit's ▪ in its first cell, and a

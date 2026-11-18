@@ -24,11 +24,12 @@ var summedInViews = map[string]string{
 	"views.AccountTotals.MovedOn":  "views.AccountTotals.Moves",
 	"views.AccountTotals.MovedOff": "views.AccountTotals.Moves",
 	// The sessions on the pool's accounts, each counted as SessionsOn
-	// counts it.
-	"views.SessionsOn":           "views.PoolSessions",
-	"status.AccountNow.Sessions": "views.PoolSessions",
-	// The pool's requests of the last minute, its accounts' together.
-	"views.Trace.Rate": "views.Traces.PoolRate",
+	// counts it, and as ROUTING holds each account's.
+	"views.SessionsOn":                  "views.PoolSessions",
+	"status.AccountNow.Sessions":        "views.PoolSessions",
+	"dashboard.accountRouting.sessions": "views.PoolSessions",
+	// The pool's requests, its accounts' together.
+	"views.Trace.Rate": "views.Traces.Pool",
 }
 
 // summedSays says how adding up what's summed breaks the rule, and its owner.
@@ -45,13 +46,16 @@ func TestDrawingAddsUpNothingViewsSums(t *testing.T) {
 func TestTheSumsGuardFindsWhatItGuardsAgainst(t *testing.T) {
 	root := sourcecheck.WriteModule(t, sumsFixture)
 	got := sumsBreaches(t, root, "example.com/fixture", []string{"internal/dashboard"}, map[string]string{
-		"views.Totals.MovedOn": "views.Totals.Moves", "views.Trace.Rate": "views.PoolRate",
+		"views.Totals.MovedOn": "views.Totals.Moves", "views.Trace.Rate": "views.PoolRate", "dashboard.routed.sessions": "views.PoolSessions",
 	})
 	want := []string{
-		"internal/dashboard/dashboard.go:11: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
-		"internal/dashboard/dashboard.go:15: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
-		"internal/dashboard/dashboard.go:21: " + summedSays("views.Trace.Rate", "views.PoolRate"),
-		"internal/dashboard/dashboard.go:26: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
+		"internal/dashboard/dashboard.go:13: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
+		"internal/dashboard/dashboard.go:17: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
+		"internal/dashboard/dashboard.go:23: " + summedSays("views.Trace.Rate", "views.PoolRate"),
+		"internal/dashboard/dashboard.go:28: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
+		"internal/dashboard/dashboard.go:30: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
+		"internal/dashboard/dashboard.go:32: " + summedSays("views.Trace.Rate", "views.PoolRate"),
+		"internal/dashboard/dashboard.go:37: " + summedSays("dashboard.routed.sessions", "views.PoolSessions"),
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -90,11 +94,14 @@ func sumsBreaches(t *testing.T, root, module string, dirs []string, summed map[s
 	return sourcecheck.Check(t, root, module, rule, dirs, sourcecheck.Allowance{})
 }
 
-// summedNamed names what the operand e is, as Names names it: the field it
-// reads, by the type declaring it, or the function it calls; "" where it's
-// neither.
+// summedNamed names what the operand e is, as Names names it, through any
+// conversion: the field it reads, by the type declaring it, or the function
+// it calls; "" where it's neither.
 func summedNamed(e ast.Expr, info *types.Info, names sourcecheck.Names) string {
 	if call, ok := ast.Unparen(e).(*ast.CallExpr); ok {
+		if info.Types[call.Fun].IsType() && len(call.Args) == 1 {
+			return summedNamed(call.Args[0], info, names)
+		}
 		e = call.Fun
 	}
 	switch e := ast.Unparen(e).(type) {
@@ -134,9 +141,10 @@ func fieldDeclared(sel *types.Selection, names sourcecheck.Names) string {
 
 // sumsFixture is a module whose views sums moves and rates, and a dashboard
 // that adds them up itself each way the guard finds: a field with +, a
-// field promoted through an embedding struct with +=, a method's call, and
-// one operand of three; beside what keeps the rule: the sum views gives, a
-// width worked out of a field, and a field of its own of the name.
+// field promoted through an embedding struct with +=, a method's call, one
+// operand of three, a field and a call converted, and a field of the
+// dashboard's own the guard names; beside what keeps the rule: the sum views
+// gives, a width worked out of a field, and a field of its own of the name.
 var sumsFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/views/views.go": `package views
@@ -161,6 +169,8 @@ import (
 
 type row struct{ views.Totals }
 
+type routed struct{ sessions int }
+
 func moves(t views.Totals) int { return t.MovedOn + t.MovedOff }
 
 func promoted(r row) int {
@@ -177,6 +187,18 @@ func rate(traces []views.Trace) (n int) {
 }
 
 func three(t views.Totals) int { return 1 + 2 + (t.MovedOn) }
+
+func converted(t views.Totals) int { return 1 + int(t.MovedOn) }
+
+func rated(tr views.Trace) float64 { return 1 + float64(tr.Rate()) }
+
+func sessions(routing []routed) int {
+	n := 0
+	for _, r := range routing {
+		n += r.sessions
+	}
+	return n
+}
 
 func kept(t views.Totals, traces []views.Trace) int {
 	type own struct{ MovedOn int }

@@ -142,7 +142,7 @@ const (
 // moves".
 func movedText(t views.AccountTotals) string {
 	if t.All {
-		return prose.CountedOr(t.MovedOn, "move", none)
+		return prose.CountedOr(t.Moves(), "move", none)
 	}
 	var moved []string
 	if t.MovedOn > 0 {

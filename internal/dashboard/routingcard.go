@@ -297,14 +297,18 @@ type RoutingWindow struct {
 // RoutingRows are the routing card's rows of the moment m, with the sessions
 // the router listed, as the request stream s has moved and seen them since:
 // auto's, then an account's each, in the document's order, each with its
-// state, as closedBy says, its windows' use, and its sessions running, as
-// views.RunningCountsOf counts SESSIONS' rows for ROUTING too.
+// state, as closedBy says, its windows' use, and its sessions, as
+// views.SessionsOn counts them for ROUTING too: SESSIONS' rows, as
+// views.RunningCountsOf counts them, where the router listed any.
 func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
 	rows := []RoutingRow{{Name: "auto", Open: true, Pickable: true}}
-	running := views.RunningCountsOf(m, sessions, s)
+	var running map[string]int
+	if sessions != nil {
+		running = views.RunningCountsOf(m, sessions, s)
+	}
 	shared := m.SharedWindows()
 	for _, a := range m.Accounts {
-		row := RoutingRow{Account: a.ID, Name: name(a), Pickable: pickable(a), Running: running[a.ID]}
+		row := RoutingRow{Account: a.ID, Name: name(a), Pickable: pickable(a), Running: views.SessionsOn(a, running)}
 		for j, key := range shared[:min(len(shared), len(row.Windows))] {
 			w, _ := a.Window(key)
 			row.Windows[j] = RoutingWindow{Key: key, Name: status.InProse(status.NameOfKey(key)), Figure: figureOf(w)}

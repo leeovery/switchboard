@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -127,6 +129,23 @@ func TestTheReachAt12WeeksAnd12MonthsIsTheirWeeks(t *testing.T) {
 	}
 	if got, want := peaksRead(months.Rows[1].Reached), "37 34 39 36 33 40 37 35 39 37 41 38 78…"; got != want {
 		t.Errorf("side's months are %s, want each its last week, its fullest, %s", got, want)
+	}
+}
+
+// At 12 months a month is at its cap where any of its weeks is, though
+// another is its fullest: September's weeks are work at its limit, side and
+// personal at 40%, then all three at 80%, 75% and 75%, its fullest.
+func TestAMonthAt12MonthsIsAtItsCapWhereAnyOfItsWeeksIs(t *testing.T) {
+	days := peaking(map[string][]float64{"work": {1, 0.8}, "side": {0.4, 0.75}, "personal": {0.4, 0.75}})
+	in := input(days)
+	in.Accounts = config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "personal"}}
+	page := views.NewPast(in, days).Accounts(views.PeriodTwelveMonths)
+	september := slices.IndexFunc(page.Reach, func(b views.Bucket) bool { return b.Start.Format(time.DateOnly) == "2026-09-01" })
+	if september < 0 {
+		t.Fatalf("the reach %v has no September", page.Reach)
+	}
+	if got := page.All.Reached[september]; got.Share == nil || prose.Percent(*got.Share) != "77%" || !got.AtCap {
+		t.Errorf("every account's September is %+v, want its fullest week, 77%%, at its cap", got)
 	}
 }
 

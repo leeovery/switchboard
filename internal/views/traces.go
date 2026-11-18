@@ -226,16 +226,18 @@ func (t Trace) Rate(now time.Time) int {
 	return t.perMinute(now)
 }
 
-// PoolRate is the requests of the last minute to now of the pool's accounts
-// of the moment m, each as its trace's Rate has them, together.
-func (t Traces) PoolRate(m status.Moment, now time.Time) int {
-	n := 0
+// Pool is the trace of the pool's accounts of the moment m: their requests
+// together, in the order they were sent, so its cells and its rate are
+// theirs added up.
+func (t Traces) Pool(m status.Moment) Trace {
+	var sent []time.Time
 	for _, a := range m.Accounts {
 		if a.InPool {
-			n += t.Accounts[a.ID].Rate(now)
+			sent = append(sent, t.Accounts[a.ID].Sent...)
 		}
 	}
-	return n
+	slices.SortFunc(sent, time.Time.Compare)
+	return Trace{Sent: sent}
 }
 
 // perMinute is how many of the trace's requests were sent in the minute to

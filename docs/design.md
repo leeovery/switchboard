@@ -4676,7 +4676,7 @@ remembered").
   state's colour (`open` in `text.secondary`, `pressure` and `at cap` in `accent.attention`, `limit`
   and `refused` in `state.destructive`) with ` · ` in `text.faint`; its accounts' sessions summed,
   `6 sessions`, as `views.PoolSessions` sums them; and their requests a minute summed, as a trace
-  and a rate, `16/min`, the rate as `views.Traces.PoolRate` sums it.
+  and a rate, `16/min`, both of the pool's trace, `views.Traces.Pool`, their requests together.
 - **The key line** follows the last block, from the name column.
 - **Under 150 columns,** USAGE draws as `usage --by account` does at that width, but its names
   from the page's column (see The page), and ROUTING stays a section of its own under it
@@ -5012,15 +5012,14 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
     `sessions moved` says how many moves, the in and out summed, `21`, and for `all accounts` its
     moves, `5`, as `views.AccountTotals.Moves` counts them, in the column's ink, as `all accounts`
     says its count of limits, wide or turned, where the full doesn't fit a cell short of the next
-    column. `limits hit` names its windows short,
-    `week ×1 · 5h ×2`, then says how many, `3`, in the column's ink, as `all accounts` says its
-    count; turned Compare's `hit` takes the same forms but the full, the fullest its column holds,
-    so three windows read `4` there. `left at its last reset` drops the day, `0%`; `plan` drops the
-    plan's name, `$200/mo`, and for `all accounts` its plans, to `$400/mo · 2/3` where some aren't
-    known, then `$400/mo`; `extra usage` drops what it means, `on`, and for `all accounts`
-    `on all`, `off`; `against its price` drops its price, `4.0×`, and for `all accounts` where
-    some plans aren't known, every form keeps how many are, its words shorter, then `4.4× · 2/3`,
-    as its ratio is of those alone. The rest have one form.
+    column. `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, in the
+    column's ink, as `all accounts` says its count; turned Compare's `hit` takes the same forms but
+    the full, the fullest its column holds, so three windows read `4` there. `left at its last
+    reset` drops the day, `0%`; `plan` drops the plan's name, `$200/mo`, and for `all accounts` its
+    plans, to `$400/mo · 2/3` where some aren't known, then `$400/mo`; `extra usage` drops what it
+    means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
+    `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are, its
+    words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
@@ -5189,10 +5188,13 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   follows the layout alone.
 - **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
   and as its table in the stack, or in the wide form where not a week of bands fits across.
-  `all accounts`' peak of a week is at its cap where any account's peak is, a week short as the
-  capacity verdict has one, so its marks agree with its `short on 3 of 14`: the owner's call,
-  18 November 2026, as the old rule, marking a week where every account's was, left the two
-  disagreeing. `views.WeekPeak.AtCap` holds it.
+  `all accounts`' peak of a week is at its cap where any account's peak is, and at 12 months a
+  month's where any of its weeks' is. So its marks agree with its `short on 3 of 14`, the weeks the
+  capacity verdict counts short, in all but two kinds of week. This week, and any week not whole,
+  is marked but never counted. A whole week where one account reached its cap while another's
+  peak isn't known is marked too, though the verdict can't judge it. This was the owner's call,
+  18 November 2026, because the old rule, marking a week where every account's peak was at its
+  cap, left the marks and the count disagreeing. `views.WeekPeak.AtCap` holds it.
   - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
     account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
     WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest

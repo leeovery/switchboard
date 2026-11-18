@@ -453,15 +453,6 @@ func TestAPinnedScaleStandsAndADirectDrawIsPaintedAtTheLeast(t *testing.T) {
 	}
 }
 
-func TestTracesSumColumnByColumn(t *testing.T) {
-	columns := map[int][]float64{1: {1, 2, 3}, 2: {4, 5}, 3: nil}
-	columnsOf := func(t views.Trace) []float64 { return columns[len(t.Sent)] }
-	traces := []views.Trace{{Sent: make([]time.Time, 1)}, {Sent: make([]time.Time, 2)}, {Sent: make([]time.Time, 3)}}
-	if got, want := summed(traces, columnsOf), []float64{5, 7, 3}; !slices.Equal(got, want) {
-		t.Errorf("summed %v, want %v", got, want)
-	}
-}
-
 // accountRows are the rows of ROUTING's body the account i of a takes, as
 // drawRouting lays them out: its one row, or its two.
 func (rc routingColumns) accountRows(i, a int, body bounds) []int {

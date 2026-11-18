@@ -545,9 +545,9 @@ func TestThePoolsSessionsAreItsAccountsCountedAsEachIs(t *testing.T) {
 		work    int
 		pool    int
 	}{
-		{name: "the router listed none", work: 2, pool: 5},
+		{name: "no listing held", work: 2, pool: 5},
 		{name: "the router listed some", running: map[string]int{"work": 1, "spare": 6}, work: 1, pool: 1},
-		{name: "the router listed none running", running: map[string]int{}, work: 0, pool: 0},
+		{name: "the router listed none", running: map[string]int{}, work: 0, pool: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

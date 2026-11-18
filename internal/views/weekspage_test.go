@@ -90,7 +90,8 @@ func peaksAtCap(row views.WeeksRow) []bool {
 
 // A week's peak is marked at its cap where it hit its limit as Weeks counts
 // one: work keeps 5% back, so its cap is 95%; side keeps none, so its 99.6%,
-// said 100%, is short of its limit.
+// said 100%, is short of its limit. Every account's first week is at its cap
+// through work's alone.
 func TestWeeksPageMarksEachPeakAtItsAccountsCap(t *testing.T) {
 	days := peaking(map[string][]float64{"work": {0.96, 0.94, 1}, "side": {0.996, 1, 1}})
 	page := weeksPageOf(days, config.Accounts{{ID: "work", Reserve: 0.05}, {ID: "side"}})
@@ -101,6 +102,7 @@ func TestWeeksPageMarksEachPeakAtItsAccountsCap(t *testing.T) {
 	}{
 		{name: "work", row: page.Accounts[0], want: []bool{true, false, true}},
 		{name: "side", row: page.Accounts[1], want: []bool{false, true, true}},
+		{name: "all accounts", row: page.All, want: []bool{true, true, true}},
 	}
 	for _, tt := range tests {
 		if got := peaksAtCap(tt.row); !slices.Equal(got, tt.want) {

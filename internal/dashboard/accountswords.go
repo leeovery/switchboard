@@ -90,10 +90,10 @@ func boldAs(given, k ink) ink {
 // out"; of every account's, every move, "4 moves"; a dash where none moved.
 func movedParts(t views.AccountTotals, k ink) []part {
 	if t.All {
-		if t.MovedOn == 0 {
+		if t.Moves() == 0 {
 			return noneOf(noFigure.text, k)
 		}
-		return countedParts(t.MovedOn, "move", k)
+		return countedParts(t.Moves(), "move", k)
 	}
 	var moved []part
 	for _, way := range []struct {

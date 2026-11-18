@@ -90,6 +90,7 @@ func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 // the weeks given, by their first days, peaks holding each week's: of the
 // weeks that begin in it, the one whose peak is known and highest, the
 // first of any that tie; unknown in a month none of whose weeks' is known.
+// A month is at its cap where any of its weeks is, its fullest or not.
 func fullestIn(months, weeks []Bucket, peaks []WeekPeak) []WeekPeak {
 	fullest := make([]WeekPeak, len(months))
 	m := 0
@@ -97,9 +98,11 @@ func fullestIn(months, weeks []Bucket, peaks []WeekPeak) []WeekPeak {
 		for m+1 < len(months) && !w.Start.Before(months[m+1].Start) {
 			m++
 		}
-		if p := peaks[i]; p.Share != nil && (fullest[m].Share == nil || *p.Share > *fullest[m].Share) {
+		p, atCap := peaks[i], fullest[m].AtCap || peaks[i].AtCap
+		if p.Share != nil && (fullest[m].Share == nil || *p.Share > *fullest[m].Share) {
 			fullest[m] = p
 		}
+		fullest[m].AtCap = atCap
 	}
 	return fullest
 }
