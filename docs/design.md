@@ -1621,8 +1621,9 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
     own login;
   - no data is harmed: nothing but what's derived is written again.
 
-Pausing an account whose subscription is cancelled is a separate idea, after pools
-([pausing-accounts](../ideas/2026-11-11--pausing-accounts.md)).
+There's no verb to pause an account, the owner's call on 18 November 2026: the router holds an
+account whose subscription has ended out of routing, its pool's room and the forecast until a read
+of it comes back clean (#351), so a cancelled subscription needs nothing more.
 
 ### Building it
 
@@ -1665,8 +1666,8 @@ In two phases, after v1 and Account identity, both built:
    allocated, against 0.8 to 1 s and some 770 MB; and the first pass building that world's every
    digest again costs some 0.33 s of CPU a day, against 0.30, its digests 15% larger and its parts
    files 4% (13 November 2026, race detector off, the fastest of three rounds each on a busy Mac).
-   The dashboard's `--pool` for a pool the config no longer has stays an idea
-   ([dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md)).
+   The dashboard's `--pool` takes only a pool the config has: the verbs read a removed pool's
+   work.
 
 ## Reserves
 
@@ -12787,21 +12788,12 @@ was dropped binds a later choice, the design proper says so.
 | Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
-| Mockups drawn in Go: a design's mockups drawn from the dashboard's own components, or `capturetool`'s screens, rather than from a second model of the dashboard | open: an idea for another time | [mockups-drawn-in-go](../ideas/2026-10-11--mockups-drawn-in-go.md) |
-| Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
-| A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
-| Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from Accounts' Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
-| Trends' MODELS BY DAY in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |
-| TOON for the data verbs' long tables, beside their JSON | later, after milestone 7 | [toon-tables](../ideas/2026-10-08--toon-tables.md) |
-| A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | One owner of switchboard's file locks, the four packages that each take a `flock` their own way | open: a refactor, any time | [one-file-lock](../ideas/2026-11-04--one-file-lock.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
-| Pausing an account whose subscription is cancelled: kept whole and out of the probes and the forecast until it's resumed, routing's side answered in part by #351's hold | the owner, 11 November 2026; the verbs, the mark and the paused primary's rule remain | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
-| The dashboard's `--pool` for a pool the config no longer has, its recorded work read by its id, as the verbs read it | later: found with Pools' second phase, 13 November 2026 | [dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md) |
 | A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
