@@ -71,22 +71,23 @@ func TestAnAccountsDayOfNoWorkNamesThePoolItWasInAsTheDayWasSummarised(t *testin
 }
 
 // A day of no work keeps the pool it was first summarised in, however it's
-// summarised again: as a line comes to be filed under it, or as a new
-// summary version summarises every kept day again; by the router, its
-// account moved or removed since, or by a reader as it reads it.
+// summarised again: as a line comes to be filed under it, or as a summary of
+// a version before pools, as a downgrade leaves one, is split as its lines
+// are; by the router, its account moved or removed since, or by a reader as
+// it reads it.
 func TestADayOfNoWorkKeepsThePoolItWasFirstSummarisedIn(t *testing.T) {
 	tests := []struct {
 		name   string
 		poolOf func(string) (string, bool)
 		by     string
-		// older has the day summarised again as one of an older version, as
-		// a new version finds it, else as a line is filed under it.
-		older bool
+		// beforePools has the day summarised again as one of a version
+		// before pools, else as a line is filed under it.
+		beforePools bool
 	}{
 		{name: "a line filed since, its account moved to another pool", poolOf: placedIn(first), by: "the router"},
 		{name: "a line filed since, its account removed", poolOf: placedNowhere, by: "the router"},
 		{name: "a line filed since, by a reader", by: "a reader"},
-		{name: "of an older version, its account moved to another pool", poolOf: placedIn(first), by: "the router", older: true},
+		{name: "of a version before pools, its account moved to another pool", poolOf: placedIn(first), by: "the router", beforePools: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -95,7 +96,7 @@ func TestADayOfNoWorkKeepsThePoolItWasFirstSummarisedIn(t *testing.T) {
 				t.Fatalf("personal's day of no work is %+v, summarised first, want it in %q", before, acme)
 			}
 			requests := 1
-			if tt.older {
+			if tt.beforePools {
 				written := strings.Replace(heldSummary(t, dir, date), `{"version":7,`, `{"version":6,`, 1)
 				writeFile(t, dir, "day-"+date+".json", []byte(written))
 			} else {
@@ -131,6 +132,23 @@ func TestADayOfNoWorkSummarisedBeforeNamesNoPoolAndKeepsNone(t *testing.T) {
 	holdLines(t, dir, date, inPool(asked("2", on(0, 22, 0)), acme))
 	if personal := accountOf(summarisedBy(t, dir, history, on(3, 10, 0), placedIn(acme)), "personal"); personal.Pool != "" {
 		t.Errorf("personal's day of no work, summarised again, is %+v, want it in none still", personal)
+	}
+}
+
+// A day summarised before idle days named their pools, whose summary holds
+// no day of an account, places none as it's summarised again: the account,
+// read since, as its readings were for now unread, names no pool.
+func TestADaySummarisedBeforeGivesAnAccountItLacksNoPool(t *testing.T) {
+	_, dir, history := stateDirs(t)
+	holdLines(t, dir, date, inPool(asked("1", on(0, 9, 0)), acme))
+	if _, held := find(summarisedBy(t, dir, history, on(1, 10, 0), nil), "personal"); held {
+		t.Fatal("the day's summary holds a day of personal, want none, as nothing read it")
+	}
+	holdReadings(t, history, date, personalRead(on(0, 9, 30), "5h", 0.95, on(0, 13, 0)))
+	holdLines(t, dir, date, inPool(asked("2", on(0, 22, 0)), acme))
+	personal, held := find(summarisedBy(t, dir, history, on(3, 10, 0), placedIn(acme)), "personal")
+	if !held || personal.Pool != "" {
+		t.Errorf("personal's day of no work, summarised again, is %+v (held %v), want it held, in no pool", personal, held)
 	}
 }
 

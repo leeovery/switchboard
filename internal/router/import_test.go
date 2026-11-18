@@ -874,6 +874,54 @@ func TestAnotherMacsDayOfNoWorkIsTakenInNamingThePoolsTheImportGivesIt(t *testin
 	}
 }
 
+// A day this Mac summarised, another Mac's lines merged into it, is
+// summarised again keeping the pools its days of no work named: side's, the
+// pool it was in as this Mac first summarised the day, though it has moved
+// since; and x9x9's, an account only the other Mac had, the pool that Mac's
+// summary named, as the import renamed it.
+func TestADayMergedByAnImportKeepsThePoolsItsDaysOfNoWorkNamed(t *testing.T) {
+	const firstHere, firstThere, client, left = "q7mt", "b2n8", "c1nt", "l3ft"
+	cfg, staged := takingOver(t, firstHere, firstThere, client)
+	cfg.Accounts = append(cfg.Accounts, config.Account{ID: "side", Label: "Side", Pool: firstHere})
+	date := dateOf(10)
+	model := `"model":"` + opus + `"`
+	readingOf := func(account string) string {
+		return strings.Replace(readingLine(1, date), `"account":"work"`, `"account":"`+account+`"`, 1)
+	}
+	idleDay := `{"account":%q,"pool":%q,"sessions":0,"moved_on":0,"moved_off":0,"highest":{"5h":0.1}}`
+	summaryOf := func(pool string, idle ...string) string {
+		work := `{"account":"work","pool":"` + pool + `","models":[{"model":"` + opus + `","upstream":1,"sessions":1}],"sessions":1}`
+		return `{"version":7,"day":"` + date + `","lines":1,"accounts":[` + strings.Join(append(idle, work), ",") + `]}` + "\n"
+	}
+	put(t, requestLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, pooledAfter(requestLine(1, date), model, firstHere)), now)
+	put(t, readingLines.files(cfg.StateDir).CompressedPath(date), gzipOf(t, readingOf("side")), now)
+	put(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date), []byte(summaryOf(firstHere, fmt.Sprintf(idleDay, "side", left))), now)
+	stageLines(t, staged, requestLines, date, pooledAfter(requestLine(2, date), model, firstThere))
+	stageLines(t, staged, readingLines, date, readingOf("x9x9"))
+	put(t, ledger.SummaryFile(ledger.Dir(staged), date), []byte(summaryOf(firstThere, fmt.Sprintf(idleDay, "x9x9", client))), stamped(stagedOn))
+
+	if got := importNow(t, cfg); got.Days.Merged != 1 {
+		t.Fatalf("Import() = %+v, want the day merged", got)
+	}
+	var summary ledger.Summary
+	if err := json.Unmarshal([]byte(stateOf(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)).data), &summary); err != nil {
+		t.Fatal(err)
+	}
+	pools, upstream := make(map[string]string), 0
+	for _, a := range summary.Accounts {
+		pools[a.Account] = a.IdlePool()
+		for _, m := range a.Models {
+			upstream += m.Upstream
+		}
+	}
+	if upstream != 2 {
+		t.Fatalf("once imported, the day's summary is %+v, want it summarised again, of both Macs' requests", summary)
+	}
+	if want := map[string]string{"side": left, "work": "", "x9x9": client}; !maps.Equal(pools, want) {
+		t.Errorf("once imported, the day's accounts' days of no work name the pools %v, want %v", pools, want)
+	}
+}
+
 func TestAnImportBesideRoutedRequestsLosesNoLine(t *testing.T) {
 	up := newUpstream(t, answerWith(http.StatusOK, session, week))
 	cfg := importConfig(t)

@@ -1192,13 +1192,19 @@ account, as once it's removed, or before pools. A pool's read shows such a day b
 `views.PoolRead`, by the pool the day names, as `keeps` has it of a request's, or by the pool the
 account is in now. Its limits:
 
-- **Fixed when first summarised.** An account's idle day takes its pool the first time its day is
-  summarised, and keeps it for good: a day summarised again, as a line comes to be filed under it
-  or a new summary version summarises every kept day again, keeps the pool its summary before
-  named, or none where it named none; and two ids of one account merged into one keep the pool
-  either day named, where neither worked.
-- **A move before the day is summarised.** The router summarises a day an hour after it ends, so an
-  account moved after midnight but before then has its idle day filed under its new pool.
+- **Fixed when first summarised.** An account's idle day takes its pool only the first time its
+  day is summarised, and keeps it for good: a day summarised again, as a line comes to be filed
+  under it or a new summary version summarises every kept day again, places no account, keeping
+  the pools its summary before named, so an account that summary holds no day of, as one whose
+  readings couldn't be read then, names none; and two ids of one account merged into one keep the
+  pool either day named, where neither worked.
+- **An import's merge carries the other Mac's.** A day whose lines an import merges is summarised
+  again, knowing this Mac's summary. That summary holds no day of an account only the other Mac
+  had, so the import first adds to it the other Mac's idle days that name a pool, renamed as the
+  import renames the folder (`ledger`'s `carryIdle`), and those keep their pools.
+- **A move on the day, or before the router first summarises it,** files the day under the new
+  pool: as an account moved because it's capped, during the day itself, or moved while the router
+  was stopped, or after midnight in the hour before the router summarises the day.
 - **No backfill, no version.** The days summarised before it name none, and keep none, so they go
   by the pool the account is in now. No summary version marks it, as a version would summarise every
   kept day again.
@@ -1212,7 +1218,10 @@ account is in now. Its limits:
   gives a worked day's, or keeps it apart under its own id, read with `--pool` and that id alone,
   so an account removed there or moved, then imported, keeps its idle days where they were. A day
   from before pools, its work in none given the first pool, gives an idle day naming none no pool,
-  as which pool its account was in was never recorded.
+  as which pool its account was in was never recorded. An older release importing a folder this
+  one exported leaves its idle days' pools as the other Mac named them, unrenamed.
+- **A summary that doesn't read** as its day's, summarised again from its day's lines, as a
+  summary first made, places its idle accounts afresh, in the pools they're in then.
 
 So an account moved out keeps its work in the pool it left, and the days it spent there idle, and
 is named there by its label, as a removed account is shown, with where it is now in place of when

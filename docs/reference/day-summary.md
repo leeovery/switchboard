@@ -35,7 +35,7 @@ account read, has no `accounts`.
 | Field | Type | Meaning |
 |---|---|---|
 | `account` | string | The account, by id only. Left out of the requests no account answered. |
-| `pool` | string | The pool all the account's work was in that day. If the account sent no requests, the pool it was in when the day was summarised. |
+| `pool` | string | The pool all the account's work was in that day. If the account sent no requests, the pool it was in when the day was first summarised. |
 | `models` | list of objects | The requests of the account, by the model each asked for. |
 | `sessions` | number | How many sessions the requests were of. |
 | `session_ids` | list of strings | The ids of those sessions. |
@@ -47,9 +47,10 @@ account read, has no `accounts`.
 
 - the requests named no pool;
 - the requests were in more than one pool;
-- the account sent no requests, and no pool held it when the day was summarised;
-- the account sent no requests, and the day was summarised by v1.0.1 or earlier;
-- the account sent no requests, and the day is today's, as `history` and the dashboard work it out.
+- the account sent no requests, and no pool held it when the day was first summarised;
+- the account sent no requests, and the day was first summarised by v1.0.1 or earlier;
+- the account sent no requests, and `history` or the dashboard works the day out from its lines,
+  for example today, or yesterday before the router summarises it.
 
 A pool in which the account did no work, such as one named only by a move that moved no session, isn't
 counted.
@@ -116,7 +117,7 @@ filed without a pool since, for example by an older release after a downgrade. T
 the one the [accounts record](accounts-record.md) marks `first`, if the config has it. If not, it's
 the first pool in the config.
 
-## The pool of an account with no requests
+## Accounts without requests keep a pool
 
 ```bash
 jq '.accounts[] | {account, pool, minutes_at_cap}' day-2026-11-12.json
@@ -137,13 +138,15 @@ spent capped there after the account moves on.
 
 - **Fixed for good.** A day summarised again keeps the `pool` it named first, or none if it named
   none.
-- **A move just after midnight** files the day under the new pool. The router summarises a day an
-  hour after it ends.
-- **Older days name none.** A day summarised by v1.0.1 or earlier has no `pool` for such an
+- **A move on the day, or before the router first summarises it,** files the day under the new
+  pool. For example, an account moved because it's capped, or moved while the router was stopped.
+- **Older days name none.** A day first summarised by v1.0.1 or earlier has no `pool` for such an
   account. It shows in the pool the account is in now.
 - **Older releases** pass over this `pool`, and drop it if they summarise the day again. The
   `version` stays `7`.
-- **Imports** rename this `pool` the same way as the pool of a worked day.
+- **Imports** rename this `pool` the same way as the pool of a worked day. If the lines of another
+  Mac merge into a day here, its accounts that only the other Mac had keep the `pool` that Mac
+  recorded.
 
 ## Which accounts get a day
 

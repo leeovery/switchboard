@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -107,9 +108,14 @@ func (l *Ledger) copySummary(day StagedDay, took dayfile.Imported) (bool, error)
 // it, its lines taken in as took says, where the ledger holds no line of the
 // day, as holdsNoLine says, and its summary gives way to the one staged, as
 // stagedSummary reads it, as givesWay says: what the ledger knows of the
-// day's requests is then nothing, and the summary staged knows more. It
-// reports whether it copied it.
+// day's requests is then nothing, and the summary staged knows more. Where
+// the day's lines were merged, it carries the summary staged's days of no
+// work into the ledger's instead, as carryIdle says. It reports whether it
+// copied it.
 func (d days) copyOver(day StagedDay, took dayfile.Imported) (bool, error) {
+	if took.Taken == dayfile.Merged {
+		return false, d.carryIdle(day)
+	}
 	if none, err := d.holdsNoLine(day.Date, took); err != nil || !none {
 		return false, err
 	}
@@ -121,6 +127,41 @@ func (d days) copyOver(day StagedDay, took dayfile.Imported) (bool, error) {
 		return false, err
 	}
 	return true, d.writeStaged(day.Date, staged)
+}
+
+// carryIdle writes the ledger's summary of the day staged, where it holds
+// one that reads as the day's, with the summary staged's days of no work
+// that name a pool, as the import renamed it, of the accounts it holds no
+// day of, as withIdleOf takes them, as the other Mac alone had them. Its
+// lines merged, the day is summarised again, knowing the summary before,
+// whose pools are fixed, as IdlePools says: without them, those accounts'
+// days of no work would name none. It's marked as stampMarked marks a
+// summary renamed, so the round still counts the lines merged.
+func (d days) carryIdle(day StagedDay) error {
+	held, err := d.held(day.Date)
+	switch {
+	case errors.Is(err, fs.ErrNotExist), errors.Is(err, errNotTheDaysSummary):
+		return nil
+	case err != nil:
+		return err
+	}
+	staged, ok, err := d.stagedSummary(day)
+	if err != nil || !ok {
+		return err
+	}
+	carried, took := held.withIdleOf(staged.Summary)
+	if !took {
+		return nil
+	}
+	data, err := json.Marshal(carried)
+	if err != nil {
+		return err
+	}
+	if err := atomicfile.Write(SummaryFile(d.files.Dir, day.Date), append(data, '\n'), 0o600); err != nil {
+		return err
+	}
+	d.stampMarked(day.Date, data)
+	return nil
 }
 
 // holdsNoLine reports whether the ledger holds no line of the local day with
