@@ -278,17 +278,63 @@ func TestTruncateBytesFront(t *testing.T) {
 
 func TestClean(t *testing.T) {
 	tests := []struct {
+		name string
 		text string
 		want string
 	}{
-		{text: "Work", want: "Work"},
-		{text: "  Work \t team\n", want: "Work team"},
-		{text: "Work\x1b[31m team\a", want: "Work [31m team"},
-		{text: "\x1b]0;a title\a", want: "]0;a title"},
+		{name: "plain text as it is", text: "Work", want: "Work"},
+		{name: "spaces run together and trimmed", text: "  Work \t team\n", want: "Work team"},
+		{name: "two spaces together run into one", text: "Work  team", want: "Work team"},
+		{name: "a space at the end trimmed", text: "Work ", want: "Work"},
+		{name: "a delete as a space", text: "Work\x7fteam", want: "Work team"},
+		{name: "nothing as nothing", text: "", want: ""},
+		{name: "a space alone as nothing", text: " ", want: ""},
+		{name: "control characters as spaces", text: "Work\x1b[31m team\a", want: "Work [31m team"},
+		{name: "a title's escape as spaces", text: "\x1b]0;a title\a", want: "]0;a title"},
+		{name: "text beyond ASCII as it is", text: "Café résumé", want: "Café résumé"},
+		{name: "a right-to-left override dropped", text: "\u202ekrow and the rest", want: "krow and the rest"},
+		{name: "an embedding and its pop dropped", text: "\u202aWork\u202c team", want: "Work team"},
+		{name: "isolates dropped", text: "a\u2067b\u2069 c\u2066d\u2068e", want: "ab cde"},
+		{name: "a zero-width space dropped", text: "Day\u200b job", want: "Day job"},
+		{name: "a character drawn as nothing alone between words dropped", text: "Day \u200b job", want: "Day job"},
+		{name: "a joiner standing alone dropped", text: "Day \u200d job", want: "Day job"},
+		{name: "a soft hyphen dropped", text: "co\u00adop", want: "coop"},
+		{name: "Hangul fillers dropped", text: "W\u3164o\u115fr\u1160k", want: "Work"},
+		{name: "a lone tag dropped", text: "work\U000e0067", want: "work"},
+		{name: "a fake flag's tags dropped", text: "Side \U0001f3f4\U000e0068\U000e0069\U000e0064\U000e0065\U000e007f", want: "Side \U0001f3f4"},
+		{name: "a variation selector after a Latin letter dropped", text: "Wor\ufe00k", want: "Work"},
+		{name: "an emoji sequence's joiners kept", text: "Team \U0001f468\u200d\U0001f469\u200d\U0001f467", want: "Team \U0001f468\u200d\U0001f469\u200d\U0001f467"},
+		{name: "a variation selector after a symbol kept", text: "Home \u2764\ufe0f", want: "Home \u2764\ufe0f"},
+		{name: "a keycap kept", text: "1\ufe0f\u20e3 first", want: "1\ufe0f\u20e3 first"},
+		{name: "a subdivision's flag kept", text: "Work " + england, want: "Work " + england},
+		{name: "a joining script's joiner kept", text: "\u0915\u094d\u200d\u0937", want: "\u0915\u094d\u200d\u0937"},
+		{name: "a direction mark kept, as a label keeps one", text: "a\u200fb", want: "a\u200fb"},
+		{name: "an Arabic number sign kept, as it draws", text: "\u0600123", want: "\u0600123"},
+		{name: "a private-use glyph kept", text: "\ue0a0 main", want: "\ue0a0 main"},
+		{name: "a joiner judged by what's kept, the space dropped before it passed over", text: "\U0001f600\u200b\u200d\U0001f600", want: "\U0001f600\u200d\U0001f600"},
 	}
 	for _, tt := range tests {
-		if got := prose.Clean(tt.text); got != tt.want {
-			t.Errorf("Clean(%q) = %q, want %q", tt.text, got, tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Clean(tt.text); got != tt.want {
+				t.Errorf("Clean(%+q) = %+q, want %+q", tt.text, got, tt.want)
+			}
+		})
+	}
+}
+
+// Clean leaves nothing it would clean again, so text shown twice over, as a
+// label cleaned then named, shows the same.
+func TestCleanTextIsCleanAlready(t *testing.T) {
+	for _, text := range []string{
+		"  Work \t team\n",
+		"\u202ekrow \u2066a\u2069",
+		"\U0001f600\u200b\u200d\U0001f600",
+		"Side \U0001f3f4\U000e0068\U000e0069\U000e007f",
+		"Day \u200b\u200d job",
+	} {
+		once := prose.Clean(text)
+		if twice := prose.Clean(once); twice != once {
+			t.Errorf("Clean(Clean(%+q)) = %+q, want %+q, as Clean left it", text, twice, once)
 		}
 	}
 }

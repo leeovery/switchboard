@@ -319,10 +319,10 @@ func wrongLabel(account, why string) error {
 }
 
 // takeLabel returns a label given to put in the file as it shows, so what's
-// saved is what's shown: without the characters drawn as nothing, as
-// prose.Unseen has them, but for those prose.MapUnseen keeps, as they make
-// an emoji, a keycap, a variant or a flag, or shape a joining script, and
-// the direction marks within it; each run of whitespace within it one space;
+// saved is what's shown: cleaned as prose.Clean cleans all that's shown,
+// without the characters drawn as nothing but for those that make an emoji,
+// a keycap, a variant or a flag, or shape a joining script, and the
+// direction marks within it, each run of whitespace within it one space;
 // and the whitespace and direction marks at its edges trimmed. Every other
 // character is kept. It's checked as it shows, and refused, as a label in
 // the file isn't: when it isn't UTF-8, as TOML's text must be; when it holds
@@ -345,8 +345,7 @@ func takeLabel(kind, account, given string) (string, error) {
 	case strings.ContainsFunc(given, prepends):
 		return "", wrongLabel(account, "holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character")
 	}
-	kept := prose.MapUnseen(given, keptIfAMark)
-	label := strings.TrimFunc(strings.Join(strings.Fields(kept), " "), spaceOrMark)
+	label := strings.TrimFunc(prose.Clean(given), spaceOrMark)
 	if given != "" && !strings.ContainsFunc(label, shows) {
 		return "", &WrongLabel{account: account, Why: blankWhy, is: ErrBlankLabel}
 	}
@@ -361,16 +360,6 @@ func takeLabel(kind, account, given string) (string, error) {
 // with names none.
 func TakeLabel(given string) (string, error) {
 	return takeLabel(accountKind, "", given)
-}
-
-// keptIfAMark is what prose.MapUnseen makes of an unseen character of a label
-// that does nothing that shows: a direction mark is kept, as it orders
-// what's around it, and anything else dropped.
-func keptIfAMark(r rune) string {
-	if prose.DirectionMark(r) {
-		return string(r)
-	}
-	return ""
 }
 
 // spaceOrMark reports whether r, at a label's edge, is trimmed: whitespace,

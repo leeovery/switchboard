@@ -147,8 +147,67 @@ func AccountNamed(label, id string) string {
 
 // Clean makes text safe to show on one line of a terminal: control
 // characters, which would move the cursor or restyle what follows, become
-// spaces, and each run of spaces becomes one.
+// spaces, and each run of spaces becomes one. Each character drawn as
+// nothing, as Unseen has it, that does nothing that shows, as MapUnseen has
+// it, is dropped, a bidirectional embedding, override or isolate among them,
+// so it can't reorder or hide the rest of the line. A direction mark is kept,
+// as a label taken keeps one, and so is what makes an emoji, a keycap, a
+// variant or a flag, or shapes a joining script.
 func Clean(text string) string {
+	if cleanASCII(text) {
+		return text
+	}
+	if hides(text) {
+		text = MapUnseen(text, keptIfAMark)
+	}
+	return oneLine(text)
+}
+
+// cleanASCII reports whether text is ASCII that Clean would leave as it is:
+// no control character, and no space at either end or beside another. Nearly
+// all that's shown is, so it's judged a byte at a time.
+func cleanASCII(text string) bool {
+	for i := range len(text) {
+		switch c := text[i]; {
+		case c >= utf8.RuneSelf || c < ' ' || c == '\x7f':
+			return false
+		case c == ' ' && (i == 0 || i == len(text)-1 || text[i-1] == ' '):
+			return false
+		}
+	}
+	return true
+}
+
+// hides reports whether text holds a character drawn as nothing. ASCII holds
+// none, so only the characters beyond it are asked about.
+func hides(text string) bool {
+	for i := 0; i < len(text); {
+		if text[i] < utf8.RuneSelf {
+			i++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(text[i:])
+		if Unseen(r) {
+			return true
+		}
+		i += size
+	}
+	return false
+}
+
+// keptIfAMark is what Clean has MapUnseen make of an unseen character that
+// does nothing that shows: a direction mark is kept, as it orders what's
+// around it, and anything else dropped.
+func keptIfAMark(r rune) string {
+	if DirectionMark(r) {
+		return string(r)
+	}
+	return ""
+}
+
+// oneLine is text on one line, each control character a space, as Visible
+// makes it, and each run of spaces one.
+func oneLine(text string) string {
 	return strings.Join(strings.Fields(Visible(text)), " ")
 }
 
@@ -165,18 +224,18 @@ func Visible(text string) string {
 }
 
 // Quoted shows text the user gave, such as a label, in double quotes, set
-// apart from the words around it: as Clean makes it, but for its quote marks
-// and backslashes, escaped by a backslash, so where it ends reads plainly,
-// and each character drawn as nothing, as Unseen has it, that does nothing
-// that shows, as MapUnseen has it, shown as its escape, as \u200B, so what it
-// holds shows. A bidirectional control is among them, so it can't reorder
-// the rest of the line, and so is a direction mark, which a label keeps but
-// whose part in it can't be seen. A private-use character shows as it is,
-// and so does what makes an emoji, a keycap, a variant or a flag, or shapes
-// a joining script, unless an escape stands before it, as an escape owns
-// nothing after it.
+// apart from the words around it: on one line, as Clean puts it, but for its
+// quote marks and backslashes, escaped by a backslash, so where it ends reads
+// plainly, and each character drawn as nothing, as Unseen has it, that does
+// nothing that shows, as MapUnseen has it, shown as its escape, as \u200B,
+// so what it holds shows. A bidirectional control is among them, so it
+// can't reorder the rest of the line, and so is a direction mark, which a
+// label keeps but whose part in it can't be seen. A private-use character
+// shows as it is, and so does what makes an emoji, a keycap, a variant or a
+// flag, or shapes a joining script, unless an escape stands before it, as
+// an escape owns nothing after it.
 func Quoted(text string) string {
-	return `"` + MapUnseen(quoteEscaper.Replace(Clean(text)), escaped) + `"`
+	return `"` + MapUnseen(quoteEscaper.Replace(oneLine(text)), escaped) + `"`
 }
 
 // quoteEscaper escapes the quote marks and backslashes in text Quoted shows.
