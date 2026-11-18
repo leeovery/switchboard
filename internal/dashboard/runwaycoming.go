@@ -7,7 +7,7 @@ import (
 
 // runwayComingWidth is how wide a column of COMING UP's lines is on Runway at
 // its natural, as the Overview's lines are: its countdowns end at its 72nd
-// cell. A narrower frame has one column take its width.
+// cell. Where two don't fit, one takes the frame's width.
 const runwayComingWidth = 72
 
 // comingColumn is a column of COMING UP's lines on Runway, as flex lays it:
@@ -69,17 +69,17 @@ func comingPlaced(things, places int) (shown, more int) {
 }
 
 // comingColumns are the columns COMING UP's lines take across the frame
-// with no LATELY beside or under them, as flex lays them: two, comingApart
-// apart, sharing the width, the odd cell the second's, so it ends at the
-// frame's edge, where both fit at their natural; else one at its natural, or
-// the frame's width where that's narrower.
+// with no LATELY beside them, as flex lays them: two, comingApart apart,
+// sharing the width, the odd cell the second's, so it ends at the frame's
+// edge, where both fit at their natural; else one across the frame, as a
+// section alone takes the Overview's width.
 func (f Frame) comingColumns() []flex.Span {
 	second := comingColumn
 	second.Gap, second.Odd = comingApart, true
 	if two, fits := flex.Lay(f.Width, comingColumn, second); fits {
 		return two
 	}
-	return []flex.Span{{Size: min(f.Width, runwayComingWidth)}}
+	return []flex.Span{{Size: f.Width}}
 }
 
 // comingRows are the rows COMING UP's lines take in the columns given, as

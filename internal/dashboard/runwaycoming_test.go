@@ -140,29 +140,9 @@ func TestRunwaysComingUpShowsTheLinesItCanAndHowManyMore(t *testing.T) {
 		lines  int
 		want   []string
 	}{
-		{
-			name: "every line where they fit", coming: fiveHourComing, lines: 3,
-			want: []string{
-				"COMING UP",
-				"16:30  personal's 5-hour resets                                in 1h 48m",
-				"17:10  work back from its cap                                  in 2h 28m",
-				"18:50  side's 5-hour resets                                    in 4h 08m",
-			},
-		},
-		{
-			name: "a line and two more", coming: fiveHourComing, lines: 2,
-			want: []string{"COMING UP", "16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"},
-		},
-		{
-			name: "three lines of five and two more", coming: fiveComing, lines: 4,
-			want: []string{
-				"COMING UP",
-				"16:30  personal's 5-hour resets                                in 1h 48m",
-				"17:10  work back from its cap                                  in 2h 28m",
-				"18:50  side's 5-hour resets                                    in 4h 08m",
-				"▼ 2 more",
-			},
-		},
+		{name: "every line where they fit", coming: fiveHourComing, lines: 3, want: slices.Concat([]string{"COMING UP"}, fiveHourComingAt(120))},
+		{name: "a line and two more", coming: fiveHourComing, lines: 2, want: []string{"COMING UP", fiveHourComingAt(120)[0], "▼ 2 more"}},
+		{name: "three lines of five and two more", coming: fiveComing, lines: 4, want: slices.Concat([]string{"COMING UP"}, fiveHourComingAt(120), []string{"▼ 2 more"})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -187,15 +167,17 @@ func TestRunwaysComingUpShowsTheLinesItCanAndHowManyMore(t *testing.T) {
 
 // COMING UP alone takes two columns where both fit at the lines' natural
 // width, 72, comingApart apart, sharing the frame's width, the odd cell the
-// second's; else one, at its natural, or the frame's width where narrower.
+// second's; else one across the frame, as the stacked lists are, at 120 as
+// on a phone.
 func TestRunwaysComingUpTakesTwoColumnsAloneWhereBothFitAtTheirNatural(t *testing.T) {
 	tests := []struct {
 		width int
 		want  []flex.Span
 	}{
 		{width: 52, want: []flex.Span{{At: 0, Size: 52}}},
-		{width: 120, want: []flex.Span{{At: 0, Size: 72}}},
-		{width: 147, want: []flex.Span{{At: 0, Size: 72}}},
+		{width: 73, want: []flex.Span{{At: 0, Size: 73}}},
+		{width: 120, want: []flex.Span{{At: 0, Size: 120}}},
+		{width: 147, want: []flex.Span{{At: 0, Size: 147}}},
 		{width: 148, want: []flex.Span{{At: 0, Size: 72}, {At: 76, Size: 72}}},
 		{width: 160, want: []flex.Span{{At: 0, Size: 78}, {At: 82, Size: 78}}},
 		{width: 173, want: []flex.Span{{At: 0, Size: 84}, {At: 88, Size: 85}}},
@@ -275,7 +257,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 		want   []string
 	}{
 		{name: "open", height: 37, want: fiveHourComingAt(120)},
-		{name: "cut", height: 23, want: []string{"16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"}},
+		{name: "cut, COMING UP alone across the frame", height: 23, want: []string{fiveHourComingAt(120)[0], "▼ 2 more"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

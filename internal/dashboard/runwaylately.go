@@ -71,20 +71,15 @@ func (f Frame) latelyPlaceOf() latelyPlace {
 // LATELY column from the first, and COMING UP as wide as the Overview's
 // COMING UP column, ending at the frame's edge; stacked, COMING UP's as
 // comingColumns lays them, and LATELY across the frame under them, as a
-// section alone takes the Overview's width, COMING UP's one column as wide
-// where it has one; else COMING UP's as comingColumns lays them, and LATELY
-// none.
+// section alone takes the Overview's width; else COMING UP's as
+// comingColumns lays them, and LATELY none.
 func (f Frame) runwayColumns(fit runwayFit) (coming []flex.Span, lately flex.Span) {
 	switch fit.place {
 	case latelySideBySide:
 		width := comingWidth(f.Width)
 		return []flex.Span{{At: f.Width - width, Size: width}}, flex.Span{Size: f.Width - latelyAt(f.Width)}
 	case latelyStacked:
-		coming, lately = f.comingColumns(), flex.Span{Size: f.Width}
-		if len(coming) == 1 {
-			coming[0] = lately
-		}
-		return coming, lately
+		return f.comingColumns(), flex.Span{Size: f.Width}
 	}
 	return f.comingColumns(), flex.Span{}
 }

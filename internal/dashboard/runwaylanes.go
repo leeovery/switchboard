@@ -26,6 +26,10 @@ const (
 	newCell     = "┈"
 )
 
+// newMeans is what a lane's dots mean, as the words under them and the
+// legend's key say it.
+const newMeans = "new"
+
 const (
 	// pastFade is how far Runway fades what's before now's column into the
 	// canvas, mix(canvas, colour, 0.45): 45% of its colour shows.
@@ -129,13 +133,14 @@ func (ln laidLane) collapsedUse() span {
 
 // drawLane draws the lane ln along its row from column x: each column before
 // its account was first read, where it's new in the view, as laneNewMark
-// marks it; each column known, as laneMark marks it, and │ in text.subtle at
+// marks it, faded as the lane is but never dimmed as the past, as it's faint
+// already; each column known, as laneMark marks it, and │ in text.subtle at
 // each reset of the view's window it marks; each faded as laneInk fades it,
 // before now's column as the past.
 func (f Frame) drawLane(c *canvas, ln laidLane, x int) {
 	now, fade, dotted := f.Runway.Timeline.NowColumn(), ln.fade(), f.Look.laneNewMark()
 	for col := range ln.New.Columns {
-		c.text(x+col, ln.row, dotted.text, dotted.ink)
+		c.text(x+col, ln.row, dotted.text, laneInk(dotted.ink, false, fade))
 	}
 	for col, cell := range ln.Cells {
 		if cell != views.CellUnknown {

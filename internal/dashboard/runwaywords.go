@@ -72,8 +72,8 @@ func (f Frame) runwayWords(c *canvas, laid runwayLaid) {
 
 // newSaid is what's said under the lane ln, at now, of the stretch before
 // its account was first read, where it's new in the view: from the column
-// from, counted from the lanes' first, "new since 14:44" in text.faint, its
-// time as prose.Dated says it; or "new", where that doesn't fit before the
+// from, counted from the lanes' first, "new since 14:44" in text.muted, as
+// the lane's other quiet words are, its time as prose.Dated says it; or "new", where that doesn't fit before the
 // stretch's end, nor phraseGap before the first of the words placed under
 // it; else nothing, reporting false, as the words keep their place.
 func newSaid(ln laidLane, now time.Time, from int, words []placed) (placed, bool) {
@@ -84,7 +84,7 @@ func newSaid(ln laidLane, now time.Time, from int, words []placed) (placed, bool
 	if len(words) > 0 {
 		end = min(end, words[0].x-phraseGap)
 	}
-	parts := []line{{{"new", faintInk}}, {{" since " + prose.Dated(now, ln.New.Since), faintInk}}}
+	parts := []line{{{newMeans, mutedInk}}, {{" since " + prose.Dated(now, ln.New.Since), mutedInk}}}
 	said := wholeParts(parts, end-from)
 	if said == nil {
 		return placed{}, false

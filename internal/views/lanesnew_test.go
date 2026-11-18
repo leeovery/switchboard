@@ -46,7 +46,8 @@ func readAt(id string, at ...time.Time) []readings.Reading {
 // install, where every account's readings start inside the view, no lane is
 // new; nor is one read before the view; nor one removed and added again, its
 // history restored, its first reading old though nothing was read of it for
-// days; nor one not read yet.
+// days; nor one not read yet. The lanes draw a new one, as the legend keys
+// it, only where one is.
 func TestALaneIsNewWhereItsAccountsFirstReadingFallsInsideTheView(t *testing.T) {
 	monday, wednesday, thursday := time.Date(2026, 9, 28, 10, 0, 0, 0, time.UTC), time.Date(2026, 9, 30, 20, 0, 0, 0, time.UTC), time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
 	tests := []struct {
@@ -71,6 +72,9 @@ func TestALaneIsNewWhereItsAccountsFirstReadingFallsInsideTheView(t *testing.T) 
 			}
 			if got := lanes.Accounts[0].New; got != (views.LaneNew{}) {
 				t.Errorf("work's lane is new %+v, want not", got)
+			}
+			if got := lanes.Drawn.New; got != (tt.want.Columns > 0) {
+				t.Errorf("the lanes draw a new one %t, want %t", got, tt.want.Columns > 0)
 			}
 			if n := tt.want.Columns; n > 0 && (lanes.Accounts[1].Cells[n-1] != views.CellUnknown || lanes.Accounts[1].Cells[n] == views.CellUnknown) {
 				t.Errorf("spare's cells %v, want nothing known through column %d and known from the next", lanes.Accounts[1].Cells[:n+1], n-1)

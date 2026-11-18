@@ -6288,27 +6288,36 @@ request ledger).
   name faded as stale (the owner's call, 13 October 2026).
 
 **An account new in the view** has its stretch before its first reading drawn, so its lane isn't
-left blank, as a stretch with no reading is, such as while the router was down (the owner's call,
-18 November 2026). An account is new where its first reading falls inside the view and the
-readings history reaches back before the view, another account read before then. The time is the
-account's first reading, and the fact is views' (`views.LaneNew`), Trends' week cards holding it
-too, though only Runway draws it.
+left blank (the owner's call, 18 November 2026). A lane carries each reading forward to the next,
+so only an account not read yet is blank, and blank alone can't tell an account not added yet
+from one the router can't read. An account is new where its first reading falls inside the view
+and the readings history reaches back before the view, another account read before then. The time
+is the account's first reading, and the fact is views' (`views.LaneNew`), Trends' week cards
+holding it too, though only Runway draws it.
 
 ```
 spare         ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈████████████████████████████████████████████████████━━━━━━
   week 12%    new since 09:44                                                     out ~Sat
 ```
 
-- **The rule:** `┈` in `text.faint` on the lane's row, from the lanes' first column up to the
-  column the first reading falls in, the same without colour.
-- **The words:** `new since 09:44` in `text.faint` on the row under it, from the lanes' first
+- **The rule:** `┈` in `text.faint` on the lane's row, in every column before the first column
+  read, the same without colour. The dots fade as the lane does, stale or out of the pool, but
+  aren't dimmed as the past, being faint already.
+- **The words:** `new since 09:44` in `text.muted` on the row under it, as the lane's other quiet
+  words are, since `text.faint` is hard to read on a phone. They start from the lanes' first
   column, or collapsed, two cells after the use, the time as an event's is said, `new since Tue
   09:44` on another day. They end by the stretch's last column, and two cells before the lane's
   other words, which keep their place: `new` where the whole doesn't fit, and nothing where `new`
   doesn't.
+- **The legend** keys `┈` and ` new` wherever a lane draws dots (see The legend), as the words
+  rarely fit under a phone's narrow stretch.
 - **Not new:** on a fresh install, where every account's readings start inside the view; an
   account read before the view; and one removed and added again whose history is restored, as
-  its first reading is old. Short gaps, such as a restart or a missed probe, stay blank.
+  its first reading is old. A gap in an account's readings, such as a restart or a missed probe,
+  draws its last reading carried on, as before.
+- **Within the readings judged:** "first" is first among the readings the view is judged by, about
+  two weeks of them live, and the week before a week stepped back to. An account added again after
+  about two weeks or more away is drawn as new (accepted, 18 November 2026).
 - **Why not a colour:** every colour in a lane is a state of the account's room, and blue is the
   marks'. Dotted against the solid `━`, it stays apart without colour, and the words carry why.
 
@@ -6410,8 +6419,9 @@ blank row; with two, on the row after its words.
 call, 21 October 2026), keys only what the view draws, four spaces apart: `█` and ` room`; `█` in
 `accent.attention` and ` room, but it runs out at its pace`; `━` in `accent.attention` and
 ` at its cap`; `━` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
-`▂` in `state.destructive` and ` the pool at its limit`; and `│` and ` its week resets`; each
-glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's length
+`▂` in `state.destructive` and ` the pool at its limit`; `│` and ` its week resets`; and where a
+lane is new in the view, `┈` in `text.faint` and ` new`; each glyph in its colour, its words in
+`text.muted`. Four spaces on, in `text.subtle`, a column's length
 and what's dimmed: `a column ≈ 69 minutes · the past dimmed` at 160; stepped back to a week gone,
 `a column ≈ 69 minutes · under each name, the week's highest`. A column's length is in whole
 minutes where it's whole, else after `≈`, to a tenth of a minute under 20 minutes and to the minute
@@ -6444,8 +6454,11 @@ legend (the owner's call, 12 November 2026):
   give way as rows run short.
 - **COMING UP alone** else, as before LATELY: two columns, four cells apart, where both fit at the
   lines' natural width, 72, so from 148 columns, each taking half of what's left after the gap, the
-  odd cell the second's, the lines running in time order down the first, then across; else one, at
-  its natural, or the frame's width where that's narrower (the owner's call, 21 October 2026).
+  odd cell the second's, the lines running in time order down the first, then across (the owner's
+  call, 21 October 2026). Else one, across the frame's full width, as the stacked lists are (the
+  owner's call, 18 November 2026). It replaces his call of 21 October, one column at its natural
+  72: on a short frame, where LATELY gives way, that brought back the iPad's half-empty screen,
+  and the width jumped as the height changed.
 
 LATELY's least is 46: a time at its widest, a week back's, 12; two blanks; a name at its least,
 8; its shortest words, ` open again`, 11; and how long ago at its widest, `23h 59m ago`, 11, two

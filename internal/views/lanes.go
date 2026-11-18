@@ -85,11 +85,14 @@ type Lane struct {
 
 // LaneNew is the stretch of a lane before its account was first read, where
 // it's new in the view: first read inside it while the readings reach back
-// before it, so its blank columns there tell an account not added yet, not
-// one that went unread. Since is its first reading, and Columns how many
-// columns the stretch takes from the lanes' first, nothing known of each:
-// none where it isn't new, as on a fresh install, where every account's
-// readings start inside the view.
+// before it, so its blank columns there tell an account not added yet. Since
+// is its first reading, and Columns how many columns the stretch takes from
+// the lanes' first, every column before the first read: none where it isn't
+// new, as on a fresh install, where every account's readings start inside
+// the view. It's judged by the readings the view is judged by alone, about
+// two weeks of them live, and the week before a week stepped back to, so an
+// account added again after longer away is new again, its readings from
+// before out of reach (accepted, 18 November 2026).
 type LaneNew struct {
 	Since   time.Time
 	Columns int

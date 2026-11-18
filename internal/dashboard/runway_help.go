@@ -59,7 +59,9 @@ func (f Frame) lanesHelp() helpPart {
 				"before, and drop parts from the end where even that can't fit them."),
 			said("Now's column and those after it are read from the router at each look; those before it from the readings " +
 				"history, each by the last reading of each window by the column's middle, a window whose reset had passed by then " +
-				"counted reset. A column with no reading of its account by then is blank, as an account not read yet. A cap is " +
+				"counted reset. A column with no reading of its account by then is blank, as an account not read yet; but an " +
+				"account newly added, read first while others were read before it, is dotted ┈ before its first reading, the " +
+				"words under it saying since when. A cap is " +
 				"drawn by the reserve the config gives now, as the readings keep none: change a reserve, and the caps of days gone " +
 				"are drawn again by it."),
 			said("The legend sits at the foot, over the key line. As rows run short, LATELY under COMING UP goes first; then an " +
@@ -147,8 +149,8 @@ func runwayComingHelp() helpPart {
 			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap, its limit or " +
 				"its refused token, whichever lifts last, a window running out at its pace, ~ marking it projected, and each " +
 				"other reset of a window every model shares, a week's where its │ stands. No prime is listed. It sits under the " +
-				"pool's lane, or at the right beside LATELY, and takes the rows left; where its lines don't all fit, its last " +
-				"says how many more. Stepped back, there's none."),
+				"pool's lane, in two columns where both fit, else across the frame, or at the right beside LATELY, and takes " +
+				"the rows left; where its lines don't all fit, its last says how many more. Stepped back, there's none."),
 		},
 	}
 }

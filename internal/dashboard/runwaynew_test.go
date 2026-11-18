@@ -56,7 +56,8 @@ func TestALaneNewInTheViewIsDottedFaintBeforeItsFirstReading(t *testing.T) {
 	}
 }
 
-// What's said of a new stretch, in text.faint from its first column, is
+// What's said of a new stretch, in text.muted from its first column, as the
+// lane's other quiet words are, never text.faint, hard to read on a phone, is
 // "new since" its first reading, as a stretch's start is told against now,
 // its weekday on a day not today's; "new" where the stretch is too narrow for
 // that; and nothing where it's too narrow even for "new".
@@ -83,8 +84,8 @@ func TestANewStretchSaysSinceWhenNarrowingToFit(t *testing.T) {
 				t.Errorf("the row under the stretch reads %q, want %q", got, tt.want)
 			}
 			if tt.want != "" {
-				if got := c.at(framesLanesFrom, 11).ink; got != faintInk {
-					t.Errorf("its words are in %+v, want text.faint", got)
+				if got := c.at(framesLanesFrom, 11).ink; got != mutedInk {
+					t.Errorf("its words are in %+v, want text.muted", got)
 				}
 			}
 		})
@@ -131,5 +132,44 @@ func TestANewStretchsWordsGiveWayToTheLanesOthers(t *testing.T) {
 				t.Errorf("the row under the lane reads\n%q, want\n%q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A new lane's dots fade as the lane does, for an account the pool leaves
+// out, as its other cells do, but are never dimmed as the past, as they're
+// faint already.
+func TestANewLanesDotsFadeAsTheLaneDoes(t *testing.T) {
+	f := runwayShowing(runwayLive())
+	f.Look = Screen(builtin(t, "nord"))
+	ln := newLane(routedClock(1, 9, 0), 5)
+	if got := drawnLane(f, ln).at(framesLanesFrom, 10).ink; got != faintInk {
+		t.Errorf("in the pool, the dots are in %+v, want text.faint as it is", got)
+	}
+	ln.account.OutOfPool = true
+	want := laneInk(faintInk, false, ln.fade())
+	if got := drawnLane(f, ln).at(framesLanesFrom, 10).ink; got != want || want.fade == 0 {
+		t.Errorf("out of the pool, the dots are in %+v, want %+v, faded as the lane is", got, want)
+	}
+}
+
+// The legend keys a lane's dots, ┈ new, where a lane is new in the view,
+// last, after the week's resets; and never where none is.
+func TestTheLegendKeysANewLanesDotsWhereALaneHasThem(t *testing.T) {
+	nord := Screen(builtin(t, "nord"))
+	drawn := views.Drawn{Cells: []views.Cell{views.CellRoom}, Resets: true}
+	if got, want := legendOf(runwayLive(), 160, nord, drawn), []string{"█ room    │ its week resets    a column ≈ 74 minutes · the past dimmed"}; !slices.Equal(got, want) {
+		t.Errorf("with no lane new, the legend reads %q, want %q", got, want)
+	}
+	drawn.New = true
+	if got, want := legendOf(runwayLive(), 160, nord, drawn), []string{"█ room    │ its week resets    ┈ new    a column ≈ 74 minutes · the past dimmed"}; !slices.Equal(got, want) {
+		t.Errorf("with a lane new, the legend reads %q, want %q", got, want)
+	}
+	r := runwayLive()
+	r.Lanes = &views.Lanes{Drawn: drawn}
+	f := runwayShowing(r)
+	f.Look = nord
+	keys := f.legendKeys()
+	if got := keys[len(keys)-1]; !slices.Equal(got, line{f.Look.laneNewMark(), {" new", mutedInk}}) {
+		t.Errorf("the key reads %v, want ┈ as the lane draws it and new, muted", got)
 	}
 }

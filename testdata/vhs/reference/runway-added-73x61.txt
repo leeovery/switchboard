@@ -56,6 +56,6 @@ Tue 11:45  side open again: its 5-hour window reset             2d 2h ago
 Tue 10:31  side at its limit: 3 moved to work                   2d 4h ago
 
 █ room    █ room, but it runs out at its pace    ━ at its cap
-━ at its limit    │ its week resets
+━ at its limit    │ its week resets    ┈ new
 a column ≈ 171 minutes · the past dimmed
 tab views   ←→ week   ? keys   q quit
