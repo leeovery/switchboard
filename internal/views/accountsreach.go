@@ -69,7 +69,8 @@ func (p Period) WeeksLeast() int {
 // verdict on it, as weeks gives them, Weeks over the weeks the reach is of,
 // at in: a column a week, as weekBuckets names them; or of the last 12
 // months, a column a month, the months they fall in, as monthBuckets names
-// them, each its fullest week's.
+// them, each its fullest week at its cap where it had one, else its fullest
+// week, as fullestIn has them.
 func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 	today := dayfile.CivilOf(in.Now)
 	first, _ := dayfile.Civil(weeks.Weeks[0])
@@ -86,25 +87,39 @@ func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 	page.All.Reached, page.All.Reaching = columns(weeks.All.Peaks), weeks.All.AccountVerdict
 }
 
-// fullestIn are the peaks of the months given, each its fullest week's of
-// the weeks given, by their first days, peaks holding each week's: of the
-// weeks that begin in it, the one whose peak is known and highest, the
-// first of any that tie; unknown in a month none of whose weeks' is known.
-// A month is at its cap where any of its weeks is, its fullest or not.
+// fullestIn are the peaks of the months given, of the weeks given, by their
+// first days, peaks holding each week's: of the weeks that begin in a month,
+// its fullest at its cap where one is, so a month a week was short in is
+// marked, else its fullest, its share, Open and AtCap that week's; unknown in
+// a month none of whose weeks' is known.
 func fullestIn(months, weeks []Bucket, peaks []WeekPeak) []WeekPeak {
-	fullest := make([]WeekPeak, len(months))
+	fullest, capped := make([]WeekPeak, len(months)), make([]WeekPeak, len(months))
 	m := 0
 	for i, w := range weeks {
 		for m+1 < len(months) && !w.Start.Before(months[m+1].Start) {
 			m++
 		}
-		p, atCap := peaks[i], fullest[m].AtCap || peaks[i].AtCap
-		if p.Share != nil && (fullest[m].Share == nil || *p.Share > *fullest[m].Share) {
+		fullest[m] = fuller(fullest[m], peaks[i])
+		if peaks[i].AtCap {
+			capped[m] = fuller(capped[m], peaks[i])
+		}
+	}
+	for m, p := range capped {
+		if p.Share != nil {
 			fullest[m] = p
 		}
-		fullest[m].AtCap = atCap
 	}
 	return fullest
+}
+
+// fuller is the fuller of two weeks' peaks: p where its peak is known and
+// higher than than's, or than's isn't known; else than, the first of two
+// that tie.
+func fuller(than, p WeekPeak) WeekPeak {
+	if p.Share != nil && (than.Share == nil || *p.Share > *than.Share) {
+		return p
+	}
+	return than
 }
 
 // worthsByDay are what each configured account's requests were worth each

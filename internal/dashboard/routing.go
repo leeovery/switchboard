@@ -167,12 +167,11 @@ type accountRouting struct {
 }
 
 // routingTable is ROUTING of a document at a moment: each account's, in the
-// config's order; where its rows lie across the frame; the pool's accounts',
-// where it has a pool, their states counted, and their sessions and trace
+// config's order; where its rows lie across the frame; the pool's accounts'
+// states counted, where it has a pool, and their sessions and trace
 // together; and the moment.
 type routingTable struct {
 	accounts     []accountRouting
-	pool         []accountRouting
 	states       status.StateCounts
 	poolSessions int
 	poolTrace    views.Trace
@@ -201,7 +200,7 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 		}
 		t.accounts = append(t.accounts, r)
 		if a.InPool {
-			t.pool, pooled = append(t.pool, r), append(pooled, a)
+			pooled = append(pooled, a)
 		}
 	}
 	t.states = status.CountStates(pooled)

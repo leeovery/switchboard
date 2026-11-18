@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -14,7 +15,9 @@ import (
 // These tests read the module's source, so a drawing package can't add up
 // what views sums, rather than read the sum views gives, without failing
 // here. They hold the facts summed alone, never a sum in general: a width or
-// a row's place is the drawing's own arithmetic.
+// a row's place is the drawing's own arithmetic. They judge an operand, so a
+// sum over a range of what a function gives, as a trace's cells added column
+// by column, isn't caught.
 
 // summedInViews are what views sums, by what's summed, each with the sum
 // that owns it: a drawing package adds none of them with + or +=.
@@ -37,6 +40,16 @@ func summedSays(name, owner string) string {
 	return "adds up " + name + "; read " + owner + ", the sum's one owner"
 }
 
+// summedGoneFix says how to fix a name of summedInViews the module no longer
+// declares.
+const summedGoneFix = "name what took its place in summedInViews in internal/views/sumguard_test.go"
+
+// summedGoneSays says how a name of summedInViews that's gone breaks the
+// guard, which would pass whatever adds up what took its place.
+func summedGoneSays(name string) string {
+	return name + ": summedInViews names it, but the module declares no such field or function; " + summedGoneFix
+}
+
 func TestDrawingAddsUpNothingViewsSums(t *testing.T) {
 	t.Parallel()
 	root := sourcecheck.ModuleRoot(t)
@@ -56,6 +69,21 @@ func TestTheSumsGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/dashboard/dashboard.go:30: " + summedSays("views.Totals.MovedOn", "views.Totals.Moves"),
 		"internal/dashboard/dashboard.go:32: " + summedSays("views.Trace.Rate", "views.PoolRate"),
 		"internal/dashboard/dashboard.go:37: " + summedSays("dashboard.routed.sessions", "views.PoolSessions"),
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	got = sumsBreaches(t, root, "example.com/fixture", []string{"internal/dashboard"}, map[string]string{
+		"views.Totals.MovedOn": "views.Totals.Gone", "views.Totals.Moved": "views.Totals.Moves", "dashboard.gone.sessions": "views.PoolSessions",
+	})
+	want = []string{
+		"internal/dashboard/dashboard.go:13: " + summedSays("views.Totals.MovedOn", "views.Totals.Gone"),
+		"internal/dashboard/dashboard.go:17: " + summedSays("views.Totals.MovedOn", "views.Totals.Gone"),
+		"internal/dashboard/dashboard.go:28: " + summedSays("views.Totals.MovedOn", "views.Totals.Gone"),
+		"internal/dashboard/dashboard.go:30: " + summedSays("views.Totals.MovedOn", "views.Totals.Gone"),
+		summedGoneSays("dashboard.gone.sessions"),
+		summedGoneSays("views.Totals.Gone"),
+		summedGoneSays("views.Totals.Moved"),
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("found\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -91,7 +119,32 @@ func sumsBreaches(t *testing.T, root, module string, dirs []string, summed map[s
 		}
 		return ""
 	}}
-	return sourcecheck.Check(t, root, module, rule, dirs, sourcecheck.Allowance{})
+	return append(sourcecheck.Check(t, root, module, rule, dirs, sourcecheck.Allowance{}), summedGone(t, root, module, summed)...)
+}
+
+// summedGone are how each name of summed, and each owner, that the module at
+// root with the given path doesn't declare, as a field or a function of the
+// package it names, breaks the guard, in order.
+func summedGone(t *testing.T, root, module string, summed map[string]string) []string {
+	t.Helper()
+	named := make(map[string]bool)
+	for name, owner := range summed {
+		named[name], named[owner] = true, true
+	}
+	var gone []string
+	for _, name := range slices.Sorted(maps.Keys(named)) {
+		pkg, _, _ := strings.Cut(name, ".")
+		switch obj := lookup(imported(t, root, module, pkg), name).(type) {
+		case *types.Func:
+			continue
+		case *types.Var:
+			if obj.IsField() {
+				continue
+			}
+		}
+		gone = append(gone, summedGoneSays(name))
+	}
+	return gone
 }
 
 // summedNamed names what the operand e is, as Names names it, through any
@@ -158,6 +211,8 @@ type Trace struct{ Sent int }
 func (t Trace) Rate() int { return t.Sent }
 
 func PoolRate(traces []Trace) int { return 0 }
+
+func PoolSessions() int { return 0 }
 `,
 	"internal/dashboard/dashboard.go": `package dashboard
 

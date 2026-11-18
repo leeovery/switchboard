@@ -4951,8 +4951,10 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   once, by `views`' `weeksOver`, never again for Compare.
   - **Its reach:** the weeks that begin in the period, this one last, never fewer than eight:
     eight at today, this week and 30 days, and 12 at 12 weeks. At 12 months, a column a month, the
-    13 months the period touches, each its fullest week of those beginning in it; a month no week
-    has begun in yet, as on the 1st, is empty, so the months stand over WORTH's.
+    13 months the period touches, each its fullest week at its cap of those beginning in it where
+    one is, else its fullest week, its peak, its `…` and its mark that week's; a month no week has
+    begun in yet, as on the 1st, is empty, so the months stand over WORTH's. A month a week was
+    short in is so marked, though a fuller week, or this week so far, came after it.
   - **Its columns,** 5 rows tall at a full week, drawn up the ramp in
     `viz.ramp`, this week's dimmer, its top cell in eighths. They're laid across the column less a
     cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
@@ -5188,13 +5190,13 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   follows the layout alone.
 - **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
   and as its table in the stack, or in the wide form where not a week of bands fits across.
-  `all accounts`' peak of a week is at its cap where any account's peak is, and at 12 months a
-  month's where any of its weeks' is. So its marks agree with its `short on 3 of 14`, the weeks the
-  capacity verdict counts short, in all but two kinds of week. This week, and any week not whole,
-  is marked but never counted. A whole week where one account reached its cap while another's
-  peak isn't known is marked too, though the verdict can't judge it. This was the owner's call,
-  18 November 2026, because the old rule, marking a week where every account's peak was at its
-  cap, left the marks and the count disagreeing. `views.WeekPeak.AtCap` holds it.
+  `all accounts`' peak of a week is at its cap where any account's peak is. So its marks agree
+  with its `short on 3 of 14`, the weeks the capacity verdict counts short, in all but two kinds of
+  week. This week is never drawn marked. A past week that isn't whole is marked but never counted.
+  A whole week is marked where one account reached its cap while another's peak isn't known. The
+  verdict can't judge that week. The owner chose this rule on 18 November 2026. The old rule
+  marked a week where every account's peak was at its cap, and left the marks and the count
+  disagreeing. `views.WeekPeak.AtCap` holds it.
   - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
     account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
     WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest

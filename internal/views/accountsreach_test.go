@@ -132,9 +132,9 @@ func TestTheReachAt12WeeksAnd12MonthsIsTheirWeeks(t *testing.T) {
 	}
 }
 
-// At 12 months a month is at its cap where any of its weeks is, though
-// another is its fullest: September's weeks are work at its limit, side and
-// personal at 40%, then all three at 80%, 75% and 75%, its fullest.
+// At 12 months a month shows its fullest week at its cap, though another is
+// fuller: September's weeks are work at its limit, side and personal at 40%,
+// a mean of 60%, then all three at 80%, 75% and 75%, its fullest.
 func TestAMonthAt12MonthsIsAtItsCapWhereAnyOfItsWeeksIs(t *testing.T) {
 	days := peaking(map[string][]float64{"work": {1, 0.8}, "side": {0.4, 0.75}, "personal": {0.4, 0.75}})
 	in := input(days)
@@ -144,8 +144,43 @@ func TestAMonthAt12MonthsIsAtItsCapWhereAnyOfItsWeeksIs(t *testing.T) {
 	if september < 0 {
 		t.Fatalf("the reach %v has no September", page.Reach)
 	}
-	if got := page.All.Reached[september]; got.Share == nil || prose.Percent(*got.Share) != "77%" || !got.AtCap {
-		t.Errorf("every account's September is %+v, want its fullest week, 77%%, at its cap", got)
+	if got := page.All.Reached[september]; got.Share == nil || prose.Percent(*got.Share) != "60%" || !got.AtCap {
+		t.Errorf("every account's September is %+v, want its week at its cap, 60%%", got)
+	}
+}
+
+// At 12 months the month this week falls in shows its fullest week at its
+// cap, though this week's so far is fuller: it's 20 October, and October's
+// first week was whole and short, work at its limit and the rest at 30%, a
+// mean of 53%; this week so far, all three at 60%.
+func TestTheMonthThisWeekFallsInShowsItsWeekAtItsCapOverOneFuller(t *testing.T) {
+	today := on("2026-10-20").Add(14 * time.Hour)
+	ended := func(date string, peaks ...float64) ledger.Summary {
+		var accounts []ledger.AccountDay
+		for x, id := range []string{"work", "side", "personal"} {
+			accounts = append(accounts, windowsDay{resets: []ledger.Reset{reset("7d", date, "00:30", peaks[x])}}.of(id))
+		}
+		return day(date, accounts...)
+	}
+	soFar := windowsDay{highest: map[string]float64{"7d": 0.6}}
+	days := daysTo("2026-09-28", today,
+		ended("2026-10-05", 0.2, 0.2, 0.2),
+		ended("2026-10-12", 1, 0.3, 0.3),
+		ended("2026-10-19", 0.4, 0.4, 0.4),
+		day("2026-10-20", soFar.of("work"), soFar.of("side"), soFar.of("personal")),
+	)
+	in := input(days)
+	in.Now, in.Accounts = today, config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "personal"}}
+	page := views.NewPast(in, days).Accounts(views.PeriodTwelveMonths)
+	october := slices.IndexFunc(page.Reach, func(b views.Bucket) bool { return b.Start.Format(time.DateOnly) == "2026-10-01" })
+	if october < 0 {
+		t.Fatalf("the reach %v has no October", page.Reach)
+	}
+	if got := page.All.Reached[october]; got.Share == nil || prose.Percent(*got.Share) != "53%" || got.Open || !got.AtCap {
+		t.Errorf("every account's October is %+v, want its week of 5 Oct, 53%%, whole and at its cap", got)
+	}
+	if work := page.Rows[0].Reached[october]; work.Share == nil || *work.Share != 1 || !work.AtCap {
+		t.Errorf("work's October is %+v, want its fullest week, at its limit", work)
 	}
 }
 

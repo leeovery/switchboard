@@ -299,7 +299,8 @@ type RoutingWindow struct {
 // auto's, then an account's each, in the document's order, each with its
 // state, as closedBy says, its windows' use, and its sessions, as
 // views.SessionsOn counts them for ROUTING too: SESSIONS' rows, as
-// views.RunningCountsOf counts them, where the router listed any.
+// views.RunningCountsOf counts them, where the dashboard holds the router's
+// listing, even of none.
 func RoutingRows(m status.Moment, sessions []status.Session, s views.Stream) []RoutingRow {
 	rows := []RoutingRow{{Name: "auto", Open: true, Pickable: true}}
 	var running map[string]int

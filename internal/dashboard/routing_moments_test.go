@@ -37,9 +37,9 @@ var heldFromEvery = []status.RoutingKind{status.RoutingTokenless, status.Routing
 // checkROUTINGAgrees checks ROUTING's table t against the moment m: each
 // account's state is the moment's, in red where it can take no request for
 // want of a token, a limit, a refused token or read, or a first read; new
-// sessions said to come to the account ▲ marks alone; its pin, its fade and
-// its place in the pool as the moment has them; and the pool's states
-// counted, its accounts' alone, as status.CountStates counts them.
+// sessions said to come to the account ▲ marks alone; its pin and its fade
+// as the moment has them; and the pool's states counted, and its sessions
+// and trace, its accounts' alone.
 func checkROUTINGAgrees(t *testing.T, m status.Moment, table routingTable) {
 	t.Helper()
 	if len(table.accounts) != len(m.Accounts) {
@@ -64,10 +64,18 @@ func checkROUTINGAgrees(t *testing.T, m status.Moment, table routingTable) {
 		if comesHere && !a.Next || a.Next && open && len(m.Accounts) > 1 && !comesHere {
 			t.Errorf("%s: ROUTING says new sessions come here: %v; ▲ marks it: %v", a.ID, comesHere, a.Next)
 		}
-		pooled := slices.ContainsFunc(table.pool, func(p accountRouting) bool { return p.id == a.ID })
-		if r.pinned != a.Pinned || r.faded != a.OutOfPool || pooled != a.InPool {
-			t.Errorf("%s: ROUTING has it pinned %v, faded %v, pooled %v; want %v, %v, %v", a.ID, r.pinned, r.faded, pooled, a.Pinned, a.OutOfPool, a.InPool)
+		if r.pinned != a.Pinned || r.faded != a.OutOfPool {
+			t.Errorf("%s: ROUTING has it pinned %v, faded %v; want %v, %v", a.ID, r.pinned, r.faded, a.Pinned, a.OutOfPool)
 		}
+	}
+	sessions, sent := 0, 0
+	for i, a := range m.Accounts {
+		if a.InPool {
+			sessions, sent = sessions+table.accounts[i].sessions, sent+len(table.accounts[i].trace.Sent)
+		}
+	}
+	if table.poolSessions != sessions || len(table.poolTrace.Sent) != sent {
+		t.Errorf("ROUTING's pool has %d sessions and %d requests, want its accounts' %d and %d", table.poolSessions, len(table.poolTrace.Sent), sessions, sent)
 	}
 }
 
