@@ -132,9 +132,9 @@ func TestTheReachAt12WeeksAnd12MonthsIsTheirWeeks(t *testing.T) {
 	}
 }
 
-// At 12 months a month shows its fullest week at its cap, though another is
-// fuller: September's weeks are work at its limit, side and personal at 40%,
-// a mean of 60%, then all three at 80%, 75% and 75%, its fullest.
+// At 12 months a month is as full as its fullest week, at its cap where any
+// of its weeks is: September's weeks are work at its limit, side and
+// personal at 40%, then all three at 80%, 75% and 75%, its fullest.
 func TestAMonthAt12MonthsIsAtItsCapWhereAnyOfItsWeeksIs(t *testing.T) {
 	days := peaking(map[string][]float64{"work": {1, 0.8}, "side": {0.4, 0.75}, "personal": {0.4, 0.75}})
 	in := input(days)
@@ -144,16 +144,16 @@ func TestAMonthAt12MonthsIsAtItsCapWhereAnyOfItsWeeksIs(t *testing.T) {
 	if september < 0 {
 		t.Fatalf("the reach %v has no September", page.Reach)
 	}
-	if got := page.All.Reached[september]; got.Share == nil || prose.Percent(*got.Share) != "60%" || !got.AtCap {
-		t.Errorf("every account's September is %+v, want its week at its cap, 60%%", got)
+	if got := page.All.Reached[september]; got.Share == nil || prose.Percent(*got.Share) != "77%" || !got.AtCap {
+		t.Errorf("every account's September is %+v, want its fullest week, 77%%, at its cap", got)
 	}
 }
 
-// At 12 months the month this week falls in shows its fullest week at its
-// cap, though this week's so far is fuller: it's 20 October, and October's
-// first week was whole and short, work at its limit and the rest at 30%, a
-// mean of 53%; this week so far, all three at 60%.
-func TestTheMonthThisWeekFallsInShowsItsWeekAtItsCapOverOneFuller(t *testing.T) {
+// At 12 months the month this week falls in is as full as this week so far,
+// its fullest, but marked at its cap, not open, where another of its weeks
+// was short: it's 20 October, and October's first week was whole and short,
+// work at its limit and the rest at 30%; this week so far, all three at 60%.
+func TestTheMonthThisWeekFallsInIsMarkedWhereAnotherOfItsWeeksWasShort(t *testing.T) {
 	today := on("2026-10-20").Add(14 * time.Hour)
 	ended := func(date string, peaks ...float64) ledger.Summary {
 		var accounts []ledger.AccountDay
@@ -176,8 +176,11 @@ func TestTheMonthThisWeekFallsInShowsItsWeekAtItsCapOverOneFuller(t *testing.T) 
 	if october < 0 {
 		t.Fatalf("the reach %v has no October", page.Reach)
 	}
-	if got := page.All.Reached[october]; got.Share == nil || prose.Percent(*got.Share) != "53%" || got.Open || !got.AtCap {
-		t.Errorf("every account's October is %+v, want its week of 5 Oct, 53%%, whole and at its cap", got)
+	if got := page.All.Reached[october]; got.Share == nil || prose.Percent(*got.Share) != "60%" || got.Open || !got.AtCap {
+		t.Errorf("every account's October is %+v, want this week so far, 60%%, not open, at its cap", got)
+	}
+	if side := page.Rows[1].Reached[october]; side.Share == nil || prose.Percent(*side.Share) != "60%" || !side.Open || side.AtCap {
+		t.Errorf("side's October is %+v, want this week so far, 60%%, open, none of its weeks at its cap", side)
 	}
 	if work := page.Rows[0].Reached[october]; work.Share == nil || *work.Share != 1 || !work.AtCap {
 		t.Errorf("work's October is %+v, want its fullest week, at its limit", work)

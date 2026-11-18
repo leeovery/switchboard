@@ -19,7 +19,7 @@ BY MODEL  share of use
 
 WEEKS  each week at its peak, a month its fullest
                           ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄▁┄▃┄ ┄ ┄┄                               ▄                                                                 ▁
-                                ▁ ▁ ▄ ▆ ▇                                 ▁ ▃ ▅ ▇                                  ▇                          ▁ ▃ ▂
+                                ▁ ▁ ▄ ▆ ▇                                 ▁ ▃ ▅ ▇                                  ▇                          ▁ ▃ ▃
                           ▃ ▅ ▆                               ▁ ▂ ▄ ▅ ▆                                                           ▁ ▃ ▃ ▅ ▆ ▇
                                                                                              ▁ ▂ ▂ ▃ ▄ ▄ ▅ ▆ ▇                ▆
 

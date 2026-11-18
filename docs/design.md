@@ -4951,10 +4951,11 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   once, by `views`' `weeksOver`, never again for Compare.
   - **Its reach:** the weeks that begin in the period, this one last, never fewer than eight:
     eight at today, this week and 30 days, and 12 at 12 weeks. At 12 months, a column a month, the
-    13 months the period touches, each its fullest week at its cap of those beginning in it where
-    one is, else its fullest week, its peak, its `…` and its mark that week's; a month no week has
-    begun in yet, as on the 1st, is empty, so the months stand over WORTH's. A month a week was
-    short in is so marked, though a fuller week, or this week so far, came after it.
+    13 months the period touches, each as full as its fullest week of those beginning in it; a
+    month no week has begun in yet, as on the 1st, is empty, so the months stand over WORTH's. A
+    month is at its cap where any of its weeks is. Its `…` is its fullest week's, but where
+    another of its weeks is at its cap, the month isn't open, so it's drawn marked, though this
+    week so far is fuller.
   - **Its columns,** 5 rows tall at a full week, drawn up the ramp in
     `viz.ramp`, this week's dimmer, its top cell in eighths. They're laid across the column less a
     cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
