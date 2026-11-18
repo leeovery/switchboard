@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -65,10 +66,11 @@ const unfencedAcme = `switchboard: ~/Code/acme isn't a directory, so no session 
 const ownConfig = "[[account]]\nid = \"m2x7\"\nlabel = \"Mine\"\n"
 
 // newMacDeps are deps of a Mac with nothing of switchboard's yet, as a new
-// one, and its state directory.
+// one, nor any folder a config fences, and its state directory.
 func newMacDeps(t *testing.T) (cli.Deps, string) {
 	t.Helper()
 	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	deps.Root = fstest.MapFS{}
 	return deps, stateDir(t, deps)
 }
 
@@ -361,6 +363,7 @@ func TestImportLaysNoConfigDownBesideAHistoryOfTheMacsOwn(t *testing.T) {
 // down, and its accounts record, which is this Mac's already, left as it is.
 func TestImportRestoresTheConfigOfThisMacsOwnFolder(t *testing.T) {
 	deps, state := importDeps(t)
+	deps.Root = fstest.MapFS{}
 	writeStateFile(t, state, "install-id", []byte("0123456789abcdef\n"))
 	writeStateFile(t, ledger.Dir(state), "requests-2026-10-02.jsonl", []byte(`{"n":1}`+"\n"))
 	was, err := os.ReadFile(identity.NewFile(state).Path())

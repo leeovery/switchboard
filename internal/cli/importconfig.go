@@ -284,16 +284,13 @@ func configured(cfg *config.Config) string {
 }
 
 // sayUnfenced warns on errOut of each folder a pool of pools fences that
-// isn't a folder on this Mac, as one in another home is, no session
-// starting in it until the pool's fenced anew.
+// isn't a folder on this Mac, as config.Pool's Missing has them, as one in
+// another home is, no session starting in it until the pool's fenced anew.
 func (a *app) sayUnfenced(errOut io.Writer, pools config.Pools) error {
 	for _, p := range pools {
-		for i, dir := range p.Dirs {
-			if info, err := os.Stat(dir); err == nil && info.IsDir() {
-				continue
-			}
+		for _, dir := range p.Missing(a.Root) {
 			if _, err := fmt.Fprintf(errOut, "switchboard: %s isn't a directory, so no session starts in it yet: if it's on this Mac by another name, fence the pool %s anew with %s\n",
-				p.WrittenDirs[i], prose.Quoted(p.Label), a.command("pool edit", p.ID, "--dirs")); err != nil {
+				dir, prose.Quoted(p.Label), a.command("pool edit", p.ID, "--dirs")); err != nil {
 				return err
 			}
 		}

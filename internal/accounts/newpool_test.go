@@ -275,7 +275,7 @@ func TestANewPoolTheRulesRefuseIsRefusedWritingNothing(t *testing.T) {
 			adding := accounts.Adding{Account: config.NewAccount{Label: "Side"}, NewPool: &tt.pool}
 
 			for name, err := range map[string]error{
-				"CheckNewPool": registry.CheckNewPool(tt.pool),
+				"CheckNewPool": second(registry.CheckNewPool(tt.pool)),
 				"CheckNew":     second(registry.CheckNew(adding)),
 				"AddChecked":   second(registry.AddChecked(t.Context(), adding, tokenOf(t, sideToken), accounts.Checked{Organization: organization}, nil, accounts.Answer{})),
 			} {
@@ -373,4 +373,26 @@ func isA[E error](err error) bool {
 // second is the error of a call that returns a value and an error.
 func second[V any](_ V, err error) error {
 	return err
+}
+
+// A new pool that passes its check is returned as the config would read it,
+// its directories as it would write them and as it resolves them, written
+// nowhere.
+func TestANewPoolCheckedIsGivenAsTheConfigWouldReadIt(t *testing.T) {
+	was := pooled(defaultPool)
+	w := newWorld(t, was)
+	registry := w.unasked(t, &user{})
+	registry.HomeDir = func() (string, error) { return "/Users/test", nil }
+
+	got, err := registry.CheckNewPool(accounts.NewPool{Label: "Client", Dirs: []string{"~/Code/client", "/Users/test/Code/other"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"~/Code/client", "~/Code/other"}; got.Label != "Client" || !slices.Equal(got.WrittenDirs, want) {
+		t.Errorf("CheckNewPool() = %+v, want Client, written %q", got, want)
+	}
+	if want := []string{"/Users/test/Code/client", "/Users/test/Code/other"}; !slices.Equal(got.Dirs, want) {
+		t.Errorf("CheckNewPool() resolved its directories as %q, want %q", got.Dirs, want)
+	}
+	w.checkConfig(t, was)
 }

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -417,19 +416,12 @@ func verbsSaid(before, after config.Pools, p config.Pool) string {
 }
 
 // warnUnmade warns w of each of p's directories that isn't a directory on
-// this Mac, as root, the filesystem from its root, finds it, as where it's
-// mistyped: the pool's made all the same, as its directory may be made
-// later. Where root is nil, or a directory can't be looked for, nothing is
-// said of it.
+// this Mac, as root, the filesystem from its root, finds it, as
+// config.Pool's Missing has them: the pool's made all the same, as its
+// directory may be made later.
 func warnUnmade(w io.Writer, root fs.FS, p config.Pool) {
-	if root == nil || len(p.Dirs) != len(p.WrittenDirs) {
-		return
-	}
-	for i, dir := range p.Dirs {
-		info, err := fs.Stat(root, cmp.Or(strings.TrimPrefix(dir, "/"), "."))
-		if errors.Is(err, fs.ErrNotExist) || err == nil && !info.IsDir() {
-			launch.Notice(w, prose.Clean(p.WrittenDirs[i])+" isn't a directory, so no session starts in it yet: if it's mistyped, fence the pool anew with switchboard pool edit "+p.ID+" --dirs")
-		}
+	for _, dir := range p.Missing(root) {
+		launch.Notice(w, prose.Clean(dir)+" isn't a directory, so no session starts in it yet: if it's mistyped, fence the pool anew with switchboard pool edit "+p.ID+" --dirs")
 	}
 }
 

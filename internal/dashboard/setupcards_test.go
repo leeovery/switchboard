@@ -382,6 +382,31 @@ func TestTheAddCardsPoolIsDrawnUnderPlan(t *testing.T) {
 	}
 }
 
+// A pool's warning is drawn under Pool's hint, from its value's column, in
+// accent.attention, over as many rows as it wraps to, and any refusal under
+// that.
+func TestTheAddCardsPoolWarningIsDrawnUnderItsHint(t *testing.T) {
+	card := pooledCard()
+	card.Pool.Warning = "~/Code/amce isn't a directory on this Mac, so no session starts in it yet"
+	card.Refused, card.Why = setup.PoolField, "pool \"q7mt\" is not configured"
+	c := setupDrawn(firstRunScreen(card), 160, 37)
+	top, value := (37-19)/2, editCardContent+10
+	for y, want := range map[int]string{
+		top + 10: "│            ~/Code/amce isn't a directory on this Mac, so no session starts",
+		top + 11: "│            in it yet",
+		top + 12: "│            pool \"q7mt\" is not configured",
+	} {
+		if got := setupCardRow(c, y); !strings.HasPrefix(got, want+" ") {
+			t.Errorf("row %d reads\n%q\nwant it to start\n%q", y, got, want)
+		}
+	}
+	for _, y := range []int{top + 10, top + 11} {
+		if got := inkAt(c, value, y); got != warningInk {
+			t.Errorf("the warning's row %d is in %+v, want accent.attention", y, got)
+		}
+	}
+}
+
 // Where Pool is chosen on new pool, the add card's enter opens the new pool
 // card, and its keys say so.
 func TestTheAddCardsKeysOnNewPool(t *testing.T) {

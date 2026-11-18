@@ -60,11 +60,17 @@ func planChosen(chosen string) (string, error) {
 
 // CheckPool checks a pool to make with an account, as the new pool card gives
 // it, against the config as it stands, writing nothing, as
-// accounts.Registry.CheckNewPool checks it. It fails with a Refused of its
-// label or its directories, as refusedPool has it, and as CheckNewPool does
-// otherwise.
-func (s *Setup) CheckPool(pool accounts.NewPool) error {
-	return refusedPool(s.Accounts.CheckNewPool(pool))
+// accounts.Registry.CheckNewPool checks it, returning its directories that
+// aren't on this Mac, as config.Pool's Missing has them, as the config
+// writes them: a warning, never a refusal, as one may be made later. It
+// fails with a Refused of its label or its directories, as refusedPool has
+// it, and as CheckNewPool does otherwise.
+func (s *Setup) CheckPool(pool accounts.NewPool) ([]string, error) {
+	checked, err := s.Accounts.CheckNewPool(pool)
+	if err != nil {
+		return nil, refusedPool(err)
+	}
+	return checked.Missing(s.Root), nil
 }
 
 // refusedPool is err, a pool to make refused, as an accounts.NewPoolError

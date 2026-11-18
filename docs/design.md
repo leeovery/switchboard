@@ -1301,22 +1301,24 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   label over lines is. `pool add` and `pool edit` say, as they fence a pool, that the sessions
   running in its directories keep the pool they started in till they're resumed (see What pools
   can't hold); they warn of a directory that isn't one on this Mac, making the pool all the same,
-  as it may be made later. `pool edit` says, as it fences the one unfenced pool, that `claude`
-  won't start outside every fence now, but within a session or in a worktree of a repository
-  inside one; `pool add` and `pool edit`, as they make a pool unfenced, that the sessions started
-  outside every fence go to it now; and each, where the pool the verbs act on without `--pool`
-  changes, as `pool add` beside one pool alone, fenced, changes it, which it is now, or that they
-  need `--pool`, `accounts add` among them. An account
-  moved to another pool is its new pool's primary only with `--primary`: without it, the pool
-  keeps its primary, `accounts edit` marking it where the config marks none, so the account moved
-  doesn't take it by coming first in the config's order, and saying so. The pool it leaves takes
-  its next account as its primary where it was the primary, and `accounts edit` says which, that
-  the sessions running on the moved account's token, where it has a usable one, are refused now it
-  has left, and which account's token they start on resumed, as a launch in that pool would choose
-  it by the config and the tokens, or another's where the router holds that one back then, or
+  as it may be made later. Which directories are missing is `config.Pool.Missing`'s alone, looked
+  for on the filesystem from its root, a directory that can't be looked for not among them, and
+  `pool add`, `pool edit`, `import` and setup's new pool card all ask it, so they never disagree.
+  `pool edit` says, as it fences the one unfenced pool, that `claude` won't start outside every
+  fence now, but within a session or in a worktree of a repository inside one; `pool add` and `pool
+  edit`, as they make a pool unfenced, that the sessions started outside every fence go to it now;
+  and each, where the pool the verbs act on without `--pool` changes, as `pool add` beside one pool
+  alone, fenced, changes it, which it is now, or that they need `--pool`, `accounts add` among them.
+  An account moved to another pool is its new pool's primary only with `--primary`: without it, the
+  pool keeps its primary, `accounts edit` marking it where the config marks none, so the account
+  moved doesn't take it by coming first in the config's order, and saying so. The pool it leaves
+  takes its next account as its primary where it was the primary, and `accounts edit` says which,
+  that the sessions running on the moved account's token, where it has a usable one, are refused now
+  it has left, and which account's token they start on resumed, as a launch in that pool would
+  choose it by the config and the tokens, or another's where the router holds that one back then, or
   doesn't route it yet, unless every account there is so, as the router isn't asked; or, where it
-  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same
-  of the removed account's pool: its primary now, by the pool, or that it has no accounts.
+  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same of
+  the removed account's pool: its primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
@@ -1478,10 +1480,13 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
     directory left empty passed over; with none, the pool's unfenced. `enter` elsewhere has
     `accounts.Registry.CheckNewPool` check it, by the config's own rules, a refusal said under the
     label or under the directory refused, which `config.DirError` places; once it passes, the card
-    that opened it holds it among its pools, chosen, and `esc` goes back to that card. Its keys
-    are `tab next`, `enter create pool` and `esc back`, `enter add a directory` on `+ another
-    directory`; the card under it says `enter new pool` while its Pool is on `new pool`. The pool
-    held is written with the account, in the one edit that adds it, after its token, or moves it,
+    that opened it holds it among its pools, chosen, and `esc` goes back to that card. Of a
+    directory that isn't on this Mac, as `config.Pool.Missing` finds it, that card warns under
+    Pool's hint while the pool's chosen, in `accent.attention`, `~/Code/acme isn't a directory on
+    this Mac, so no session starts in it yet`, as `pool add` warns of one: a warning, never a
+    refusal, as the directory may be made later. Its keys are `tab next`, `enter create pool`
+    and `esc back`, `enter add a directory` on `+ another directory`; the card under it says
+    `enter new pool` while its Pool is on `new pool`. The pool held is written with the account, in the one edit that adds it, after its token, or moves it,
     under an id drawn as `pool add` draws one (`accounts.NewPool`).
   - The add card's `enter` checks the pool chosen and any new pool with the account, as
     `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
@@ -12801,6 +12806,5 @@ was dropped binds a later choice, the design proper says so.
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
 | An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
-| Setup's card for a new pool warns of a fence folder that isn't on this Mac, as `pool add` and `pool edit` do | open: after v1 | [setup-fence-folder-warning](../ideas/2026-11-17--setup-fence-folder-warning.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
 | Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |

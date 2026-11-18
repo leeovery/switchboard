@@ -3,12 +3,14 @@ package config_test
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/leeovery/switchboard/internal/config"
 )
@@ -822,5 +824,34 @@ func TestTheAccountSignedInIsTheFirstPoolsPrimary(t *testing.T) {
 				t.Errorf("SignedIn(%q) = %q, %t; want %q, %t", tt.noted, got.ID, ok, tt.want, tt.wantOK)
 			}
 		})
+	}
+}
+
+// A pool's directories missing from this Mac are those that aren't a
+// directory there, as mistyped, or a file, given as the config writes them;
+// none where the filesystem isn't looked in.
+func TestAPoolsMissingDirectoriesAreThoseNotOnThisMac(t *testing.T) {
+	dir := &fstest.MapFile{Mode: fs.ModeDir}
+	machine := fstest.MapFS{"Users/you/Code/acme": dir, "work/notes.txt": &fstest.MapFile{}}
+	pool := config.Pool{
+		ID:          "q7mt",
+		Dirs:        []string{"/Users/you/Code/acme", "/Users/you/Code/amce", "/work/notes.txt", "/"},
+		WrittenDirs: []string{"~/Code/acme", "~/Code/amce", "/work/notes.txt", "/"},
+	}
+	tests := []struct {
+		name string
+		root fs.FS
+		want []string
+	}{
+		{name: "looked for", root: machine, want: []string{"~/Code/amce", "/work/notes.txt"}},
+		{name: "not looked for", root: nil, want: nil},
+	}
+	for _, tt := range tests {
+		if got := pool.Missing(tt.root); !slices.Equal(got, tt.want) {
+			t.Errorf("%s: Missing = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+	if got := (config.Pool{ID: "b2n8"}).Missing(machine); got != nil {
+		t.Errorf("the unfenced pool's Missing = %q, want none", got)
 	}
 }

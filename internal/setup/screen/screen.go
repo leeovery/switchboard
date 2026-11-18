@@ -59,9 +59,10 @@ type Steps interface {
 	// failing with a setup.Refused where config refuses a value.
 	CheckAdding(adding setup.Adding) (accounts.Adding, error)
 	// CheckPool checks a pool to make with an account, writing nothing,
-	// failing with a setup.Refused of its label or its directories where
-	// config refuses one.
-	CheckPool(pool accounts.NewPool) error
+	// returning its directories that aren't on this Mac, and failing with a
+	// setup.Refused of its label or its directories where config refuses
+	// one.
+	CheckPool(pool accounts.NewPool) ([]string, error)
 	// EditAccount changes the account id as edit says, failing with a
 	// setup.Refused where config refuses a value.
 	EditAccount(id string, edit setup.Edit) (accounts.Edited, error)

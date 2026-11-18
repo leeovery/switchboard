@@ -97,6 +97,13 @@ The add card has a Pool field, with every pool by its label, then `new pool`. It
 `~/`. With no folders, the pool is unfenced. `setup` checks the pool before it makes any token, and
 writes the pool only once the token is saved. So an add you cancel leaves no pool behind.
 
+If a folder isn't on this Mac, the card warns you under the Pool hint, in case the name is
+mistyped. `setup` makes the pool anyway, because you may make the folder later:
+
+```text
+~/Code/acmee isn't a directory on this Mac, so no session starts in it yet
+```
+
 Once there's a second pool, the table groups the accounts by pool, and `◆` marks each primary. The
 edit card gains a Pool field, which moves the account as
 [`accounts edit --pool`](accounts.md) does. See [Pools](../pools.md).
