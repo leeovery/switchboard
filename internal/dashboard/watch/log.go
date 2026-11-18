@@ -93,7 +93,7 @@ func (m Model) builtLog(now time.Time) Model {
 	if m.log.fills() {
 		m.log.page = m.log.page.Filling(rows)
 	}
-	m = m.followedByLogCard().builtLogPanel(now)
+	m = m.followedByLogCard().builtLogPanel(mo)
 	if day, ok := m.log.lettingGo(rows); ok {
 		m.log = m.log.spanningFrom(day)
 		return m.eventsLetGo(now).builtLog(now)

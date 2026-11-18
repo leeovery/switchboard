@@ -272,7 +272,7 @@ func (s *scheduler) remember(on situation, d decision) (first bool, from string)
 			"from", found.Account, "to", d.account}, poolSaid(on.accounts.pool)...)
 		logger.Info("moved", append(attrs, "reason", d.reason)...)
 		s.emit(Moved{
-			Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason, Held: d.held, Limit: d.limit,
+			Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason, Held: d.held, Limit: d.limit, HeldSince: d.heldSince,
 			Pool: on.accounts.pool, Dir: found.dirAfter(req), Project: found.projectAfter(req),
 		})
 		from = found.Account

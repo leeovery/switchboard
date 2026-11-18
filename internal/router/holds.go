@@ -101,12 +101,12 @@ func (r *recent) readHeld(e ReadHeld, now time.Time) {
 	r.countWaiting(r.keep(held, at))
 }
 
-// holdLifted ends at now the hold of the account's read refused, as
-// openHold has it, begun by then, as room again a look at now tells its
+// holdLifted ends at now the account's newest hold begun by now, where it
+// holds still, as newestHold has it, as room again a look at now tells its
 // lift, so a move after it is never counted in it: a hold told since the
 // look read the accounts is one after the lift, and holds on.
 func (r *recent) holdLifted(account string, now time.Time) {
-	if h, ok := r.openHold(account, now, now); ok {
+	if h, ok := r.newestHold(account, now, func(at time.Time) bool { return !at.After(now) }); ok {
 		h.Until = now
 		h.mark()
 	}
@@ -282,7 +282,7 @@ func (r *recent) forcing(e Moved, now time.Time) (*happening, bool) {
 		}
 		return r.find(refusalHolding(e.From, r.state.family(e.Model), now))
 	case HeldByRead:
-		return r.openHold(e.From, now, now)
+		return r.forcingHold(e, now)
 	}
 	return nil, false
 }
@@ -381,15 +381,25 @@ func (r *recent) capEvent(account string, now time.Time) (*happening, bool) {
 	return h, ok && h.changes(now)
 }
 
-// openHold returns the event of the account's newest hold begun by then,
-// kept, where it hasn't lifted and can change at now, reporting false
-// otherwise. Only the newest can hold, as a hold starts afresh only once the
-// one before it has lifted: an older one left open, as one that lifted while
-// its account was out of quota, or within the look that told the next one,
-// holds nothing. r.mu must be held.
-func (r *recent) openHold(account string, then, now time.Time) (*happening, bool) {
+// forcingHold returns the event of the hold that forced the move e, as
+// forcing does: the newest hold of the account it left, where it holds still,
+// as newestHold has it, and began at or after the refusals the move was
+// forced by, as its HeldSince says, whatever the move's own time; any open
+// one, where the move doesn't say. An older hold left open, as one that
+// lifted while its account was out of quota, never counts a move of the
+// hold after it, which waits for that hold to be told. r.mu must be held.
+func (r *recent) forcingHold(e Moved, now time.Time) (*happening, bool) {
+	h, ok := r.newestHold(e.From, now, func(time.Time) bool { return true })
+	return h, ok && !h.At.Before(e.HeldSince)
+}
+
+// newestHold returns the event of the account's newest hold kept that began
+// as begun says, reporting whether it holds still: it hasn't lifted, and
+// can change at now. Only the newest can hold, as a hold starts afresh only
+// once the one before it has lifted. r.mu must be held.
+func (r *recent) newestHold(account string, now time.Time, begun func(at time.Time) bool) (*happening, bool) {
 	h, ok := r.find(func(h *happening) bool {
-		return h.Kind == status.EventHeld && h.Account == account && !h.At.After(then)
+		return h.Kind == status.EventHeld && h.Account == account && begun(h.At)
 	})
 	return h, ok && h.Until.IsZero() && h.changes(now)
 }

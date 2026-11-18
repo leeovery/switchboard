@@ -17,7 +17,7 @@ those folders, in a folder beneath one, or in a git worktree of a repository ins
 
 **Hold.** The router sends an account nothing because Anthropic refused its last usage read. The
 cause is `subscription lapsed` or `token refused`. A hold lasts until a read of the account comes
-back clean, or the account gets a new token, and no time ends it. The Log shows a hold starting
+back clean, or the account gets a new token, and no time ends a hold. The Log shows a hold starting
 as a `held` event and ending as `open`.
 
 **Label.** The name you give an account or a pool, shown on every screen. You can change it

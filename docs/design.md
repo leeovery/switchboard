@@ -569,9 +569,18 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     before a restart, whose account's token changed while the router was down, was lifted by the
     change: the state file's hold is of a token the account no longer holds, so the router drops
     it, and keeps its cause for room again (`liftsUntold`), so the first look that finds the
-    account with room tells `room` with that cause, and the Log pairs the hold with it. Room
-    again's notification doesn't post for that lift, as the notifications first look at the
-    account after the restart: accepted, as its news is old.
+    account with room tells `room` with that cause, and the Log pairs the hold with it. Accepted:
+    the lift is told only within the run that loaded it, as the cause is kept in memory alone, so
+    a second restart before the account has room leaves the hold's row with no lift; and room
+    again's notification doesn't post for that lift, as the notifications never knew of the
+    hold.
+  - **A move counts in the hold that's holding:** a move a hold forced carries when the refusals
+    of the account's read began (`Moved.HeldSince`, the state's `refusedSince`), and counts in the
+    account's newest hold, while it holds, that began at or after them, whatever the move's own
+    time, so a move heard after its hold, though stamped before it, counts there, and a hold left
+    open, as one whose read came back clean while its account was out of quota, never takes the
+    move of the hold after it, which waits for that hold. A move heard out of order beyond these
+    can count in the wrong hold: accepted, as the count is shown only, never routed on.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -3775,7 +3784,8 @@ the mode is never out of sight. Its parts, each after `  ·  ` (two spaces, `·`
    `accent.attention`, the reason as the status document's `restart` gives it (`config changed`,
    `upgraded`, `time zone changed`) (settled in the plan); put off, as the binary the router
    would become refuses to start, `restart put off (upgraded)` (the owner's call, 26 October
-   2026, as `restart held`, worded `put off` once `held` came to name a hold).
+   2026, as `restart held`, reworded in the build of hold in the Log, 18 November 2026, once
+   `held` came to name a hold).
 3. **The mode:** `auto` in `text.secondary`; or with a global pin, `pinned to personal` in bold
    `accent.attention`, its accounts in the config's order (`pinned to personal and side`, `pinned to
    personal, side and work`).
@@ -7483,7 +7493,7 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `✓` `state.positive` | `open` | the account | `its 5-hour window reset`; as a hold lifts, `hold lifted (subscription lapsed)`, its card's `hold` item `lifted (subscription lapsed)` |
 | `●` `accent.key` | `pin` | the accounts it names | `new sessions go there, set from the command line`; with `--move`, `new and running sessions go there, …`; a session's own pin, `this session goes there, set from the dashboard` (settled in the plan) |
 | `↩` `accent.key` | `auto` | blank | `new sessions back from personal to the router's choice, set from the dashboard`; a session's own pin cleared, `this session back from side to the router's choice, …` (settled in the plan) |
-| `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan); put off, as the binary the router would become refuses to start, `put off: <why it refuses>` (the owner's call, 26 October 2026, as `held`, worded `put off` once `held` came to name a hold), its card headed `restart put off`, with a `put off` item |
+| `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan); put off, as the binary the router would become refuses to start, `put off: <why it refuses>` (the owner's call, 26 October 2026, as `held`, reworded in the build of hold in the Log, 18 November 2026, once `held` came to name a hold), its card headed `restart put off`, with a `put off` item |
 | `⊕` `state.destructive`, or `state.positive` well again | `health` | blank | `unhealthy: <its reason>`, or `healthy again` (settled in the plan) |
 
 - **The windows a limit or a cap began with:** its `what happened` names those alone, as LATELY's
@@ -10767,7 +10777,7 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   - **While it's held,** the router carries on as it is, and says why once: at `warn` in its log,
     in a `restart` event with `held` (see The router's events), and in the status document's
     `restart`, `held` (see The status document), which `status`, the status line, LATELY and the
-    Log word as held. A restart that falls due again while the refusal holds, as when a config
+    Log word as put off. A restart that falls due again while the refusal holds, as when a config
     change's config file has been gone a while and comes back as it was, is told of held too, with
     no second
     warning. It asks again only once the config file or the binary moves on, there and
@@ -10918,23 +10928,23 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 - **A restart due shows.** With many long sessions, a moment with no request in flight, and no
   export of the history running (see On a schedule), can be hours coming, so the status document
   gives a restart due, why and since when, and how many requests are in flight (see The status
-  document). `status` says so under its router line:
-  `restart due since Mon 14:02 (config changed), once no request is in flight (3 now): switchboard
-  service restart restarts it now, cutting off requests still in flight after 30 seconds`, or, while
-  an export of the history runs, into the folder configured or one no longer, `restart due since
-  Mon 14:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered
-  macOS prompt can keep it waiting`, with no advice, as `service restart` is refused meanwhile, or, run by
-  hand, `…: run switchboard serve again to take it up`, or, put off, `restart due since Mon 14:02
-  (upgraded), put off: <why the binary refuses>`, with no advice, as neither a quiet moment nor
-  `service restart` gets past it; and the dashboard's status line, `restart due (config changed)`,
-  or `restart put off (upgraded)` (see The page). The log line saying a restart is due names the
-  export it waits for where one runs, `restart due; restarting once the export under way ends and
-  no request is in flight`, with its folder. `service restart` asks the router to restart now
-  (`POST /restart`): it gives its requests in flight up to 30 seconds, and those it cuts off then up
-  to 5 more to unwind, answering on the control socket meanwhile, so a `claude` started then is
-  routed, its requests waiting on the proxy's socket for the router it becomes, then replaces itself
-  in place, or, as it says as it takes the request when it can't, as not knowing its binary, exits
-  for launchd to start it again (see Launching).
+  document). `status` says so under its router line: `restart due since Mon 14:02 (config changed),
+  once no request is in flight (3 now): switchboard service restart restarts it now, cutting off
+  requests still in flight after 30 seconds`, or, while an export of the history runs, into the
+  folder configured or one no longer, `restart due since Mon 14:02 (config changed), once the export
+  into /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can keep it waiting`, with no
+  advice, as `service restart` is refused meanwhile, or, run by hand, `…: run switchboard serve
+  again to take it up`, or, put off, `restart due since Mon 14:02 (upgraded), put off: <why the
+  binary refuses>`, with no advice, as neither a quiet moment nor `service restart` gets past it;
+  and the dashboard's status line, `restart due (config changed)`, or `restart put off (upgraded)`
+  (see The page). The log line saying a restart is due names the export it waits for where one runs,
+  `restart due; restarting once the export under way ends and no request is in flight`, with its
+  folder. `service restart` asks the router to restart now (`POST /restart`): it gives its requests
+  in flight up to 30 seconds, and those it cuts off then up to 5 more to unwind, answering on the
+  control socket meanwhile, so a `claude` started then is routed, its requests waiting on the
+  proxy's socket for the router it becomes, then replaces itself in place, or, as it says as it
+  takes the request when it can't, as not knowing its binary, exits for launchd to start it again
+  (see Launching).
 - As it starts, the router brings the installed skill up to date (see The skill), and makes the
   tokens directory private when it's there.
 

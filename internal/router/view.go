@@ -35,9 +35,9 @@ type view struct {
 	// lately, or whose last read was refused, by id: they'd only refuse it
 	// again. readRefused holds, by id, why the API refused the last read of
 	// each of them whose last read it refused, which holds them back till a
-	// read comes back clean.
+	// read comes back clean, and since when.
 	refused     []string
-	readRefused map[string]status.StaleCause
+	readRefused map[string]readRefusal
 	// limited holds, by id, the identity of the limit that holds the request
 	// back on each account, of those barred, where a limit does.
 	limited map[string]int
@@ -181,10 +181,17 @@ func (v view) tried(id, why string) (Hold, int) {
 	return 0, 0
 }
 
+// readRefusal is why the API refused an account's last read, and when the
+// refusals in a row that hold it began, as the state's refusedSince has it.
+type readRefusal struct {
+	cause status.StaleCause
+	since time.Time
+}
+
 // heldByRead is why the API refused the last read of the account with the
-// given id, where that holds it back from the request, as readRefused has
-// it: zero where it doesn't.
-func (v view) heldByRead(id string) status.StaleCause {
+// given id, where that holds it back from the request, and since when, as
+// readRefused has it: zero where it doesn't.
+func (v view) heldByRead(id string) readRefusal {
 	return v.readRefused[id]
 }
 

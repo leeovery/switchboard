@@ -1172,9 +1172,9 @@ func (s *state) viewing(pool, model string, now time.Time) view {
 		}
 		if u.readRefused() {
 			if v.readRefused == nil {
-				v.readRefused = make(map[string]status.StaleCause)
+				v.readRefused = make(map[string]readRefusal)
 			}
-			v.readRefused[a.ID] = status.RefusedRead(u.refusedRead)
+			v.readRefused[a.ID] = readRefusal{cause: status.RefusedRead(u.refusedRead), since: u.refusedSince}
 		}
 		if u.limited.holds(now, applies) {
 			if v.limited == nil {

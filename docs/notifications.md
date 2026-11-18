@@ -39,7 +39,8 @@ run `switchboard service restart`.
   [hold](glossary.md). You see `b6s7 · work held: subscription lapsed — its subscription needs
   renewing`. This notification goes out under the `limits` setting.
 - When the account can take requests again, you see `b6s7 · work has room again`. The end of a
-  hold posts this notification too.
+  hold posts this notification too. A hold that a new token lifted while the router was down
+  posts nothing.
 - When a window passes the warning, you see `b6s7 · work: Week at 91%`, once until that window
   resets.
 - When an account's token has 30 days left, you're told once, and again at 7 days. It reads

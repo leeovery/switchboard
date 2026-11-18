@@ -81,8 +81,11 @@ type decision struct {
 	// request, and limit the identity of the limit, where that's what does,
 	// as view's holding says: what forces the move. A move by choice, as by
 	// pin, after the session's idle hour or at its compaction, carries none.
-	held  Hold
-	limit int
+	// heldSince is when the refusals of the account's read that hold it
+	// began, where its hold is what does, as the move's HeldSince carries it.
+	held      Hold
+	limit     int
+	heldSince time.Time
 	// compacted is set when the decision was judged at the first request
 	// after the session's compaction, as compacted says, and move is how
 	// moving the session was judged then: to move it, which the decision
@@ -190,7 +193,7 @@ func (s situation) choose() decision {
 func (s situation) forcedOff(d decision) decision {
 	if d.account != s.current.Account {
 		held := s.unable(s.current.Account)
-		d.held, d.limit = held.by, held.limit
+		d.held, d.limit, d.heldSince = held.by, held.limit, held.since
 	}
 	return d
 }
@@ -307,12 +310,14 @@ func (s situation) why() (reason, preferred string, forced bool) {
 }
 
 // unableOn is why an account can't take a request, and what holds the
-// request back there, as the move it forces is counted: the hold, and the
-// identity of the limit, where that's what does.
+// request back there, as the move it forces is counted: the hold, the
+// identity of the limit, where that's what does, and when the refusals of
+// its read began, where its hold of a read refused does.
 type unableOn struct {
 	why   string
 	by    Hold
 	limit int
+	since time.Time
 }
 
 // unable says why the account with the given id can't take the request, and
@@ -327,8 +332,8 @@ func (s situation) unable(id string) unableOn {
 		by, limit := s.accounts.tried(id, a.Why)
 		return unableOn{why: a.Why, by: by, limit: limit}
 	}
-	if cause := s.accounts.heldByRead(id); cause != 0 {
-		return unableOn{why: status.WhyHeldBy(cause), by: HeldByRead}
+	if refused := s.accounts.heldByRead(id); refused.cause != 0 {
+		return unableOn{why: status.WhyHeldBy(refused.cause), by: HeldByRead, since: refused.since}
 	}
 	why := status.WhyNoRoom
 	if s.accounts.reserved(id) {

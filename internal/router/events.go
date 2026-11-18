@@ -76,8 +76,12 @@ type Moved struct {
 	Reason  string
 	Held    Hold
 	Limit   int
-	Dir     string
-	Project string
+	// HeldSince is when the refusals of the account's read that hold it
+	// began, of a move its hold forced, as the state has them, which picks
+	// out the hold it counts in: zero for any other move.
+	HeldSince time.Time
+	Dir       string
+	Project   string
 	// Pool is the id of the pool the request was routed within, as the
 	// accounts' view had it: none in a config from before pools.
 	Pool string

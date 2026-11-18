@@ -144,22 +144,49 @@ func TestAHoldKeptAcrossARestartIsToldOfAgainByNothing(t *testing.T) {
 // A hold told before a restart, whose account's token changed while the
 // router was down, lifted then, as a new token lifts a hold: the first look
 // that finds the account with room tells that lift as room again, with the
-// hold's cause, as one lifted while the router ran is told.
+// hold's cause, as one lifted while the router ran is told; one out of quota
+// as the router starts waits for its quota to come back.
 func TestAHoldLiftedByANewTokenWhileTheRouterWasDownIsToldAsItsRoomAgain(t *testing.T) {
-	path := filepath.Join(t.TempDir(), stateFileName)
-	clock := &testClock{now: start}
-	before := newTestFile(clock.read, resolve(testConfigured, testTokens.Read, unrecorded))
-	before.load(path)
-	before.state.record("work", []quota.Window{session, soonWeek}, before.state.mark())
-	probesEnd(before.state, "work", []error{errSubscriptionEnded})
-	before.save()
+	tests := []struct {
+		name string
+		// kept are the windows the state file keeps of work.
+		kept []quota.Window
+		// quotaBack has work's quota come back after the first looks, nil
+		// where it had room all along.
+		quotaBack func(h *restarting)
+		// windows are those room again names as having held work back.
+		windows []string
+	}{
+		{name: "with room as the router starts", kept: []quota.Window{session, soonWeek}},
+		{
+			name: "out of quota as the router starts", kept: []quota.Window{session, spentWeek}, windows: []string{"7d"},
+			quotaBack: func(h *restarting) { h.r.state.record("work", []quota.Window{session, soonWeek}, h.r.state.mark()) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), stateFileName)
+			clock := &testClock{now: start}
+			before := newTestFile(clock.read, resolve(testConfigured, testTokens.Read, unrecorded))
+			before.load(path)
+			before.state.record("work", tt.kept, before.state.mark())
+			probesEnd(before.state, "work", []error{errSubscriptionEnded})
+			before.save()
 
-	h := restartedOn(t, clock, path, tokenstest.Files{"work": renewedToken, "side": sideToken})
-	probesEnd(h.r.state, "work", []error{nil})
-	h.looks(2)
-	want := []status.Event{{ID: 1, At: start, Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"}}
-	if got := h.r.recent.events(); !reflect.DeepEqual(got, want) {
-		t.Errorf("once work is read on its new token, events() = %+v, want %+v, told once", got, want)
+			h := restartedOn(t, clock, path, tokenstest.Files{"work": renewedToken, "side": sideToken})
+			h.looks(2)
+			if tt.quotaBack != nil {
+				if got := h.r.recent.events(); got != nil {
+					t.Fatalf("while work is out of quota, events() = %+v, want none", got)
+				}
+				tt.quotaBack(h)
+				h.looks(1)
+			}
+			want := []status.Event{{ID: 1, At: start, Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed", Windows: tt.windows}}
+			if got := h.r.recent.events(); !reflect.DeepEqual(got, want) {
+				t.Errorf("once work has room on its new token, events() = %+v, want %+v, told once", got, want)
+			}
+		})
 	}
 }
 
@@ -294,6 +321,9 @@ func TestAMoveOffALimitedAndHeldAccountCountsInWhatItsReasonSays(t *testing.T) {
 			if len(moves) != 1 || moves[0].Reason != tt.reason || moves[0].Held != tt.held {
 				t.Fatalf("the moves = %+v, want one, %q, held by %v", moves, tt.reason, tt.held)
 			}
+			if since := moves[0].HeldSince; (tt.held == HeldByRead) != since.Equal(start) {
+				t.Errorf("the move's HeldSince = %v, want when work's read was first refused, %v, of a move its hold forced alone", since, start)
+			}
 			counts, ids := make(map[string]int), make(map[string]int)
 			var moved status.Event
 			for _, e := range r.recent.events() {
@@ -333,10 +363,9 @@ func TestALiftEndsNoHoldToldAfterTheLookReadTheAccounts(t *testing.T) {
 	}
 }
 
-// A move off a held account counts in the account's newest hold alone: an
-// older hold left open, as one that lifted while its account was out of
-// quota, never counts it, so a move heard before its hold starts waits for
-// that hold.
+// A move off a held account counts only in the account's newest hold, while
+// it holds: with the newest lifted, an older one left open never counts it,
+// and the move waits for the hold to come.
 func TestAMoveCountsInTheAccountsNewestHoldAlone(t *testing.T) {
 	k := newTelling(t)
 	k.reads(0.5, 0.5)
@@ -346,15 +375,73 @@ func TestAMoveCountsInTheAccountsNewestHoldAlone(t *testing.T) {
 	k.clock.now = start.Add(time.Minute)
 	k.hear(heldOff("one", opus, "side"), workLapsed)
 
+	if got := heldCounts(k); !slices.Equal(got, []int{1, 0, 0}) {
+		t.Errorf("the holds, the newest first, count %v, want the move in the newest alone, the one it waited for", got)
+	}
+}
+
+// A move a hold forced counts in the newest hold that began at or after the
+// refusals it was forced by, as its HeldSince says, whatever its own time: an
+// older hold left open, as one that lifted while its account was out of
+// quota, never takes it, and the move waits for its own hold; nor does a
+// move stamped before its hold began, but heard after, miss that hold.
+func TestAMoveCountsInTheHoldThatBeganWithItsRefusals(t *testing.T) {
+	t.Run("an older hold left open", func(t *testing.T) {
+		k := newTelling(t)
+		k.reads(0.5, 0.5)
+		k.look()
+		k.hear(workLapsed)
+		k.clock.now = start.Add(time.Minute)
+		move := heldOff("one", opus, "side")
+		move.HeldSince = k.clock.now
+		k.hear(move, workTokenRefused)
+
+		if got := heldCounts(k); !slices.Equal(got, []int{1, 0}) {
+			t.Errorf("the holds, the newest first, count %v, want the move in the newest, which began with its refusals", got)
+		}
+	})
+	t.Run("a move stamped before its hold began, heard after", func(t *testing.T) {
+		r := newTestRecent(&testClock{now: start.Add(time.Minute)})
+		r.hear(workLapsed)
+		move := heldOff("one", opus, "side")
+		move.HeldSince = start.Add(30 * time.Second)
+		r.change(func() { r.take(move, start) })
+
+		if got := r.events(); len(got) != 2 || got[1].Kind != status.EventHeld || got[1].Count != 1 {
+			t.Errorf("events() = %+v, want the hold counting the move, heard after the hold began", got)
+		}
+	})
+}
+
+// A lift ends the account's newest hold alone, an older one left open as it
+// was.
+func TestALiftEndsTheNewestHoldAlone(t *testing.T) {
+	k := newTelling(t)
+	k.reads(0.5, 0.5)
+	k.look()
+	k.hear(workLapsed, workTokenRefused)
+	k.r.change(func() { k.r.holdLifted("work", start) })
+
+	var ended []bool
+	for _, e := range k.r.events() {
+		if e.Kind == status.EventHeld {
+			ended = append(ended, !e.Until.IsZero())
+		}
+	}
+	if !slices.Equal(ended, []bool{true, false}) {
+		t.Errorf("the holds, the newest first, ended %v, want the newest alone", ended)
+	}
+}
+
+// heldCounts are the counts of the holds k keeps, the newest first.
+func heldCounts(k *telling) []int {
 	var counts []int
 	for _, e := range k.r.events() {
 		if e.Kind == status.EventHeld {
 			counts = append(counts, e.Count)
 		}
 	}
-	if !slices.Equal(counts, []int{1, 0, 0}) {
-		t.Errorf("the holds, the newest first, count %v, want the move in the newest alone, the one it waited for", counts)
-	}
+	return counts
 }
 
 // A hold begun before the events files take an event back, told late as a
