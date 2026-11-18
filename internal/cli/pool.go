@@ -202,7 +202,7 @@ func poolAddedSays(out io.Writer, added accounts.AddedPool) error {
 		running += "; " + strings.Join(outside, ", and ")
 	}
 	p := added.Pool
-	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(prose.Clean(p.Label)), p.ID, fenceSaid(p), running)
+	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(p.Label), p.ID, fenceSaid(p), running)
 	return err
 }
 
@@ -356,7 +356,7 @@ func poolEditedSays(e accounts.EditedPool) string {
 	}
 	var changed []string
 	if e.Was.Label != e.Now.Label {
-		changed = append(changed, nowAndWas("label", prose.Quoted(prose.Clean(e.Now.Label)), prose.Quoted(prose.Clean(e.Was.Label))))
+		changed = append(changed, nowAndWas("label", prose.Quoted(e.Now.Label), prose.Quoted(e.Was.Label)))
 	}
 	var running string
 	switch {

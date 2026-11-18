@@ -4,6 +4,11 @@ package filelock
 
 import "os"
 
+// TakeDir takes no lock where there's no flock, opening nothing.
+func TakeDir(string) (unlock func()) {
+	return func() {}
+}
+
 // Lock takes no lock where there's no flock.
 func Lock(*os.File) error {
 	return nil

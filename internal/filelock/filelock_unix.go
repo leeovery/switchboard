@@ -9,6 +9,21 @@ import (
 	"syscall"
 )
 
+// TakeDir takes an exclusive lock on the directory dir, waiting while
+// another holds one, and returns what lets it go. Where it can't take one,
+// it carries on without, its unlock letting nothing go.
+func TakeDir(dir string) (unlock func()) {
+	d, err := os.Open(dir)
+	if err != nil {
+		return func() {}
+	}
+	if err := Lock(d); err != nil {
+		_ = d.Close()
+		return func() {}
+	}
+	return closer(d)
+}
+
 // Lock takes an exclusive lock on f, waiting while another holds one.
 func Lock(f *os.File) error {
 	return flock(f, syscall.LOCK_EX)

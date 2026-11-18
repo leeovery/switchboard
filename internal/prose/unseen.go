@@ -47,6 +47,14 @@ func Unseen(r rune) bool {
 		!unicode.IsSpace(r) && !unicode.Is(unicode.Prepended_Concatenation_Mark, r)
 }
 
+// Prepends reports whether r is a prepended concatenation mark, such as an
+// Arabic number sign, which joins the character after it into one, and the
+// two, as the dashboard measures what it draws, take no cells, so that
+// character never shows.
+func Prepends(r rune) bool {
+	return unicode.Is(unicode.Prepended_Concatenation_Mark, r)
+}
+
 // Reorders reports whether r is a bidirectional embedding, override or
 // isolate, U+202A to U+202E and U+2066 to U+2069, which can reorder the rest
 // of a line it's shown in.

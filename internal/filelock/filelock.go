@@ -4,7 +4,7 @@
 // its file closes, however the process holding it ends, so the file it's
 // held on is left in place: a lock on a file removed and made again could be
 // held twice at once. Where there's no flock, outside Unix, nothing is
-// locked, and every lock is taken: what each guards is macOS's alone.
+// locked, and every lock is taken, so two writers at once may lose a change.
 package filelock
 
 import "os"
@@ -37,21 +37,6 @@ func TryTake(path string) (unlock func(), ok bool, err error) {
 		return nil, false, err
 	}
 	return closer(f), true, nil
-}
-
-// TakeDir takes an exclusive lock on the directory dir, waiting while
-// another holds one, and returns what lets it go. Where it can't take one,
-// it carries on without, its unlock letting nothing go.
-func TakeDir(dir string) (unlock func()) {
-	d, err := os.Open(dir)
-	if err != nil {
-		return func() {}
-	}
-	if err := Lock(d); err != nil {
-		_ = d.Close()
-		return func() {}
-	}
-	return closer(d)
 }
 
 // open opens the file at path to hold a lock on, making it, the user's

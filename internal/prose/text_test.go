@@ -1,6 +1,7 @@
 package prose_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -27,6 +28,8 @@ func TestAccountNamed(t *testing.T) {
 		{name: "labelled by its id in another case", label: "Work", id: "work", want: "work"},
 		{name: "not labelled", id: "k3f9", want: "k3f9"},
 		{name: "each cleaned", label: "Acme\t1\n", id: "k3f9\x1b", want: "Acme 1 (k3f9)"},
+		{name: "a label of a direction mark alone by its id", label: "\u200e", id: "k3f9", want: "k3f9"},
+		{name: "a label of characters drawn as nothing by its id", label: "\u200b\u2066", id: "k3f9", want: "k3f9"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -308,8 +311,16 @@ func TestClean(t *testing.T) {
 		{name: "a keycap kept", text: "1\ufe0f\u20e3 first", want: "1\ufe0f\u20e3 first"},
 		{name: "a subdivision's flag kept", text: "Work " + england, want: "Work " + england},
 		{name: "a joining script's joiner kept", text: "\u0915\u094d\u200d\u0937", want: "\u0915\u094d\u200d\u0937"},
-		{name: "a direction mark kept, as a label keeps one", text: "a\u200fb", want: "a\u200fb"},
-		{name: "an Arabic number sign kept, as it draws", text: "\u0600123", want: "\u0600123"},
+		{name: "a direction mark dropped from text written left to right", text: "a\u200fb 12", want: "ab 12"},
+		{name: "an Arabic letter mark dropped from text written left to right", text: "a\u061cb", want: "ab"},
+		{name: "a direction mark kept within text holding Hebrew", text: "\u05d0\u200f 12 b", want: "\u05d0\u200f 12 b"},
+		{name: "a direction mark kept within text holding Arabic", text: "\u0645\u061c 12", want: "\u0645\u061c 12"},
+		{name: "direction marks at the edges trimmed, though Hebrew's within", text: "\u200f \u05d0\u05d1 \u200e", want: "\u05d0\u05d1"},
+		{name: "direction marks at the edges trimmed", text: "\u200eWork\u200f", want: "Work"},
+		{name: "a direction mark alone as nothing", text: "\u200e", want: ""},
+		{name: "an Arabic number sign dropped, as it hides what's after it", text: "\u0600123", want: "123"},
+		{name: "the end of an ayah dropped", text: "\u06dd1 Work", want: "1 Work"},
+		{name: "a Kaithi number sign dropped", text: "Work\U000110bd1", want: "Work1"},
 		{name: "a private-use glyph kept", text: "\ue0a0 main", want: "\ue0a0 main"},
 		{name: "a joiner judged by what's kept, the space dropped before it passed over", text: "\U0001f600\u200b\u200d\U0001f600", want: "\U0001f600\u200d\U0001f600"},
 	}
@@ -322,21 +333,44 @@ func TestClean(t *testing.T) {
 	}
 }
 
-// Clean leaves nothing it would clean again, so text shown twice over, as a
-// label cleaned then named, shows the same.
-func TestCleanTextIsCleanAlready(t *testing.T) {
+// Clean leaves nothing it cleans away, and nothing it would clean again, so
+// text shown twice over, as a label cleaned then named, shows the same.
+func TestCleanLeavesNothingToClean(t *testing.T) {
 	for _, text := range []string{
 		"  Work \t team\n",
 		"\u202ekrow \u2066a\u2069",
+		"Day\u200b job\u200f",
 		"\U0001f600\u200b\u200d\U0001f600",
 		"Side \U0001f3f4\U000e0068\U000e0069\U000e007f",
 		"Day \u200b\u200d job",
+		"\u200f\u05d0 12\u061c",
+		"\u0600123 \u06dd",
 	} {
 		once := prose.Clean(text)
+		switch {
+		case strings.ContainsFunc(once, prose.Reorders):
+			t.Errorf("Clean(%+q) = %+q, holding a bidirectional control", text, once)
+		case strings.ContainsFunc(once, prose.Prepends):
+			t.Errorf("Clean(%+q) = %+q, holding a prepended concatenation mark", text, once)
+		case prose.MapUnseen(once, dropMarksOnly) != once:
+			t.Errorf("Clean(%+q) = %+q, holding a character drawn as nothing that does nothing that shows", text, once)
+		case strings.TrimFunc(once, prose.DirectionMark) != once:
+			t.Errorf("Clean(%+q) = %+q, a direction mark at its edge", text, once)
+		}
 		if twice := prose.Clean(once); twice != once {
 			t.Errorf("Clean(Clean(%+q)) = %+q, want %+q, as Clean left it", text, twice, once)
 		}
 	}
+}
+
+// dropMarksOnly is what a test has MapUnseen make of an unseen character that
+// does nothing that shows: a direction mark kept, for Clean keeps those
+// within text written right to left, and anything else dropped.
+func dropMarksOnly(r rune) string {
+	if prose.DirectionMark(r) {
+		return string(r)
+	}
+	return ""
 }
 
 func TestVisible(t *testing.T) {

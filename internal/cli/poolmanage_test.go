@@ -346,6 +346,8 @@ func TestPoolEditChangesALabelAndTheDirectories(t *testing.T) {
 			said: "edited pool q7mt: fenced to /work/client (was fenced to /work/acme); " + runningKeep},
 		{name: "nothing new", accounts: unfencedBesideFenced, args: []string{"--label", "Acme"}, said: "pool q7mt has every value given already, so nothing changed",
 			label: "Acme", dirs: []string{"/work/acme"}},
+		{name: "a label written by hand, holding what's drawn as nothing, tidied", accounts: strings.Replace(unfencedBesideFenced, `label = "Acme"`, `label = "Acme\u200b"`, 1),
+			args: []string{"--label", "Acme"}, said: `edited pool q7mt: label "Acme" (was "Acme\u200B")`, label: "Acme", dirs: []string{"/work/acme"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

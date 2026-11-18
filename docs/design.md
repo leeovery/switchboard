@@ -7612,8 +7612,9 @@ one:
   following, a new line joins the foot and the table moves up a line, and a line in flight's `took`
   counts; paused, only `▼ N new` and `took` move (settled in the plan).
 - **Not live:** the ledger's files and the router's files of events alone.
-- **Text from elsewhere,** a directory, a label, an error's message, shows with its control
-  characters as spaces.
+- **Text from elsewhere,** a directory, a label, an error's message, shows cleaned
+  (`prose.Clean`): its control characters as spaces, and without what could reorder or hide the
+  rest of its line.
 
 ### A session's page
 
@@ -8993,9 +8994,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 ### Kept from the dashboard before milestone 5
 
 - Desktop notifications: see Notifications.
-- Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
-  as spaces, here and in `status` alike, so none can move the cursor or restyle what follows, a
-  statusline's included.
+- Text from elsewhere, such as labels and the upstream's errors, shows cleaned (`prose.Clean`),
+  here and in `status` alike: its control characters as spaces, so none can move the cursor or
+  restyle what follows, a statusline's included, and without what could reorder or hide the rest of
+  its line, as the `internal/prose` row of Packages says.
 - `status`'s text keeps the form and the words it has, as `usage`, the printout quotes them, until
   it's designed afresh with the dashboard's words, as the Backlog says; it projects as the
   dashboard does.
@@ -11119,7 +11121,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
-| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped, by the rule `accounts add` takes a label by (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line; direction marks are kept, as a label keeps them, and so are emoji, keycaps, variants, flags and joining scripts. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. `prose.Quoted` shows what `prose.Clean` would drop as escapes instead |
+| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown but text to copy, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped, by the rule `accounts add` takes a label by (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line, while emoji, keycaps, variants, flags and joining scripts are kept whole. A prepended concatenation mark, such as an Arabic number sign, is dropped too, as the dashboard measures it and the character after it as no cells, so that character would never show; a label refuses one. A direction mark is kept only within text holding a letter written right to left, which it orders, and dropped from any other and from the edges of all, as a terminal that orders text by direction carries a mark at a field's end on to reorder the digits and punctuation of the next; a label taken keeps those within it whatever it's written in (`prose.CleanLabel`), and shows without them where it's written left to right. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. Text to copy, such as setup's lines and a token, keeps all but its control characters (`prose.Visible`), so what's copied is what was given. `prose.Quoted` shows as escapes the characters drawn as nothing that `prose.Clean` drops, and the direction marks besides |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
 Each view's data is built once, in `internal/views`, and drawn by `internal/dashboard` or printed
@@ -11319,11 +11321,13 @@ hiding it behind the provider would take a wider interface than it's worth:
   `~/.local/share/switchboard/Switchboard.app`, the app a release's switchboard posts through,
   written out from the one embedded, with `.Switchboard.app.sum` beside it, the embedded zip's
   SHA-256 (see Notifications, "How they're posted").
-- **Locks:** every lock above is a `flock` taken through `internal/filelock`, its one owner:
-  `accounts.lock`, `import.lock`, the router's copy's `.lock`, `.Switchboard.app.lock`, the
+- **Locks:** each lock switchboard takes is a `flock` taken through `internal/filelock`, its one
+  owner, and no other package takes one (`internal/filelock/guard_test.go`): `accounts.lock` and
+  `import.lock` in the state directory, the router's copy's `.lock`, `.Switchboard.app.lock`, the
   tokens directory, the logs directory, the state directory, which the preferences hold as
   they're kept, and a day's plain file. A lock goes as its file closes, however the process
-  holding it ends, so its file is left in place, never removed to let it go.
+  holding it ends, so letting it go leaves its file in place; `service uninstall` removes the
+  router's copy's and the notifications' app's with what they guard.
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
   switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
   `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell

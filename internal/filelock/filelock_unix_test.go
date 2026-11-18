@@ -11,9 +11,13 @@ import (
 	"github.com/leeovery/switchboard/internal/filelock"
 )
 
-// waited is how long a lock that should wait is given to return before
-// it's taken to be waiting.
-const waited = 100 * time.Millisecond
+// The bounds on a lock's call: waited is how long one that should wait is
+// watched before it's taken to be waiting, and returned how long one that
+// should return is given to, however busy the machine.
+const (
+	waited   = 100 * time.Millisecond
+	returned = 10 * time.Second
+)
 
 // lockPath is a path to hold a lock on, in a directory of the test's own.
 func lockPath(t *testing.T) string {
@@ -31,9 +35,23 @@ func openLock(t *testing.T, path string) *os.File {
 	return f
 }
 
-// returns reports whether done gives way within waited, an error a call
-// returned with given as a test error.
+// waiting reports whether the call done tells of is still waiting once
+// waited has passed, its error, where it returned, a test error.
+func waiting(t *testing.T, done <-chan error) bool {
+	t.Helper()
+	return !returnsWithin(t, done, waited)
+}
+
+// returns reports whether the call done tells of returns within returned,
+// its error a test error.
 func returns(t *testing.T, done <-chan error) bool {
+	t.Helper()
+	return returnsWithin(t, done, returned)
+}
+
+// returnsWithin reports whether the call done tells of returns within
+// bound, its error a test error.
+func returnsWithin(t *testing.T, done <-chan error, bound time.Duration) bool {
 	t.Helper()
 	select {
 	case err := <-done:
@@ -41,7 +59,7 @@ func returns(t *testing.T, done <-chan error) bool {
 			t.Errorf("the lock waited for = %v", err)
 		}
 		return true
-	case <-time.After(waited):
+	case <-time.After(bound):
 		return false
 	}
 }
@@ -60,7 +78,7 @@ func TestAnExclusiveLockWaitsWhileAnotherHoldsOne(t *testing.T) {
 		}
 		done <- err
 	}()
-	if returns(t, done) {
+	if !waiting(t, done) {
 		t.Fatal("a second Take() returned while the first held the lock, want it waiting")
 	}
 	unlock()
@@ -108,7 +126,6 @@ func TestALockGoesAsItsFileClosesLeavingTheFileInPlace(t *testing.T) {
 		t.Fatalf("Take() = %v", err)
 	}
 	unlock()
-	unlock()
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("the lock's file once let go: %v, want it left in place", err)
 	}
@@ -116,7 +133,11 @@ func TestALockGoesAsItsFileClosesLeavingTheFileInPlace(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("TryTake() once the lock was let go = (%t, %v), want (true, nil)", ok, err)
 	}
-	again()
+	defer again()
+	unlock()
+	if taken, err := filelock.TryLock(openLock(t, path)); err != nil || taken {
+		t.Errorf("TryLock() once the first holder let go twice = (%t, %v), want (false, nil): its second unlock lets go no lock another holds", taken, err)
+	}
 }
 
 func TestTakeMakesTheLocksFileTheUsersAlone(t *testing.T) {
@@ -158,8 +179,23 @@ func TestTakeDirLocksTheDirectoryTillItsLetGo(t *testing.T) {
 }
 
 func TestTakeDirCarriesOnWithoutALockWhereItCantTakeOne(t *testing.T) {
-	unlock := filelock.TakeDir(filepath.Join(t.TempDir(), "missing"))
-	unlock()
+	dir := filepath.Join(t.TempDir(), "missing")
+	done := make(chan error, 1)
+	go func() {
+		unlock := filelock.TakeDir(dir)
+		unlock()
+		unlock()
+		done <- nil
+	}()
+	if !returns(t, done) {
+		t.Fatal("TakeDir() on a directory that isn't there waited, want it to carry on at once")
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if taken, err := filelock.TryLock(openLock(t, dir)); err != nil || !taken {
+		t.Errorf("TryLock() on the directory made once TakeDir() carried on = (%t, %v), want (true, nil): it holds nothing", taken, err)
+	}
 }
 
 // mustMake makes the file at path, empty, and returns path.

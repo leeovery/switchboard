@@ -261,6 +261,8 @@ func TestANewPoolTheRulesRefuseIsRefusedWritingNothing(t *testing.T) {
 	}{
 		{name: "no label", pool: accounts.NewPool{Dirs: []string{"/Code/acme"}}, is: func(err error) bool { return errors.Is(err, accounts.ErrNoPoolLabel) }},
 		{name: "another pool's label", pool: accounts.NewPool{Label: "default", Dirs: []string{"/Code/acme"}}, is: isA[*accounts.PoolLabelTakenError]},
+		{name: "another pool's label, a direction mark at its edge", pool: accounts.NewPool{Label: "\u200edefault", Dirs: []string{"/Code/acme"}}, is: isA[*accounts.PoolLabelTakenError]},
+		{name: "another pool's label, a zero-width space within it", pool: accounts.NewPool{Label: "def\u200bault", Dirs: []string{"/Code/acme"}}, is: isA[*accounts.PoolLabelTakenError]},
 		{name: "a second pool unfenced", pool: accounts.NewPool{Label: "Acme"}, is: isA[*accounts.UnfencedError]},
 		{name: "a directory inside another pool's", pool: accounts.NewPool{Label: "Client", Dirs: []string{"/Code/client", "/Code/work/client"}}, is: func(err error) bool {
 			refused, ok := errors.AsType[*config.DirError](err)
