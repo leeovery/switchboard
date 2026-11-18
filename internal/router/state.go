@@ -56,11 +56,13 @@ type usage struct {
 	// probe's failure; and misses counts the probes in a row that read
 	// nothing, until a reading comes in, to backingOff. refusedSince is when
 	// its read was first refused, of the refusals refusedRead has kept in a
-	// row, which the hold runs from, zero while none has.
+	// row, which the hold runs from, zero while none has; and heldTold
+	// whether that hold has been told of, as ReadHeld.
 	probeErr     string
 	refusedRead  quota.ReadRefusal
 	misses       int
 	refusedSince time.Time
+	heldTold     bool
 	// warned holds, by key, when each window the last probe couldn't read was
 	// last warned of, as warnOf has it. It's kept in memory alone.
 	warned map[string]time.Time
@@ -556,11 +558,14 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if err != nil {
 		if !taken.tokenGone {
 			u.probed, u.ended = at, at
-			if u.failed(redact.Text(err.Error()), quota.RefusalOf(err), at) {
-				taken.held = &ReadHeld{Account: id, Refused: u.refusedRead, Status: quota.APIStatusOf(err)}
-			}
+			started := u.failed(redact.Text(err.Error()), quota.RefusalOf(err), at)
 			u.misses = min(u.misses+1, backingOff)
-			s.routine()
+			if !started {
+				s.routine()
+				return taken
+			}
+			u.heldTold, taken.held = true, &ReadHeld{Account: id, Refused: u.refusedRead, Status: quota.APIStatusOf(err)}
+			s.changed()
 		}
 		return taken
 	}
@@ -738,6 +743,7 @@ func (s *state) tokenLost(id string) {
 // nor their backoff hold.
 func (u *usage) probesAfresh() {
 	u.probed, u.probeErr, u.refusedRead, u.refusedSince, u.misses, u.failures, u.warned = time.Time{}, "", "", time.Time{}, 0, nil, nil
+	u.heldTold = false
 }
 
 // probesAfreshOnItsToken forgets how the account's probes went, as
@@ -746,11 +752,11 @@ func (u *usage) probesAfresh() {
 // only be refused again, and another one, which lifts it, goes out by way of
 // tokenReplaced.
 func (u *usage) probesAfreshOnItsToken() {
-	err, refused, since := u.probeErr, u.refusedRead, u.refusedSince
+	err, refused, since, told := u.probeErr, u.refusedRead, u.refusedSince, u.heldTold
 	keep := u.readRefused()
 	u.probesAfresh()
 	if keep {
-		u.probeErr, u.refusedRead, u.refusedSince = err, refused, since
+		u.probeErr, u.refusedRead, u.refusedSince, u.heldTold = err, refused, since, told
 	}
 }
 
@@ -1366,7 +1372,7 @@ func (u *usage) take(windows []quota.Window, at time.Time, sent, taken moment) (
 	if len(merged) == 0 {
 		return nil, nil, false
 	}
-	u.updated, u.probeErr, u.refusedRead, u.refusedSince, u.misses = at, "", "", time.Time{}, 0
+	u.updated, u.probeErr, u.refusedRead, u.refusedSince, u.misses, u.heldTold = at, "", "", time.Time{}, 0, false
 	if u.limited.liftedBy(merged, at, sent) {
 		u.lift()
 	}
@@ -1675,6 +1681,7 @@ func (u *usage) saved() (savedReading, bool) {
 		ReadAt: u.updated, Windows: u.latest(), WindowsReadAt: u.windowsReadAt(),
 		WindowsAbsent: slices.Sorted(maps.Keys(u.absent)), Extra: u.extra,
 		Probed: u.probed, ProbeError: u.probeErr, RefusedRead: u.refusedRead, Misses: u.misses, RefusedSince: u.refusedSince,
+		HeldTold: u.heldTold,
 	}, true
 }
 
@@ -1747,14 +1754,30 @@ func (u *usage) recall(kept savedReading, token tokenKept, shared func(key strin
 	if token.same {
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
 		u.probeErr, u.refusedRead = redact.Text(kept.ProbeError), kept.RefusedRead
-		u.refusedSince = u.refusalKept(kept, now)
+		u.refusedSince, u.heldTold = u.refusalKept(kept, now), kept.HeldTold && u.readRefused()
 	}
 	if !token.usable {
 		u.probesAfreshOnItsToken()
 	}
 	u.unchecked = !token.held()
 	return !u.probed.Equal(kept.Probed) || u.misses != kept.Misses || u.probeErr != kept.ProbeError ||
-		u.refusedRead != kept.RefusedRead || !u.refusedSince.Equal(kept.RefusedSince)
+		u.refusedRead != kept.RefusedRead || !u.refusedSince.Equal(kept.RefusedSince) || u.heldTold != kept.HeldTold
+}
+
+// untold are the holds of the accounts' reads refused never told of, as a
+// router from before kept them, each as ReadHeld tells it, from when it
+// began, in the order of the accounts' ids; each told of from now on.
+func (s *state) untold() []ReadHeld {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var untold []ReadHeld
+	for _, id := range slices.Sorted(maps.Keys(s.usage)) {
+		if u := s.usage[id]; u.readRefused() && !u.heldTold {
+			u.heldTold = true
+			untold = append(untold, ReadHeld{Account: id, Refused: u.refusedRead, Since: u.refusedSince})
+		}
+	}
+	return untold
 }
 
 // refusalKept is when the account's read was first refused, as the state

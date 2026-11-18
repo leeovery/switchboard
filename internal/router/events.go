@@ -130,12 +130,16 @@ type RefusalLifted struct {
 // probe's read of it, none refused before it since a read came back clean:
 // Refused says why, and Status is the status the API answered with, 0 where
 // its failure didn't say. It's told as the hold starts alone, not as reads
-// are refused again while it holds, nor as a restart finds it in the state
-// file; its lift is room again, as the accounts are looked at.
+// are refused again while it holds, nor as a restart finds in the state file
+// a hold told before; its lift is room again, as the accounts are looked at.
+// Since is when a hold the state file kept, never told, began, as a router
+// from before kept it, told once as the router starts: zero for one that
+// starts now. One told late is old news, which no notification posts.
 type ReadHeld struct {
 	Account string
 	Refused quota.ReadRefusal
 	Status  int
+	Since   time.Time
 }
 
 // ForeignToken is the token of Account found to be another subscription's,

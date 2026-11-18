@@ -75,7 +75,7 @@ pass over one you don't know. In the forms below, `<id>` is the id of an account
 | `is at its reserve` | It has reached its reserve. |
 | `had its read refused, its subscription ended` | Anthropic refused its last usage read because its subscription has ended, so the router holds it. |
 | `had its read refused, its token refused` | Anthropic refused the token on its last usage read, so the router holds it. |
-| `had its read refused` | Anthropic refused its last usage read, so the router held it. Lines written before the why named the cause carry it. |
+| `had its read refused` | Anthropic refused its last usage read, so the router held it. Only lines written before the why named the cause carry this why. |
 | `has no room` | It has no room for the request otherwise. |
 
 ## Where each why appears

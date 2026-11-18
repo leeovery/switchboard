@@ -9,7 +9,7 @@ LOG    Requests  Events  [ ]  ────────────────�
 ◇ 07:05:12                     primed    work             its 5-hour window started, resets at 12:05
 ▲ 07:58:30  2b6d api           started   work
 ■ 08:05:00                     held      side             token refused (401)
-✓ 08:24:30                     open      side             token refused lifted
+✓ 08:24:30                     open      side             hold lifted (token refused)
 ▲ 08:31:02  a8f1╭─ EVENT · 13:41:00 · personal held ───────────────────────────────────────────────────────────────────────────────────────────╮
 ◇ 08:47:00      │                                                                                                                              │
 ▲ 09:12:40  e0c4│  WHAT HAPPENED                                     PERSONAL THEN            WHAT FOLLOWED                                    │

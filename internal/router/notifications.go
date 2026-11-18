@@ -207,7 +207,7 @@ func (n *notifications) take(ctx context.Context, e Event, accounts standings) {
 			n.limits.reached(e, time.Now())
 		}
 	case ReadHeld:
-		if n.settings.Limits {
+		if n.settings.Limits && e.Since.IsZero() {
 			n.send(ctx, heldNotice(e, accounts))
 		}
 	case Moved:

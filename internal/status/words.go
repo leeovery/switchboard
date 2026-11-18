@@ -534,17 +534,21 @@ var offWords = map[string]offSaid{
 	WhyReserve:           {event: " reached its cap", routed: AtCap, short: "its cap", brief: AtCap},
 	WhyLimit:             {event: " reached its limit", routed: AtLimit, short: "its limit", brief: AtLimit},
 	WhyRefused:           {event: " refused the request", routed: "refused", short: "refused", brief: "refused"},
-	WhyReadRefused:       {event: " had its read refused", routed: "read refused", short: "read refused", brief: "read refused"},
-	WhySubscriptionEnded: heldOff(StaleLapsed),
-	WhyReadTokenRefused:  heldOff(StaleRefused),
+	WhyReadRefused:       {event: " had its read refused", routed: readRefused, short: readRefused, brief: readRefused},
+	WhySubscriptionEnded: heldOff(StaleLapsed, prose.SubscriptionLapsedShort),
+	WhyReadTokenRefused:  heldOff(StaleRefused, readRefused),
 	WhyNoRoom:            {event: " had no room", routed: "with no room", short: "no room", brief: "no room"},
 }
 
+// readRefused is the words for an account's read refused, where space is
+// short: never "refused" alone, which is the upstream refusing a request.
+const readRefused = "read refused"
+
 // heldOff is why a move off an account held by its read refused was forced,
-// as cause says why, in the words Said gives the cause: "work's subscription
-// lapsed", "subscription lapsed", "lapsed".
-func heldOff(cause StaleCause) offSaid {
-	full, short := cause.Said()
+// as cause says why, in the words Said gives the cause, short where space is
+// short: "work's subscription lapsed", "subscription lapsed", "lapsed".
+func heldOff(cause StaleCause, short string) offSaid {
+	full, _ := cause.Said()
 	return offSaid{event: "'s " + full, routed: full, short: short, brief: full}
 }
 
@@ -603,13 +607,18 @@ func movedOff(reason string, _ Facts) (forms, bool) {
 
 // pinYields reads the reason for going elsewhere than the session's own pin
 // sends it, "pin yields: side has no room", as "its pin to side yields: side
-// has no room".
+// has no room", a hold of its read refused worded as a move's is, "its pin
+// to side yields: side's subscription lapsed".
 func pinYields(reason string, _ Facts) (forms, bool) {
 	account, why, ok := cutAccount(reason, ReasonPinYields)
 	if !ok {
 		return forms{}, false
 	}
-	return alike(Words{Plain("its pin to "), Named(account), Plain(" yields: "), Named(account), Plain(" " + why)}).briefly(Plain("pin yields")), true
+	said := " " + why
+	if heldBy(why) != 0 {
+		said = offWords[why].event
+	}
+	return alike(Words{Plain("its pin to "), Named(account), Plain(" yields: "), Named(account), Plain(said)}).briefly(Plain("pin yields")), true
 }
 
 // cutAccount cuts a reason that starts as given and names an account, as

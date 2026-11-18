@@ -176,7 +176,7 @@ func (s situation) choose() decision {
 	}
 	d := s.unpinned()
 	if !d.noRoom {
-		d.reason = status.ReasonPinYields + pin + " " + s.unable(pin)
+		d.reason = status.ReasonPinYields + pin + " " + s.unable(pin).why
 	}
 	if s.assigned && s.current.Account == pin {
 		d = s.forcedOff(d)
@@ -185,11 +185,12 @@ func (s situation) choose() decision {
 }
 
 // forcedOff returns d, a choice that has to leave the session's account, as
-// it can't take the request, with what held the request back there, where d
-// moves the session off it.
+// it can't take the request, with what held the request back there, as
+// unable has it, where d moves the session off it.
 func (s situation) forcedOff(d decision) decision {
 	if d.account != s.current.Account {
-		d.held, d.limit = s.accounts.holding(s.current.Account)
+		held := s.unable(s.current.Account)
+		d.held, d.limit = held.by, held.limit
 	}
 	return d
 }
@@ -301,27 +302,39 @@ func (s situation) why() (reason, preferred string, forced bool) {
 	case s.movesFree():
 		return status.Rescored(s.now.Sub(s.current.LastSeen)), s.current.Account, false
 	default:
-		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account), "", true
+		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account).why, "", true
 	}
 }
 
-// unable says why the account with the given id can't take the request: what
-// went wrong when the request went out on it, else that its last read was
-// refused, and why, which holds it back till a read comes back clean,
-// whatever else does, else that it has reached its reserve, when that alone
-// holds it back, else that it has no room.
-func (s situation) unable(id string) string {
+// unableOn is why an account can't take a request, and what holds the
+// request back there, as the move it forces is counted: the hold, and the
+// identity of the limit, where that's what does.
+type unableOn struct {
+	why   string
+	by    Hold
+	limit int
+}
+
+// unable says why the account with the given id can't take the request, and
+// what holds it back, one owner of both, so a move's reason and the event it
+// counts in agree: what went wrong when the request went out on it, held as
+// the view has it; else that its last read was refused, and why, which holds
+// it back till a read comes back clean, whatever else does; else that it has
+// reached its reserve, when that alone holds it back; else that it has no
+// room, held as the view has it.
+func (s situation) unable(id string) unableOn {
+	by, limit := s.accounts.holding(id)
 	a, tried := s.req.attempt(id)
-	held := s.accounts.heldByRead(id)
+	cause := s.accounts.heldByRead(id)
 	switch {
 	case tried:
-		return a.Why
-	case held != 0:
-		return status.WhyHeldBy(held)
+		return unableOn{why: a.Why, by: by, limit: limit}
+	case cause != 0:
+		return unableOn{why: status.WhyHeldBy(cause), by: HeldByRead}
 	case s.accounts.reserved(id):
-		return status.WhyReserve
+		return unableOn{why: status.WhyReserve, by: by, limit: limit}
 	default:
-		return status.WhyNoRoom
+		return unableOn{why: status.WhyNoRoom, by: by, limit: limit}
 	}
 }
 

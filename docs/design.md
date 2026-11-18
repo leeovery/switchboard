@@ -338,7 +338,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused above its reserve (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve`, `pin yields: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
-| `moved: <id> had its read refused, its subscription ended`, `moved: <id> had its read refused, its token refused`, and the same after `pin yields: ` | The same, as the API refused `<id>`'s last read, its subscription ended or its token refused, which holds it back till a read comes back clean, whatever else holds it too (see 401s and 403s); a router from before gave `had its read refused` alone |
+| `moved: <id> had its read refused, its subscription ended`, `moved: <id> had its read refused, its token refused`, and the same after `pin yields: ` | The same, as the API refused `<id>`'s last read, its subscription ended or its token refused, which holds it back till a read comes back clean, whatever else holds it too, unless the request went out on `<id>` and came back with its limit or a refusal, which it then says (see 401s and 403s); a router from before gave `had its read refused` alone |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
 | `moved: <id> has a new token`, `pin yields: <id> has a new token` | The same, as `<id>` refused the request's token, having taken up a new one |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
@@ -508,29 +508,39 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   token as Claude Code's own while another's will do, as the router's document says it, or with the
   router down its state file (see Launching). An account removed goes as any other, its history
   kept.
-- **A hold is told in the Log** (decided 18 November 2026), so looking back a hold reads as
-  something that happened, never as moves with no event behind them:
-  - **Its start is an event of its own, `held`,** told as a probe's read refused starts it:
-    `account`, `reason` the cause in the cards' words, `subscription lapsed` or `token refused`,
-    as status's `StaleCause` says it, `status` the read's answer, 403 or 401, and `count` and `to`
-    the sessions it moved. It isn't `refused`: that is the upstream refusing requests, which the
-    status document reads with its `until` as a live hold, and a hold has no `until`.
+- **A hold is told in the Log,** so looking back a hold reads as something that happened, never as
+  moves with no event behind them. The owner chose, on 18 November 2026: its start an event of its
+  own, `held`; its lift told as room again; its moves naming the cause; a notification as it
+  starts, under `limits`; nothing told again across a restart; and the hold shown in the Log, its
+  card, LATELY, `switchboard events`, and Accounts' and Runway's lists. How it's built:
+  - **Its start, `held`,** is told as a probe's read refused starts the hold: `account`, `reason`
+    the cause in the cards' words, `subscription lapsed` or `token refused`, as status's
+    `StaleCause` says it, `status` the read's answer, 403 or 401, and `count` and `to` the
+    sessions it moved. It isn't `refused`, the upstream refusing requests, which the status
+    document reads with its `until` as a live hold. The state file is saved at once as a hold
+    starts, so a router stopped in that minute doesn't tell it a second time.
   - **Its lift is room again,** `room`, as a read comes back clean or a new token starts the
-    account's probes afresh, its `reason` the cause that lifted: the router's looks see a hold as
-    no room, whatever's known of the account's quota, as its first read can be the one refused. A
-    hold only lifts as a read comes back clean, so its lift is news once, never the flapping a
-    refused token's would be.
+    account's probes afresh, its `reason` the cause that lifted, and the `held` event ends there,
+    its `until` the lift's time. The router's looks see a hold as no room, whatever's known of the
+    account's quota, as its first read can be the one refused. A hold lifts only on a clean read
+    or a new token, so its lift is news once, never the flapping a refused token's would be. A
+    move after the lift never counts in the lifted hold: it waits for the hold that starts next.
   - **Its moves name the cause:** a move off a held account, or a pin yielding from one, gives
     `had its read refused, its subscription ended` or `had its read refused, its token refused`,
-    which the views word `work's subscription lapsed`, `from work, subscription lapsed`, in the
-    cards' words; and counts in the hold's event, its `forced_by` the hold's `id`, as a limit's, a
-    cap's and a refusal's do. A limit holding the account too doesn't take the move, as the hold is
-    said first.
+    fixed whys, as every why is (see the reasons above), which the views word as the cards do:
+    `work's subscription lapsed`, `from work, subscription lapsed`, and where space is short
+    `lapsed` or `read refused`, never `refused`, the upstream's word. Each counts in the hold's
+    event, its `forced_by` the hold's `id`, as a limit's, a cap's and a refusal's do.
+  - **One owner gives a move's why and what it counts in,** the router's `unable`, so they can't
+    disagree: a request that went out on the account and came back with its limit or a refusal
+    says that, and counts in the limit or the refusal, a hold or not; one that didn't is held by
+    the hold first, whatever else holds the account.
   - **Told once:** a read refused again while it holds, for either cause, tells nothing new, and a
     read that fails otherwise neither starts one nor lifts one.
-  - **Not told again across a restart:** a hold the state file keeps is told by neither event nor
-    notification as the router starts, as its start was told before. Its lift is room again all
-    the same.
+  - **Across a restart:** the state file keeps whether each hold has been told, `held_told`. A
+    hold told before is told by neither event nor notification as the router starts; its lift is
+    room again all the same. A hold a router from before kept, never told, is told once as the
+    router starts, its `at` when the hold began, and posts nothing, as its news is old.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -4649,7 +4659,7 @@ at every width.
   | `■` in `state.destructive` | `held` | `work held (subscription lapsed): 2 sessions moved to side`; short, `work held: 2 moved to side` |
   | `■` in `state.destructive` | `foreign` | `work's token is another subscription's`; short, `work: wrong token` |
   | `◇` in `text.subtle` | `primed` | `side primed: its 5-hour window started` |
-  | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset`; as a hold lifts, `work open again: subscription lapsed lifted` |
+  | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset`; as a hold lifts, `work open again: hold lifted (subscription lapsed)` |
   | `●` in `accent.key` | `pin` | `pin set by hand: new sessions go to personal` |
   | `↩` in `accent.key` | `auto` | `new sessions back to auto` |
   | `!` in `accent.attention` | `restart` | `restart due: the config changed`; held, `restart held: <why the binary refuses>` |
@@ -5242,8 +5252,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `14:31  ╎ reached its cap: 3 sessions moved to side`; a move onto it, `▸ 3 sessions came from
   work: work reached its cap`; `14:12  ▲ api started here`, or, where it started on the router's
   best, `api started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a hold,
-  `■ held (subscription lapsed): 2 sessions moved to side`, and its lift, `✓ open again:
-  subscription lapsed lifted`; a pin
+  `■ held (subscription lapsed): 2 sessions moved to side`, and its lift, `✓ open again: hold
+  lifted (subscription lapsed)`; a pin
   naming it with others, `● pinned with side, by hand`; and `12:10  ◇ primed: its 5-hour window
   started`. For `all accounts`, every account's, each naming its account, as the Overview's LATELY
   does: `api started on side, the best`.
@@ -7436,10 +7446,10 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `╎` `accent.attention` | `cap` | the account | `95% of its 5-hour window: its 3 sessions move to side as their next requests come` |
 | `■` `state.destructive` | `limit` | the account | `its 5-hour window, till 23:58: its session moves to side` |
 | `■` `state.destructive` | `refused` | the account | `its token refused (401), till 14:00: its 2 sessions move to side`, or a request refused alone, `its opus requests refused (403), till 14:00` (settled in the plan) |
-| `■` `state.destructive` | `held` | the account | `subscription lapsed (403): its 2 sessions move to side as their next requests come`, or `token refused (401)`; its card headed `work held`, with `why`, `answer` and `till: a read comes back clean` (see 401s and 403s) |
+| `■` `state.destructive` | `held` | the account | `subscription lapsed (403): its 2 sessions move to side as their next requests come`, or `token refused (401)`; its card headed `work held`, with `why`, `answer` and `till: a read comes back clean`, or once it has lifted `lifted: 08:24` (see 401s and 403s) |
 | `■` `state.destructive` | `foreign` | the account | `its token is another subscription's`, its card headed `work's token is another subscription's` (see Account identity) |
 | `◇` `text.subtle` | `primed` | the account | `its 5-hour window started, resets at 12:05` |
-| `✓` `state.positive` | `open` | the account | `its 5-hour window reset`; as a hold lifts, `subscription lapsed lifted`, its card's `lifted` the cause |
+| `✓` `state.positive` | `open` | the account | `its 5-hour window reset`; as a hold lifts, `hold lifted (subscription lapsed)`, its card's `hold` item `lifted (subscription lapsed)` |
 | `●` `accent.key` | `pin` | the accounts it names | `new sessions go there, set from the command line`; with `--move`, `new and running sessions go there, …`; a session's own pin, `this session goes there, set from the dashboard` (settled in the plan) |
 | `↩` `accent.key` | `auto` | blank | `new sessions back from personal to the router's choice, set from the dashboard`; a session's own pin cleared, `this session back from side to the router's choice, …` (settled in the plan) |
 | `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan); held, as the binary the router would become refuses to start, `held: <why it refuses>` (the owner's call, 26 October 2026), its card headed `restart held`, with a `held` item |
@@ -9085,13 +9095,14 @@ posts, but for a token's year, which has no key: see Config.
   `work · Work held: subscription lapsed — its subscription needs renewing`, or `… held: token
   refused — its token needs renewing`, the words ROUTING gives. Its sessions move as their next
   requests come, so nothing gathers them: each is a move of its own. A read refused again while it
-  holds posts nothing, and a hold the state file keeps across a restart posts nothing either, as
-  it was told before (see 401s and 403s).
+  holds posts nothing, and a hold the state file keeps across a restart posts nothing either:
+  one told before is old news, and so is one a router from before kept, told late (see 401s and
+  403s).
 - **Room again:** an account whose quota for a request of any model ran out, under a limit, with
   a shared window spent, or at its reserve, or that a hold held, and has come back: `work · Work
   has room again`. The upstream's refusal isn't quota, so one lifting is no news, or a revoked
-  token would be announced every ten minutes; a hold lifts only as a read comes back clean, so its
-  lift is told once. An account both out of quota and refused or held has room again once each is
+  token would be announced every ten minutes; a hold lifts only as a read comes back clean or the
+  account takes a new token, so its lift is told once. An account both out of quota and refused or held has room again once each is
   past. The router
   looks at the accounts on every event and every 15 seconds, so a limit lifting or a window
   resetting with no traffic is noticed.
@@ -11707,9 +11718,9 @@ verbs).
   - `held`: an account held back from every request as the API refused a probe's read of it, none
     refused before it since a read came back clean (see 401s and 403s): `reason` the cause, in the
     cards' words, `subscription lapsed` or `token refused`; `status` the API's answer, 403 or 401;
-    and `count` and `to`, as a cap's are. It has no `until`, as no time lifts it: `room` tells its
-    lift. A read refused again while it holds tells nothing, and nor does a restart finding it in
-    the state file.
+    and `count` and `to`, as a cap's are. No time lifts it, so it has no `until` till `room`
+    tells its lift, when it ends there. A read refused again while it holds tells nothing, and
+    nor does a restart finding in the state file a hold told before.
   - `primed`: a prime that started its window: `windows` the window it started, and `until` its
     reset.
   - `room`: room again: an account that could take no request, at its limit or its cap, or held,
@@ -11775,7 +11786,8 @@ verbs).
   - `moved: work was refused`: `work refused the request`; `from work, refused`;
   - `moved: work had its read refused, its subscription ended`: `work's subscription lapsed`;
     `from work, subscription lapsed`; and `… its token refused`, `work's token refused`, `from
-    work, token refused`, each in the cards' words (see 401s and 403s);
+    work, token refused`, each in the cards' words, short `lapsed` and `read refused` (see 401s
+    and 403s); after `pin yields: `, `its pin to work yields: work's subscription lapsed`;
   - `moved: work had its read refused`, as a router from before gave it: as it is; `from work,
     read refused`;
   - `moved: work has no room`: `work had no room`; `from work, with no room`;

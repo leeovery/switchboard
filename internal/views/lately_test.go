@@ -115,7 +115,7 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 		{name: "room again, naming no window", event: status.Event{Kind: status.EventRoom, Account: "work"},
 			full: "work open again", subject: "work"},
 		{name: "room again as a hold lifts", event: status.Event{Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"},
-			full: "work open again: subscription lapsed lifted", short: "work open again", subject: "work"},
+			full: "work open again: hold lifted (subscription lapsed)", short: "work open again", subject: "work"},
 		{name: "the global pin set", event: status.Event{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, By: "cli"},
 			full: "pin set by hand: new sessions go to personal", short: "pin set: new sessions go to personal", subject: "pin", object: "personal"},
 		{name: "the global pin set on two accounts", event: status.Event{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal", "side"}, By: "dashboard"},
@@ -322,7 +322,7 @@ func heldWorkLately() status.Document {
 	}}
 }
 
-func TestLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *testing.T) {
+func TestLATELYFoldsTheMovesALimitACapARefusalOrAHoldForcedIntoItsLine(t *testing.T) {
 	tests := []struct {
 		name string
 		doc  status.Document

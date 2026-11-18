@@ -184,6 +184,18 @@ func WhyHeldBy(cause StaleCause) string {
 	return WhyReadRefused
 }
 
+// heldBy is the cause of a hold of an account's read refused that why gives,
+// as WhyHeldBy says it: zero for any other why, WhyReadRefused among them,
+// which names none.
+func heldBy(why string) StaleCause {
+	for _, cause := range []StaleCause{StaleLapsed, StaleRefused} {
+		if WhyHeldBy(cause) == why {
+			return cause
+		}
+	}
+	return 0
+}
+
 // What a request of an assignment's model in flight is doing, as an
 // Assignment's InFlight gives it.
 const (

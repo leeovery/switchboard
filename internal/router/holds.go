@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"time"
@@ -89,8 +90,18 @@ func (r *recent) refused(e Refused, now time.Time) {
 // tells.
 func (r *recent) readHeld(e ReadHeld, now time.Time) {
 	cause, _ := status.RefusedRead(e.Refused).Said()
-	h := r.keep(happening{Kind: status.EventHeld, Account: e.Account, Reason: cause, Status: e.Status}, now)
+	h := r.keep(happening{Kind: status.EventHeld, Account: e.Account, Reason: cause, Status: e.Status}, cmp.Or(e.Since.UTC(), now))
 	r.countWaiting(h)
+}
+
+// holdLifted ends at now the hold of the account's read refused, kept and
+// able to change, as room again tells its lift, so a move after it is never
+// counted in it, as readHolding has it.
+func (r *recent) holdLifted(account string, now time.Time) {
+	if h, ok := r.find(readHolding(account, now)); ok {
+		h.Until = now
+		h.mark()
+	}
 }
 
 // limitLifted ends early, at now, the event of the limit a lifting tells
@@ -363,11 +374,11 @@ func (r *recent) capEvent(account string, now time.Time) (*happening, bool) {
 }
 
 // readHolding returns what picks out the events of the account's holds that
-// can change at now: the newest is the one that holds, if any does, as a
-// hold starts afresh only once the one before it has lifted.
+// haven't lifted and can change at now: the newest is the one that holds, if
+// any does, as a hold starts afresh only once the one before it has lifted.
 func readHolding(account string, now time.Time) func(h *happening) bool {
 	return func(h *happening) bool {
-		return h.Kind == status.EventHeld && h.Account == account && h.changes(now)
+		return h.Kind == status.EventHeld && h.Account == account && h.Until.IsZero() && h.changes(now)
 	}
 }
 

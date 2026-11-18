@@ -281,12 +281,16 @@ func (d detailing) happened() []DetailItem {
 		if e.Status != 0 {
 			items.add("answer", valued(strconv.Itoa(e.Status)))
 		}
-		items.add("till", saidWords(heldTill))
+		if e.Until.IsZero() {
+			items.add("till", saidWords(heldTill))
+		} else {
+			items.add("lifted", d.timeWords(e.Until))
+		}
 	case status.EventPrimed:
 		items.add("window", d.windowsWords())
 	case status.EventRoom:
 		items.add("window", d.windowsWords())
-		items.add("lifted", valued(holdCause(e)))
+		items.add("hold", valued(liftedSaid(e)))
 	case status.EventPin, status.EventAuto:
 		items = d.pinned()
 	case status.EventRestart:

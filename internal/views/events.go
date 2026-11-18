@@ -279,6 +279,16 @@ func holdSaid(e status.Event) string {
 // heldTill is till when a hold holds, as no time lifts it.
 const heldTill = "a read comes back clean"
 
+// liftedSaid says a hold lifted, as room again e tells it, and why it held,
+// as holdCause has it: "lifted (subscription lapsed)", "" where e names no
+// hold.
+func liftedSaid(e status.Event) string {
+	if cause := holdCause(e); cause != "" {
+		return "lifted (" + cause + ")"
+	}
+	return ""
+}
+
 // loggedForeign tells of an account's token found to be another
 // subscription's: "its token is another subscription's".
 func loggedForeign(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
@@ -296,20 +306,20 @@ func loggedPrime(e status.Event, f eventFact, at time.Time) (status.Words, statu
 }
 
 // loggedRoom tells of an account with room again, as roomSaid says: "its
-// 5-hour window reset", "subscription lapsed lifted", or nothing more where
-// it names neither a window nor a hold.
+// 5-hour window reset", "hold lifted (subscription lapsed)", or nothing more
+// where it names neither a window nor a hold.
 func loggedRoom(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
 	return account(e.Account), clause(roomSaid(e, f))
 }
 
 // roomSaid says what lifted as an account had room again, the event e: the
-// hold its read refused, as "subscription lapsed lifted", then the windows
-// that held it back, as "its 5-hour window reset"; "" where it names
+// hold its read refused, as "hold lifted (subscription lapsed)", then the
+// windows that held it back, as "its 5-hour window reset"; "" where it names
 // neither.
 func roomSaid(e status.Event, f eventFact) string {
 	var said []string
-	if cause := holdCause(e); cause != "" {
-		said = append(said, cause+" lifted")
+	if lifted := liftedSaid(e); lifted != "" {
+		said = append(said, "hold "+lifted)
 	}
 	if len(f.windows) > 0 {
 		said = append(said, its(f.windows, "")+" reset")

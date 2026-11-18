@@ -35,11 +35,11 @@ run `switchboard service restart`.
 - When an account hits a limit, the notification waits 5 seconds for the sessions that move off
   it. Then it names them: `b6s7 · work hit its 5-hour limit, back at Mon 18:10 — 3 sessions moved
   to q4tx · side`.
-- When Anthropic refuses the usage read of an account, the router puts it on a
-  [hold](glossary.md) and you see `b6s7 · work held: subscription lapsed — its subscription needs
-  renewing`. This goes out with `limits`.
-- When the account can take requests again, you see `b6s7 · work has room again`. This includes
-  the end of a hold.
+- When Anthropic refuses the usage read of an account, the router puts the account on a
+  [hold](glossary.md). You see `b6s7 · work held: subscription lapsed — its subscription needs
+  renewing`. This notification goes out under the `limits` setting.
+- When the account can take requests again, you see `b6s7 · work has room again`. The end of a
+  hold posts this notification too.
 - When a window passes the warning, you see `b6s7 · work: Week at 91%`, once until that window
   resets.
 - When an account's token has 30 days left, you're told once, and again at 7 days. It reads

@@ -587,12 +587,12 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 	}{
 		{
 			name: "kept as a value",
-			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.SubscriptionEnded, RefusedSince: began},
+			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.SubscriptionEnded, RefusedSince: began, HeldTold: true},
 			want: quota.SubscriptionEnded, since: began,
 		},
 		{
 			name: "kept as a value, its error reading otherwise",
-			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: quota.TokenRefused, RefusedSince: began},
+			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: quota.TokenRefused, RefusedSince: began, HeldTold: true},
 			want: quota.TokenRefused, since: began,
 		},
 		{

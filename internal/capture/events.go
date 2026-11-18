@@ -456,18 +456,19 @@ func (h happenings) atPersonalsLimit() []status.Event {
 
 // lapsed are the lapsed world's events: the auto world's to side's prime at
 // 13:50, side held at 08:05, its token refused as it was read, and room
-// again at 08:24 as a new token lifted it, before any session ran on it;
+// again at 08:24 as a new token lifted it, before any session ran on it, the
+// hold's event ending there;
 // personal held at 13:41, as the first probe after its last read at 13:35
 // was refused its organization's login, moving 41e0 and 9c2e to side as
 // their next requests came; work's token refused at 14:20, as refusal says,
 // moving d28c and db8a to side; and c61b started on side, the router's best.
 func (h happenings) lapsed(refusal status.Refusal) []status.Event {
-	refused, lapsed := h.today(14, 20, 0), h.today(13, 41, 0)
+	refused, lapsed, lifted := h.today(14, 20, 0), h.today(13, 41, 0), h.today(8, 24, 30)
 	return slices.Concat(
 		h.yesterday(), h.morning(h.personalPrimed()),
 		[]status.Event{
-			{Kind: status.EventHeld, At: h.today(8, 5, 0), Account: "side", Reason: prose.TokenRefused, Status: http.StatusUnauthorized},
-			{Kind: status.EventRoom, At: h.today(8, 24, 30), Account: "side", Reason: prose.TokenRefused},
+			{Kind: status.EventHeld, At: h.today(8, 5, 0), Account: "side", Reason: prose.TokenRefused, Status: http.StatusUnauthorized, Until: lifted},
+			{Kind: status.EventRoom, At: lifted, Account: "side", Reason: prose.TokenRefused},
 			{Kind: status.EventHeld, At: lapsed, Account: "personal", Reason: prose.SubscriptionLapsed, Status: http.StatusForbidden, Count: 2, To: "side"},
 			h.forcedOff(h.today(13, 41, 12), id41E0, "personal", "side", reasonLapsed),
 			h.forcedOff(h.today(13, 42, 30), id9C2E, "personal", "side", reasonLapsed),

@@ -149,15 +149,13 @@ func (v view) reserved(id string) bool {
 }
 
 // holding returns what holds the request back on the account with the given
-// id, and the identity of the limit, where that's what does: its last read
-// refused, which unable says first, whatever else holds it; else a limit it
-// reached; else its refusing the request lately; else its reserve alone. It
+// id, and the identity of the limit, where that's what does: a limit it
+// reached, else its refusing the request lately, else its reserve alone. It
 // returns zero where the account can take the request, and where only its
-// windows leave it no room.
+// windows leave it no room. A hold of its read refused is unable's to put
+// first, as it says why.
 func (v view) holding(id string) (Hold, int) {
 	switch limit, limited := v.limited[id]; {
-	case v.heldByRead(id) != 0:
-		return HeldByRead, 0
 	case limited:
 		return HeldByLimit, limit
 	case slices.Contains(v.refused, id):

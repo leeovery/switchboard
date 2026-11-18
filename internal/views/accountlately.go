@@ -13,8 +13,9 @@ import (
 // they leave unnamed, as "reached its cap: 3 sessions moved to side". Of an
 // account they're the events it befell, the sessions a cap, a limit, a
 // refusal or a hold of another moved onto it, and any other move onto it,
-// the pins naming it, and the sessions that started on it. Of every account, id "",
-// they're every account's, each naming its account, as Lately tells them.
+// the pins naming it, and the sessions that started on it. Of every
+// account, id "", they're every account's, each naming its account, as
+// Lately tells them.
 // Restarts, the router's health, and routing given back to it name no
 // account, so neither tells them. Each tells a session that started on the
 // router's best, as its reason says, ", the best", as it started, wherever ▲

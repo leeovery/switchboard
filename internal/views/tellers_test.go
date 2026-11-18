@@ -22,10 +22,10 @@ type saying struct {
 }
 
 // sayings are the facts both tellers say: when the account a move's choice
-// passed over runs out, by the clock, whatever day each names; the sessions a
-// limit, a cap, a refusal or a hold moved, counted, and where to; and the windows an
-// event names. Those one teller leaves unsaid by design, as LATELY a cap's
-// windows, are left out.
+// passed over runs out, by the clock, whatever day each names; the sessions
+// a limit, a cap, a refusal or a hold moved, counted, and where to; and the
+// windows an event names. Those one teller leaves unsaid by design, as
+// LATELY a cap's windows, are left out.
 var sayings = []saying{
 	{
 		fact: "when the account passed over runs out", kinds: []string{status.EventMoved},

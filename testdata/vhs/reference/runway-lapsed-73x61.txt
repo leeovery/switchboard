@@ -33,7 +33,7 @@ Mon 10:00   side's week resets                                 in 3d 19h
 LATELY
 14:20      work refused (401): 2 sessions moved to side          22m ago
 13:41      personal held: 2 moved to side                     1h 01m ago
-08:24      side open again: token refused lifted              6h 17m ago
+08:24      side open again: hold lifted (token refused)       6h 17m ago
 08:05      side held (token refused)                          6h 37m ago
 Wed 23:58  personal open again: its 5-hour window reset      14h 43m ago
 Wed 19:12  personal at its limit: 1 moved to side            19h 29m ago

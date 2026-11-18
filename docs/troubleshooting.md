@@ -21,7 +21,7 @@ order, then find your symptom in the table below.
 | An account still reads out after a reset by hand | [The router](troubleshooting/router.md) |
 | A pin may not have been made | [The router](troubleshooting/router.md) |
 | A pin is refused | [Commands in a pool](troubleshooting/pool-commands.md), or [`switchboard pin`](commands/pin.md) |
-| A restart is held or due after an upgrade | [Upgrades and restarts](troubleshooting/upgrades.md) |
+| A restart waits or is due after an upgrade | [Upgrades and restarts](troubleshooting/upgrades.md) |
 | `service status` says the router's copy isn't run | [Upgrades and restarts](troubleshooting/upgrades.md) |
 | Something waits on the move onto account ids | [The move onto account ids](troubleshooting/account-ids.md) |
 | An import is refused | [The move onto account ids](troubleshooting/account-ids.md) |

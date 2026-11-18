@@ -18,7 +18,9 @@ type windowOf struct {
 // stood before: an account whose quota ran out and has come back, and a
 // window that has passed the warning since last shown, call for
 // notifications. It knows nothing of an account's quota until the account has
-// been read or a limit has barred it, so the first look at one calls for none.
+// been read or a limit has barred it, so the first look at one calls for
+// none; but a hold of its read refused is known as it starts, as roomAgain
+// says.
 type lookout struct {
 	room bool
 	// warning is the share of a window's limit whose passing is told of, or 0

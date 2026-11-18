@@ -66,7 +66,7 @@ type stateFile struct {
 	// started without count as, as the config it was started from makes them.
 	heirs heirs
 	// emit tells the events loading the file calls for: each pool's pin it
-	// drops whole, as Unpinned.
+	// drops whole, as Unpinned, and each hold never told of, as ReadHeld.
 	emit func(Event)
 	// refusalIn reads why the API refused a read off the text of its
 	// failure, as a file from before kept it alone, as the provider's
@@ -206,10 +206,12 @@ func (s savedUsage) read() int {
 // window was, by its key, the keys of the windows its whole readings stopped
 // reporting, in order, and its extra usage; and how its probes went: when one
 // last ended, why the last read nothing, how many in a row did, and, where
-// that's a read refused, why the API refused it and when the refusal began.
-// A file from before kept none of the probes, which reads as none ended, and
-// no window retired; and one from before kept no refusal, as refusal reads
-// it. A router from before reads a file kept with them, ignoring them.
+// that's a read refused, why the API refused it, when the refusal began, and
+// whether the hold it started has been told of. A file from before kept none
+// of the probes, which reads as none ended, and no window retired; one from
+// before kept no refusal, as refusal reads it; and one from before the hold
+// was told kept a hold untold. A router from before reads a file kept with
+// them, ignoring them.
 type savedReading struct {
 	ReadAt        time.Time            `json:"read_at,omitzero"`
 	Windows       []quota.Window       `json:"windows,omitempty"`
@@ -221,6 +223,7 @@ type savedReading struct {
 	RefusedRead   quota.ReadRefusal    `json:"refused_read,omitempty"`
 	Misses        int                  `json:"misses,omitempty"`
 	RefusedSince  time.Time            `json:"refused_since,omitzero"`
+	HeldTold      bool                 `json:"held_told,omitzero"`
 }
 
 // readRefusals has each reading the file kept say why the API refused its
@@ -320,9 +323,10 @@ func (k KeptHolds) Of(id string, token tokens.Token) KeptHold {
 // load takes in the state file at path, as the router starts, the pools as
 // they stand then, and keeps in it from then on what the router knows that
 // should outlast it, telling the state each pool's pin it kept, as recallPins
-// says, and emit each the pools left no longer standing. What it held that
-// can no longer be used is left out, and the file is to be written again
-// without it.
+// says, and emit each the pools left no longer standing, and each hold it
+// kept that was never told of, as untold has them. What it held that can no
+// longer be used is left out, and the file is to be written again without
+// it.
 func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
@@ -335,8 +339,12 @@ func (f *stateFile) load(path string) {
 		f.emit(gone.unpinned())
 	}
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
+	untold := f.state.untold()
+	for _, held := range untold {
+		f.emit(held)
+	}
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
-	if refusals || tokens || sessions || usage || told {
+	if refusals || tokens || sessions || usage || told || len(untold) > 0 {
 		f.changes.note()
 	}
 	held := f.snapshot()

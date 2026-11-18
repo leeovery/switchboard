@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -96,7 +97,7 @@ func TestAHoldCountsTheSessionsItMovesAndRoomAgainTellsItsLift(t *testing.T) {
 			want := []status.Event{
 				{ID: 3, At: clock.now, Kind: status.EventRoom, Account: "work", Reason: tt.cause},
 				{ID: 2, At: start, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: tt.reason, ForcedBy: 1},
-				{ID: 1, At: start, Kind: status.EventHeld, Account: "work", Reason: tt.cause, Status: tt.status, Count: 1, To: "side"},
+				{ID: 1, At: start, Kind: status.EventHeld, Account: "work", Reason: tt.cause, Status: tt.status, Count: 1, To: "side", Until: clock.now},
 			}
 			if got := r.recent.events(); !reflect.DeepEqual(got, want) {
 				t.Errorf("events() =\n%+v\nwant\n%+v", got, want)
@@ -105,9 +106,10 @@ func TestAHoldCountsTheSessionsItMovesAndRoomAgainTellsItsLift(t *testing.T) {
 	}
 }
 
-// A hold the state file kept is told of again by nothing as the router
-// starts once more, neither event nor notification, as its start was told
-// before: its lift is room again all the same, and posts as room again does.
+// A hold the state file kept, told of before, is told of again by nothing
+// as the router starts once more, neither event nor notification, nor as its
+// read is refused again: its lift is room again all the same, and posts as
+// room again does.
 func TestAHoldKeptAcrossARestartIsToldOfAgainByNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), stateFileName)
 	clock := &testClock{now: start}
@@ -117,30 +119,164 @@ func TestAHoldKeptAcrossARestartIsToldOfAgainByNothing(t *testing.T) {
 	probesEnd(before.state, "work", []error{errSubscriptionEnded})
 	before.save()
 
-	var heard []Event
-	notifier := &noting{}
-	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
-	cfg.Events = func(e Event) { heard = append(heard, e) }
-	cfg.Notifier, cfg.Notifications = notifier, config.Notifications{Limits: true, Room: true}
-	r := newTestRouterOf(t, cfg)
-	r.file.load(path)
-	for range 2 {
-		r.recent.look()
-		r.notifications.lookAfresh(t.Context())
-	}
-	if heard != nil || r.recent.events() != nil || notifier.posted() != nil {
-		t.Fatalf("after the restart, the router told of %+v, kept %+v and posted %q, want nothing: work's hold was told of before", heard, r.recent.events(), notifier.posted())
+	h := restarted(t, clock, path)
+	probeEnding(h.r, "work", errSubscriptionEnded)
+	h.looks(2)
+	if h.heard != nil || h.r.recent.events() != nil || h.notifier.posted() != nil {
+		t.Fatalf("after the restart, the router told of %+v, kept %+v and posted %q, want nothing: work's hold was told of before", h.heard, h.r.recent.events(), h.notifier.posted())
 	}
 
-	probesEnd(r.state, "work", []error{nil})
-	r.recent.look()
-	r.notifications.lookAfresh(t.Context())
+	probesEnd(h.r.state, "work", []error{nil})
+	h.looks(1)
 	want := []status.Event{{ID: 1, At: start, Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"}}
-	if got := r.recent.events(); !reflect.DeepEqual(got, want) {
+	if got := h.r.recent.events(); !reflect.DeepEqual(got, want) {
 		t.Errorf("once work is read again, events() = %+v, want %+v", got, want)
 	}
-	if got := notifier.posted(); !reflect.DeepEqual(got, []string{"work · Work has room again"}) {
+	if got := h.notifier.posted(); !reflect.DeepEqual(got, []string{"work · Work has room again"}) {
 		t.Errorf("once work is read again, posted %q, want room again", got)
+	}
+}
+
+// A hold the state file kept that was never told of, as a router from
+// before kept it, is told of once as the router starts, from when it began,
+// and posts nothing, as its news is old; a restart after tells it again by
+// nothing.
+func TestAHoldKeptButNeverToldIsToldOnceAsTheRouterStarts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), stateFileName)
+	clock := &testClock{now: start}
+	before := newTestFile(clock.read, resolve(testConfigured, testTokens.Read, unrecorded))
+	before.load(path)
+	before.state.record("work", []quota.Window{session, soonWeek}, before.state.mark())
+	probesEnd(before.state, "work", []error{errSubscriptionEnded})
+	before.state.usage["work"].heldTold = false
+	before.save()
+	clock.now = start.Add(time.Hour)
+
+	h := restarted(t, clock, path)
+	h.looks(2)
+	if want := []Event{ReadHeld{Account: "work", Refused: quota.SubscriptionEnded, Since: start}}; !reflect.DeepEqual(h.heard, want) {
+		t.Errorf("as the router starts, it tells of %+v, want %+v", h.heard, want)
+	}
+	want := []status.Event{{ID: 1, At: start, Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed"}}
+	if got := h.r.recent.events(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events() = %+v, want %+v", got, want)
+	}
+	if got := h.notifier.posted(); got != nil {
+		t.Errorf("posted %q, want nothing of a hold told late", got)
+	}
+
+	h.r.file.save()
+	again := restarted(t, clock, path)
+	again.looks(1)
+	if again.heard != nil {
+		t.Errorf("after another restart, the router told of %+v, want nothing", again.heard)
+	}
+}
+
+// restarting is a router started on a state file, with what it heard and
+// what it posted.
+type restarting struct {
+	r        *Router
+	heard    []Event
+	notifier *noting
+}
+
+// restarted starts a router on the state file at path, on clock, its
+// notifications of limits and room again on.
+func restarted(t *testing.T, clock *testClock, path string) *restarting {
+	t.Helper()
+	h := &restarting{notifier: &noting{}}
+	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg.Events = func(e Event) { h.heard = append(h.heard, e) }
+	cfg.Notifier, cfg.Notifications = h.notifier, config.Notifications{Limits: true, Room: true}
+	h.r = newTestRouterOf(t, cfg)
+	t.Cleanup(h.r.probes.stop)
+	h.r.file.load(path)
+	return h
+}
+
+// looks has the router look at the accounts n times, as recent and the
+// notifications do.
+func (h *restarting) looks(n int) {
+	for range n {
+		h.r.recent.look()
+		h.r.notifications.lookAfresh(context.Background())
+	}
+}
+
+// A move off an account both at its limit and held by its read refused
+// counts in what its reason says held it there, one owner giving both: a
+// request that went out on it and hit its limit, in the limit's event; one
+// that didn't, in the hold's, as the hold holds it back whatever else does.
+func TestAMoveOffALimitedAndHeldAccountCountsInWhatItsReasonSays(t *testing.T) {
+	tests := []struct {
+		name   string
+		tried  []Attempt
+		reason string
+		// forcedBy is the kind of the event the move counts in, and the
+		// other the kind of the one counting none.
+		forcedBy, other string
+	}{
+		{
+			name: "tried there", tried: []Attempt{{Account: "work", Why: whyLimit}}, reason: "moved: work hit its limit",
+			forcedBy: status.EventLimit, other: status.EventHeld,
+		},
+		{
+			name: "untried", reason: "moved: work had its read refused, its subscription ended",
+			forcedBy: status.EventHeld, other: status.EventLimit,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			r := newTestRouter(t, clock.read, &stubProber{})
+			defer r.probes.stop()
+			readWorkFirst(r)
+			r.recent.look()
+			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+			probeEnding(r, "work", errSubscriptionEnded)
+			reached, _ := r.state.limit("work", []string{session.Key}, start.Add(time.Hour), r.state.mark())
+			r.recent.hear(reached)
+			choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work", Tried: tt.tried})
+
+			byKind := make(map[string]status.Event)
+			for _, e := range r.recent.events() {
+				byKind[e.Kind] = e
+			}
+			moved, forcing, other := byKind[status.EventMoved], byKind[tt.forcedBy], byKind[tt.other]
+			if moved.Reason != tt.reason || moved.ForcedBy != forcing.ID || forcing.ID == 0 {
+				t.Errorf("the move = %+v, want it %q, forced by %s's event, %d", moved, tt.reason, tt.forcedBy, forcing.ID)
+			}
+			if forcing.Count != 1 || other.Count != 0 {
+				t.Errorf("the %s counts %d and the %s %d, want 1 and none", tt.forcedBy, forcing.Count, tt.other, other.Count)
+			}
+		})
+	}
+}
+
+// Once room again tells a hold's lift, its event ends there, so a move held
+// by the account's read refused after it waits for the hold that starts next
+// rather than counting in the one lifted.
+func TestAHoldLiftedEndsItsEventAndCountsNoMoveAfter(t *testing.T) {
+	k := newTelling(t)
+	k.reads(0.5, 0.5)
+	k.look()
+	k.hear(workLapsed)
+	probesEnd(k.r.state, "work", []error{errSubscriptionEnded})
+	k.look()
+	probesEnd(k.r.state, "work", []error{nil})
+	k.clock.now = start.Add(time.Minute)
+	k.look()
+	k.hear(heldOff("one", opus, "side"), workTokenRefused)
+
+	var held []status.Event
+	for _, e := range k.r.events() {
+		if e.Kind == status.EventHeld {
+			held = append(held, e)
+		}
+	}
+	if len(held) != 2 || !held[1].Until.Equal(k.clock.now) || held[1].Count != 0 || !held[0].Until.IsZero() || held[0].Count != 1 {
+		t.Errorf("the holds' events are %+v, want the first ending at %v counting none, and the second counting the move", held, k.clock.now)
 	}
 }
 

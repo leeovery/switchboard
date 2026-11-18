@@ -313,9 +313,8 @@ type Event struct {
 	// Account is the account it befell: the one a session started on, or that
 	// came under pressure, reached its cap or its limit, was refused or held,
 	// had its token found another subscription's, was primed or has room
-	// again. Of a
-	// pin, the first of the pool's pin's Accounts, or the one a session's own
-	// pin names; of an auto, the one a session's own named.
+	// again. Of a pin, the first of the pool's pin's Accounts, or the one a
+	// session's own pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
 	// Accounts are the accounts the pool's pin names, in the order
 	// configured, as it's set or cleared.

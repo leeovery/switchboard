@@ -462,7 +462,7 @@ func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
 		{reason: status.ReasonMovedOff + "work " + status.WhyRefused, want: "refused"},
 		{reason: status.ReasonMovedOff + "work " + status.WhyReadRefused, want: "read refused"},
 		{reason: status.ReasonMovedOff + "work " + status.WhySubscriptionEnded, want: "lapsed"},
-		{reason: status.ReasonMovedOff + "work " + status.WhyReadTokenRefused, want: "refused"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyReadTokenRefused, want: "read refused"},
 		{reason: status.ReasonMovedOff + "work " + status.WhyNoRoom, want: "no room"},
 		{reason: status.ReasonMovedOff + "work has a new token", want: "moved: [work] has a new token"},
 		{reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyReserve, "personal"), want: "its cap, [personal] came under pressure"},
@@ -473,6 +473,9 @@ func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
 		{reason: status.ReasonPinned, want: "pinned here"},
 		{reason: status.ReasonMovedByPin, facts: status.Facts{From: "work", To: "side"}, want: "pinned to [side]"},
 		{reason: status.ReasonPinYields + "side has no room", want: "its pin to [side] yields: [side] has no room"},
+		{reason: status.ReasonPinYields + "side " + status.WhySubscriptionEnded, want: "its pin to [side] yields: [side]'s subscription lapsed"},
+		{reason: status.ReasonPinYields + "side " + status.WhyReadTokenRefused, want: "its pin to [side] yields: [side]'s token refused"},
+		{reason: status.ReasonPinYields + "side " + status.WhyReadRefused, want: "its pin to [side] yields: [side] had its read refused"},
 		{reason: status.ReasonSticky, want: "sticky"},
 	}
 	for _, tt := range tests {

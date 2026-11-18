@@ -89,7 +89,7 @@ func TestLATELYsWordsSayAWeekBacksTimeByItsDate(t *testing.T) {
 	}
 }
 
-func TestRunwaysLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *testing.T) {
+func TestRunwaysLATELYFoldsTheMovesALimitACapARefusalOrAHoldForcedIntoItsLine(t *testing.T) {
 	tests := []struct {
 		kind, full, short string
 	}{

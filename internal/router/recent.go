@@ -307,9 +307,10 @@ func (r *recent) run(ctx context.Context) {
 // look keeps what the accounts, as they stand now, call for since the last
 // look, as news and capping say, judged as the status document judges them,
 // the accounts each pool's pin names spending their reserves; and has the
-// router's health judged now, which tells of a turn as it's judged. The moves
-// heard before it reads the accounts, still waiting for the cap or the
-// refusal that forced them, wait no more, as unawaited says.
+// router's health judged now, which tells of a turn as it's judged; room
+// again after a hold ends the hold's event, as holdLifted says. The moves
+// heard before it reads the accounts, still waiting for the cap, the refusal
+// or the hold that forced them, wait no more, as unawaited says.
 func (r *recent) look() {
 	r.judge()
 	now := r.now()
@@ -321,6 +322,9 @@ func (r *recent) look() {
 	r.change(func() {
 		for _, e := range news {
 			r.add(e, now.UTC())
+			if e.Kind == status.EventRoom && e.Reason != "" {
+				r.holdLifted(e.Account, now.UTC())
+			}
 		}
 		r.capping(accounts, pin, now.UTC())
 		r.unawaited(heard)

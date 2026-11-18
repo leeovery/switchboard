@@ -367,7 +367,7 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 			t.Errorf("state file holds\n%s\nwant work's probes kept, %s among them", data, want)
 		}
 	}
-	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute)}
+	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute), HeldTold: true}
 	if got := readState(t, path).Readings["side"]; !reflect.DeepEqual(got, wantSide) {
 		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept, its read refused since it was first", got, wantSide)
 	}
