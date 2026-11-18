@@ -2856,6 +2856,16 @@ show.
      off to a file of switchboard's own, which puts its claude first and loads its completions.` and
      `It does nothing once switchboard is gone, and nothing else in ~/.zshrc changes.` Its keys:
      `enter add it`, `n I'll add it myself`.
+   - **The offer for the completions** (owner's call, 18 Nov 2026), where the shell runs
+     switchboard's `claude` already, as through a `PATH` kept in another file, but the startup file
+     it reads lacks switchboard's line, the one thing that loads its completions: the same card,
+     where setup could offer the line, its reason `so your shell loads switchboard's completions`
+     in place of `so your shell finds switchboard's claude first` (`OfferCompletions`, worded by
+     `ShellFound.Gains`). Your shell's row is `✓`, adding `· switchboard's line isn't in ~/.zshrc,
+     so its completions don't load`. Nothing is left to put right by hand, so `n` and `esc` end the
+     step, as where the shell runs switchboard's `claude` and the line is in; a line setup couldn't
+     add says why on the row, and ends it alike. Where the file can't be looked in, a new terminal
+     may read another, or a line of another switchboard's is there, nothing is offered.
    - **By hand** (frame 11), declined, or where setup writes nothing: `Add this line to your shell's
      startup file yourself, after anything else there that changes PATH:` and the line; `Or, where
      you keep your PATH another way, put this directory first on it:` and the directory; then `Then
@@ -12804,7 +12814,6 @@ was dropped binds a later choice, the design proper says so.
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
-| Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
 | An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
 | Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |

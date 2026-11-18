@@ -167,6 +167,10 @@ a new terminal goes through the link.
 Until it is, `setup` offers once to add one line to the end of your shell's startup file. It names
 the file and shows the line first. `enter` adds it, and `n` leaves it to you.
 
+If your shell already runs switchboard's `claude`, because you keep your `PATH` in another file,
+`setup` still offers the line once. This time the line is for the completions, which only the line
+loads. `n` declines it, and the step is done either way.
+
 | Key | What it does |
 |---|---|
 | `c` | Copies the line, if your terminal lets a program copy (OSC 52). |

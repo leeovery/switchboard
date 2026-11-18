@@ -48,6 +48,11 @@ const (
 	// OfferLine is a startup file without switchboard's line, which setup
 	// offers to add, as AddLine does.
 	OfferLine
+	// OfferCompletions is a shell that runs switchboard's claude already,
+	// as through a PATH kept in another file, but whose startup file is
+	// without switchboard's line, which setup offers to add for its
+	// completions alone, as AddLine does.
+	OfferCompletions
 	// OtherLine is switchboard's line in the startup file reading another
 	// switchboard shell directory's file than this one's.
 	OtherLine
@@ -119,7 +124,7 @@ type RemedyPart struct {
 // else the directory.
 func (s ShellFound) Remedy() Remedy {
 	switch s.Situation {
-	case Unreached, Through:
+	case Unreached, Through, OfferCompletions:
 		return Remedy{}
 	case UnknownShell:
 		return Remedy{Parts: []RemedyPart{{Says: capital(dirFirst), Put: s.Dir}}, Dir: s.Dir}
@@ -136,6 +141,27 @@ func (s ShellFound) Remedy() Remedy {
 		return s.byLine(inItsPlace)
 	}
 	return s.byLine(addYourself)
+}
+
+// Gains says what switchboard's line, offered, gains the shell, as the card
+// offering it says: switchboard's completions, where the shell runs its
+// claude already; else its claude first.
+func (s ShellFound) Gains() string {
+	if s.Situation == OfferCompletions {
+		return "so your shell loads switchboard's completions"
+	}
+	return "so your shell finds switchboard's claude first"
+}
+
+// Final reports whether the situation ends the claude link step as it's
+// found, leaving nothing to put right by hand: a new terminal's claude goes
+// through switchboard, or setup stopped before it asked the shell.
+func (s ShellFound) Final() bool {
+	switch s.Situation {
+	case Unreached, Through, OfferCompletions:
+		return true
+	}
+	return false
 }
 
 // byLine is the remedy of switchboard's line put in place, as says says,
@@ -166,10 +192,12 @@ var errNoLine = errors.New("setup offers no line to add")
 // returns what that leaves: the line added, or found there, the login shell
 // to ask again, as AskAgain does; a line there reading another switchboard
 // shell directory's file, as Link says; or, where it can't be added, how to
-// add it by hand. It fails, changing nothing, where found offers no line.
+// add it by hand, but of a line offered for its completions alone, the
+// situation as it was, saying why. It fails, changing nothing, where found
+// offers no line.
 func (s *Setup) AddLine(found LinkFound) (LinkFound, error) {
 	at := &found.Shell
-	if at.Situation != OfferLine {
+	if at.Situation != OfferLine && at.Situation != OfferCompletions {
 		return found, errNoLine
 	}
 	where := s.fromHome(at.File)
@@ -188,8 +216,12 @@ func (s *Setup) AddLine(found LinkFound) (LinkFound, error) {
 		return found, nil
 	}
 	if err != nil {
-		at.Situation = CantAdd
-		at.Said = yourShell(Warning, fmt.Sprintf("setup can't add its line to %s: %v", where, err))
+		cant := fmt.Sprintf("setup can't add its line to %s: %v", where, err)
+		if at.Situation == OfferCompletions {
+			at.Said = yourShell(Warning, cant+", so switchboard's completions don't load")
+			return found, nil
+		}
+		at.Situation, at.Said = CantAdd, yourShell(Warning, cant)
 		return found, nil
 	}
 	logger.Info("added switchboard's line to the shell's startup file", "path", at.File)
@@ -251,7 +283,7 @@ func (r *run) sorted(answer shell.Answer) ShellFound {
 	sh, known := shell.Of(r.Getenv("SHELL"))
 	switch {
 	case answer.Through():
-		return r.through(answer)
+		return r.through(answer, sh, known)
 	case !known:
 		return ShellFound{
 			Situation: UnknownShell,
@@ -263,39 +295,65 @@ func (r *run) sorted(answer shell.Answer) ShellFound {
 	return r.startupLine(sh, answer)
 }
 
+// startup is switchboard's line for a shell in the startup file the login
+// shell says it reads: the file, and where, the file from ~; switchboard's
+// file for the shell, which the line reads, and the line; what's there of
+// switchboard's, or why setup can't look; and the other file a new terminal
+// may read, from ~, "" where there's none.
+type startup struct {
+	file, where, initFile, line string
+	found                       shell.Found
+	err                         error
+	rival                       string
+}
+
+// startupOf is switchboard's line for sh in the startup file the login
+// shell, having answered answer, says it reads.
+func (r *run) startupOf(sh shell.Shell, answer shell.Answer) startup {
+	s := startup{initFile: shell.InitFile(r.Shells.Dir, sh), file: shell.StartupFile(sh, r.Home, answer.ConfigDir)}
+	s.line, s.where = shell.Line(sh, s.initFile, r.Home), r.fromHome(s.file)
+	s.found, s.err = shell.FindLine(sh, s.file, r.Home)
+	if rival := shell.RivalStartupFile(sh, r.Home, s.file); rival != "" {
+		s.rival = r.fromHome(rival)
+	}
+	return s
+}
+
+// offerable reports whether setup can offer to add switchboard's line to
+// the file: it can look in it, the line isn't there, the shell said where
+// it reads it, and a new terminal reads no other.
+func (s startup) offerable(answer shell.Answer) bool {
+	return s.err == nil && s.found.Sources == "" && answer.Kind != shell.Unasked && s.rival == ""
+}
+
 // startupLine is the situation switchboard's line for sh leaves, in the
 // startup file the login shell, having answered answer, says it reads: none
 // there, to offer, unless the shell couldn't be asked or a new terminal may
 // read another; or what keeps the line there from taking effect.
 func (r *run) startupLine(sh shell.Shell, answer shell.Answer) ShellFound {
-	initFile := shell.InitFile(r.Shells.Dir, sh)
-	line := shell.Line(sh, initFile, r.Home)
-	file := shell.StartupFile(sh, r.Home, answer.ConfigDir)
-	found, err := shell.FindLine(sh, file, r.Home)
-	rival := shell.RivalStartupFile(sh, r.Home, file)
-	where, stands := r.fromHome(file), r.stands(answer)
-	at := ShellFound{File: file, Line: line, Where: where}
+	s := r.startupOf(sh, answer)
+	stands := r.stands(answer)
+	at := ShellFound{File: s.file, Line: s.line, Where: s.where}
 	switch {
-	case err != nil:
+	case s.err != nil:
 		at.Situation = CantLook
-		at.Said = yourShell(Warning, fmt.Sprintf("%s · setup can't look for its line in %s: %v", stands, where, err))
-	case found.Sources == "" && answer.Kind == shell.Unasked:
-		at.Situation = WhichFile
-		at.Said = yourShell(Warning, stands+" · setup can't tell which startup file it reads, so it adds no line")
-	case found.Sources == "" && rival != "":
-		other := r.fromHome(rival)
-		at.Situation, at.Rival = RivalFile, other
-		at.Said = yourShell(Warning,
-			fmt.Sprintf("%s · it says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line", stands, where, other))
-	case found.Sources == "":
+		at.Said = yourShell(Warning, fmt.Sprintf("%s · setup can't look for its line in %s: %v", stands, s.where, s.err))
+	case s.offerable(answer):
 		at.Situation = OfferLine
 		at.Said = yourShell(Warning, stands)
-	case filepath.Clean(found.Sources) != initFile:
+	case s.found.Sources == "" && answer.Kind == shell.Unasked:
+		at.Situation = WhichFile
+		at.Said = yourShell(Warning, stands+" · setup can't tell which startup file it reads, so it adds no line")
+	case s.found.Sources == "":
+		at.Situation, at.Rival = RivalFile, s.rival
+		at.Said = yourShell(Warning,
+			fmt.Sprintf("%s · it says it reads %s, which isn't there, but %s is: setup can't tell which a new terminal reads, so it adds no line", stands, s.where, s.rival))
+	case filepath.Clean(s.found.Sources) != s.initFile:
 		at.Situation = OtherLine
 		at.Said = yourShell(Warning,
-			fmt.Sprintf("%s · switchboard's line in %s reads %s, not this switchboard's file for %s, %s", stands, where, r.fromHome(found.Sources), sh, r.fromHome(initFile)))
+			fmt.Sprintf("%s · switchboard's line in %s reads %s, not this switchboard's file for %s, %s", stands, s.where, r.fromHome(s.found.Sources), sh, r.fromHome(s.initFile)))
 	default:
-		return r.notTakingEffect(file, line, found.Last, answer)
+		return r.notTakingEffect(s.file, s.line, s.found.Last, answer)
 	}
 	return at
 }
@@ -414,13 +472,25 @@ func yourShell(mark Mark, detail string) Said {
 
 // through is the situation of claude going through switchboard in a new
 // terminal, as answer, the login shell's, says, with what's in front of
-// PATH's claude there, as linkedFront says it.
-func (r *run) through(answer shell.Answer) ShellFound {
+// PATH's claude there, as linkedFront says it; but where the shell is one
+// setup knows, sh, and its startup file is one setup can offer switchboard's
+// line to, as startup's offerable has it, OfferCompletions, the line
+// offered for its completions, as a PATH kept in another file finds
+// switchboard's claude without loading them.
+func (r *run) through(answer shell.Answer, sh shell.Shell, known bool) ShellFound {
 	detail := "runs switchboard's claude: asked just now, as a new terminal starts it"
 	if front := r.linkedFront(answer.Front); front != "" {
 		detail += " · " + front
 	}
-	return ShellFound{Situation: Through, Said: yourShell(Done, detail)}
+	at := ShellFound{Situation: Through, Said: yourShell(Done, detail)}
+	if !known {
+		return at
+	}
+	if s := r.startupOf(sh, answer); s.offerable(answer) {
+		at.Situation, at.File, at.Line, at.Where = OfferCompletions, s.file, s.line, s.where
+		at.Said.Detail += " · switchboard's line isn't in " + s.where + ", so its completions don't load"
+	}
+	return at
 }
 
 // linkedFront says what's in front of PATH's claude where claude goes

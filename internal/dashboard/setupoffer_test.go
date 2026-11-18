@@ -3,6 +3,8 @@ package dashboard
 import (
 	"strings"
 	"testing"
+
+	"github.com/leeovery/switchboard/internal/setup"
 )
 
 // The offer card at 160×37, over linkScreen: its box, centred across the
@@ -118,6 +120,18 @@ func TestTheOfferCardNamesTheFileSetupFound(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("the card doesn't say %q:\n%s", want, text)
 		}
+	}
+}
+
+// Where the shell runs switchboard's claude already, the card offers the
+// line for switchboard's completions, as setup words what it gains, on the
+// row frame 8 says it.
+func TestTheOfferCardOfTheCompletionsNamesThem(t *testing.T) {
+	s := linkScreen(offering(SetupOfferCard{}), func(s *Setup) { s.Link.Shell.Situation = setup.OfferCompletions })
+	c := setupDrawn(s, 160, 37)
+	want := "Setup can add one line to the end of ~/.zshrc, so your shell loads switchboard's completions:"
+	if got := offerRow(c, offerCanRow); got != offerInside(3, want) {
+		t.Errorf("row %d reads\n%q\nwant\n%q", offerCanRow, got, offerInside(3, want))
 	}
 }
 

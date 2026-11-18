@@ -273,6 +273,40 @@ func TestLinkFindsWhereTheLoginShellLeavesIt(t *testing.T) {
 				"zsh's claude is alias claude='claude --verbose', which runs claude by name, so goes through switchboard too"},
 		},
 		{
+			name:     "through by a PATH kept in another file, no line: offered for its completions",
+			lay:      func(_ *testing.T, w *world) { w.login.answers = []shell.Answer{{Kind: shell.Link}} },
+			want:     setup.OfferCompletions,
+			wantRow:  row{setup.Done, "Your shell", "runs switchboard's claude: asked just now, as a new terminal starts it · switchboard's line isn't in ~/.zshrc, so its completions don't load"},
+			wantFile: ".zshrc", wantLine: true,
+		},
+		{
+			name: "through by a PATH kept in another file, the file it says it reads not there, but another is: not offered",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, filepath.Join(w.home, ".zshrc"), "export EDITOR=vi\n", 0o644)
+				w.login.answers = []shell.Answer{{Kind: shell.Link, ConfigDir: filepath.Join(w.home, ".config", "zsh")}}
+			},
+			want:    setup.Through,
+			wantRow: row{setup.Done, "Your shell", "runs switchboard's claude: asked just now, as a new terminal starts it"},
+		},
+		{
+			name: "through by a PATH kept in another file, another switchboard's line there: not offered",
+			lay: func(t *testing.T, w *world) {
+				writeFile(t, filepath.Join(w.home, ".zshrc"), shell.Line(shell.Zsh, filepath.Join(w.root, "old", "switchboard", "shell", "init.zsh"), w.home)+"\n", 0o644)
+				w.login.answers = []shell.Answer{{Kind: shell.Link}}
+			},
+			want:    setup.Through,
+			wantRow: row{setup.Done, "Your shell", "runs switchboard's claude: asked just now, as a new terminal starts it"},
+		},
+		{
+			name: "through by a PATH kept in another file, a startup file setup can't look in: not offered",
+			lay: func(t *testing.T, w *world) {
+				mkdir(t, filepath.Join(w.home, ".zshrc"))
+				w.login.answers = []shell.Answer{{Kind: shell.Link}}
+			},
+			want:    setup.Through,
+			wantRow: row{setup.Done, "Your shell", "runs switchboard's claude: asked just now, as a new terminal starts it"},
+		},
+		{
 			name: "a shell setup doesn't ask",
 			lay:  func(_ *testing.T, w *world) { w.env["SHELL"] = "/bin/tcsh" },
 			want: setup.UnknownShell,
@@ -478,6 +512,61 @@ func TestAddLineAddsTheLineOffered(t *testing.T) {
 	}
 	if text, err := os.ReadFile(found.Shell.File); err != nil || string(text) != w.line()+"\n" {
 		t.Errorf("%s reads %q (%v), want switchboard's line", found.Shell.File, text, err)
+	}
+}
+
+// offeredForCompletions is what the claude link step finds in a world that's
+// done but for switchboard's line in .zshrc, where the shell runs
+// switchboard's claude by a PATH kept in another file: the line offered for
+// its completions.
+func offeredForCompletions(t *testing.T) (*world, setup.LinkFound) {
+	t.Helper()
+	w := newWorld(t)
+	w.done(t)
+	if err := os.Remove(filepath.Join(w.home, ".zshrc")); err != nil {
+		t.Fatal(err)
+	}
+	w.login.answers = []shell.Answer{{Kind: shell.Link}}
+	found := w.link(t)
+	if found.Shell.Situation != setup.OfferCompletions {
+		t.Fatalf("Link() left the shell %v, want the line offered for its completions", found.Shell.Situation)
+	}
+	return w, found
+}
+
+// The line offered for the completions alone is added as any line offered
+// is, the shell to ask again; one that can't be added leaves the step as it
+// was, nothing to put right by hand, saying why, and that the completions
+// don't load.
+func TestAddLineAddsTheLineOfferedForTheCompletions(t *testing.T) {
+	w, found := offeredForCompletions(t)
+	added, err := w.setup(t).AddLine(found)
+	if err != nil {
+		t.Fatalf("AddLine() error = %v", err)
+	}
+	if want := (setup.Said{Mark: setup.Done, Label: "Your shell", Detail: "switchboard's line added to the end of ~/.zshrc"}); added.Shell.Situation != setup.LineAdded || added.Shell.Said != want {
+		t.Errorf("AddLine() left the shell %+v, want the line added, saying %+v", added.Shell, want)
+	}
+	if text, err := os.ReadFile(found.Shell.File); err != nil || string(text) != w.line()+"\n" {
+		t.Errorf("%s reads %q (%v), want switchboard's line", found.Shell.File, text, err)
+	}
+
+	w, found = offeredForCompletions(t)
+	claudetest.Link(t, filepath.Join(w.root, "gone"), found.Shell.File)
+	added, err = w.setup(t).AddLine(found)
+	if err != nil {
+		t.Fatalf("AddLine() error = %v", err)
+	}
+	want := setup.Said{
+		Mark:   setup.Warning,
+		Label:  "Your shell",
+		Detail: "setup can't add its line to ~/.zshrc: <root>/home/.zshrc is a link to <root>/gone, which isn't there, so switchboard's completions don't load",
+	}
+	if got := w.rootedSaid([]setup.Said{added.Shell.Said})[0]; added.Shell.Situation != setup.OfferCompletions || got != want {
+		t.Errorf("AddLine() left the shell %v, saying %+v; want it as it was, saying %+v", added.Shell.Situation, got, want)
+	}
+	if r := added.Shell.Remedy(); len(r.Parts) > 0 || r.Checkable {
+		t.Errorf("AddLine() left %+v to put right by hand, want nothing, as the shell runs switchboard's claude", r)
 	}
 }
 
