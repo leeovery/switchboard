@@ -5187,6 +5187,10 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   follows the layout alone.
 - **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
   and as its table in the stack, or in the wide form where not a week of bands fits across.
+  `all accounts`' peak of a week is at its cap where any account's peak is, a week short as the
+  capacity verdict has one, so its marks agree with its `short on 3 of 14`: the owner's call,
+  18 November 2026, as the old rule, marking a week where every account's was, left the two
+  disagreeing. `views.WeekPeak.AtCap` holds it.
   - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
     account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
     WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest
