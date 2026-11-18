@@ -949,7 +949,7 @@ func accountRows(cfg *config.Config, readToken func(id string) (tokens.Token, er
 	}
 	rows := [][]string{head}
 	for _, acct := range cfg.Accounts {
-		row := []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken, foreign)}
+		row := []string{acct.ID, prose.Clean(prose.LabelOr(acct.Label, acct.ID)), primary(acct), tokenState(acct.ID, readToken, foreign)}
 		if pooled {
 			row = slices.Insert(row, 2, poolLabel(cfg.Pools, acct.Pool))
 		}

@@ -1,7 +1,6 @@
 package status
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -54,9 +53,9 @@ func MovedOf(pools config.Pools, configured config.Accounts, pool string) MovedA
 		}
 		label := a.Pool
 		if p, ok := pools.ByID(a.Pool); ok {
-			label = cmp.Or(p.Label, p.ID)
+			label = prose.LabelOr(p.Label, p.ID)
 		}
-		moved = append(moved, MovedAccount{ID: a.ID, Label: cmp.Or(a.Label, a.ID), Pool: a.Pool, PoolLabel: label})
+		moved = append(moved, MovedAccount{ID: a.ID, Label: prose.LabelOr(a.Label, a.ID), Pool: a.Pool, PoolLabel: label})
 	}
 	return moved
 }

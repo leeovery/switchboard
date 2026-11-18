@@ -21,8 +21,10 @@ var (
 	ErrNoPools = errors.New("the config names no pools yet: the router writes them into it as it starts, and pools are added after: " +
 		"start the router with switchboard service install where it isn't running; where it is, switchboard logs router says what holds it up; " +
 		"then add the pool again")
-	// ErrNoPoolLabel is what adding a pool without a label fails with: every
-	// pool has one.
+	// ErrNoPoolLabel is what adding a pool, or relabelling one, fails with
+	// where the label given shows nothing once cleaned, as prose.Clean
+	// cleans it, such as none, spaces or characters drawn as nothing: every
+	// pool has a label that shows.
 	ErrNoPoolLabel = errors.New("a pool needs a label")
 )
 
@@ -48,7 +50,7 @@ type UnfencedError struct {
 func (e *UnfencedError) Error() string {
 	return fmt.Sprintf("%s is unfenced already, and only one pool can be, as a session started outside every fence would have two pools to be in: "+
 		"give this one its directories, or fence %s first with switchboard pool edit %s --dirs",
-		poolSaid(e.Unfenced), prose.Clean(e.Unfenced.Label), prose.Clean(e.Unfenced.ID))
+		poolSaid(e.Unfenced), prose.Clean(prose.LabelOr(e.Unfenced.Label, e.Unfenced.ID)), prose.Clean(e.Unfenced.ID))
 }
 
 // PoolNeededError is what adding an account that names no pool fails with
@@ -93,7 +95,7 @@ func inPool(cfg *config.Config, account config.NewAccount) (config.NewAccount, e
 
 // poolSaid names a pool by its label and its id, as "Acme (q7mt)".
 func poolSaid(p config.Pool) string {
-	return prose.Clean(p.Label) + " (" + prose.Clean(p.ID) + ")"
+	return prose.Clean(prose.LabelOr(p.Label, p.ID)) + " (" + prose.Clean(p.ID) + ")"
 }
 
 // PoolChange is what editing a pool changes of it: each field left nil
@@ -197,9 +199,9 @@ func poolTaken(pools config.Pools, id, label string, unfenced bool) error {
 }
 
 // poolLabelTaken fails with ErrNoPoolLabel for a label given that shows
-// nothing; as config.TakePoolLabel does for one no pool can have; and where
-// a pool, but the one with the given id, shows the label as it's taken, as
-// a PoolLabelTakenError.
+// nothing once cleaned, as prose.Clean cleans it; as config.TakePoolLabel
+// does for one no pool can have; and where a pool, but the one with the
+// given id, shows the label as it's taken, as a PoolLabelTakenError.
 func poolLabelTaken(pools config.Pools, id, given string) error {
 	if prose.Clean(given) == "" {
 		return ErrNoPoolLabel
@@ -226,9 +228,10 @@ func unfencedTaken(pools config.Pools, id string, unfenced bool) error {
 // EditPool changes the pool with the given id, ignoring case, as change
 // says, in its [[pool]] table in the config file: a change that leaves it as
 // it was writes nothing. It fails, matching config.ErrNotConfigured, where no
-// pool has the id; as AddPool does for its label and directories; and as the
-// config file's edits do, as for directories written over lines, which it
-// can't change in place.
+// pool has the id; as AddPool does for its label, where change gives one, as
+// a label the pool has already isn't checked again, and for its
+// directories; and as the config file's edits do, as for directories
+// written over lines, which it can't change in place.
 func (r Registry) EditPool(id string, change PoolChange) (EditedPool, error) {
 	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {

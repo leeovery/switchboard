@@ -450,7 +450,7 @@ func (a Account) Title() string {
 
 // title names the account with the given id and label, as Title does.
 func title(id, label string) string {
-	return prose.Clean(id) + " · " + prose.Clean(label)
+	return prose.Clean(id) + " · " + prose.Clean(prose.LabelOr(label, id))
 }
 
 // Account finds the account with the given id.

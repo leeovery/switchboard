@@ -210,6 +210,26 @@ func TestNamesNameAccountsAsTheConfigAndTheRecordDo(t *testing.T) {
 	}
 }
 
+// A label given names the accounts that show it, cleaned, ignoring case, so
+// one written by hand untidily is still known as a label; a label that shows
+// nothing names none.
+func TestALabelGivenNamesTheAccountsThatShowIt(t *testing.T) {
+	names := status.NamesOf(config.Accounts{{ID: "k3f9", Label: "Acme "}, {ID: "side", Label: "\u200e"}}, nil)
+	if got := names.Labelled("acme"); !slices.Equal(got, []string{"k3f9"}) {
+		t.Errorf("Labelled(acme) = %q, want [k3f9], as its label shows", got)
+	}
+	if got := names.Labelled("\u200b"); got != nil {
+		t.Errorf("Labelled(a zero-width space) = %q, want none", got)
+	}
+}
+
+// An account whose label shows nothing once cleaned is titled by its id.
+func TestAnAccountWhoseLabelShowsNothingIsTitledByItsID(t *testing.T) {
+	if got := (status.Account{ID: "work", Label: "\u200e"}).Title(); got != "work · work" {
+		t.Errorf("Title() = %q, want work · work", got)
+	}
+}
+
 // Words name each account they name by its id as the names given say it,
 // leaving the rest, and the words given, as they are.
 func TestWordsNameTheirAccountsAsTheNamesGivenSayThem(t *testing.T) {

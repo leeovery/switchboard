@@ -71,4 +71,10 @@ func TestTheTokensCardsNameTheAccount(t *testing.T) {
 	if got := (TokenFor{Account: config.NewAccount{ID: "work"}}).Name(); got != "work" {
 		t.Errorf("a replace without a label is named %q, want its id", got)
 	}
+	if got := (TokenFor{Account: config.NewAccount{ID: "work", Label: "\u200e"}}).Name(); got != "work" {
+		t.Errorf("a replace whose label shows nothing is named %q, want its id", got)
+	}
+	if got := (Reviewed{ID: "work", Label: "\u200e"}).Name(); got != "work" {
+		t.Errorf("an account reviewed whose label shows nothing is named %q, want its id", got)
+	}
 }

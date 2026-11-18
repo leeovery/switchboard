@@ -133,7 +133,7 @@ func writePools(out io.Writer, pools []listedPool, none string) error {
 			}
 			held = append(held, name)
 		}
-		rows = append(rows, []string{prose.Clean(p.Pool), prose.Clean(p.PoolLabel), orNone(strings.Join(dirs, ", ")), orNone(strings.Join(held, ", "))})
+		rows = append(rows, []string{prose.Clean(p.Pool), prose.Clean(prose.LabelOr(p.PoolLabel, p.Pool)), orNone(strings.Join(dirs, ", ")), orNone(strings.Join(held, ", "))})
 	}
 	return writeTable(out, rows)
 }
@@ -234,7 +234,7 @@ const (
 // label, and that its history stays, read by its id.
 func poolRemovedSays(out io.Writer, removed config.Pool) error {
 	_, err := fmt.Fprintf(out, "removed pool %s (%s): its history stays, read with --pool %s by requests, history, sessions and events\n",
-		removed.ID, prose.Clean(removed.Label), removed.ID)
+		removed.ID, prose.Clean(prose.LabelOr(removed.Label, removed.ID)), removed.ID)
 	return err
 }
 

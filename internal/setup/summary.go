@@ -122,7 +122,7 @@ func (r Review) primariesSaid() string {
 	for _, p := range r.Pools {
 		in := slices.DeleteFunc(slices.Clone(r.Accounts), func(a Reviewed) bool { return !config.SamePool(a.Pool, p.ID) })
 		if len(in) > 0 {
-			label := prose.Clean(p.Label)
+			label := prose.Clean(prose.LabelOr(p.Label, p.ID))
 			said.WriteString(primarySaid(label+"'s primary: ", label+" has no primary", in, config.SamePool(p.ID, r.First)))
 		}
 	}

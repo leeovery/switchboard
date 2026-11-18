@@ -22,7 +22,8 @@ Hebrew or Arabic. In any other label, a direction mark changes nothing you can s
 dropped.
 
 A label you write into the config by hand is read as written. The dashboard and the commands show
-it tidied the same way.
+it tidied the same way. If nothing of it shows once tidied, such as a label of only a direction
+mark, they show the account's id instead.
 
 A variation selector stays only in these places:
 
@@ -55,6 +56,8 @@ label, ignoring case. Private-use glyphs, such as Nerd Font icons, show as they 
 
 - **A character `add` would drop,** a bidirectional control or a direction mark shows as its
   escape, such as `\u200B`.
+- **A sign that joins the next character,** such as an Arabic number sign, also shows as its
+  escape, such as `\u0600`. Otherwise it could hide the character after it.
 - **What `add` keeps** in an emoji, a keycap, a variant, a flag or a joining script shows as it is,
   unless an escape stands before it.
 - **A label written untidily** in the config and given tidily is saved tidily, and `edit` says the

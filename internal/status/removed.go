@@ -55,7 +55,7 @@ func RemovedOf(record identity.Record, configured config.Accounts) RemovedAccoun
 func PoolLabels(pools config.Pools, record func() identity.Record) func(id string) string {
 	return func(id string) string {
 		if p, ok := pools.ByID(id); ok {
-			return p.Label
+			return prose.LabelOr(p.Label, p.ID)
 		}
 		if p, ok := record().PoolByID(id); ok {
 			return keptLabel(p)
@@ -82,7 +82,7 @@ func ManyPoolsFiled(pools config.Pools, record func() identity.Record) bool {
 // labels one not configured: the label kept of one removed, else the one
 // this Mac's config last wrote, else its id.
 func keptLabel(p identity.PoolEntry) string {
-	return cmp.Or(p.Label, p.Written.Label, p.ID)
+	return prose.LabelOr(cmp.Or(p.Label, p.Written.Label), p.ID)
 }
 
 // KeptPool is a pool the accounts record keeps that the config doesn't
@@ -233,18 +233,24 @@ func (n Names) Knows(id string) bool {
 	return removed || n.configured.Index(id) >= 0
 }
 
-// Labelled are the ids of the accounts labelled as given, ignoring case: those
-// configured, in the config's order, then those the accounts record keeps, in
-// its order, as a label removed may have been given again.
+// Labelled are the ids of the accounts labelled as given, as each shows,
+// cleaned, ignoring case: those configured, in the config's order, then
+// those the accounts record keeps, in its order, as a label removed may have
+// been given again. A label that shows nothing names none.
 func (n Names) Labelled(label string) []string {
+	shown := prose.Clean(label)
+	if shown == "" {
+		return nil
+	}
+	shows := func(l string) bool { return strings.EqualFold(prose.Clean(l), shown) }
 	var ids []string
 	for _, a := range n.configured {
-		if a.Label != "" && strings.EqualFold(a.Label, label) {
+		if shows(a.Label) {
 			ids = append(ids, a.ID)
 		}
 	}
 	for _, a := range n.removed {
-		if a.Label != "" && strings.EqualFold(a.Label, label) {
+		if shows(a.Label) {
 			ids = append(ids, a.ID)
 		}
 	}

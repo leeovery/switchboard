@@ -219,7 +219,7 @@ func NeedPool(named string, pools config.Pools) PoolNeeded {
 func (e PoolNeeded) Error() string {
 	named := make([]string, len(e.Pools))
 	for i, p := range e.Pools {
-		named[i] = prose.Clean(p.ID) + " (" + prose.Clean(p.Label) + ")"
+		named[i] = prose.Clean(p.ID) + " (" + prose.Clean(prose.LabelOr(p.Label, p.ID)) + ")"
 	}
 	if e.Named == "" {
 		return "every pool is fenced: name a pool, " + prose.ListOr(named)
@@ -309,7 +309,7 @@ func (t *poolTable) sessionMay(pool string, a account) error {
 // label returns the label of the pool with the given id, else its id.
 func (t *poolTable) label(pool string) string {
 	if p, ok := t.pools.ByID(pool); ok {
-		return prose.Clean(p.Label)
+		return prose.Clean(prose.LabelOr(p.Label, p.ID))
 	}
 	return prose.Clean(pool)
 }

@@ -324,16 +324,16 @@ func wrongLabel(account, why string) error {
 // a keycap, a variant or a flag, or shape a joining script; each run of
 // whitespace within it one space; and its direction marks kept only within
 // a label holding a letter written right to left, and trimmed at its edges.
-// Every other character is kept. It's checked as it shows, and refused, as a label in
-// the file isn't: when it isn't UTF-8, as TOML's text must be; when it holds
-// a control character, such as a newline or a tab, which can't show, or a
-// bidirectional embedding, override or isolate, which can reorder the rest
-// of the row it's shown in; when it holds a prepended concatenation mark,
-// such as an Arabic number sign, which joins the character after it, so
-// that character can draw as nothing; and when nothing of it would show but
-// it isn't "", which shows the account by its id, matching ErrBlankLabel.
-// Then it's checked as checkLabel checks one, of the kind given, the
-// account or pool name names.
+// Every other character is kept. It's checked as it shows, and refused, as a
+// label in the file isn't: when it isn't UTF-8, as TOML's text must be; when
+// it holds a control character, such as a newline or a tab, which can't
+// show, or a bidirectional embedding, override or isolate, which can reorder
+// the rest of the row it's shown in; when it holds a prepended concatenation
+// mark, such as an Arabic number sign, which joins the character after it,
+// so that character can draw as nothing; and when nothing of it would show
+// but it isn't "", which shows the account by its id, matching
+// ErrBlankLabel. Then it's checked as checkLabel checks one, of the kind
+// given, the account or pool name names.
 func takeLabel(kind, account, given string) (string, error) {
 	switch {
 	case !utf8.ValidString(given):

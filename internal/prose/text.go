@@ -294,10 +294,9 @@ func Visible(text string) string {
 // can't reorder the rest of the line; so is a direction mark, whose part in
 // it can't be seen; and so is a prepended concatenation mark, which would
 // hide the character after it, the closing quote among them. A private-use
-// character
-// shows as it is, and so does what makes an emoji, a keycap, a variant or a
-// flag, or shapes a joining script, unless an escape stands before it, as
-// an escape owns nothing after it.
+// character shows as it is, and so does what makes an emoji, a keycap, a
+// variant or a flag, or shapes a joining script, unless an escape stands
+// before it, as an escape owns nothing after it.
 func Quoted(text string) string {
 	return `"` + MapUnseen(quoteEscaper.Replace(oneLine(text)), escaped) + `"`
 }
