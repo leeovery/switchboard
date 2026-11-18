@@ -35,7 +35,11 @@ run `switchboard service restart`.
 - When an account hits a limit, the notification waits 5 seconds for the sessions that move off
   it. Then it names them: `b6s7 · work hit its 5-hour limit, back at Mon 18:10 — 3 sessions moved
   to q4tx · side`.
-- When the account can take requests again, you see `b6s7 · work has room again`.
+- When Anthropic refuses the usage read of an account, the router puts it on a
+  [hold](glossary.md) and you see `b6s7 · work held: subscription lapsed — its subscription needs
+  renewing`. This goes out with `limits`.
+- When the account can take requests again, you see `b6s7 · work has room again`. This includes
+  the end of a hold.
 - When a window passes the warning, you see `b6s7 · work: Week at 91%`, once until that window
   resets.
 - When an account's token has 30 days left, you're told once, and again at 7 days. It reads
@@ -51,7 +55,7 @@ run `switchboard service restart`.
 - The token warnings always go out, whatever the config says. Each warning goes out once for each
   token. A restart doesn't repeat it, and a new token starts the count again.
 - Only one notification goes out about an account each minute. A later one in that minute is
-  dropped, unless it tells of a limit or a token.
+  dropped, unless it tells of a limit, a hold or a token.
 - If the router isn't running, an open dashboard posts room again and the warning itself. Pass
   `--no-notify` to `switchboard dashboard` to stop that. While the router runs, the dashboard posts
   none, so you never get the same one twice.
@@ -60,7 +64,7 @@ run `switchboard service restart`.
 
 | Key in `[notifications]` | Default | What it turns on |
 |---|---|---|
-| `limits` | `true` | An account hits a limit, with the sessions the limit moved. |
+| `limits` | `true` | An account hits a limit, with the sessions the limit moved, or goes on a hold. |
 | `room` | `true` | An account has room again. |
 | `warning` | `0.9` | A window passes this share of its limit. `0` turns it off. |
 | `moves` | `false` | Every other session move, such as after an hour idle or by a pin. |

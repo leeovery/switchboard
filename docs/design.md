@@ -338,7 +338,7 @@ The routed line in the log gives the reason for each request's account, one of:
 | `compacted: <id> would reset with <n>% of its week left` | A busy session's first request after its compaction, moved to `<id>`, the account chosen afresh, as `<id>`'s week resets before its own account's and would otherwise reset with `<n>`% of it unused above its reserve (step 5) |
 | `moved: <id> has no room` | The session's account, `<id>`, can't serve the request |
 | `moved: <id> is at its reserve`, `pin yields: <id> is at its reserve` | The same, as `<id>` has reached its reserve |
-| `moved: <id> had its read refused`, `pin yields: <id> had its read refused` | The same, as the API refused `<id>`'s last read, its subscription ended or its token refused, which holds it back till a read comes back clean, whatever else holds it too (see 401s and 403s) |
+| `moved: <id> had its read refused, its subscription ended`, `moved: <id> had its read refused, its token refused`, and the same after `pin yields: ` | The same, as the API refused `<id>`'s last read, its subscription ended or its token refused, which holds it back till a read comes back clean, whatever else holds it too (see 401s and 403s); a router from before gave `had its read refused` alone |
 | `moved: <id> hit its limit`, `moved: <id> was refused` | The same, as `<id>` answered this request with its limit, or refused it, and it was replayed |
 | `moved: <id> has a new token`, `pin yields: <id> has a new token` | The same, as `<id>` refused the request's token, having taken up a new one |
 | `no account has room` | None can take it (step 5): it goes where the upstream will say why, or switchboard answers 429 itself |
@@ -463,7 +463,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   `request_id`, the router holds the account back from every request, as for a token it refused
   itself. A proxy between refusing the read in the API's place says nothing of the account: that's a
   read that fails otherwise. It's no candidate, however much room it has; sessions on it move, and a
-  pin to it yields, saying it `had its read refused`; and its pool counts none of its room. A pool
+  pin to it yields, saying it `had its read refused` and why (see A hold is told in the Log); and
+  its pool counts none of its room. A pool
   whose every account is held has no room, and what Claude Code sees turns on the client's account,
   the one its token is (see Choosing an account, step 5). Where that's in the pool, the request goes
   out on it all the same, for the upstream to refuse it: the 401 or 403 is never relayed, so Claude
@@ -507,6 +508,29 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   token as Claude Code's own while another's will do, as the router's document says it, or with the
   router down its state file (see Launching). An account removed goes as any other, its history
   kept.
+- **A hold is told in the Log** (decided 18 November 2026), so looking back a hold reads as
+  something that happened, never as moves with no event behind them:
+  - **Its start is an event of its own, `held`,** told as a probe's read refused starts it:
+    `account`, `reason` the cause in the cards' words, `subscription lapsed` or `token refused`,
+    as status's `StaleCause` says it, `status` the read's answer, 403 or 401, and `count` and `to`
+    the sessions it moved. It isn't `refused`: that is the upstream refusing requests, which the
+    status document reads with its `until` as a live hold, and a hold has no `until`.
+  - **Its lift is room again,** `room`, as a read comes back clean or a new token starts the
+    account's probes afresh, its `reason` the cause that lifted: the router's looks see a hold as
+    no room, whatever's known of the account's quota, as its first read can be the one refused. A
+    hold only lifts as a read comes back clean, so its lift is news once, never the flapping a
+    refused token's would be.
+  - **Its moves name the cause:** a move off a held account, or a pin yielding from one, gives
+    `had its read refused, its subscription ended` or `had its read refused, its token refused`,
+    which the views word `work's subscription lapsed`, `from work, subscription lapsed`, in the
+    cards' words; and counts in the hold's event, its `forced_by` the hold's `id`, as a limit's, a
+    cap's and a refusal's do. A limit holding the account too doesn't take the move, as the hold is
+    said first.
+  - **Told once:** a read refused again while it holds, for either cause, tells nothing new, and a
+    read that fails otherwise neither starts one nor lifts one.
+  - **Not told again across a restart:** a hold the state file keeps is told by neither event nor
+    notification as the router starts, as its start was told before. Its lift is room again all
+    the same.
 - **A request refused everywhere bars no family:** when every account that judged a request refused
   it, and one at least did, those it left for a new token judging nothing as their 401s were to a
   token they no longer held, nor those it left as they could no longer be sent on, the refusals of
@@ -1053,7 +1077,7 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   partway through a day: summary version 7 (see The request ledger).
 - **Events:** the events of a session's work name its pool: `started` and `moved`, the pool the
   session's request was routed within, and `pin` and `auto`, the pool whose pin was set or
-  cleared, or the session's, of its own pin. What befalls an account, a limit, a cap or a refusal,
+  cleared, or the session's, of its own pin. What befalls an account, a limit, a cap, a refusal or a hold,
   names none, as its windows are its own, and the router's own events none. Which pool an event is
   of has one rule, `status`'s, which the router's document, the verbs and the dashboard all call:
   an event of a kind that names its pool goes by the pool it recorded, one naming none the first
@@ -4622,17 +4646,18 @@ at every width.
   | `╎` in `accent.attention` | `cap` | `work reached its cap: 3 sessions moved to side` |
   | `■` in `state.destructive` | `limit` | `personal reached its 5-hour limit: 2 sessions moved to side` |
   | `■` in `state.destructive` | `refused` | `work refused (401): 2 sessions moved to side` |
+  | `■` in `state.destructive` | `held` | `work held (subscription lapsed): 2 sessions moved to side`; short, `work held: 2 moved to side` |
   | `■` in `state.destructive` | `foreign` | `work's token is another subscription's`; short, `work: wrong token` |
   | `◇` in `text.subtle` | `primed` | `side primed: its 5-hour window started` |
-  | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset` |
+  | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset`; as a hold lifts, `work open again: subscription lapsed lifted` |
   | `●` in `accent.key` | `pin` | `pin set by hand: new sessions go to personal` |
   | `↩` in `accent.key` | `auto` | `new sessions back to auto` |
   | `!` in `accent.attention` | `restart` | `restart due: the config changed`; held, `restart held: <why the binary refuses>` |
   | `⊕` in `state.destructive`, or `state.positive` well again | `health` | `the router turned unhealthy: <why>`; `the router is healthy again` |
 
-  A mark is one a kind, but for `■`, which a limit, a refusal and a token another subscription's
-  share, each closing its account, their words telling them apart; the Log's Events mark each kind
-  the same (see The Log). The sessions a limit, a cap or a refusal moved fold into its line,
+  A mark is one a kind, but for `■`, which a limit, a refusal, a hold and a token another
+  subscription's share, each closing its account, their words telling them apart; the Log's Events
+  mark each kind the same (see The Log). The sessions a limit, a cap, a refusal or a hold moved fold into its line,
   counted, as its event's `count` and `to` give them; a move shows
   alone only where the line it's folded into isn't among those shown. Each sentence takes the
   fullest of its two forms that fits whole in LATELY's room, its column or, folded, what its heading
@@ -5216,7 +5241,9 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   but told from the account's side, which they leave unnamed:
   `14:31  ╎ reached its cap: 3 sessions moved to side`; a move onto it, `▸ 3 sessions came from
   work: work reached its cap`; `14:12  ▲ api started here`, or, where it started on the router's
-  best, `api started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a pin
+  best, `api started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a hold,
+  `■ held (subscription lapsed): 2 sessions moved to side`, and its lift, `✓ open again:
+  subscription lapsed lifted`; a pin
   naming it with others, `● pinned with side, by hand`; and `12:10  ◇ primed: its 5-hour window
   started`. For `all accounts`, every account's, each naming its account, as the Overview's LATELY
   does: `api started on side, the best`.
@@ -6444,8 +6471,8 @@ compacts, and then cuts them.
 
 LATELY's lines are the account events of the router's events held (see What it reads, below), as
 the Overview's LATELY words them (`views.RunwayLately`, beside the Overview's): a cap, a limit, a
-refusal, coming under pressure and room again, newest first, no further back than a week before
-now; the sessions a cap, a limit or a refusal moved folded into its line, as `3 sessions moved to
+refusal, a hold, coming under pressure and room again, newest first, no further back than a week
+before now; the sessions a cap, a limit, a refusal or a hold moved folded into its line, as `3 sessions moved to
 side`, each router run's own; no session's start or move alone, and no marks. Each line is the
 time, as an event's time is said, `14:31` or `Wed 23:58`, but on today's weekday a week back, by
 the calendar, by its date, `5 Nov 15:00`, as its weekday alone would read as today's (prose's
@@ -7353,20 +7380,21 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
   - row 9: `Pick which events it shows.`;
   - row 11: `EVENTS` at `x` and `ONLY` at `x+58`, in `text.muted`, and `today` at `x+14`, in
     `text.subtle`;
-  - rows 12 to 24, a kind each, in this order: its tick and name; today's count right-aligned in 5
+  - rows 12 to 25, a kind each, in this order: its tick and name; today's count right-aligned in 5
     from `x+14`, in `text.secondary`, `text.faint` at 0; and at `x+21` what it is, in `text.muted`:
     `started` a session first seen; `moved` a session moved to another account; `pressure` an
     account under pressure; `cap` an account at its cap; `limit` an account at its limit; `refused`
-    an account's token refused; `foreign` an account's token not its own; `primed` a window
-    started early; `open` an account with room again; `pin` routing set by hand; `auto` routing
-    given back to the router; `restart` a restart of the router falling due; `health` the router
-    unhealthy, or well again;
+    an account's token refused; `held` an account held, its read refused; `foreign` an account's
+    token not its own; `primed` a window started early; `open` an account with room again; `pin`
+    routing set by hand; `auto` routing given back to the router; `restart` a restart of the
+    router falling due; `health` the router unhealthy, or well again;
   - **ONLY:** `accounts` and their ticks (row 12); `sessions` and `every one, unless some are
     ticked` (13); today's sessions from `x+59`, rows 14 to 19, as Requests' list, counting their
     events today (`2 events`, `1 event`); then the `▼ 5 more today   / finds one from another day`
     line (20). No models and no `failed`, which an event has neither of;
-  - row 26: `It shows all ` `20` ` of today's events.`
-- **Its keys,** on row 27, right-aligned two cells in from the edge, three spaces apart:
+  - row 27: `It shows all ` `20` ` of today's events.`
+- **Its keys,** two rows under what it will show, on row 27 for Requests and 29 for Events,
+  right-aligned two cells in from the edge, three spaces apart:
 
   `←→ side   ↑↓ move   space tick   enter apply   esc cancel`
 
@@ -7408,9 +7436,10 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `╎` `accent.attention` | `cap` | the account | `95% of its 5-hour window: its 3 sessions move to side as their next requests come` |
 | `■` `state.destructive` | `limit` | the account | `its 5-hour window, till 23:58: its session moves to side` |
 | `■` `state.destructive` | `refused` | the account | `its token refused (401), till 14:00: its 2 sessions move to side`, or a request refused alone, `its opus requests refused (403), till 14:00` (settled in the plan) |
+| `■` `state.destructive` | `held` | the account | `subscription lapsed (403): its 2 sessions move to side as their next requests come`, or `token refused (401)`; its card headed `work held`, with `why`, `answer` and `till: a read comes back clean` (see 401s and 403s) |
 | `■` `state.destructive` | `foreign` | the account | `its token is another subscription's`, its card headed `work's token is another subscription's` (see Account identity) |
 | `◇` `text.subtle` | `primed` | the account | `its 5-hour window started, resets at 12:05` |
-| `✓` `state.positive` | `open` | the account | `its 5-hour window reset` |
+| `✓` `state.positive` | `open` | the account | `its 5-hour window reset`; as a hold lifts, `subscription lapsed lifted`, its card's `lifted` the cause |
 | `●` `accent.key` | `pin` | the accounts it names | `new sessions go there, set from the command line`; with `--move`, `new and running sessions go there, …`; a session's own pin, `this session goes there, set from the dashboard` (settled in the plan) |
 | `↩` `accent.key` | `auto` | blank | `new sessions back from personal to the router's choice, set from the dashboard`; a session's own pin cleared, `this session back from side to the router's choice, …` (settled in the plan) |
 | `!` `accent.attention` | `restart` | blank | `due: the config changed`, `due: switchboard upgraded`, `due: the time zone changed` (settled in the plan); held, as the binary the router would become refuses to start, `held: <why it refuses>` (the owner's call, 26 October 2026), its card headed `restart held`, with a `held` item |
@@ -7419,14 +7448,14 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 - **The windows a limit or a cap began with:** its `what happened` names those alone, as LATELY's
   line does, a window that joined it later listed in its card (the owner's call, 15 October 2026).
 - **A mark a kind:** the marks are LATELY's (see The Overview) and the Log's own, each a cell wide
-  in JetBrains Mono, regular and bold, one a kind but for `■`: a limit, a token refused and a token
-  another subscription's each close their account, and their words tell them apart. `✕` is a single
+  in JetBrains Mono, regular and bold, one a kind but for `■`: a limit, a token refused, a hold and
+  a token another subscription's each close their account, and their words tell them apart. `✕` is a single
   request's refusal, on a cord or a row (`✕ 429`), never an event's. `○` is never one: it says not
   read, or not live. `◔`, `!` and `⊕`, which no frame draws, are JetBrains Mono's, regular and bold,
   and `refused` keeps the `■` the Overview's frame 3 draws (settled in the plan).
 - **`open`** is the Log's word for the router's `room`: room again, as a window that held the
-  account back resets. A pin cleared is never called a pin: it's `auto`.
-- **A limit's and a cap's sessions,** and a refusal's, are those its moves counted: `its 3 sessions
+  account back resets, or a hold lifts. A pin cleared is never called a pin: it's `auto`.
+- **A limit's and a cap's sessions,** and a refusal's and a hold's, are those its moves counted: `its 3 sessions
   move to side`, `its session moves to side`, or where they went to several accounts, `its 3
   sessions move to other accounts` (settled in the plan).
 
@@ -9051,10 +9080,19 @@ posts, but for a token's year, which has no key: see Config.
   whatever order the news comes: a move told of before its limit waits for it, 5 seconds at most,
   as a limit whose news was dropped, or came after a newer limit of its account, never comes.
   They're gathered only while `limits` is on.
+- **Holds:** an account held as the API refused its read, posted as the hold starts, while
+  `limits` is on, as the news is as pressing as a limit's and no quiet minute holds it back:
+  `work · Work held: subscription lapsed — its subscription needs renewing`, or `… held: token
+  refused — its token needs renewing`, the words ROUTING gives. Its sessions move as their next
+  requests come, so nothing gathers them: each is a move of its own. A read refused again while it
+  holds posts nothing, and a hold the state file keeps across a restart posts nothing either, as
+  it was told before (see 401s and 403s).
 - **Room again:** an account whose quota for a request of any model ran out, under a limit, with
-  a shared window spent, or at its reserve, and has come back: `work · Work has room again`. A
-  refusal isn't quota, so one lifting is no news, or a revoked token would be announced every ten
-  minutes; an account both out of quota and refused has room again once both are past. The router
+  a shared window spent, or at its reserve, or that a hold held, and has come back: `work · Work
+  has room again`. The upstream's refusal isn't quota, so one lifting is no news, or a revoked
+  token would be announced every ten minutes; a hold lifts only as a read comes back clean, so its
+  lift is told once. An account both out of quota and refused or held has room again once each is
+  past. The router
   looks at the accounts on every event and every 15 seconds, so a limit lifting or a window
   resetting with no traffic is noticed.
 - **Warnings:** a window passing the share given, once a reset: `work · Work: Week at 91%`.
@@ -9074,14 +9112,14 @@ posts, but for a token's year, which has no key: see Config.
 
 Room again and warnings compare an account with how it last stood, so neither tells of how the
 accounts stood as the router started, nor of an account's first reading. A limit's notification
-always goes out, and so does a token's year's: no quiet minute holds either back. As the router
+always goes out, and so do a hold's and a token's year's: no quiet minute holds any back. As the router
 stops, what it's posting, the moves still queued and the limits still gathering go out at once,
 all within 3 seconds of the stop, after which a post still going is ended and any left fail, as
 a post that fails does, so none outlives the router or its restart in place. Any other goes out
 only a minute or more after the last posted about its account, a limit's included: one due sooner is
 dropped, and the log says so at debug. One that fails to post is logged at warn, and dropped too;
 not having gone out, it starts no quiet minute. The log names accounts by id alone. Notifications
-never hold a request up: the router queues the limits and moves it tells of, 256 at most, dropping
+never hold a request up: the router queues the limits, holds and moves it tells of, 256 at most, dropping
 any past that with a warning in the log, finds room again and warnings at its looks, and posts from
 a goroutine of its own.
 
@@ -11587,7 +11625,7 @@ probing.
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, exporting, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, `exporting` the folder of the export of the history under way then, which the restart waits for, the folder configured still or not, left out while none is (see On a schedule), and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
 | `export` | *router* How the export on a schedule stands, since the router started: `{dir, at, error, running}`, `dir` the folder `[export] dir` names, resolved, `at` when an export into it last succeeded, `error` why the last failed, in plain words, and `running` when the export under way began, as one waiting on macOS's prompt waits; `at` left out before one has succeeded, `error` once one succeeds, and `running` while none is under way. Left out where `[export] dir` isn't set (see On a schedule) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
-| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, pool, session, model, dir, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
+| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, pool, session, model, dir, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `held`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap, a refusal or a hold counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's; none while the account's read is refused, which no time lifts), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
@@ -11622,7 +11660,7 @@ Each account:
 ### The router's events
 
 The router tells what it decides and notices as events, each a moment: a session started or moved;
-an account under pressure, at its cap, at its limit, refused, primed, or with room again; routing
+an account under pressure, at its cap, at its limit, refused, held, primed, or with room again; routing
 set by hand; a restart falling due; and its own health turning. The status document gives the newest
 50, kept in memory (see The status document); the router also files every one, so they can be looked
 back on across restarts. The Overview's LATELY reads the newest, the Log's Events lists them all,
@@ -11662,14 +11700,21 @@ verbs).
   - `moved`: a session's requests of a model moving to another account: `session` and `model`;
     `from`, `to` and `reason`; `limit`, the id of the limit's event, for a move that limit forced,
     holding the session's request back; and `forced_by`, the id of the event whose moves it counts
-    in, a limit's, a cap's or a refusal's.
+    in, a limit's, a cap's, a refusal's or a hold's.
   - `refused`: with `status`; `family`, for a request refused alone; `until`, brought forward
     should the refusal lift early; and `count` and `to`, as a cap's are, of the sessions it moved
     while it holds.
+  - `held`: an account held back from every request as the API refused a probe's read of it, none
+    refused before it since a read came back clean (see 401s and 403s): `reason` the cause, in the
+    cards' words, `subscription lapsed` or `token refused`; `status` the API's answer, 403 or 401;
+    and `count` and `to`, as a cap's are. It has no `until`, as no time lifts it: `room` tells its
+    lift. A read refused again while it holds tells nothing, and nor does a restart finding it in
+    the state file.
   - `primed`: a prime that started its window: `windows` the window it started, and `until` its
     reset.
-  - `room`: room again: an account that could take no request, at its limit or its cap, able to
-    take one: `windows` the windows that held it back.
+  - `room`: room again: an account that could take no request, at its limit or its cap, or held,
+    able to take one: `windows` the windows that held it back; and `reason`, where a hold held it,
+    the cause of the latest refusal while it held, as `held` gives it.
   - `pin`: routing set by hand. The global pin: `accounts` the accounts it names, in the config's
     order, and `account` the first of them, as a pin named its one account before pins named
     several; `move` set where it moves the running sessions too, and `force` where it cleared every
@@ -11728,7 +11773,11 @@ verbs).
     at its cap`;
   - `moved: work hit its limit`: `work reached its limit`; `from work, at its limit`;
   - `moved: work was refused`: `work refused the request`; `from work, refused`;
-  - `moved: work had its read refused`: as it is; `from work, read refused`;
+  - `moved: work had its read refused, its subscription ended`: `work's subscription lapsed`;
+    `from work, subscription lapsed`; and `… its token refused`, `work's token refused`, `from
+    work, token refused`, each in the cards' words (see 401s and 403s);
+  - `moved: work had its read refused`, as a router from before gave it: as it is; `from work,
+    read refused`;
   - `moved: work has no room`: `work had no room`; `from work, with no room`;
   - `moved by pin`: `pinned to side`; `from work, pinned to side`, the pin's account the one moved
     to;
@@ -12794,7 +12843,6 @@ was dropped binds a later choice, the design proper says so.
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
-| A refused read's hold in the Log: an event as it starts and lifts, naming the cause, beside a move that says only `had its read refused` | open: found with #351, 16 November 2026 | [hold-in-the-log](../ideas/2026-11-16--hold-in-the-log.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
 | An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |

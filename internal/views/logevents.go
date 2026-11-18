@@ -36,8 +36,8 @@ type LogEvent struct {
 	// Line is what it says, as Telling tells it, its facts worked out over
 	// the events before it, and as events prints it.
 	Line EventLine
-	// Moved counts the sessions a limit, a cap or a refusal moved, as its
-	// Line says them: it rises in place as each of its moves counts.
+	// Moved counts the sessions a limit, a cap, a refusal or a hold moved, as
+	// its Line says them: it rises in place as each of its moves counts.
 	Moved int
 	// Use is how much of its window a cap's account had used, as its Line's
 	// status.PartUse says it, which colours it by its level: none of any

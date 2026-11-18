@@ -88,12 +88,28 @@ func TestReasonWords(t *testing.T) {
 			session: "[work] refused the request",
 		},
 		{
-			name:    "a move off an account whose read was refused",
+			name:    "a move off an account whose read was refused, as a router from before said it",
 			reason:  "moved: work had its read refused",
 			facts:   status.Facts{From: "work", To: "side"},
 			event:   "[work] had its read refused",
 			routing: "from [work], read refused",
 			session: "[work] had its read refused",
+		},
+		{
+			name:    "a move off an account whose read was refused as its subscription ended, in the cards' words",
+			reason:  "moved: work had its read refused, its subscription ended",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "[work]'s subscription lapsed",
+			routing: "from [work], subscription lapsed",
+			session: "[work]'s subscription lapsed",
+		},
+		{
+			name:    "a move off an account whose read was refused its token, in the cards' words",
+			reason:  "moved: work had its read refused, its token refused",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "[work]'s token refused",
+			routing: "from [work], token refused",
+			session: "[work]'s token refused",
 		},
 		{
 			name:    "a move off an account with no room",
@@ -414,6 +430,25 @@ func TestReasonWords(t *testing.T) {
 	}
 }
 
+// A move off an account held by its read refused names why the API refused
+// it, as the router gives the why; a cause this build doesn't know names
+// none, as a router from before did.
+func TestWhyHeldByNamesTheCause(t *testing.T) {
+	tests := []struct {
+		cause status.StaleCause
+		want  string
+	}{
+		{cause: status.StaleLapsed, want: "had its read refused, its subscription ended"},
+		{cause: status.StaleRefused, want: "had its read refused, its token refused"},
+		{cause: status.StaleFailed, want: "had its read refused"},
+	}
+	for _, tt := range tests {
+		if got := status.WhyHeldBy(tt.cause); got != tt.want {
+			t.Errorf("WhyHeldBy(%d) = %q, want %q", tt.cause, got, tt.want)
+		}
+	}
+}
+
 // A phone says why a forced move came without the account it left, which
 // it says apart; every other reason as an event reads it.
 func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
@@ -426,6 +461,8 @@ func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
 		{reason: status.ReasonMovedOff + "work " + status.WhyLimit, want: "its limit"},
 		{reason: status.ReasonMovedOff + "work " + status.WhyRefused, want: "refused"},
 		{reason: status.ReasonMovedOff + "work " + status.WhyReadRefused, want: "read refused"},
+		{reason: status.ReasonMovedOff + "work " + status.WhySubscriptionEnded, want: "lapsed"},
+		{reason: status.ReasonMovedOff + "work " + status.WhyReadTokenRefused, want: "refused"},
 		{reason: status.ReasonMovedOff + "work " + status.WhyNoRoom, want: "no room"},
 		{reason: status.ReasonMovedOff + "work has a new token", want: "moved: [work] has a new token"},
 		{reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyReserve, "personal"), want: "its cap, [personal] came under pressure"},
@@ -464,6 +501,8 @@ func TestBriefWordsSayWhereASessionMovedFromAndWhyInAWordOrTwo(t *testing.T) {
 		{name: "at its limit", reason: status.ReasonMovedOff + "work " + status.WhyLimit, facts: from, want: "from [work] · at its limit"},
 		{name: "refused", reason: status.ReasonMovedOff + "work " + status.WhyRefused, facts: from, want: "from [work] · refused"},
 		{name: "read refused", reason: status.ReasonMovedOff + "work " + status.WhyReadRefused, facts: from, want: "from [work] · read refused"},
+		{name: "its subscription ended", reason: status.ReasonMovedOff + "work " + status.WhySubscriptionEnded, facts: from, want: "from [work] · subscription lapsed"},
+		{name: "its token refused as it was read", reason: status.ReasonMovedOff + "work " + status.WhyReadTokenRefused, facts: from, want: "from [work] · token refused"},
 		{name: "no room", reason: status.ReasonMovedOff + "work " + status.WhyNoRoom, facts: from, want: "from [work] · no room"},
 		{name: "a move off for a why it has no words for", reason: status.ReasonMovedOff + "work has a new token", facts: from,
 			want: "from [work] · has a new token"},

@@ -23,7 +23,7 @@ type saying struct {
 
 // sayings are the facts both tellers say: when the account a move's choice
 // passed over runs out, by the clock, whatever day each names; the sessions a
-// limit, a cap or a refusal moved, counted, and where to; and the windows an
+// limit, a cap, a refusal or a hold moved, counted, and where to; and the windows an
 // event names. Those one teller leaves unsaid by design, as LATELY a cap's
 // windows, are left out.
 var sayings = []saying{
@@ -33,7 +33,7 @@ var sayings = []saying{
 		lately: regexp.MustCompile(`, its \S+ to run out at (?:\w{3} )?(\d\d:\d\d)`),
 	},
 	{
-		fact: "the sessions it moved", kinds: []string{status.EventLimit, status.EventCap, status.EventRefused},
+		fact: "the sessions it moved", kinds: []string{status.EventLimit, status.EventCap, status.EventRefused, status.EventHeld},
 		logged: regexp.MustCompile(`: its (\d+) sessions move to (.+?)(?: as .*)?$`),
 		lately: regexp.MustCompile(`: (\d+) sessions? moved to (.+)$`),
 	},

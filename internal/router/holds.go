@@ -26,8 +26,9 @@ type refusedUntil struct {
 }
 
 // awaiting is what forced a move, while the event the move is to be counted
-// in is yet to be told: a limit, by its identity, or the cap or the refusal
-// of the account the move left, which held back the requests of family.
+// in is yet to be told: a limit, by its identity, or the cap, the refusal or
+// the hold of the account the move left, which held back the requests of
+// family.
 type awaiting struct {
 	held   Hold
 	limit  int
@@ -78,6 +79,17 @@ func (r *recent) refused(e Refused, now time.Time) {
 	} else {
 		h = r.keep(happening{Kind: status.EventRefused, Account: e.Account, Until: e.Until, Status: e.Status, Family: e.Family, requests: []refusedUntil{refusal}}, now)
 	}
+	r.countWaiting(h)
+}
+
+// readHeld keeps the hold the API's refusal of an account's read started at
+// now, as news, its cause in the words StaleCause's Said gives it, counting
+// the moves it forced that came first. A read refused again while it holds
+// is never told, so it's never joined: nor is its lift, which room again
+// tells.
+func (r *recent) readHeld(e ReadHeld, now time.Time) {
+	cause, _ := status.RefusedRead(e.Refused).Said()
+	h := r.keep(happening{Kind: status.EventHeld, Account: e.Account, Reason: cause, Status: e.Status}, now)
 	r.countWaiting(h)
 }
 
@@ -218,8 +230,9 @@ func withJoined(joined map[string]time.Time, key string, at time.Time) map[strin
 
 // moved keeps a session's move at now, counting it among the sessions what
 // forced it moved, in the event of that, which the move then names: the
-// limit, cap or refusal that held its request back on the account it left.
-// Where that event is yet to be told, the move waits for it, as waitFor says.
+// limit, cap, refusal or hold that held its request back on the account it
+// left. Where that event is yet to be told, the move waits for it, as
+// waitFor says.
 func (r *recent) moved(e Moved, now time.Time) {
 	move := happening{Kind: status.EventMoved, Session: bounded(e.Session), Model: bounded(e.Model), Dir: e.Dir, Project: e.Project, From: e.From, To: e.To, Reason: e.Reason,
 		Pool: e.Pool}
@@ -233,10 +246,11 @@ func (r *recent) moved(e Moved, now time.Time) {
 
 // forcing returns the kept event of what forced a move, while it can change:
 // the limit's, by its identity; the cap's of the account the move left, while
-// it holds; or the refusal's of that account, while it holds back the move's
-// model family, its token's before the family's. It reports false for a move
-// by choice, and where that event is yet to be told, or is no longer kept.
-// r.mu must be held.
+// it holds; the refusal's of that account, while it holds back the move's
+// model family, its token's before the family's; or the newest hold's of
+// that account, as no time ends one. It reports false for a move by choice,
+// and where that event is yet to be told, or is no longer kept. r.mu must be
+// held.
 func (r *recent) forcing(e Moved, now time.Time) (*happening, bool) {
 	switch e.Held {
 	case HeldByLimit:
@@ -248,6 +262,8 @@ func (r *recent) forcing(e Moved, now time.Time) (*happening, bool) {
 			return h, true
 		}
 		return r.find(refusalHolding(e.From, r.state.family(e.Model), now))
+	case HeldByRead:
+		return r.find(readHolding(e.From, now))
 	}
 	return nil, false
 }
@@ -255,17 +271,17 @@ func (r *recent) forcing(e Moved, now time.Time) (*happening, bool) {
 // waitFor returns what a move waits for, where the event of what forced it is
 // yet to be told: a limit newer than every limit heard of the account it
 // left, by its identity, which tells of it once it's heard of; the cap of
-// that account, which a look at the accounts finds; or its refusal, holding
-// back the move's model family, which tells of it as it comes. It returns
-// zero for a move by choice, and for a limit heard of before, whose event is
-// no longer kept.
+// that account, which a look at the accounts finds; its refusal, holding
+// back the move's model family, which tells of it as it comes; or its hold,
+// which tells of it as it starts. It returns zero for a move by choice, and
+// for a limit heard of before, whose event is no longer kept.
 func (r *recent) waitFor(e Moved) awaiting {
 	switch e.Held {
 	case HeldByLimit:
 		if e.Limit > r.limits[e.From] {
 			return awaiting{held: HeldByLimit, limit: e.Limit}
 		}
-	case HeldByReserve, HeldByRefusal:
+	case HeldByReserve, HeldByRefusal, HeldByRead:
 		return awaiting{held: e.Held, family: r.state.family(e.Model)}
 	}
 	return awaiting{}
@@ -273,12 +289,13 @@ func (r *recent) waitFor(e Moved) awaiting {
 
 // heldBy is what each kind of event that counts the moves it forced holds an
 // account back by.
-var heldBy = map[string]Hold{status.EventLimit: HeldByLimit, status.EventCap: HeldByReserve, status.EventRefused: HeldByRefusal}
+var heldBy = map[string]Hold{status.EventLimit: HeldByLimit, status.EventCap: HeldByReserve, status.EventRefused: HeldByRefusal, status.EventHeld: HeldByRead}
 
 // waitsFor reports whether the move waits for h, newly told or joined, to be
-// counted in: the limit's with the identity it waits for; or the cap's or
-// the refusal's of the account it left, as it waits for, the refusal holding
-// back its model family, every family for the token's.
+// counted in: the limit's with the identity it waits for; or the cap's, the
+// refusal's or the hold's of the account it left, as it waits for, the
+// refusal holding back its model family, every family for the token's, as a
+// hold does.
 func (move *happening) waitsFor(h *happening) bool {
 	switch w := move.waits; {
 	case w.held == 0 || w.held != heldBy[h.Kind]:
@@ -301,13 +318,13 @@ func (r *recent) countWaiting(h *happening) {
 	}
 }
 
-// unawaited has the moves heard up to the id heard that still wait for a cap
-// or a refusal wait no more: a look reading the accounts after them told of
-// the cap that forced them, if it could be told of, and a refusal is told of
-// as it comes. r.mu must be held.
+// unawaited has the moves heard up to the id heard that still wait for a
+// cap, a refusal or a hold wait no more: a look reading the accounts after
+// them told of the cap that forced them, if it could be told of, and a
+// refusal or a hold is told of as it comes. r.mu must be held.
 func (r *recent) unawaited(heard int) {
 	for i := range r.kept {
-		if move := &r.kept[i]; move.ID <= heard && (move.waits.held == HeldByReserve || move.waits.held == HeldByRefusal) {
+		if move := &r.kept[i]; move.ID <= heard && move.waits.held != 0 && move.waits.held != HeldByLimit {
 			move.waits = awaiting{}
 		}
 	}
@@ -343,6 +360,15 @@ func (r *recent) limitEvent(limit int, now time.Time) (*happening, bool) {
 func (r *recent) capEvent(account string, now time.Time) (*happening, bool) {
 	h, ok := r.byID(r.caps[account].event)
 	return h, ok && h.changes(now)
+}
+
+// readHolding returns what picks out the events of the account's holds that
+// can change at now: the newest is the one that holds, if any does, as a
+// hold starts afresh only once the one before it has lifted.
+func readHolding(account string, now time.Time) func(h *happening) bool {
+	return func(h *happening) bool {
+		return h.Kind == status.EventHeld && h.Account == account && h.changes(now)
+	}
 }
 
 // refusalHolding returns what picks out the events of the account's refusals

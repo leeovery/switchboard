@@ -468,6 +468,8 @@ var pages = []page{
 		before: earlier{by: 9*time.Minute + 26*time.Second, keys: slices.Concat(toLog(), repeated(upKey, 30), []tea.KeyPressMsg{downKey})},
 	},
 	{name: "log-events-filter-160", size: wide(37), world: accountWorlds.auto, keys: toLog("]", "f")},
+	{name: "log-events-lapsed-160", size: wide(37), world: accountWorlds.lapsed, keys: toLog("]")},
+	{name: "log-event-details-lapsed-160", size: wide(37), world: accountWorlds.lapsed, keys: slices.Concat(toLog("]"), repeated(upKey, 8), []tea.KeyPressMsg{enterKey})},
 	{
 		name: "log-requests-filter-160", size: wide(37), world: accountWorlds.auto,
 		keys: slices.Concat(toLog("f"), []tea.KeyPressMsg{rightKey}, repeated(downKey, 12)),

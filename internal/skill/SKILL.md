@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 20 -->
+<!-- switchboard skill version: 21 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -73,8 +73,8 @@ once it's done.
   days each account's totals, its plan and its worth against it, each week's peaks, and whether
   there are as many accounts as the use needs, or with `--windows`, each window's readings; or
   `switchboard events`, the router's events, a JSON object a line: sessions started and moved,
-  limits, caps, refusals, primes and pins. `--since` reaches back to a day, a time today or a while
-  ago: `2026-10-01`, `14:00`, `2d`.
+  limits, caps, refusals, holds, primes and pins. `--since` reaches back to a day, a time today or
+  a while ago: `2026-10-01`, `14:00`, `2d`.
 - `switchboard usage` is the user's printout of every account's windows, and `switchboard dashboard`
   their live dashboard, of one pool: the pool the verbs act on, or with `--pool <id>` that pool,
   `P` turning to the next. Point the user to them when they want to look, rather than running them;

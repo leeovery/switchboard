@@ -100,6 +100,12 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 			full: "work refused (403, opus)", subject: "work"},
 		{name: "a refusal giving no answer", event: status.Event{Kind: status.EventRefused, Account: "work"},
 			full: "work refused", subject: "work"},
+		{name: "a hold, its subscription ended, moving sessions", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403, Count: 2, To: "side"},
+			full: "work held (subscription lapsed): 2 sessions moved to side", short: "work held: 2 moved to side", subject: "work", object: "2 sessions", shortObject: "2"},
+		{name: "a hold, its token refused", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "token refused", Status: 401},
+			full: "work held (token refused)", short: "work held", subject: "work"},
+		{name: "a hold giving no cause", event: status.Event{Kind: status.EventHeld, Account: "work"},
+			full: "work held", subject: "work"},
 		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
 			full: "work's token is another subscription's", short: "work: wrong token", subject: "work"},
 		{name: "a prime", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: at(18, 50)},
@@ -108,6 +114,8 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 			full: "work open again: its 5-hour window reset", short: "work open again", subject: "work"},
 		{name: "room again, naming no window", event: status.Event{Kind: status.EventRoom, Account: "work"},
 			full: "work open again", subject: "work"},
+		{name: "room again as a hold lifts", event: status.Event{Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"},
+			full: "work open again: subscription lapsed lifted", short: "work open again", subject: "work"},
 		{name: "the global pin set", event: status.Event{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, By: "cli"},
 			full: "pin set by hand: new sessions go to personal", short: "pin set: new sessions go to personal", subject: "pin", object: "personal"},
 		{name: "the global pin set on two accounts", event: status.Event{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal", "side"}, By: "dashboard"},
@@ -298,6 +306,22 @@ func heldBackAt(kind string, old bool) status.Document {
 	}}
 }
 
+// heldWorkLately is work held at 14:31 as its subscription ended, its two
+// sessions moving to side as their next requests came, and room again at
+// 15:30 as a read came back clean.
+func heldWorkLately() status.Document {
+	lapsed := "subscription lapsed"
+	moved := func(id int, session string) status.Event {
+		return status.Event{ID: id, At: at(14, 32), Kind: status.EventMoved, Session: session, From: "work", To: "side",
+			Reason: status.ReasonMovedOff + "work " + status.WhySubscriptionEnded, ForcedBy: 1}
+	}
+	return status.Document{Source: status.SourceRouter, Events: []status.Event{
+		{ID: 4, At: at(15, 30), Kind: status.EventRoom, Account: "work", Reason: lapsed},
+		moved(3, "7f3a5c90"), moved(2, "d28c0b1e"),
+		{ID: 1, At: at(14, 31), Kind: status.EventHeld, Account: "work", Reason: lapsed, Status: 403, Count: 2, To: "side"},
+	}}
+}
+
 func TestLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *testing.T) {
 	tests := []struct {
 		name string
@@ -310,6 +334,8 @@ func TestLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *testing.T) 
 			want: []string{"c61b started on side", "work reached its 5-hour limit: 3 sessions moved to side", "7f3a started on work"}},
 		{name: "a refusal's", doc: heldBackAt(status.EventRefused, false),
 			want: []string{"c61b started on side", "work refused (401): 3 sessions moved to side", "7f3a started on work"}},
+		{name: "a hold's", doc: heldBackAt(status.EventHeld, false),
+			want: []string{"c61b started on side", "work held: 3 sessions moved to side", "7f3a started on work"}},
 		{name: "a limit's, from a router from before forced_by", doc: heldBackAt(status.EventLimit, true),
 			want: []string{"c61b started on side", "work reached its 5-hour limit: 3 sessions moved to side", "7f3a started on work"}},
 	}

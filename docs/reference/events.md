@@ -32,9 +32,10 @@ switchboard events --json | tail -1 \
 | `cap` | A window of an account reached its reserve. |
 | `limit` | An account reached its limit. |
 | `refused` | The upstream refused requests on an account. |
+| `held` | A [hold](../glossary.md) started on an account, because Anthropic refused its usage read. |
 | `foreign` | The token of an account turned out to be another subscription's. |
 | `primed` | A prime started a window of an account. |
-| `room` | An account had room again. |
+| `room` | An account had room again, after a limit, a cap or a hold. |
 | `pin` | Routing was set by hand: a pin of a pool, or of one session. |
 | `auto` | Routing was given back to the router: a pin cleared. |
 | `restart` | A restart fell due, or was held. |
@@ -68,8 +69,8 @@ switchboard events --json | tail -1 \
 - **`account`** on the `pin` of a pool is the first account the pin names. On the `pin` or `auto`
   of one session, it's the account that session pin names. The `auto` of a pool has no `account`,
   only `accounts`.
-- **`to`** on a `limit`, `cap` or `refused` event is where every session it moved went, if they
-  all went to one account.
+- **`to`** on a `limit`, `cap`, `refused` or `held` event is where every session it moved went, if
+  they all went to one account.
 - **`dir` and `project`** are each left out if none was known yet, and on events written before
   switchboard recorded them.
 
@@ -100,22 +101,28 @@ Once the move is done, an event of these kinds without a pool is in the first po
 | Kind | `reason` holds |
 |---|---|
 | `started` and `moved` | Why the session went to its account. See [Routing reasons](reasons.md). |
+| `held` | Why Anthropic refused the read: `subscription lapsed` or `token refused`. |
+| `room` | After a hold, the cause of the hold that lifted. Left out after a limit or a cap. |
 | `restart` | Why the restart is due, in words for a person. |
 | `health` | Why the router turned unhealthy, in words for a person. |
 
 - **`joined`** shows, for example, the 5-hour window joining a cap on Fable's week. A window
   it leaves out was held from `at`. It's left out if no window joined.
-- **`until`** is brought forward to the lift if a limit or a refusal lifts early.
+- **`until`** is brought forward to the lift if a limit or a refusal lifts early. A `held` event
+  has no `until`, because no time ends a hold. The `room` event after it says when it lifted.
+- **The `held` field** belongs to `restart` only. A `held` event gives its cause in `reason`.
+- **A hold is told once.** Another refused read during the hold adds no event. After a restart, a
+  hold that was already running gets no new `held` event.
 
 ## Counts and settings
 
 | Field | Type | Meaning |
 |---|---|---|
-| `count` | number | How many sessions a limit, cap or refusal moved while it held. |
+| `count` | number | How many sessions a limit, cap, refusal or hold moved while it held. |
 | `limit` | number | On `limit`, its identity, kept while it holds. On `moved`, the `id` of the limit event that counts this move. |
-| `forced_by` | number | On `moved`, the `id` of the limit, cap or refusal event that counts this move. |
+| `forced_by` | number | On `moved`, the `id` of the limit, cap, refusal or hold event that counts this move. |
 | `reserve` | number | On `cap`, the reserve of the account. |
-| `status` | number | On `refused`, the HTTP status the API refused with. |
+| `status` | number | On `refused` and `held`, the HTTP status the API refused with. |
 | `family` | string | On `refused`, if the API refused the request rather than the token, the model family it holds back. |
 | `move` | boolean | On `pin`, set if the pin moves the running sessions too. |
 | `force` | boolean | On `pin` and `auto`, set if the pin cleared the pin of every session. |

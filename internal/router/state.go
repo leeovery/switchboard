@@ -556,7 +556,9 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	if err != nil {
 		if !taken.tokenGone {
 			u.probed, u.ended = at, at
-			u.failed(redact.Text(err.Error()), quota.RefusalOf(err), at)
+			if u.failed(redact.Text(err.Error()), quota.RefusalOf(err), at) {
+				taken.held = &ReadHeld{Account: id, Refused: u.refusedRead, Status: quota.APIStatusOf(err)}
+			}
 			u.misses = min(u.misses+1, backingOff)
 			s.routine()
 		}
@@ -593,11 +595,14 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 
 // probeTaken is what a probe's reading took in, as recordProbe has it:
 // whether the probe went out on a token the account no longer holds; the
-// news of each limit of the account's it showed lifted early; and the keys of
-// the windows it couldn't read to warn of, as warnOf has them.
+// news of each limit of the account's it showed lifted early; the news of
+// the hold its read refused started, as failed says, nil where it started
+// none; and the keys of the windows it couldn't read to warn of, as warnOf
+// has them.
 type probeTaken struct {
 	tokenGone bool
 	lifted    []LimitLifted
+	held      *ReadHeld
 	warn      []string
 }
 
@@ -1153,7 +1158,10 @@ func (s *state) viewing(pool, model string, now time.Time) view {
 			v.refused = append(v.refused, a.ID)
 		}
 		if u.readRefused() {
-			v.readRefused = append(v.readRefused, a.ID)
+			if v.readRefused == nil {
+				v.readRefused = make(map[string]status.StaleCause)
+			}
+			v.readRefused[a.ID] = status.RefusedRead(u.refusedRead)
 		}
 		if u.limited.holds(now, applies) {
 			if v.limited == nil {
@@ -1273,16 +1281,18 @@ func (u *usage) heldByReadAt(at time.Time) bool {
 // nothing of whether the refusal has ended, so the account stays held till a
 // read comes back clean. A refusal that follows none starts the hold, at at;
 // one after another, as a token refused after a subscription ended, says why
-// afresh, the hold running on from when it began.
-func (u *usage) failed(err string, refused quota.ReadRefusal, at time.Time) {
+// afresh, the hold running on from when it began. It reports whether it
+// started the hold.
+func (u *usage) failed(err string, refused quota.ReadRefusal, at time.Time) (started bool) {
 	refusal := status.RefusedRead(refused) != 0
 	switch {
 	case u.readRefused() && !refusal:
-		return
+		return false
 	case refusal && !u.readRefused():
-		u.refusedSince = at
+		u.refusedSince, started = at, true
 	}
 	u.probeErr, u.refusedRead = err, refused
+	return started
 }
 
 // spacedOff reports whether the account's read refused, as readRefused says,

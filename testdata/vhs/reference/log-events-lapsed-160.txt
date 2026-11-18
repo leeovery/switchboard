@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  23 today   f what it shows
+
+  at        session            event     account          what happened
+  the oldest day kept: the ledger keeps its lines 90 days
+◇ 07:05:12                     primed    work             its 5-hour window started, resets at 12:05
+▲ 07:58:30  2b6d api           started   work
+■ 08:05:00                     held      side             token refused (401)
+✓ 08:24:30                     open      side             token refused lifted
+▲ 08:31:02  a8f1 website       started   side
+◇ 08:47:00                     primed    side             its 5-hour window started, resets at 13:47
+▲ 09:12:40  e0c4 infra         started   work
+▲ 09:40:05  3d7a docs          started   work
+▲ 10:02:18  5b19 mobile        started   personal
+◇ 11:30:02                     primed    personal         its 5-hour window started, resets at 16:30
+▲ 11:55:31  9c2e website       started   personal
+▲ 12:02:10  d28c switchboard   started   work
+◇ 12:10:00                     primed    work             its 5-hour window started, resets at 17:10
+▲ 12:47:12  41e0 docs          started   personal
+▸ 13:22:40  db8a infra         moved     personal → work  personal came under pressure
+■ 13:41:00                     held      personal         subscription lapsed (403): its 2 sessions move to side as their next requests come
+▸ 13:41:12  41e0 docs          moved     personal → side  personal's subscription lapsed
+▸ 13:42:30  9c2e website       moved     personal → side  personal's subscription lapsed
+◇ 13:50:00                     primed    side             its 5-hour window started, resets at 18:50
+■ 14:20:00                     refused   work             its token refused (401), till 14:51: its 2 sessions move to side
+▸ 14:20:00  d28c switchboard   moved     work → side      work refused the request
+▸ 14:20:41  db8a infra         moved     work → side      work refused the request
+▲ 14:41:11  c61b mobile        started   side
+
+
+
+
+● following                                                                                                                                      23 events today
+tab views   [ ] view    ↑↓ event  enter open  f what it shows  / find    p pin    ? help  q quit

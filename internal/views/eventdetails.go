@@ -36,8 +36,8 @@ type EventDetails struct {
 	// Then is `<ACCOUNT>` THEN, of an event naming one account: nil for any
 	// other.
 	Then *AccountThen
-	// Followed is WHAT FOLLOWED, of a limit, a cap or a refusal, and of a
-	// move a line tells of: nil for any other.
+	// Followed is WHAT FOLLOWED, of a limit, a cap, a refusal or a hold, and
+	// of a move a line tells of: nil for any other.
 	Followed *Followed
 }
 
@@ -108,9 +108,9 @@ type AccountThen struct {
 	Sessions int
 }
 
-// Followed is what followed an event: of a limit, a cap or a refusal, the
-// moves it counted, till when new sessions go elsewhere, and what the moves
-// cost together; of a move, what its move came to.
+// Followed is what followed an event: of a limit, a cap, a refusal or a
+// hold, the moves it counted, till when new sessions go elsewhere, and what
+// the moves cost together; of a move, what its move came to.
 type Followed struct {
 	// Moves are the moves the event counted, in the order they came.
 	Moves []FollowedMove
@@ -181,9 +181,9 @@ func (d detailing) details() EventDetails {
 }
 
 // holdsBack reports whether the kind given holds an account back, moving
-// its sessions: a limit, a cap or a refusal.
+// its sessions: a limit, a cap, a refusal or a hold.
 func holdsBack(kind string) bool {
-	return kind == status.EventLimit || kind == status.EventCap || kind == status.EventRefused
+	return kind == status.EventLimit || kind == status.EventCap || kind == status.EventRefused || kind == status.EventHeld
 }
 
 // headline is what happened, as the card's title says it, its session named
@@ -210,6 +210,8 @@ func (d detailing) headline() status.Words {
 			return slices.Concat(who, clause("'s "+prose.Clean(e.Family)+" requests refused"))
 		}
 		return slices.Concat(who, clause("'s token refused"))
+	case status.EventHeld:
+		return slices.Concat(who, clause(" held"))
 	case status.EventForeign:
 		return slices.Concat(who, clause(prose.ForeignTokenAfterName))
 	case status.EventPrimed:
@@ -274,8 +276,17 @@ func (d detailing) happened() []DetailItem {
 		}
 		items.add("family", valued(prose.Clean(e.Family)))
 		items.add("till", d.timeWords(e.Until))
-	case status.EventPrimed, status.EventRoom:
+	case status.EventHeld:
+		items.add("why", valued(holdCause(e)))
+		if e.Status != 0 {
+			items.add("answer", valued(strconv.Itoa(e.Status)))
+		}
+		items.add("till", saidWords(heldTill))
+	case status.EventPrimed:
 		items.add("window", d.windowsWords())
+	case status.EventRoom:
+		items.add("window", d.windowsWords())
+		items.add("lifted", valued(holdCause(e)))
 	case status.EventPin, status.EventAuto:
 		items = d.pinned()
 	case status.EventRestart:
@@ -576,10 +587,11 @@ func (d detailing) resets(windows []WindowThen) time.Time {
 	return slices.MinFunc(windows, func(a, b WindowThen) int { return quota.CompareKeys(a.Key, b.Key) }).Resets
 }
 
-// followed is what followed the event: of a limit, a cap or a refusal, the
-// moves it counted, as their rows say them, in the order they came, till
-// when new sessions go elsewhere, and what the moves cost together; of a
-// move a line tells of, what its move came to; nil for any other.
+// followed is what followed the event: of a limit, a cap, a refusal or a
+// hold, the moves it counted, as their rows say them, in the order they
+// came, till when new sessions go elsewhere, and what the moves cost
+// together; of a move a line tells of, what its move came to; nil for any
+// other.
 func (d detailing) followed() *Followed {
 	switch {
 	case d.event.Kind == status.EventMoved && d.row.Move != nil:

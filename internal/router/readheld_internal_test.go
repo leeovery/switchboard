@@ -1,0 +1,429 @@
+package router
+
+import (
+	"net/http"
+	"path/filepath"
+	"reflect"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/status"
+)
+
+// The holds a refused read starts, as the router tells of them.
+var (
+	workLapsed       = ReadHeld{Account: "work", Refused: quota.SubscriptionEnded, Status: http.StatusForbidden}
+	workTokenRefused = ReadHeld{Account: "work", Refused: quota.TokenRefused, Status: http.StatusUnauthorized}
+)
+
+// A probe whose read the API refuses starts a hold, told of once, as it
+// starts, naming the account, why the API refused it as the cards say it,
+// and the status it answered with: a read refused again while it holds, for
+// either cause, tells nothing new, and a read that fails otherwise neither
+// starts one nor, after one, lifts it.
+func TestAReadRefusedTellsOfTheHoldItStartsOnce(t *testing.T) {
+	tests := []struct {
+		name  string
+		reads []error
+		want  []ReadHeld
+	}{
+		{name: "its subscription ended", reads: []error{errSubscriptionEnded}, want: []ReadHeld{workLapsed}},
+		{name: "its token refused", reads: []error{errTokenRefused}, want: []ReadHeld{workTokenRefused}},
+		{name: "refused again", reads: []error{errSubscriptionEnded, errSubscriptionEnded}, want: []ReadHeld{workLapsed}},
+		{name: "its token refused after", reads: []error{errSubscriptionEnded, errTokenRefused}, want: []ReadHeld{workLapsed}},
+		{name: "timed out after", reads: []error{errSubscriptionEnded, errTimedOut, errSubscriptionEnded}, want: []ReadHeld{workLapsed}},
+		{name: "the upstream overloaded after", reads: []error{errTokenRefused, errUnreadable, errTokenRefused}, want: []ReadHeld{workTokenRefused}},
+		{name: "a read that came back clean between", reads: []error{errSubscriptionEnded, nil, errTokenRefused}, want: []ReadHeld{workLapsed, workTokenRefused}},
+		{name: "timed out", reads: []error{errTimedOut}},
+		{name: "the upstream overloaded", reads: []error{errUnreadable}},
+		{name: "a proxy between refusing its token", reads: []error{errProxyRefused}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var heard []ReadHeld
+			cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
+			cfg.Events = func(e Event) {
+				if held, ok := e.(ReadHeld); ok {
+					heard = append(heard, held)
+				}
+			}
+			r := newTestRouterOf(t, cfg)
+			defer r.probes.stop()
+			readWorkFirst(r)
+			for _, err := range tt.reads {
+				probeEnding(r, "work", err)
+			}
+
+			if !reflect.DeepEqual(heard, tt.want) {
+				t.Errorf("the router told of the holds %+v, want %+v", heard, tt.want)
+			}
+		})
+	}
+}
+
+// A session that moves off a held account says why the API refused its
+// read, and is counted in the hold's event, which a clean read lifts as room
+// again, naming the cause that lifted.
+func TestAHoldCountsTheSessionsItMovesAndRoomAgainTellsItsLift(t *testing.T) {
+	tests := []struct {
+		name   string
+		read   error
+		reason string
+		cause  string
+		status int
+	}{
+		{name: "its subscription ended", read: errSubscriptionEnded, reason: "moved: work had its read refused, its subscription ended", cause: "subscription lapsed", status: http.StatusForbidden},
+		{name: "its token refused", read: errTokenRefused, reason: "moved: work had its read refused, its token refused", cause: "token refused", status: http.StatusUnauthorized},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			r := newTestRouter(t, clock.read, &stubProber{})
+			defer r.probes.stop()
+			readWorkFirst(r)
+			r.recent.look()
+			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
+			probeEnding(r, "work", tt.read)
+			choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
+			clock.now = start.Add(time.Minute)
+			r.recent.look()
+			probeEnding(r, "work", nil)
+			r.recent.look()
+
+			want := []status.Event{
+				{ID: 3, At: clock.now, Kind: status.EventRoom, Account: "work", Reason: tt.cause},
+				{ID: 2, At: start, Kind: status.EventMoved, Session: "one", Model: opus, From: "work", To: "side", Reason: tt.reason, ForcedBy: 1},
+				{ID: 1, At: start, Kind: status.EventHeld, Account: "work", Reason: tt.cause, Status: tt.status, Count: 1, To: "side"},
+			}
+			if got := r.recent.events(); !reflect.DeepEqual(got, want) {
+				t.Errorf("events() =\n%+v\nwant\n%+v", got, want)
+			}
+		})
+	}
+}
+
+// A hold the state file kept is told of again by nothing as the router
+// starts once more, neither event nor notification, as its start was told
+// before: its lift is room again all the same, and posts as room again does.
+func TestAHoldKeptAcrossARestartIsToldOfAgainByNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), stateFileName)
+	clock := &testClock{now: start}
+	before := newTestFile(clock.read, resolve(testConfigured, testTokens.Read, unrecorded))
+	before.load(path)
+	before.state.record("work", []quota.Window{session, soonWeek}, before.state.mark())
+	probesEnd(before.state, "work", []error{errSubscriptionEnded})
+	before.save()
+
+	var heard []Event
+	notifier := &noting{}
+	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg.Events = func(e Event) { heard = append(heard, e) }
+	cfg.Notifier, cfg.Notifications = notifier, config.Notifications{Limits: true, Room: true}
+	r := newTestRouterOf(t, cfg)
+	r.file.load(path)
+	for range 2 {
+		r.recent.look()
+		r.notifications.lookAfresh(t.Context())
+	}
+	if heard != nil || r.recent.events() != nil || notifier.posted() != nil {
+		t.Fatalf("after the restart, the router told of %+v, kept %+v and posted %q, want nothing: work's hold was told of before", heard, r.recent.events(), notifier.posted())
+	}
+
+	probesEnd(r.state, "work", []error{nil})
+	r.recent.look()
+	r.notifications.lookAfresh(t.Context())
+	want := []status.Event{{ID: 1, At: start, Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"}}
+	if got := r.recent.events(); !reflect.DeepEqual(got, want) {
+		t.Errorf("once work is read again, events() = %+v, want %+v", got, want)
+	}
+	if got := notifier.posted(); !reflect.DeepEqual(got, []string{"work · Work has room again"}) {
+		t.Errorf("once work is read again, posted %q, want room again", got)
+	}
+}
+
+func TestEachHoldAsTheDocumentGivesIt(t *testing.T) {
+	tests := []struct {
+		name  string
+		event ReadHeld
+		want  status.Event
+	}{
+		{
+			name:  "its subscription ended",
+			event: workLapsed,
+			want:  status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: http.StatusForbidden},
+		},
+		{
+			name:  "its token refused",
+			event: workTokenRefused,
+			want:  status.Event{Kind: status.EventHeld, Account: "work", Reason: "token refused", Status: http.StatusUnauthorized},
+		},
+		{
+			name:  "a status its failure didn't say",
+			event: ReadHeld{Account: "work", Refused: quota.SubscriptionEnded},
+			want:  status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newTestRecent(&testClock{now: start})
+			r.hear(tt.event)
+			want := tt.want
+			want.ID, want.At = 1, start
+			if got := r.events(); !reflect.DeepEqual(got, []status.Event{want}) {
+				t.Errorf("events() = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+func TestAHoldCountsTheSessionsItMoved(t *testing.T) {
+	tests := []struct {
+		name  string
+		heard []Event
+		// forcedBy is the id of the hold's event each move heard is counted
+		// in, 0 for none, which counts them as wantCount and wantTo say.
+		forcedBy  int
+		wantCount int
+		wantTo    string
+	}{
+		{
+			name:     "each session once, of any model",
+			heard:    []Event{workLapsed, heldOff("one", opus, "side"), heldOff("one", haiku, "side"), heldOff("two", haiku, "side")},
+			forcedBy: 1, wantCount: 2, wantTo: "side",
+		},
+		{
+			name:     "to several accounts, naming none",
+			heard:    []Event{workLapsed, heldOff("one", opus, "side"), heldOff("two", opus, "personal")},
+			forcedBy: 1, wantCount: 2,
+		},
+		{
+			name:     "heard before it's told",
+			heard:    []Event{heldOff("one", opus, "side"), workLapsed},
+			forcedBy: 2, wantCount: 1, wantTo: "side",
+		},
+		{
+			name:     "the newest hold's, once the one before it lifted",
+			heard:    []Event{workLapsed, workTokenRefused, heldOff("one", opus, "side")},
+			forcedBy: 2, wantCount: 1, wantTo: "side",
+		},
+		{
+			name:  "but by choice",
+			heard: []Event{workLapsed, Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved by pin"}},
+		},
+		{
+			name:  "but off another account",
+			heard: []Event{workLapsed, Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "moved: side had its read refused, its token refused", Held: HeldByRead}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newTelling(t)
+			k.hear(tt.heard...)
+
+			for _, e := range k.r.events() {
+				switch {
+				case e.Kind == status.EventMoved && e.ForcedBy != tt.forcedBy:
+					t.Errorf("the move %+v is forced by %d, want %d", e, e.ForcedBy, tt.forcedBy)
+				case e.Kind == status.EventHeld && e.ID == tt.forcedBy && (e.Count != tt.wantCount || e.To != tt.wantTo):
+					t.Errorf("the hold's event = %+v, want it counting %d moved to %q", e, tt.wantCount, tt.wantTo)
+				case e.Kind == status.EventHeld && e.ID != tt.forcedBy && e.Count != 0:
+					t.Errorf("the hold's event = %+v, want it counting none", e)
+				}
+			}
+		})
+	}
+}
+
+// Room again tells a hold's lift as a read comes back clean, or the account
+// goes out on another token, naming the cause of the last refusal while it
+// held, beside the windows that held it back too; never before both lift,
+// nor as a read fails otherwise, which leaves it held. An account never read
+// before its first read was refused has room again as its hold lifts, too.
+func TestRoomAgainTellsAHoldsLift(t *testing.T) {
+	tests := []struct {
+		name string
+		// read has work read before its hold, unread where it's false; hold
+		// holds work back, as it's looked at, and free has it room again,
+		// as it's looked at once more.
+		read        bool
+		hold, free  func(k *telling)
+		wantWindows []string
+		wantReason  string
+	}{
+		{
+			name:       "its subscription ended, then a clean read",
+			read:       true,
+			hold:       func(k *telling) { probesEnd(k.r.state, "work", []error{errSubscriptionEnded}) },
+			free:       func(k *telling) { probesEnd(k.r.state, "work", []error{nil}) },
+			wantReason: "subscription lapsed",
+		},
+		{
+			name: "its subscription ended, then its token refused, then a clean read",
+			read: true,
+			hold: func(k *telling) {
+				probesEnd(k.r.state, "work", []error{errSubscriptionEnded})
+				k.look()
+				probesEnd(k.r.state, "work", []error{errTokenRefused})
+			},
+			free:       func(k *telling) { probesEnd(k.r.state, "work", []error{nil}) },
+			wantReason: "token refused",
+		},
+		{
+			name:       "its token refused, then another token",
+			read:       true,
+			hold:       func(k *telling) { probesEnd(k.r.state, "work", []error{errTokenRefused}) },
+			free:       func(k *telling) { k.r.state.tokenReplaced("work") },
+			wantReason: "token refused",
+		},
+		{
+			name:       "its first read refused, then a clean read",
+			hold:       func(k *telling) { probesEnd(k.r.state, "work", []error{errSubscriptionEnded}) },
+			free:       func(k *telling) { k.reads(0.5, 0.5) },
+			wantReason: "subscription lapsed",
+		},
+		{
+			name: "its subscription ended at its cap, then a clean read once the cap resets",
+			read: true,
+			hold: func(k *telling) {
+				k.record(0.95, sessionEnds, 0.5)
+				k.look()
+				probesEnd(k.r.state, "work", []error{errSubscriptionEnded})
+				k.look()
+				probesEnd(k.r.state, "work", []error{nil})
+			},
+			free:        func(k *telling) { k.clock.now = sessionEnds },
+			wantWindows: []string{"5h"},
+			wantReason:  "subscription lapsed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newTelling(t)
+			if tt.read {
+				k.reads(0.5, 0.5)
+			}
+			k.look()
+			tt.hold(k)
+			k.look()
+			if got := k.r.events(); len(got) > 0 && got[0].Kind == status.EventRoom {
+				t.Fatalf("while work is held, events() = %+v, want no room again", got)
+			}
+			tt.free(k)
+			k.look()
+
+			got := k.r.events()
+			want := status.Event{ID: got[0].ID, At: k.clock.now, Kind: status.EventRoom, Account: "work", Windows: tt.wantWindows, Reason: tt.wantReason}
+			if !reflect.DeepEqual(got[0], want) {
+				t.Errorf("events() = %+v, want the newest %+v", got, want)
+			}
+		})
+	}
+}
+
+func TestAHoldIsNeverLiftedByAReadThatFailsOtherwise(t *testing.T) {
+	for _, read := range []error{errTimedOut, errUnreadable, errProxyRefused} {
+		t.Run(read.Error(), func(t *testing.T) {
+			k := newTelling(t)
+			k.reads(0.5, 0.5)
+			probesEnd(k.r.state, "work", []error{errSubscriptionEnded})
+			k.look()
+			probesEnd(k.r.state, "work", []error{read})
+			k.look()
+
+			k.expect()
+		})
+	}
+}
+
+// A hold is told of as it starts, as a limit is, whatever went out about its
+// account just before, under the setting a limit's notification posts under,
+// saying why and what to renew.
+func TestAHoldIsToldOfAsALimitIs(t *testing.T) {
+	const moved = "session one moved from 2 · two to 1 · one (moved by pin)"
+	tests := []struct {
+		name   string
+		limits bool
+		held   ReadHeld
+		want   []string
+	}{
+		{
+			name: "its subscription ended", limits: true, held: ReadHeld{Account: "2", Refused: quota.SubscriptionEnded, Status: http.StatusForbidden},
+			want: []string{moved, "2 · two held: subscription lapsed — its subscription needs renewing"},
+		},
+		{
+			name: "its token refused", limits: true, held: ReadHeld{Account: "2", Refused: quota.TokenRefused, Status: http.StatusUnauthorized},
+			want: []string{moved, "2 · two held: token refused — its token needs renewing"},
+		},
+		{
+			name: "with limits off", held: ReadHeld{Account: "2", Refused: quota.SubscriptionEnded, Status: http.StatusForbidden},
+			want: []string{moved},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifying(t, config.Notifications{Limits: tt.limits, Room: true, Warning: 0.9, Moves: true})
+				h.start()
+				h.hear(Moved{Session: "one", Model: opus, From: "2", To: "1", Reason: "moved by pin"}, tt.held)
+
+				h.expect(tt.want...)
+			})
+		})
+	}
+}
+
+// A hold's lift posts as room again does, whatever else held its account
+// back: a hold found as notifications first look, as the state file keeps
+// one across a restart, included.
+func TestRoomAgainOnceAHoldLifts(t *testing.T) {
+	withRoom := func(h *notifying) { h.read("2", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day)) }
+	held := func(h *notifying) { probesEnd(h.state, "2", []error{errSubscriptionEnded}) }
+	tests := []struct {
+		name string
+		// before sets 2 up before notifications start, and bar holds it
+		// back after.
+		before, bar func(h *notifying)
+	}{
+		{name: "held as it runs", before: withRoom, bar: held},
+		{name: "held as it starts", before: func(h *notifying) { withRoom(h); held(h) }, bar: func(*notifying) {}},
+		{name: "held, its first read refused", before: held, bar: func(*notifying) {}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifying(t, config.Notifications{Room: true})
+				tt.before(h)
+				h.start()
+				tt.bar(h)
+				h.after(lookEvery)
+				h.expect()
+
+				withRoom(h)
+				h.after(lookEvery)
+				h.expect("2 · two has room again")
+			})
+		})
+	}
+}
+
+// heldOff is a session's requests of model moving off work, held by its
+// read refused, to the account with the id to.
+func heldOff(session, model, to string) Moved {
+	return Moved{Session: session, Model: model, From: "work", To: to, Reason: "moved: work had its read refused, its subscription ended", Held: HeldByRead}
+}
+
+// probeEnding has a probe of the account with the given id end as err says,
+// nil one that comes back clean, reading its windows as they stand, through
+// the router's probes, which tell of what it starts.
+func probeEnding(r *Router, id string, err error) {
+	prober := r.probes.prober.(*stubProber)
+	token := r.accounts.only([]string{id})[0].token().Reveal()
+	prober.mu.Lock()
+	prober.readings = map[string]quota.Probe{token: probed(nil, r.state.usage[id].latest()...)}
+	prober.errs = map[string]error{token: err}
+	prober.mu.Unlock()
+	probeNow(r, id)
+}

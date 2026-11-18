@@ -55,6 +55,35 @@ func TestRefusalOf(t *testing.T) {
 	}
 }
 
+// answeredProbe is a probe's failure that says the status the API answered.
+type answeredProbe struct{ status int }
+
+func (e answeredProbe) Error() string  { return "HTTP 403" }
+func (e answeredProbe) APIStatus() int { return e.status }
+
+// A failure says the status the API answered by its APIStatus, wrapped or
+// not; one that has none says no status, whatever its text.
+func TestAPIStatusOf(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "a probe's failure", err: answeredProbe{403}, want: 403},
+		{name: "wrapped", err: fmt.Errorf("probe work: %w", answeredProbe{401}), want: 401},
+		{name: "a probe's failure the API didn't answer", err: answeredProbe{}},
+		{name: "another error, its text a status", err: errors.New("HTTP 401 · invalid x-api-key")},
+		{name: "none"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := quota.APIStatusOf(tt.err); got != tt.want {
+				t.Errorf("APIStatusOf(%v) = %d, want %d", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMultiDay(t *testing.T) {
 	tests := []struct {
 		key  string

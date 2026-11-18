@@ -1,11 +1,13 @@
 package capture
 
 import (
+	"net/http"
 	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -46,12 +48,13 @@ func routerRun(now time.Time) time.Time {
 }
 
 // The router's reasons the frames' moves give, as its log has them: a move
-// off work at its cap, one off personal at its limit, and one off work
-// refused.
+// off work at its cap, one off personal at its limit, one off work refused,
+// and one off personal held, its subscription ended.
 const (
 	reasonCapped  = status.ReasonMovedOff + "work " + status.WhyReserve
 	reasonLimited = status.ReasonMovedOff + "personal " + status.WhyLimit
 	reasonRefused = status.ReasonMovedOff + "work " + status.WhyRefused
+	reasonLapsed  = status.ReasonMovedOff + "personal " + status.WhySubscriptionEnded
 )
 
 // rescoredUnderPressure is the router's reason, as its log has it, for
@@ -142,9 +145,9 @@ func countedIn(move status.Event, before []status.Event) status.Event {
 }
 
 // forces reports whether an event of the kind given moves the sessions on its
-// account: a cap's, a limit's or a refusal's.
+// account: a cap's, a limit's, a refusal's or a hold's.
 func forces(kind string) bool {
-	return kind == status.EventCap || kind == status.EventLimit || kind == status.EventRefused
+	return kind == status.EventCap || kind == status.EventLimit || kind == status.EventRefused || kind == status.EventHeld
 }
 
 // toldAt are the router's events its status document gives at at, of those
@@ -452,14 +455,22 @@ func (h happenings) atPersonalsLimit() []status.Event {
 }
 
 // lapsed are the lapsed world's events: the auto world's to side's prime at
-// 13:50; work's token refused at 14:20, as refusal says, moving d28c and db8a
-// to side; and c61b started on side, the router's best. Personal's lapse
-// tells none, as only its probes found it.
+// 13:50, side held at 08:05, its token refused as it was read, and room
+// again at 08:24 as a new token lifted it, before any session ran on it;
+// personal held at 13:41, as the first probe after its last read at 13:35
+// was refused its organization's login, moving 41e0 and 9c2e to side as
+// their next requests came; work's token refused at 14:20, as refusal says,
+// moving d28c and db8a to side; and c61b started on side, the router's best.
 func (h happenings) lapsed(refusal status.Refusal) []status.Event {
-	refused := h.today(14, 20, 0)
+	refused, lapsed := h.today(14, 20, 0), h.today(13, 41, 0)
 	return slices.Concat(
 		h.yesterday(), h.morning(h.personalPrimed()),
 		[]status.Event{
+			{Kind: status.EventHeld, At: h.today(8, 5, 0), Account: "side", Reason: prose.TokenRefused, Status: http.StatusUnauthorized},
+			{Kind: status.EventRoom, At: h.today(8, 24, 30), Account: "side", Reason: prose.TokenRefused},
+			{Kind: status.EventHeld, At: lapsed, Account: "personal", Reason: prose.SubscriptionLapsed, Status: http.StatusForbidden, Count: 2, To: "side"},
+			h.forcedOff(h.today(13, 41, 12), id41E0, "personal", "side", reasonLapsed),
+			h.forcedOff(h.today(13, 42, 30), id9C2E, "personal", "side", reasonLapsed),
 			{Kind: status.EventRefused, At: refused, Account: "work", Until: refusal.Until, Status: refusal.Status, Count: 2, To: "side"},
 			h.forcedOff(refused, idD28C, "work", "side", reasonRefused),
 			h.forcedOff(h.today(14, 20, 41), idDB8A, "work", "side", reasonRefused),

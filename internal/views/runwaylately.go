@@ -13,9 +13,9 @@ import (
 const OpenAgain = "open again"
 
 // runwayKinds are the kinds of events Runway's LATELY tells of: what befell
-// an account, a cap, a limit, a refusal, coming under pressure, and room
-// again.
-var runwayKinds = []string{status.EventCap, status.EventLimit, status.EventRefused, status.EventPressure, status.EventRoom}
+// an account, a cap, a limit, a refusal, a hold, coming under pressure, and
+// room again.
+var runwayKinds = []string{status.EventCap, status.EventLimit, status.EventRefused, status.EventHeld, status.EventPressure, status.EventRoom}
 
 // RunwayLatelyFrom is when the events Runway's LATELY tells at now begin: a
 // week before now, as long as the live week's span.
@@ -27,7 +27,8 @@ func RunwayLatelyFrom(now time.Time) time.Time {
 // Events gives them, as Runway's LATELY tells them at the Now of the moment
 // m, the newest first: those of the kinds runwayKinds names, from
 // RunwayLatelyFrom on, each told in full and short as Lately tells it, the
-// sessions a cap, a limit or a refusal moved folded into its line, counted.
+// sessions a cap, a limit, a refusal or a hold moved folded into its line,
+// counted.
 // A session's start, or its move alone, never shows.
 func RunwayLately(m status.Moment, held []Event) []Sentence {
 	since := RunwayLatelyFrom(m.Now)

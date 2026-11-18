@@ -175,6 +175,21 @@ func RefusalOf(err error) ReadRefusal {
 	return refused.RefusedRead()
 }
 
+// APIStatusOf is the status the API itself answered the read that failed
+// with err with, as the failure says it, by an APIStatus method a provider's
+// probe error has, wrapped or not: 0 where it doesn't say, as of a read the
+// API didn't answer, or an error that isn't a probe's.
+func APIStatusOf(err error) int {
+	answered, ok := errors.AsType[interface {
+		error
+		APIStatus() int
+	}](err)
+	if !ok {
+		return 0
+	}
+	return answered.APIStatus()
+}
+
 // Verdict is what a response to a request says of the account it went out on.
 type Verdict int
 

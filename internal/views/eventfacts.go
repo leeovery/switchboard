@@ -11,9 +11,9 @@ import (
 // say, the Log's and LATELY's alike, over a run of events taken in oldest
 // first, as they're told: when an account a reason passed over under
 // pressure runs out, as its latest pressure event before said; the sessions
-// a limit, a cap or a refusal moved, counted, and where to; and the windows
-// each event began with, and those that joined it since, with when, each
-// named by its key as name names it. Its zero value names a window as
+// a limit, a cap, a refusal or a hold moved, counted, and where to; and the
+// windows each event began with, and those that joined it since, with when,
+// each named by its key as name names it. Its zero value names a window as
 // status.NameOfKey does. eventFacts aren't safe for concurrent use.
 type eventFacts struct {
 	name func(key string) string
@@ -33,9 +33,9 @@ type eventFact struct {
 	// said, where the event came before then: zero where it passed none over,
 	// none of the run's pressure events said, or the run-out had come.
 	runsOut time.Time
-	// moved counts the sessions a limit, a cap or a refusal moved, each
-	// once, and to is the account they went to, where they all went to one:
-	// "" where they went to several, or it moved none.
+	// moved counts the sessions a limit, a cap, a refusal or a hold moved,
+	// each once, and to is the account they went to, where they all went to
+	// one: "" where they went to several, or it moved none.
 	moved int
 	to    string
 	// windows are the windows the event began with, in its order, each as
@@ -71,7 +71,7 @@ func (f *eventFacts) take(e status.Event) eventFact {
 		}
 	}
 	switch e.Kind {
-	case status.EventLimit, status.EventCap, status.EventRefused:
+	case status.EventLimit, status.EventCap, status.EventRefused, status.EventHeld:
 		fact.moved, fact.to = e.Count, e.To
 	case status.EventPressure:
 		f.pressed(e)

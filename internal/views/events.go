@@ -3,6 +3,7 @@ package views
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -175,6 +176,7 @@ var tellers = map[string]func(e status.Event, f eventFact, at time.Time) (accoun
 	status.EventCap:      loggedCap,
 	status.EventLimit:    loggedLimit,
 	status.EventRefused:  loggedRefusal,
+	status.EventHeld:     loggedHold,
 	status.EventForeign:  loggedForeign,
 	status.EventPrimed:   loggedPrime,
 	status.EventRoom:     loggedRoom,
@@ -247,6 +249,36 @@ func loggedRefusal(e status.Event, f eventFact, at time.Time) (status.Words, sta
 	return account(e.Account), append(clause(what+till(e.Until, at)), moving(f, false)...)
 }
 
+// loggedHold tells of an account held as the API refused its read: why, as
+// the router gives the cause, and the status it answered, "subscription
+// lapsed (403)", and the sessions it moved, as their next requests came.
+func loggedHold(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
+	what := holdCause(e)
+	if e.Status != 0 {
+		what += " (" + strconv.Itoa(e.Status) + ")"
+	}
+	return account(e.Account), append(clause(what), moving(f, true)...)
+}
+
+// holdCause is why the API refused the read that held an account, the hold
+// e or the room again its lift brought, as the router gives the cause,
+// cleaned: "subscription lapsed" or "token refused".
+func holdCause(e status.Event) string {
+	return prose.Clean(e.Reason)
+}
+
+// holdSaid says an account was held, the hold e, and why, as holdCause has
+// it: "held (subscription lapsed)", or "held" where it doesn't say.
+func holdSaid(e status.Event) string {
+	if cause := holdCause(e); cause != "" {
+		return "held (" + cause + ")"
+	}
+	return "held"
+}
+
+// heldTill is till when a hold holds, as no time lifts it.
+const heldTill = "a read comes back clean"
+
 // loggedForeign tells of an account's token found to be another
 // subscription's: "its token is another subscription's".
 func loggedForeign(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
@@ -263,13 +295,26 @@ func loggedPrime(e status.Event, f eventFact, at time.Time) (status.Words, statu
 	return account(e.Account), clause(what)
 }
 
-// loggedRoom tells of an account with room again: "its 5-hour window
-// reset", or nothing more where it names no window.
+// loggedRoom tells of an account with room again, as roomSaid says: "its
+// 5-hour window reset", "subscription lapsed lifted", or nothing more where
+// it names neither a window nor a hold.
 func loggedRoom(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
-	if len(f.windows) == 0 {
-		return account(e.Account), nil
+	return account(e.Account), clause(roomSaid(e, f))
+}
+
+// roomSaid says what lifted as an account had room again, the event e: the
+// hold its read refused, as "subscription lapsed lifted", then the windows
+// that held it back, as "its 5-hour window reset"; "" where it names
+// neither.
+func roomSaid(e status.Event, f eventFact) string {
+	var said []string
+	if cause := holdCause(e); cause != "" {
+		said = append(said, cause+" lifted")
 	}
-	return account(e.Account), clause(its(f.windows, "") + " reset")
+	if len(f.windows) > 0 {
+		said = append(said, its(f.windows, "")+" reset")
+	}
+	return strings.Join(said, ", ")
 }
 
 // loggedPin tells of routing set by hand: the global pin's accounts, "new
@@ -320,10 +365,11 @@ func loggedHealth(e status.Event, _ eventFact, _ time.Time) (status.Words, statu
 	return nil, clause("healthy again")
 }
 
-// moving tells of the sessions a limit, a cap or a refusal moved, as its
-// facts count them, after a colon: "its 3 sessions move to side", "its
+// moving tells of the sessions a limit, a cap, a refusal or a hold moved, as
+// its facts count them, after a colon: "its 3 sessions move to side", "its
 // session moves to side", or where they went to several accounts, "its 3
-// sessions move to other accounts"; a cap's, as their next requests come.
+// sessions move to other accounts"; a cap's and a hold's, as their next
+// requests come.
 // It's nothing where it moved none. The count is a figure, which rises in
 // place as its moves count.
 func moving(f eventFact, asTheyCome bool) status.Words {

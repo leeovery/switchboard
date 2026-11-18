@@ -200,7 +200,7 @@ runs past midnight, and the two must differ. What priming does, and what it cost
 
 | Key | Default | What it turns on |
 |---|---|---|
-| `limits` | `true` | An account hits a limit. |
+| `limits` | `true` | An account hits a limit, or goes on a [hold](glossary.md). |
 | `room` | `true` | An account has room again. |
 | `warning` | `0.9` | A window passes this share of its limit. |
 | `moves` | `false` | Every other session move. |

@@ -84,6 +84,11 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 		{name: "a refusal, from the account its sessions moved to", doc: heldBackAt(status.EventRefused, false), id: "side", want: []toldLine{
 			{kind: status.EventStarted, full: "c61b started here, the best"},
 			{kind: status.EventMoved, full: "3 sessions came from work: work refused (401)"}}},
+		{name: "a hold, from the account it held back", doc: heldWorkLately(), id: "work", want: []toldLine{
+			{kind: status.EventRoom, full: "open again: subscription lapsed lifted"},
+			{kind: status.EventHeld, full: "held (subscription lapsed): 2 sessions moved to side"}}},
+		{name: "a hold, from the account its sessions moved to", doc: heldWorkLately(), id: "side", want: []toldLine{
+			{kind: status.EventMoved, full: "2 sessions came from work: work held (subscription lapsed)"}}},
 		{name: "a cap moving sessions to several accounts, from the account it held back", doc: spread, id: "work", want: []toldLine{
 			{kind: status.EventCap, full: "reached its cap: 2 sessions moved to other accounts"}}},
 		{name: "a cap moving sessions to several accounts, from one of them, its move alone", doc: spread, id: "side", want: []toldLine{

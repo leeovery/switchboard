@@ -153,6 +153,7 @@ func EventMoments() []EventMoment {
 		capCounting(),
 		capDetails(),
 		familyRefused(),
+		heldAndLifted(),
 		startedRead(),
 		pins(),
 		filledFromYesterday(),

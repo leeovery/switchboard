@@ -296,6 +296,18 @@ func yearNotice(s standing, now time.Time) notify.Notice {
 	return notify.Notice{Account: s.ID, News: prose.TokenSaid(ending.News()), Message: s.led(s.Title() + ": " + prose.TokenSaid(ending.Told()))}
 }
 
+// heldNotice is the notification of an account held as the API refused its
+// read, led by its pool's label, as led has it: why, in the words
+// StaleCause's Said gives the cause, and what to renew, as in "work held:
+// subscription lapsed — its subscription needs renewing".
+func heldNotice(e ReadHeld, accounts standings) notify.Notice {
+	cause := status.RefusedRead(e.Refused)
+	said, _ := cause.Said()
+	news := "held: " + said + " — " + cause.Renewing()
+	held, _ := accounts.of(e.Account)
+	return notify.Notice{Account: e.Account, News: news, Message: held.led(accounts.title(e.Account) + " " + news)}
+}
+
 // moveNotice is the notification of a session's move, which is about the
 // account the session left, led by its pool's label, as led has it.
 func moveNotice(e Moved, accounts standings) notify.Notice {

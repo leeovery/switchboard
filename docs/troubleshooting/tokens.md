@@ -12,6 +12,8 @@ Anthropic refuses the login of an ended subscription that way.
 
 Until a read of the account comes back clean, the router holds the account back:
 
+- The Log shows a `held` event when the hold starts, and an `open` event when it ends. A
+  notification tells you as it starts.
 - Sessions on the account move to the other accounts.
 - A pin to the account yields.
 - `Σ pool` counts no room on the account.

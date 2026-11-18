@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // view is what a choice of account for a request knows of the accounts it
@@ -32,10 +33,11 @@ type view struct {
 	barred []string
 	// refused are the accounts, of those barred, that refused the request
 	// lately, or whose last read was refused, by id: they'd only refuse it
-	// again. readRefused are those of them whose last read was refused,
-	// which holds them back till a read comes back clean.
+	// again. readRefused holds, by id, why the API refused the last read of
+	// each of them whose last read it refused, which holds them back till a
+	// read comes back clean.
 	refused     []string
-	readRefused []string
+	readRefused map[string]status.StaleCause
 	// limited holds, by id, the identity of the limit that holds the request
 	// back on each account, of those barred, where a limit does.
 	limited map[string]int
@@ -147,12 +149,15 @@ func (v view) reserved(id string) bool {
 }
 
 // holding returns what holds the request back on the account with the given
-// id, and the identity of the limit, where that's what does: a limit it
-// reached, else its refusing the request lately, else its reserve alone. It
+// id, and the identity of the limit, where that's what does: its last read
+// refused, which unable says first, whatever else holds it; else a limit it
+// reached; else its refusing the request lately; else its reserve alone. It
 // returns zero where the account can take the request, and where only its
 // windows leave it no room.
 func (v view) holding(id string) (Hold, int) {
 	switch limit, limited := v.limited[id]; {
+	case v.heldByRead(id) != 0:
+		return HeldByRead, 0
 	case limited:
 		return HeldByLimit, limit
 	case slices.Contains(v.refused, id):
@@ -163,10 +168,11 @@ func (v view) holding(id string) (Hold, int) {
 	return 0, 0
 }
 
-// heldByRead reports whether the account with the given id is held back
-// from the request by its last read refused, as readRefused has it.
-func (v view) heldByRead(id string) bool {
-	return slices.Contains(v.readRefused, id)
+// heldByRead is why the API refused the last read of the account with the
+// given id, where that holds it back from the request, as readRefused has
+// it: zero where it doesn't.
+func (v view) heldByRead(id string) status.StaleCause {
+	return v.readRefused[id]
 }
 
 // letGo reports whether any account is held back from the request by its

@@ -46,8 +46,8 @@ type probes struct {
 	kept          func()
 	now           func() time.Time
 	// emit hears of each prime that starts its window, each limit a probe's
-	// reading lifts early, and each account's token a probe finds another
-	// subscription's.
+	// reading lifts early, each hold a probe's read refused starts, and each
+	// account's token a probe finds another subscription's.
 	emit func(Event)
 	// ctx ends when the router stops, cutting short the probes under way.
 	ctx    context.Context
@@ -246,7 +246,8 @@ func (p *probes) stop() {
 }
 
 // probe reads an account's usage, as r, and notes how that went, telling of
-// each of the account's limits lifting early where its reading shows it. The
+// each of the account's limits lifting early where its reading shows it, and
+// of the hold its read refused starts, where it starts one. The
 // organization its answer names is held to the account's, as organizations
 // hold it: a probe on another subscription's token read nothing of the
 // account's, and failed, as far as the account goes.
@@ -270,6 +271,9 @@ func (p *probes) probe(a account, r *run) {
 	taken := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
 	for _, lifted := range taken.lifted {
 		p.emit(lifted)
+	}
+	if taken.held != nil {
+		p.emit(*taken.held)
 	}
 	if !taken.tokenGone {
 		p.owning(a, hash(token.Reveal()), held, organization)

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/notify"
@@ -55,29 +56,50 @@ func (l *lookout) look(accounts standings) []notify.Notice {
 	return due
 }
 
-// ranOut holds, by id, the accounts whose quota ran out and that haven't had
-// room since, each with the keys of the windows that have held it back
-// meanwhile, each once.
-type ranOut map[string][]string
+// ranOut holds, by id, the accounts whose quota ran out, or that were held by
+// their read refused, and that haven't had room since, each as shortOf has
+// it.
+type ranOut map[string]shortOf
 
-// roomAgain reports whether the account's quota ran out since it last had
-// room, and it has room now: its quota is back, and its token isn't refused;
-// and returns the windows that held it back meanwhile. A refusal isn't the
-// quota running out, so one lifting says nothing of its own, which a revoked
-// token would otherwise say each time the router tried it again.
-func (r ranOut) roomAgain(s standing) ([]string, bool) {
+// shortOf is what has held an account back since it last had room: the keys
+// of the windows that have, each once; and the cause of the latest hold of
+// its read refused, as StaleCause's Said words it, "" where none has.
+type shortOf struct {
+	windows []string
+	cause   string
+}
+
+// roomAgain reports whether the account's quota ran out, or its read refused
+// held it, since it last had room, and it has room now: its quota is back,
+// its read isn't refused, and its token isn't refused; and returns what held
+// it back meanwhile. A hold is known of an account whatever's known of its
+// quota, as its first read can be the one refused. The upstream's refusal
+// isn't the quota running out, so one lifting says nothing of its own, which
+// a revoked token would otherwise say each time the router tried it again:
+// a hold lifts only as a read comes back clean, so its lift is news once.
+func (r ranOut) roomAgain(s standing) (shortOf, bool) {
 	held, ran := r[s.ID]
+	cause, _ := status.RefusedRead(s.RefusedRead).Said()
 	switch {
-	case !s.known:
-		return nil, false
-	case !s.quota:
-		r[s.ID] = withEach(held, s.held...)
-		return nil, false
+	case cause == "" && !s.known:
+		return shortOf{}, false
+	case cause != "" || !s.quota:
+		r[s.ID] = held.with(s, cause)
+		return shortOf{}, false
 	case s.refused || !ran:
-		return nil, false
+		return shortOf{}, false
 	}
 	delete(r, s.ID)
 	return held, true
+}
+
+// with is what has held the account back, with what holds it back as it
+// stands: the windows that leave it no room, and the cause of its read
+// refused, where there's one.
+func (h shortOf) with(s standing, cause string) shortOf {
+	h.windows = withEach(h.windows, s.held...)
+	h.cause = cmp.Or(cause, h.cause)
+	return h
 }
 
 // passed returns the account's windows that have passed the warning since

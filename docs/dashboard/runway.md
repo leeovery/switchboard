@@ -77,8 +77,8 @@ COMING UP and LATELY sit under the lanes:
 - **COMING UP** lists what happens next, soonest first: resets, an account back from its cap, and
   run-outs. If its lines don't all fit, the last says how many more, such as `▼ 3 more`.
 - **LATELY** lists what happened to each account over the past week, newest first: a cap, a limit,
-  a refused token, pressure, and room again. Each line names the sessions it moved, and ends with
-  how long ago, such as `11m ago`.
+  a refused token, a hold, pressure, and room again. Each line names the sessions it moved, and
+  ends with how long ago, such as `11m ago`.
 
 LATELY reads the whole week from the router's event files once, when Runway first shows. It keeps
 that week as the router restarts. Until it has read the files, it shows the router's newest events.

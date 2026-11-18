@@ -72,14 +72,54 @@ func TestHelpWordsItsKeysAsTheKeyLineDoesAndItsGlyphsAsTheViewDraws(t *testing.T
 	}
 	for _, part := range overviewHelp() {
 		for _, g := range part.glyphs {
-			drawn := slices.ContainsFunc(body, func(row line) bool {
-				return len(row) > len(g.drawn) && slices.Equal(row[:len(g.drawn)], g.drawn) && strings.HasPrefix(g.means, row[len(row)-1].text) && row[len(row)-1].ink == secondaryInk
-			})
-			if !drawn {
-				t.Errorf("%q isn't drawn %v then what it means in text.secondary", g.means, g.drawn)
+			if !slices.ContainsFunc(meanings(body, g), func(m meaning) bool { return m.says == g.means && m.secondary }) {
+				t.Errorf("%q isn't drawn %v then what it means in text.secondary: it means %v", g.means, g.drawn, meanings(body, g))
 			}
 		}
 	}
+}
+
+// meaning is what a row of help's body that draws a glyph says it means:
+// the words after it, then those of each row under it that carries the
+// meaning on, wrapped under itself, a space between; and whether each of
+// its words is drawn in text.secondary.
+type meaning struct {
+	says      string
+	secondary bool
+}
+
+// meanings are what each row of help's body drawing the glyph g says it
+// means, as more than one part can draw a mark.
+func meanings(body []line, g glyph) []meaning {
+	var found []meaning
+	for i, row := range body {
+		if len(row) > len(g.drawn) && slices.Equal(row[:len(g.drawn)], g.drawn) {
+			found = append(found, meaningAt(body[i+1:], row[len(g.drawn):]))
+		}
+	}
+	return found
+}
+
+// meaningAt is the meaning that starts with the words first and carries on
+// down the rows under them that are indented, a blank where a glyph would be.
+func meaningAt(under []line, first line) meaning {
+	rows := []line{first}
+	for _, row := range under {
+		if len(row) < 2 || strings.TrimSpace(row[0].text) != "" {
+			break
+		}
+		rows = append(rows, row[1:])
+	}
+	m := meaning{secondary: true}
+	said := make([]string, len(rows))
+	for j, row := range rows {
+		said[j] = strings.TrimSpace(row.plain())
+		for _, s := range row {
+			m.secondary = m.secondary && (strings.TrimSpace(s.text) == "" || s.ink == secondaryInk)
+		}
+	}
+	m.says = strings.Join(said, " ")
+	return m
 }
 
 func TestHelpIsDrawnInTheCard(t *testing.T) {

@@ -25,8 +25,8 @@ type eventKind struct {
 
 // eventKinds are the kinds of the router's events in the design's order, as
 // help and the Log's panel list them: a mark a kind, but for ■, which a
-// limit, a refusal and a token another subscription's share, as each closes
-// its account, their words telling them apart.
+// limit, a refusal, a hold and a token another subscription's share, as each
+// closes its account, their words telling them apart.
 var eventKinds = []eventKind{
 	{kind: status.EventStarted, mark: span{"▲", accentInk}, means: "a session first seen"},
 	{kind: status.EventMoved, mark: span{"▸", keyMarkInk}, means: "a session moved to another account"},
@@ -34,6 +34,7 @@ var eventKinds = []eventKind{
 	{kind: status.EventCap, mark: span{"╎", warningInk}, means: "an account at its cap"},
 	{kind: status.EventLimit, mark: span{"■", errorInk}, means: "an account at its limit"},
 	{kind: status.EventRefused, mark: span{"■", errorInk}, means: "an account's token refused"},
+	{kind: status.EventHeld, mark: span{"■", errorInk}, means: "an account held, its read refused"},
 	{kind: status.EventForeign, mark: span{"■", errorInk}, means: "an account's token not its own"},
 	{kind: status.EventPrimed, mark: span{"◇", dimInk}, means: "a window started early"},
 	{kind: status.EventRoom, mark: span{"✓", positiveInk}, means: "an account with room again"},

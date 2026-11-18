@@ -36,6 +36,7 @@ The events cover:
 
 - sessions started and moved;
 - accounts under pressure, at a cap or a limit, refused, primed, and open again;
+- accounts on a [hold](../glossary.md) because Anthropic refused their usage read;
 - accounts found holding another subscription's token;
 - pins set and cleared;
 - restarts falling due, or held;

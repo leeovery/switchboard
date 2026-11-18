@@ -267,13 +267,18 @@ const (
 	// EventRefused is the upstream refusing requests on an account, with the
 	// sessions the refusal moved.
 	EventRefused = "refused"
+	// EventHeld is an account held back from every request as the API
+	// refused its read, its subscription ended or its token refused, with
+	// the sessions the hold moved. No time lifts it: a read that comes back
+	// clean does, which room again tells.
+	EventHeld = "held"
 	// EventForeign is an account's token found to be another subscription's,
 	// so the account takes no requests till it has one of its own.
 	EventForeign = "foreign"
 	// EventPrimed is a prime starting an account's window.
 	EventPrimed = "primed"
 	// EventRoom is an account that could take no request, at its limit or its
-	// cap, having room again.
+	// cap, or held, having room again.
 	EventRoom = "room"
 	// EventPin is routing set by hand: the pool's pin, or a session's own.
 	EventPin = "pin"
@@ -306,8 +311,9 @@ type Event struct {
 	// Kind says what happened, such as EventLimit.
 	Kind string `json:"kind"`
 	// Account is the account it befell: the one a session started on, or that
-	// came under pressure, reached its cap or its limit, was refused, had its
-	// token found another subscription's, was primed or has room again. Of a
+	// came under pressure, reached its cap or its limit, was refused or held,
+	// had its token found another subscription's, was primed or has room
+	// again. Of a
 	// pin, the first of the pool's pin's Accounts, or the one a session's own
 	// pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
@@ -333,12 +339,14 @@ type Event struct {
 	Dir     string `json:"dir,omitempty"`
 	Project string `json:"project,omitempty"`
 	// From and To are the accounts a session moved from and to. To is where
-	// the sessions a limit, a cap or a refusal moved went, too, when they all
-	// went to one.
+	// the sessions a limit, a cap, a refusal or a hold moved went, too, when
+	// they all went to one.
 	From string `json:"from,omitempty"`
 	To   string `json:"to,omitempty"`
 	// Reason says why: why a session went to its account, as the router's log
-	// has it, why a restart is due, or why the router turned unhealthy.
+	// has it, why a restart is due, or why the router turned unhealthy. Of a
+	// hold, and of room again as a hold lifts, it's the hold's cause, as
+	// StaleCause's Said has it: "subscription lapsed" or "token refused".
 	Reason string `json:"reason,omitempty"`
 	// Held is, of a restart's, why the router's binary refuses to start, as
 	// it said, which holds the restart: "" for one falling due.
@@ -361,8 +369,8 @@ type Event struct {
 	// Since is when the rate an account came under pressure at is measured
 	// from, when it's its recent rate.
 	Since time.Time `json:"since,omitzero"`
-	// Count is how many sessions a limit, a cap or a refusal moved while it
-	// held, each once.
+	// Count is how many sessions a limit, a cap, a refusal or a hold moved
+	// while it held, each once.
 	Count int `json:"count,omitzero"`
 	// Limit is, of a limit's event, the limit's identity, as the account's
 	// Limit gives it while it holds; and of a move's, the id of the limit's
@@ -371,13 +379,14 @@ type Event struct {
 	// kind.
 	Limit int `json:"limit,omitzero"`
 	// ForcedBy is, of a move's, the id of the event it's counted in, as one
-	// of the sessions it moved: a limit's, a cap's or a refusal's; zero for a
-	// move none counts.
+	// of the sessions it moved: a limit's, a cap's, a refusal's or a hold's;
+	// zero for a move none counts.
 	ForcedBy int `json:"forced_by,omitzero"`
 	// Reserve is, of a cap's, the account's reserve as the cap came.
 	Reserve float64 `json:"reserve,omitzero"`
-	// Status is the upstream's answer refusing requests, and Family, for a
-	// request refused alone, the model family the refusal holds back.
+	// Status is the upstream's answer refusing requests, or, of a hold, the
+	// API's refusing the read; and Family, for a request refused alone, the
+	// model family the refusal holds back.
 	Status int    `json:"status,omitzero"`
 	Family string `json:"family,omitempty"`
 	// Move and Force are, of a pool's pin set, that it moves the pool's

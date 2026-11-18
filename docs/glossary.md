@@ -15,6 +15,11 @@ started while the router is down goes direct on its pool's primary.
 **Fence.** The folders a pool is tied to. A session belongs to that pool if it starts in one of
 those folders, in a folder beneath one, or in a git worktree of a repository inside one.
 
+**Hold.** The router sends an account nothing because Anthropic refused its last usage read. The
+cause is `subscription lapsed` or `token refused`. A hold lasts until a read of the account comes
+back clean, and no time ends it. The Log shows a hold starting as a `held` event and ending as
+`open`.
+
 **Label.** The name you give an account or a pool, shown on every screen. You can change it
 whenever you like.
 

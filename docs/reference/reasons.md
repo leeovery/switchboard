@@ -73,7 +73,9 @@ pass over one you don't know. In the forms below, `<id>` is the id of an account
 | `has no usable token` | Its token file stopped holding a usable token while the request was in flight. |
 | `left the pool` | It left the request's pool, for another pool or out of the config. |
 | `is at its reserve` | It has reached its reserve. |
-| `had its read refused` | Anthropic refused its last usage read, so the router holds it. |
+| `had its read refused, its subscription ended` | Anthropic refused its last usage read because its subscription has ended, so the router holds it. |
+| `had its read refused, its token refused` | Anthropic refused the token on its last usage read, so the router holds it. |
+| `had its read refused` | Anthropic refused its last usage read, so the router held it. Lines written before the why named the cause carry it. |
 | `has no room` | It has no room for the request otherwise. |
 
 ## Where each why appears
@@ -82,13 +84,13 @@ pass over one you don't know. In the forms below, `<id>` is the id of an account
 |---|---|
 | `hit its limit`, `was refused`, `has a new token`, `has no usable token` | A reason, or `tried` |
 | `left the pool` | A reason, or `tried`, only with two pools or more |
-| `is at its reserve`, `had its read refused` | A reason only |
+| `is at its reserve`, and the three that start `had its read refused` | A reason only |
 | `has no room` | A reason only, except as below |
 
 - **`has a new token`** sends the request on elsewhere.
 - **`had its read refused`** means the account's subscription has ended, or its token is
-  refused. The router holds the account back until a read comes back clean. See
-  [Troubleshooting: an account's token or subscription](../troubleshooting/tokens.md).
+  refused. The rest of the why says which. The router holds the account back until a read comes
+  back clean. See [Troubleshooting: an account's token or subscription](../troubleshooting/tokens.md).
 - **`left the pool`** sends the request elsewhere, or moves the session off the account. With one
   pool, an account that left the config `has no room` instead.
 - **`has no room` appears in `tried`** for an account that left the config while one pool is

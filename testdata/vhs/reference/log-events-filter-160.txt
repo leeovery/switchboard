@@ -4,21 +4,21 @@
 
 LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  21 today   f what it shows
 
-  at        session            event     account          what happened
-■ 19:12:40        ╭─ LOG · EVENTS · WHAT IT SHOWS ───────────────────────────────────────────────────────────────────────────────────────────╮
-▸ 19:12:52  8a2c d│                                                                                                                          │
-◔ 21:40:00        │  Pick which events it shows.                                                                                             │
-▲ 23:47:30  5e7d a│                                                                                                                          │
-✓ 23:58:40        │  EVENTS        today                                       ONLY                                                          │
-  Wed 30 Sep   1,9│  ■ started        10  a session first seen                 accounts  ■ work   ■ personal   ■ side                        │───────  Thu 1 Oct
-◇ 07:05:12        │  ■ moved           4  a session moved to another account   sessions  every one, unless some are ticked                   │
-▲ 07:58:30  2b6d a│  ■ pressure        1  an account under pressure             □ 41e0  docs          personal      1 event                  │
-▲ 08:31:02  a8f1 w│  ■ cap             1  an account at its cap                 □ c61b  mobile        side          1 event   started 14:41  │
-◇ 08:47:00        │  ■ limit           0  an account at its limit               □ d28c  switchboard   side          2 events  asking         │
-▲ 09:12:40  e0c4 i│  ■ refused         0  an account's token refused            □ 7f3a  api           side          2 events                 │
-▲ 09:40:05  3d7a d│  ■ foreign         0  an account's token not its own        □ db8a  infra         side          2 events  idle 1m        │
-▲ 10:02:18  5b19 m│  ■ primed          5  a window started early                □ 9c2e  website       personal      1 event   idle 9m        │
-◇ 11:30:02        │  ■ open            0  an account with room again            ▼ 5 more today   / finds one from another day                │
+  at        sessio╭─ LOG · EVENTS · WHAT IT SHOWS ───────────────────────────────────────────────────────────────────────────────────────────╮
+■ 19:12:40        │                                                                                                                          │
+▸ 19:12:52  8a2c d│  Pick which events it shows.                                                                                             │
+◔ 21:40:00        │                                                                                                                          │
+▲ 23:47:30  5e7d a│  EVENTS        today                                       ONLY                                                          │
+✓ 23:58:40        │  ■ started        10  a session first seen                 accounts  ■ work   ■ personal   ■ side                        │
+  Wed 30 Sep   1,9│  ■ moved           4  a session moved to another account   sessions  every one, unless some are ticked                   │───────  Thu 1 Oct
+◇ 07:05:12        │  ■ pressure        1  an account under pressure             □ 41e0  docs          personal      1 event                  │
+▲ 07:58:30  2b6d a│  ■ cap             1  an account at its cap                 □ c61b  mobile        side          1 event   started 14:41  │
+▲ 08:31:02  a8f1 w│  ■ limit           0  an account at its limit               □ d28c  switchboard   side          2 events  asking         │
+◇ 08:47:00        │  ■ refused         0  an account's token refused            □ 7f3a  api           side          2 events                 │
+▲ 09:12:40  e0c4 i│  ■ held            0  an account held, its read refused     □ db8a  infra         side          2 events  idle 1m        │
+▲ 09:40:05  3d7a d│  ■ foreign         0  an account's token not its own        □ 9c2e  website       personal      1 event   idle 9m        │
+▲ 10:02:18  5b19 m│  ■ primed          5  a window started early                ▼ 5 more today   / finds one from another day                │
+◇ 11:30:02        │  ■ open            0  an account with room again                                                                         │
 ▲ 11:55:31  9c2e w│  ■ pin             0  routing set by hand                                                                                │
 ▲ 12:02:10  d28c s│  ■ auto            0  routing given back to the router                                                                   │
 ◇ 12:10:00        │  ■ restart         0  a restart of the router falling due                                                                │

@@ -169,10 +169,10 @@ func tokenlessRouting(a Account) Routing {
 // renewToken is what's said of an account whose token is refused, after why.
 const renewToken = "its token needs renewing"
 
-// renewing is what's said of an account whose read was refused, as the cause
+// Renewing is what's said of an account whose read was refused, as the cause
 // says why, after why: "its subscription needs renewing" of an ended
 // subscription, and "its token needs renewing" of a refused token.
-func (c StaleCause) renewing() string {
+func (c StaleCause) Renewing() string {
 	if c == StaleLapsed {
 		return "its subscription needs renewing"
 	}
@@ -220,7 +220,7 @@ func refusedReadRouting(cause StaleCause) Routing {
 	if cause == StaleLapsed {
 		kind = RoutingLapsed
 	}
-	return Routing{Kind: kind, Says: says, Clauses: []string{cause.renewing()}, Short: []string{short}}
+	return Routing{Kind: kind, Says: says, Clauses: []string{cause.Renewing()}, Short: []string{short}}
 }
 
 // cappedRouting is how the account stands at its cap at now, as policy says

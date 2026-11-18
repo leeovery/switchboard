@@ -136,11 +136,11 @@ func TestSpaceTicksTheTickTheCursorsOn(t *testing.T) {
 			check: func(p LogPanel) any { return len(p.Filter.Sessions) }, want: 0,
 		},
 		{
-			name: "a kind of event", of: LogEvents, keys: func(p LogPanel) LogPanel { return p.Moved(8).Ticked() },
+			name: "a kind of event", of: LogEvents, keys: func(p LogPanel) LogPanel { return p.Moved(9).Ticked() },
 			check: func(p LogPanel) any {
 				return fmt.Sprint(len(p.Shows.Kinds), slices.Contains(p.Shows.Kinds, status.EventRoom))
 			},
-			want: "12 false",
+			want: "13 false",
 		},
 		{
 			name: "an account's events", of: LogEvents, keys: func(p LogPanel) LogPanel { return p.Sided(1).Moved(2).Ticked() },
