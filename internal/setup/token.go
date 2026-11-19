@@ -1,7 +1,6 @@
 package setup
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/interrupts"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setuptoken"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -611,15 +611,15 @@ func opensAsItIs(cfg *config.Config, f TokenFor, signedIn config.Account, isSign
 // as it is, the account the browser is signed in to, signedIn, as the opener
 // rule has it, "" where it's none: each by its label, else its id.
 func named(cfg *config.Config, f TokenFor, signedIn config.Account, asItIs bool) (forName, signedInName string) {
-	forName = cmp.Or(f.Account.Label, f.Account.ID)
+	forName = prose.LabelOr(f.Account.Label, f.Account.ID)
 	if cfg == nil {
 		return forName, ""
 	}
 	if i := slices.IndexFunc(cfg.Accounts, func(a config.Account) bool { return a.ID == f.Account.ID }); i >= 0 {
-		forName = cmp.Or(cfg.Accounts[i].Label, f.Account.ID)
+		forName = prose.LabelOr(cfg.Accounts[i].Label, f.Account.ID)
 	}
 	if !asItIs {
-		signedInName = cmp.Or(signedIn.Label, signedIn.ID)
+		signedInName = prose.LabelOr(signedIn.Label, signedIn.ID)
 	}
 	return forName, signedInName
 }

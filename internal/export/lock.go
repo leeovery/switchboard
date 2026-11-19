@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 // lockFile is the name of the file in the state directory an import holds
@@ -26,19 +28,12 @@ func LockImport(stateDir string) (unlock func(), err error) {
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return nil, fmt.Errorf("take the import's lock: %w", err)
 	}
-	f, err := os.OpenFile(filepath.Join(stateDir, lockFile), os.O_RDONLY|os.O_CREATE, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("take the import's lock: %w", err)
-	}
-	held, err := tryLock(f)
-	if err != nil || !held {
-		_ = f.Close()
-	}
+	unlock, held, err := filelock.TryTake(filepath.Join(stateDir, lockFile))
 	switch {
 	case err != nil:
 		return nil, fmt.Errorf("take the import's lock: %w", err)
 	case !held:
 		return nil, ErrImportRunning
 	}
-	return func() { _ = f.Close() }, nil
+	return unlock, nil
 }

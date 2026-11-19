@@ -19,6 +19,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 // FromFlag names serve's flag, --from, naming the binary the router upgrades
@@ -293,46 +294,38 @@ func (c Copy) RemoveLeftovers() error {
 // writing. It makes the copy's directory where it isn't there. The lock goes
 // with the process, its exec among its ends.
 func (c Copy) Lock() (unlock func(), err error) {
-	f, err := c.openLock()
+	path, err := c.lockPath()
 	if err != nil {
 		return nil, err
 	}
-	if err := lock(f); err != nil {
-		_ = f.Close()
-		return nil, fmt.Errorf("lock the router's copy, %s: %w", f.Name(), err)
+	unlock, err = filelock.Take(path)
+	if err != nil {
+		return nil, fmt.Errorf("lock the router's copy: %w", err)
 	}
-	return func() { _ = f.Close() }, nil
+	return unlock, nil
 }
 
 // TryLock takes the copy's lock as Lock does, but where another holds it,
 // reports false at once, holding nothing.
 func (c Copy) TryLock() (unlock func(), ok bool, err error) {
-	f, err := c.openLock()
+	path, err := c.lockPath()
 	if err != nil {
 		return nil, false, err
 	}
-	switch taken, err := tryLock(f); {
-	case err != nil:
-		_ = f.Close()
-		return nil, false, fmt.Errorf("lock the router's copy, %s: %w", f.Name(), err)
-	case !taken:
-		_ = f.Close()
-		return nil, false, nil
+	unlock, ok, err = filelock.TryTake(path)
+	if err != nil {
+		return nil, false, fmt.Errorf("lock the router's copy: %w", err)
 	}
-	return func() { _ = f.Close() }, true, nil
+	return unlock, ok, nil
 }
 
-// openLock opens the file whose lock Lock takes, making it and the copy's
-// directory where they aren't there.
-func (c Copy) openLock() (*os.File, error) {
+// lockPath is the file whose lock Lock takes, making the copy's directory
+// where it isn't there.
+func (c Copy) lockPath() (string, error) {
 	if err := c.makeDir(); err != nil {
-		return nil, fmt.Errorf("make the router's copy's directory, %s: %w", c.dir(), err)
+		return "", fmt.Errorf("make the router's copy's directory, %s: %w", c.dir(), err)
 	}
-	f, err := os.OpenFile(filepath.Join(c.dir(), lockName), os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("open the router's copy's lock: %w", err)
-	}
-	return f, nil
+	return filepath.Join(c.dir(), lockName), nil
 }
 
 // Remove removes the copy's directory whole, the copy and anything staged

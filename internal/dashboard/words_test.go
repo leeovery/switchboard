@@ -9,6 +9,17 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
+// An account whose label shows nothing once cleaned, as one written by hand
+// of a lone direction mark, is named by its id, as every other surface names
+// it.
+func TestAnAccountWhoseLabelShowsNothingIsNamedByItsID(t *testing.T) {
+	for _, label := range []string{"", "\u200e", "\u200b\u2066"} {
+		if got := name(status.AccountNow{ID: "work", Label: label}); got != "work" {
+			t.Errorf("name(work, labelled %+q) = %q, want its id", label, got)
+		}
+	}
+}
+
 // A model is named by its id less claude-, cleaned first, so a recorded id
 // with stray spaces or control characters is named as any other.
 func TestAModelIsNamedByItsIDLessClaudeCleaned(t *testing.T) {

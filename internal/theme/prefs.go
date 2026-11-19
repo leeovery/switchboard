@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 // prefsName is the preferences file's name in the state directory.
@@ -258,7 +259,7 @@ func (f PrefsFile) Update(change func(*Prefs)) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("keep the preferences: %w", err)
 	}
-	defer lockDir(dir)()
+	defer filelock.TakeDir(dir)()
 	p, others := f.read()
 	change(&p)
 	data, err := encode(p, others)

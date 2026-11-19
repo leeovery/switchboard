@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 const (
@@ -185,15 +186,11 @@ func (f File) lock() (unlock func(), err error) {
 	if err := os.MkdirAll(f.dir, 0o700); err != nil {
 		return nil, fmt.Errorf("take the accounts record's lock: %w", err)
 	}
-	l, err := os.OpenFile(filepath.Join(f.dir, lockName), os.O_RDONLY|os.O_CREATE, 0o600)
+	unlock, err = filelock.Take(filepath.Join(f.dir, lockName))
 	if err != nil {
 		return nil, fmt.Errorf("take the accounts record's lock: %w", err)
 	}
-	if err := flock(l); err != nil {
-		_ = l.Close()
-		return nil, fmt.Errorf("take the accounts record's lock: %w", err)
-	}
-	return func() { _ = l.Close() }, nil
+	return unlock, nil
 }
 
 // clone returns a copy of the record, which changing the record leaves as

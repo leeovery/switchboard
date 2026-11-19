@@ -138,23 +138,144 @@ func Version(version string) string {
 // by its id alone. Both are cleaned, as Clean cleans them.
 func AccountNamed(label, id string) string {
 	id = Clean(id)
-	label = Clean(label)
-	if label == "" || strings.EqualFold(label, id) {
+	label = Clean(LabelOr(label, id))
+	if strings.EqualFold(label, id) {
 		return id
 	}
 	return label + " (" + id + ")"
 }
 
+// LabelOr is the label something is shown by: label, where any of it shows
+// once cleaned, as Clean cleans it, else id. A label of spaces, of
+// characters drawn as nothing or of direction marks alone shows as nothing,
+// so it falls back to the id, as no label does.
+func LabelOr(label, id string) string {
+	if Clean(label) == "" {
+		return id
+	}
+	return label
+}
+
 // Clean makes text safe to show on one line of a terminal: control
 // characters, which would move the cursor or restyle what follows, become
-// spaces, and each run of spaces becomes one.
+// spaces, and each run of spaces becomes one. Each character drawn as
+// nothing, as Unseen has it, that does nothing that shows, as MapUnseen has
+// it, is dropped, a bidirectional embedding, override or isolate among them,
+// so it can't reorder or hide the rest of the line; and so is each prepended
+// concatenation mark, as Prepends has it, which hides the character after
+// it. What makes an emoji, a keycap, a variant or a flag, or shapes a joining
+// script, is kept. A direction mark is kept within text holding a letter
+// written right to left, which it orders, and dropped from any other, and
+// from its edges, where a terminal that orders text by direction would carry
+// it on to reorder the digits and punctuation shown after it.
 func Clean(text string) string {
+	if cleanASCII(text) {
+		return text
+	}
+	return tidy(text)
+}
+
+// tidy is text cleaned as Clean says, judged a character at a time.
+func tidy(text string) string {
+	if !hides(text) {
+		return oneLine(text)
+	}
+	replace := dropped
+	if strings.ContainsFunc(text, rightToLeft) {
+		replace = keptIfAMark
+	}
+	text = MapUnseen(strings.Map(unprepended, text), replace)
+	return strings.TrimFunc(oneLine(text), spaceOrMark)
+}
+
+// cleanASCII reports whether text is ASCII that Clean would leave as it is:
+// no control character, and no space at either end or beside another. Nearly
+// all that's shown is, so it's judged a byte at a time.
+func cleanASCII(text string) bool {
+	for i := range len(text) {
+		switch c := text[i]; {
+		case c >= utf8.RuneSelf || c < ' ' || c == '\x7f':
+			return false
+		case c == ' ' && (i == 0 || i == len(text)-1 || text[i-1] == ' '):
+			return false
+		}
+	}
+	return true
+}
+
+// hides reports whether text holds a character drawn as nothing, or one
+// that hides the character after it. ASCII holds neither, so only the
+// characters beyond it are asked about.
+func hides(text string) bool {
+	for i := 0; i < len(text); {
+		if text[i] < utf8.RuneSelf {
+			i++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(text[i:])
+		if Unseen(r) || Prepends(r) {
+			return true
+		}
+		i += size
+	}
+	return false
+}
+
+// unprepended is what tidy makes of r, dropping a prepended concatenation
+// mark.
+func unprepended(r rune) rune {
+	if Prepends(r) {
+		return -1
+	}
+	return r
+}
+
+// keptIfAMark is what tidy has MapUnseen make of an unseen character that
+// does nothing that shows, in text written right to left: a direction mark
+// is kept, as it orders what's around it, and anything else dropped.
+func keptIfAMark(r rune) string {
+	if DirectionMark(r) {
+		return string(r)
+	}
+	return ""
+}
+
+// dropped is what tidy has MapUnseen make of an unseen character that does
+// nothing that shows, in any other text: nothing.
+func dropped(rune) string {
+	return ""
+}
+
+// spaceOrMark reports whether r, at text's edge, is trimmed: whitespace, or
+// a direction mark, which does its part only within it.
+func spaceOrMark(r rune) bool {
+	return unicode.IsSpace(r) || DirectionMark(r)
+}
+
+// rightToLeftBlocks are the blocks of Unicode's scripts written right to
+// left, as its bidirectional classes R and AL default them.
+var rightToLeftBlocks = &unicode.RangeTable{
+	R16: []unicode.Range16{{Lo: 0x0590, Hi: 0x08ff, Stride: 1}, {Lo: 0xfb1d, Hi: 0xfdff, Stride: 1}, {Lo: 0xfe70, Hi: 0xfeff, Stride: 1}},
+	R32: []unicode.Range32{{Lo: 0x10800, Hi: 0x10fff, Stride: 1}, {Lo: 0x1e800, Hi: 0x1efff, Stride: 1}},
+}
+
+// rightToLeft reports whether r is a letter written right to left, as
+// Hebrew's and Arabic's are.
+func rightToLeft(r rune) bool {
+	return unicode.IsLetter(r) && unicode.Is(rightToLeftBlocks, r)
+}
+
+// oneLine is text on one line, each control character a space, as Visible
+// makes it, and each run of spaces one.
+func oneLine(text string) string {
 	return strings.Join(strings.Fields(Visible(text)), " ")
 }
 
 // Visible is text made safe to show on one line of a terminal, each control
 // character a space, as Clean makes it, but with its spacing kept, so text
-// to copy, such as a line for a startup file, shows as it is copied.
+// to copy, such as a line for a startup file or a token, shows as it is
+// copied. It passes every other character on, a bidirectional control and
+// one drawn as nothing among them, so what's copied is what was given.
 func Visible(text string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
@@ -165,18 +286,19 @@ func Visible(text string) string {
 }
 
 // Quoted shows text the user gave, such as a label, in double quotes, set
-// apart from the words around it: as Clean makes it, but for its quote marks
-// and backslashes, escaped by a backslash, so where it ends reads plainly,
-// and each character drawn as nothing, as Unseen has it, that does nothing
-// that shows, as MapUnseen has it, shown as its escape, as \u200B, so what it
-// holds shows. A bidirectional control is among them, so it can't reorder
-// the rest of the line, and so is a direction mark, which a label keeps but
-// whose part in it can't be seen. A private-use character shows as it is,
-// and so does what makes an emoji, a keycap, a variant or a flag, or shapes
-// a joining script, unless an escape stands before it, as an escape owns
-// nothing after it.
+// apart from the words around it: on one line, as Clean puts it, but for its
+// quote marks and backslashes, escaped by a backslash, so where it ends reads
+// plainly, and each character drawn as nothing, as Unseen has it, that does
+// nothing that shows, as MapUnseen has it, shown as its escape, as \u200B,
+// so what it holds shows. A bidirectional control is among them, so it
+// can't reorder the rest of the line; so is a direction mark, whose part in
+// it can't be seen; and so is a prepended concatenation mark, which would
+// hide the character after it, the closing quote among them. A private-use
+// character shows as it is, and so does what makes an emoji, a keycap, a
+// variant or a flag, or shapes a joining script, unless an escape stands
+// before it, as an escape owns nothing after it.
 func Quoted(text string) string {
-	return `"` + MapUnseen(quoteEscaper.Replace(Clean(text)), escaped) + `"`
+	return `"` + MapUnseen(quoteEscaper.Replace(oneLine(text)), escaped) + `"`
 }
 
 // quoteEscaper escapes the quote marks and backslashes in text Quoted shows.

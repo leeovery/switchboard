@@ -5,7 +5,8 @@ command itself, see [`switchboard accounts`](../commands/accounts.md).
 
 ## How a label is tidied
 
-A label is taken as it shows. Before `add` or `edit` saves a label, it tidies it:
+A label is saved as it shows. Before `add` or `edit` saves a label, it tidies it the same way
+the dashboard and the commands tidy text before they show it:
 
 - It drops characters that Unicode draws as nothing, such as zero-width spaces, joiners, variation
   selectors and tags.
@@ -13,8 +14,16 @@ A label is taken as it shows. Before `add` or `edit` saves a label, it tidies it
 - It trims whitespace and direction marks from both ends.
 
 It keeps such a character if it makes an emoji or a flag, England's, Scotland's or Wales's among
-them. It also keeps one that shapes a joining script, such as Persian or Devanagari. Direction
-marks inside the label stay, and so does every other character.
+them. It also keeps one that shapes a joining script, such as Persian or Devanagari. Every other
+character stays.
+
+Direction marks inside the label stay only if the label holds a right-to-left letter, such as
+Hebrew or Arabic. In any other label, a direction mark changes nothing you can see, so it's
+dropped.
+
+A label you write into the config by hand is read as written. The dashboard and the commands show
+it tidied the same way. If nothing of it shows once tidied, such as a label of only a direction
+mark, they show the account's id instead.
 
 A variation selector stays only in these places:
 
@@ -47,6 +56,8 @@ label, ignoring case. Private-use glyphs, such as Nerd Font icons, show as they 
 
 - **A character `add` would drop,** a bidirectional control or a direction mark shows as its
   escape, such as `\u200B`.
+- **A sign that joins the next character,** such as an Arabic number sign, also shows as its
+  escape, such as `\u0600`. Otherwise it could hide the character after it.
 - **What `add` keeps** in an emoji, a keycap, a variant, a flag or a joining script shows as it is,
   unless an escape stands before it.
 - **A label written untidily** in the config and given tidily is saved tidily, and `edit` says the

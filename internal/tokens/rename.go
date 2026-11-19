@@ -6,6 +6,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 // Give gives the account with the id to the token file of the account with
@@ -21,7 +23,7 @@ import (
 // there to go by; where from has none, nothing's given. It holds the tokens
 // directory's lock, as Write does.
 func (s Store) Give(from, to string) error {
-	defer lockDir(s.dir)()
+	defer filelock.TakeDir(s.dir)()
 	if err := give(s.Path(from), s.Path(to)); err != nil {
 		return fmt.Errorf("give %s's token file to %s: %w", from, to, err)
 	}
@@ -38,7 +40,7 @@ func (s Store) Give(from, to string) error {
 // written afresh, from's token file and record are left, with a warning. It
 // holds the tokens directory's lock, as Write does.
 func (s Store) Drop(from, to string) error {
-	defer lockDir(s.dir)()
+	defer filelock.TakeDir(s.dir)()
 	moved, err := drop(s.Path(from), s.Path(to))
 	if err == nil && moved {
 		err = dropRecord(s.takenPath(from), s.takenPath(to))

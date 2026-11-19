@@ -2450,9 +2450,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
   system's directories alone.
 - `accounts add <label>` registers an account, shown as the label, under the id its token's
   organization decides (see Account identity). It takes the label as it shows, and saves it so,
-  by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
-  default ignorables, the format characters and the variation selectors, but for whitespace and
-  the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
+  by the one rule all that's shown is cleaned by (`prose.Clean`), so what's saved is what any
+  view or verb shows; that rule, by Unicode's own property, not a list: the characters drawn as
+  nothing (`prose.Unseen`: its default ignorables, the format characters and the variation
+  selectors, but for whitespace and the prepended concatenation marks, such as the Arabic number
+  signs, which draw) kept only
   where one makes an emoji or a flag, a subdivision's only where it's England's, Scotland's or
   Wales's, the three Unicode recommends, as any other draws as a black flag, its tags hidden; or
   shapes a joining script; and a variation selector only after a symbol, non-ASCII punctuation,
@@ -2460,15 +2462,18 @@ formats below; the screens as signed off in Paper (see The screens, below).
   to right on what's kept: a character dropped is passed over, one shown escaped owns nothing
   after it, and the character after one is the first seen), and dropped everywhere else; a
   joiner's pictographs are symbols beyond ASCII, so one between `+` and `=` goes. Direction marks
-  are kept within it. Then each run of whitespace within it is one space, and the whitespace and
-  direction marks at its edges trimmed. It refuses a label that's none as it shows, one another
+  are kept within a label holding a letter written right to left, and dropped from any other.
+  Then each run of whitespace within it is one space, and the whitespace and direction marks at
+  its edges trimmed. A clash with another label is judged on the label as it's taken, cleaned as
+  the other is shown. It refuses a label that's none as it shows, one another
   configured account shows, ignoring case, one holding anything shaped like a token, or one over
   100 characters as it shows, holding a control character, such as a newline or a tab, a
   bidirectional embedding, override or isolate, or a prepended concatenation mark, which joins
   the character after it, so that character can draw as nothing, drawing as nothing (spaces,
   characters drawn as nothing, marks on their own or blank braille alone; a private-use glyph
   shows) or that isn't UTF-8, before it asks for the token, saving nothing. A label written in
-  the config by hand is read as it is. It always takes a token, asking for it, hidden, pointing to
+  the config by hand, or saved by a release that kept more, is read as it is, and shown through
+  `prose.Clean` as any other is. It always takes a token, asking for it, hidden, pointing to
   `claude setup-token` run while signed in to that subscription, or reading it from stdin when
   stdin isn't a terminal. An interrupt while it waits puts the terminal back as it was, showing
   what's typed again, and the command exits 130, as a shell expects of an interrupt, saving
@@ -2493,10 +2498,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
   untidily and tidied said so; or, when every value given is the account's already, that nothing
   changed, writing nothing. A label written by hand can't go through `add`'s rules, so
   `prose.Quoted` shows what it holds: a character drawn as nothing that `add` would drop, a
-  bidirectional control among them, as its `\u` escape, so it can't reorder the line, and a
-  direction mark too, which `add` keeps but whose part can't be seen, while what `add` keeps in
-  an emoji, a keycap, a variant, a flag or a joining script shows as it is, unless an escape
-  stands before it, and so does private use.
+  bidirectional control among them, as its `\u` escape, so it can't reorder the line; a
+  direction mark too, which `add` keeps only within a label written right to left, and whose
+  part can't be seen; and a prepended concatenation mark, which `add` refuses, so it can't hide
+  the closing quote; while what `add` keeps in an emoji, a keycap, a variant, a flag or a
+  joining script shows as it is, unless an escape stands before it, and so does private use.
   Moving the primary, it says what the sessions running through the router keep as Claude Code's
   own until they restart, as launch chose it from the config the edit read, the tokens as they
   stand now: the former primary's token, pinned or not; or, where it has no usable token, the
@@ -7735,8 +7741,9 @@ one:
   following, a new line joins the foot and the table moves up a line, and a line in flight's `took`
   counts; paused, only `▼ N new` and `took` move (settled in the plan).
 - **Not live:** the ledger's files and the router's files of events alone.
-- **Text from elsewhere,** a directory, a label, an error's message, shows with its control
-  characters as spaces.
+- **Text from elsewhere,** a directory, a label, an error's message, shows cleaned
+  (`prose.Clean`): its control characters as spaces, and without what could reorder or hide the
+  rest of its line.
 
 ### A session's page
 
@@ -9116,9 +9123,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 ### Kept from the dashboard before milestone 5
 
 - Desktop notifications: see Notifications.
-- Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
-  as spaces, here and in `status` alike, so none can move the cursor or restyle what follows, a
-  statusline's included.
+- Text from elsewhere, such as labels and the upstream's errors, shows cleaned (`prose.Clean`),
+  here and in `status` alike: its control characters as spaces, so none can move the cursor or
+  restyle what follows, a statusline's included, and without what could reorder or hide the rest of
+  its line, as the `internal/prose` row of Packages says.
 - `status`'s text keeps the form and the words it has, as `usage`, the printout quotes them, until
   it's designed afresh with the dashboard's words, as the Backlog says; it projects as the
   dashboard does.
@@ -11223,6 +11231,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept for its `keep`, though, unlike its lines, without waiting for their day's summary, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
 | `internal/export` | The history exported into a folder and brought back: the install's id, a Mac's folder and its `export.json`, a day's files copied or compressed into it, and a folder's files staged for import; the import itself, a day's lines added to its files, `internal/dayfile`'s, run by the router between its rounds (see Export and import) |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place, unless a check its caller gives, just before the rename, says otherwise; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
+| `internal/filelock` | Every file lock switchboard takes, the one owner of `flock`: exclusive or shared, waited for or tried without waiting, let go as its file closes, the file left in place (see Files); outside Unix none is held |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's, the readings history's and the router's events' files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
@@ -11250,7 +11259,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
-| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it |
+| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown but text to copy, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line, while emoji, keycaps, variants, flags and joining scripts are kept whole. A prepended concatenation mark, such as an Arabic number sign, is dropped too, as the dashboard measures it and the character after it as no cells, so that character would never show; a label refuses one. A direction mark is kept only within text holding a letter written right to left, which it orders, and dropped from any other and from the edges of all, as a terminal that orders text by direction carries a mark at a field's end on to reorder the digits and punctuation of the next. A label is taken by the same rule, after its own refusals, so it's saved as it shows, and two labels clash where they're the same once cleaned; one written by hand, or saved by an earlier release, is read as written and shown cleaned. Where nothing of a label shows once cleaned, an account or a pool is named by its id (`prose.LabelOr`) wherever its label is shown: the dashboard's words, setup's cards, the verbs' tables and text, and the router's and launch's words; a label kept as data, in the accounts record or an export, stays as written. Accepted: a mark dropped can let a joiner or selector after it be judged on the character before the mark, and kept; a directory's name (`status.DirName`) can show a mark that was within the path only through a trailing slash. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. Text to copy, such as setup's lines and a token, keeps all but its control characters (`prose.Visible`), so what's copied is what was given. `prose.Quoted` shows as escapes the characters drawn as nothing that `prose.Clean` drops, the direction marks and the prepended concatenation marks, which would hide the closing quote |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
 Each view's data is built once, in `internal/views`, and drawn by `internal/dashboard` or printed
@@ -11451,6 +11460,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   `~/.local/share/switchboard/Switchboard.app`, the app a release's switchboard posts through,
   written out from the one embedded, with `.Switchboard.app.sum` beside it, the embedded zip's
   SHA-256 (see Notifications, "How they're posted").
+- **Locks:** each lock switchboard takes is a `flock` taken through `internal/filelock`, its one
+  owner, and no other package takes one (`internal/filelock/guard_test.go`): `accounts.lock` and
+  `import.lock` in the state directory, the router's copy's `.lock`, `.Switchboard.app.lock`, the
+  tokens directory, the logs directory, the state directory, which the preferences hold as
+  they're kept, and a day's plain file. A lock goes as its file closes, however the process
+  holding it ends, so letting it go leaves its file in place; `service uninstall` removes the
+  router's copy's and the notifications' app's with what they guard. Accepted: the guard knows
+  the lock calls by name, so a raw `syscall.Syscall` of `SYS_FLOCK` would pass it.
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
   switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
   `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell
@@ -12933,11 +12950,9 @@ was dropped binds a later choice, the design proper says so.
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: after v1; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026, Fable 5.2 on 17 November | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
-| Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
-| One owner of switchboard's file locks, the four packages that each take a `flock` their own way | open: a refactor, any time | [one-file-lock](../ideas/2026-11-04--one-file-lock.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |

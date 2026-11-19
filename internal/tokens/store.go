@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 const (
@@ -166,7 +167,7 @@ func (s Store) Write(id string, token Token, taken time.Time) error {
 	if err := s.keepPrivate(); err != nil {
 		return err
 	}
-	defer lockDir(s.dir)()
+	defer filelock.TakeDir(s.dir)()
 	target, err := atomicfile.Target(s.Path(id))
 	if err != nil {
 		return fmt.Errorf("write the token file: %w", err)
@@ -247,7 +248,7 @@ type Removed struct {
 // the record's path goes as forgetTaken says. It holds the tokens
 // directory's lock, as Write does.
 func (s Store) Remove(id string) (Removed, error) {
-	defer lockDir(s.dir)()
+	defer filelock.TakeDir(s.dir)()
 	at := s.tokenAtRecord(id)
 	removed, err := s.removeToken(id)
 	if err != nil {

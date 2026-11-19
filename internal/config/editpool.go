@@ -57,10 +57,10 @@ func (p NewPool) taken() (NewPool, error) {
 	return p, nil
 }
 
-// poolLabelOf returns the label given the pool with the given id as labelOf
-// returns an account's.
+// poolLabelOf returns the label given the pool with the given id, as
+// TakePoolLabel takes it, as labelOf returns an account's.
 func poolLabelOf(id, given string) (string, error) {
-	label, err := takeLabel(poolKind, poolNamed(id), given)
+	label, err := TakePoolLabel(id, given)
 	if err != nil || label == id {
 		return "", err
 	}

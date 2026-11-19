@@ -248,7 +248,7 @@ func (t reviewTable) laid() (accounts []int, headings []poolHeaded, add int) {
 // heads are: its name, in text.subtle, and two cells on, where its sessions
 // start, as setup.Places says it, muted.
 func poolLabel(p config.Pool) line {
-	return line{{prose.Clean(p.Label), dimInk}, spaces(2), {setup.Places(p), mutedInk}}
+	return line{{prose.Clean(prose.LabelOr(p.Label, p.ID)), dimInk}, spaces(2), {setup.Places(p), mutedInk}}
 }
 
 // The table's parts, as columns lays them out: an account's label, its plan

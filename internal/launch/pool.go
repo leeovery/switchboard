@@ -877,7 +877,7 @@ func routedConfig(h router.Health, pools config.Pools) (*config.Config, error) {
 // poolSaid names the pool p by its label, else its id, redacted, as the
 // label of a pool read unchecked can hold anything.
 func poolSaid(p config.Pool) string {
-	return prose.Clean(redact.Text(cmp.Or(p.Label, p.ID)))
+	return prose.Clean(redact.Text(prose.LabelOr(p.Label, p.ID)))
 }
 
 // poolsNamed names pools, as "pool Acme", or "pools Acme and Client".
