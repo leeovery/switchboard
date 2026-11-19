@@ -4,50 +4,50 @@
 
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < 30 days >
 
-  session                        on        model       state        started          requests    worth  routing
-▸ infra       terraform          side      opus-5-5    idle 50s     yesterday 15:08       153   $12.64  from work · at its cap  $0.66
-  website     9c2e               personal  opus-5-5    idle 9m      11:55                 267   $27.15
-↑ switchboard router-fix d28c    side      opus-5-5    asking       12:02                 445   $48.20  from work · at its cap  $1.82
-  docs        handbook           personal  opus-5-5    idle 34s     12:47                 158   $17.86
-↓ api         api-auth           side      opus-5-5    answering    14:12                  84    $8.94  from work · at its cap  $0.98
-↓ mobile      c61b               side      opus-5-5    answering    14:41                   4    $0.22
+  session                      on        model       state        started          requests    worth  routing
+▸ infra       terraform        side      opus-5-5    idle 50s     yesterday 15:08       153   $12.64  from work · at its cap  $0.66
+  website     9c2e             personal  opus-5-5    idle 9m      11:55                 267   $27.15
+↑ switchboard router-fix d28c  side      opus-5-5    asking       12:02                 445   $48.20  from work · at its cap  $1.82
+  docs        handbook         personal  opus-5-5    idle 34s     12:47                 158   $17.86
+↓ api         api-auth         side      opus-5-5    answering    14:12                  84    $8.94  from work · at its cap  $0.98
+↓ mobile      c61b             side      opus-5-5    answering    14:41                   4    $0.22
   ended today  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  mobile      ios-build          personal  opus-5-5    ended 11:21  10:02                  38    $3.12
-  docs        guides 3d7a        work      opus-5-5    ended 10:15  09:40                  12    $0.84
-  infra       e0c4               work      opus-5-5    ended 10:02  09:12                  19    $1.47
-  website     a8f1               side      opus-5-5    ended 09:28  08:31                  24    $1.95
-  api         billing 2b6d       work      opus-5-5    ended 09:05  07:58                  31    $2.61
-  api         billing 5e7d       side      opus-5-5    ended 00:41  yesterday 23:47        39    $2.41
-  infra       4b0e               work      opus-5-5    ended 00:31  yesterday 15:52        13    $0.83
-  docs        guides 8a2c        side      opus-5-5    ended 00:18  yesterday 16:55        43    $3.12
+  mobile      ios-build        personal  opus-5-5    ended 11:21  10:02                  38    $3.12
+  docs        guides 3d7a      work      opus-5-5    ended 10:15  09:40                  12    $0.84
+  infra       e0c4             work      opus-5-5    ended 10:02  09:12                  19    $1.47
+  website     a8f1             side      opus-5-5    ended 09:28  08:31                  24    $1.95
+  api         billing 2b6d     work      opus-5-5    ended 09:05  07:58                  31    $2.61
+  api         billing 5e7d     side      opus-5-5    ended 00:41  yesterday 23:47        39    $2.41
+  infra       4b0e             work      opus-5-5    ended 00:31  yesterday 15:52        13    $0.83
+  docs        guides 8a2c      side      opus-5-5    ended 00:18  yesterday 16:55        43    $3.12
   ended yesterday  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-▸ switchboard dashboard          side      opus-5-5    ended 18:46  13:20                 595   $73.00  from work · at its cap  $1.88
-  switchboard settings           personal  opus-5-5    ended 16:45  Mon 12:08             201   $22.65
-  infra       d29e               side      opus-5-5    ended 16:27  Mon 13:14             410   $48.90
-  switchboard fix-login          personal  opus-5-5    ended 15:23  Mon 11:37             179   $20.56
-  infra       fd98               personal  opus-5      ended 14:47  Mon 11:44             397   $48.57
-  website     landing            personal  sonnet-5-5  ended 14:23  Mon 13:19             398   $52.92
-  switchboard pools 1cb3         side      sonnet-5-5  ended 13:27  Mon 10:39             159   $18.20
-  website     3449               side      sonnet-5-5  ended 12:57  Mon 11:52             260   $32.94
-  switchboard pools 0084         side      opus-5-5    ended 12:17  Mon 13:27             192   $22.23
-  api         e9d9               side      opus-5-5    ended 12:16  Mon 12:21             669   $85.97
-  website     f17c               personal  opus-5-5    ended 12:12  Mon 11:28             332   $43.91
-  switchboard router-fix 31e1    side      opus-5-5    ended 11:33  Mon 12:34             146   $17.19
-  switchboard release            work      opus-5-5    ended 11:23  Mon 09:36             142   $16.63
+▸ switchboard dashboard        side      opus-5-5    ended 18:46  13:20                 595   $73.00  from work · at its cap  $1.88
+  switchboard settings         personal  opus-5-5    ended 16:45  Mon 12:08             201   $22.65
+  infra       d29e             side      opus-5-5    ended 16:27  Mon 13:14             410   $48.90
+  switchboard fix-login        personal  opus-5-5    ended 15:23  Mon 11:37             179   $20.56
+  infra       fd98             personal  opus-5      ended 14:47  Mon 11:44             397   $48.57
+  website     landing          personal  sonnet-5-5  ended 14:23  Mon 13:19             398   $52.92
+  switchboard pools 1cb3       side      sonnet-5-5  ended 13:27  Mon 10:39             159   $18.20
+  website     3449             side      sonnet-5-5  ended 12:57  Mon 11:52             260   $32.94
+  switchboard pools 0084       side      opus-5-5    ended 12:17  Mon 13:27             192   $22.23
+  api         e9d9             side      opus-5-5    ended 12:16  Mon 12:21             669   $85.97
+  website     f17c             personal  opus-5-5    ended 12:12  Mon 11:28             332   $43.91
+  switchboard router-fix 31e1  side      opus-5-5    ended 11:33  Mon 12:34             146   $17.19
+  switchboard release          work      opus-5-5    ended 11:23  Mon 09:36             142   $16.63
   ended Sat  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  website     0606               personal  sonnet-5-5  ended 15:33  14:48                  69    $7.95
-  switchboard 24da               side      opus-5-5    ended 13:14  12:40                  51    $5.90
+  website     0606             personal  sonnet-5-5  ended 15:33  14:48                  69    $7.95
+  switchboard 24da             side      opus-5-5    ended 13:14  12:40                  51    $5.90
   ended Fri  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  switchboard c646               personal  sonnet-5-5  ended 16:53  15:27                 130   $15.01
-  docs        8efd               work      sonnet-5-5  ended 16:05  14:34                 138   $15.82
-  website     69d4               work      opus-5-5    ended 14:47  13:14                 192   $22.19
-  api         e595               personal  sonnet-5-5  ended 12:13  11:09                  97   $11.11
-  infra       b19e               side      opus-5-5    ended 10:55  10:04                  78    $8.98
+  switchboard c646             personal  sonnet-5-5  ended 16:53  15:27                 130   $15.01
+  docs        8efd             work      sonnet-5-5  ended 16:05  14:34                 138   $15.82
+  website     69d4             work      opus-5-5    ended 14:47  13:14                 192   $22.19
+  api         e595             personal  sonnet-5-5  ended 12:13  11:09                  97   $11.11
+  infra       b19e             side      opus-5-5    ended 10:55  10:04                  78    $8.98
   ended Thu 24 Sep  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-  infra       a0db               work      sonnet-5-5  ended 16:18  13:49                 304   $35.06
-  mobile      d07a               work      opus-5-5    ended 15:48  13:25                 215   $24.79
-  switchboard 7902               personal  haiku-4-5   ended 14:08  12:15                 238   $27.43
-  switchboard a358               work      opus-5-5    ended 13:32  10:39                 260   $30.01
+  infra       a0db             work      sonnet-5-5  ended 16:18  13:49                 304   $35.06
+  mobile      d07a             work      opus-5-5    ended 15:48  13:25                 215   $24.79
+  switchboard 7902             personal  haiku-4-5   ended 14:08  12:15                 238   $27.43
+  switchboard a358             work      opus-5-5    ended 13:32  10:39                 260   $30.01
 30 days  162 sessions · 26,469 requests · $3,061.31 at API prices
   ▼ 124 more sessions
 tab views   [ ] view   < > period: 30 days   ↑↓ session   enter its page   p pin   ? help  q quit

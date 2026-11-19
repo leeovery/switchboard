@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -537,6 +538,146 @@ func TestSessionsColumnsGiveWayInTheirOrder(t *testing.T) {
 		if width == 220 && len(columns) != len(projectColumns) {
 			t.Errorf("at 220 SESSIONS has %d columns, want all %d", len(columns), len(projectColumns))
 		}
+	}
+}
+
+// SESSIONS fills the width at every width from the phone's, of short
+// account names and long, 5b19 on side: the session's column takes every
+// cell past the others' naturals, so the last column ends at the frame's
+// edge; its natural is its least, 11, as its names, by their ids, are
+// shorter, and it grows past that only beside on whole; and wherever every
+// column shows, each other but on keeps its width, as at 220, flush to the
+// right, on narrowing toward its least to keep them, as the List's does
+// (the owner's call, 19 November 2026).
+func TestSessionsFillsTheWidthItsSessionColumnTakingTheSpare(t *testing.T) {
+	sessions := chosenSessions()
+	sessions[1].Account = "side"
+	page := chosenPage(sessions)
+	for name, doc := range map[string]status.Document{"short names": framedDoc(nil, nil), "long names": longListDoc()} {
+		t.Run(name, func(t *testing.T) {
+			words := sessionWords{m: frameOf(173, 53).Moment(doc, routedAt), now: routedAt}
+			widest := map[listPart]int{}
+			for _, c := range projectSessionsOf(words, &page, SessionsMeasured{}, 220).columns {
+				widest[c.part] = c.width
+			}
+			for width := 52; width <= 220; width++ {
+				columns := projectSessionsOf(words, &page, SessionsMeasured{}, width).columns
+				if last := columns[len(columns)-1]; last.x+last.width != width {
+					t.Errorf("at %d SESSIONS' last column ends at %d, want the frame's edge: %+v", width, last.x+last.width, columns)
+				}
+				if columns[0].width > listSessionLeast && columns[1].width != widest[listOn] {
+					t.Errorf("at %d SESSIONS' session is %d cells beside on cut to %d, want on whole, %d, first", width, columns[0].width, columns[1].width, widest[listOn])
+				}
+				if len(columns) < len(projectColumns) {
+					continue
+				}
+				for _, c := range columns[2:] {
+					if c.width != widest[c.part] {
+						t.Errorf("at %d SESSIONS' %s is %d cells, want %d, as at 220", width, c.head(), c.width, widest[c.part])
+					}
+				}
+			}
+		})
+	}
+}
+
+// Of short sessions, named by their ids, and 5b19 on side-hustle-consulting,
+// 22 cells, SESSIONS holds on whole at 85, model left, and at 104 and 108,
+// the session taking the cells left past its least.
+func TestSessionsHoldsALongAccountWholeBesideShortSessions(t *testing.T) {
+	sessions := chosenSessions()
+	sessions[1].Account = "side"
+	page := chosenPage(sessions)
+	tests := []struct {
+		width     int
+		heads, on string
+	}{
+		{
+			width: 85,
+			heads: "  session      on                      state        started          requests   worth",
+			on:    "  5b19         side-hustle-consulting  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			width: 104,
+			heads: "  session               on                      model     state        started          requests   worth",
+			on:    "  5b19                  side-hustle-consulting  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			width: 108,
+			heads: "  session                   on                      model     state        started          requests   worth",
+			on:    "  5b19                      side-hustle-consulting  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			f := projectsFrame(t, tt.width, 60, projectRows(3), 0, &page)
+			rows := textOf(f.page(longListDoc(), routedAt).rows(Look{}))
+			heads := rowWith(rows, "SESSIONS") + 1
+			if rows[heads] != tt.heads {
+				t.Errorf("SESSIONS' heads read\n%q\nwant\n%q", rows[heads], tt.heads)
+			}
+			if got := rows[rowWith(rows, "  5b19 ")]; got != tt.on {
+				t.Errorf("5b19's row reads\n%q\nwant\n%q", got, tt.on)
+			}
+		})
+	}
+}
+
+// SESSIONS' session column takes its natural, its widest name whole, before
+// on takes cells past its least, so where the row can't hold both whole,
+// the name reads whole and side-hustle-consulting is cut: an ended
+// session's name of 16 cells, as measured, at 94; a running worktree's, of
+// 18 and its tree under Nerd Font, 20, at 99; and an ended worktree's, of 16
+// and its tree, 18, as measured with its marks, at 97.
+func TestSessionsTakesItsWidestNameWholeBeforeOnGrows(t *testing.T) {
+	const tree = "~/Code/agentic-workflows/.claude/worktrees/"
+	tests := []struct {
+		name          string
+		width         int
+		nerdFont      bool
+		at            int
+		dir, named    string
+		heads, widest string
+		on            string
+	}{
+		{
+			name: "an ended session's name", width: 94, at: 2, named: "release-notes-v2",
+			heads:  "  session           on                model     state        started          requests   worth",
+			widest: "  release-notes-v2  work-team-plan    opus-5-5  ended 16:40  Tue 09:00              40  $12.00",
+			on:     "  5b19              side-hustle-con…  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			name: "a running worktree's name", width: 99, nerdFont: true, at: 0, dir: tree + "dashboard-redesign",
+			heads:  "  session               on                 model     state        started          requests   worth",
+			widest: "   dashboard-redesign  work-team-plan     opus-5-5  answering    yesterday 15:08        40  $12.00",
+			on:     "  5b19                  side-hustle-cons…  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			name: "an ended worktree's name", width: 97, nerdFont: true, at: 2, dir: tree + "release-notes-v2",
+			heads:  "  session             on                 model     state        started          requests   worth",
+			widest: "   release-notes-v2  work-team-plan     opus-5-5  ended 16:40  Tue 09:00              40  $12.00",
+			on:     "  5b19                side-hustle-cons…  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := chosenSessions()
+			sessions[1].Account = "side"
+			sessions[tt.at].Name = tt.named
+			if tt.dir != "" {
+				sessions[tt.at].Dir = tt.dir
+			}
+			page := chosenPage(sessions)
+			f := projectsFrame(t, tt.width, 60, projectRows(3), 0, &page)
+			f.NerdFont = tt.nerdFont
+			rows := textOf(f.page(longListDoc(), routedAt).rows(Look{}))
+			heads := rowWith(rows, "SESSIONS") + 1
+			for _, want := range []string{tt.heads, tt.widest, tt.on} {
+				if !slices.Contains(rows[heads:], want) {
+					t.Errorf("SESSIONS shows no row\n%q\namong\n%s", want, strings.Join(rows[heads:heads+8], "\n"))
+				}
+			}
+		})
 	}
 }
 

@@ -36,10 +36,13 @@ type projectSessions struct {
 // says of the ended sessions of a chosen project's page, in the columns'
 // order, measured once, as the watch builds the page: what they say holds
 // still, so a frame measures only the sessions running, whose words change
-// as they run, and not every session of a long period at every frame.
+// as they run, and not every session of a long period at every frame. name
+// and marked are the widest name they say whole, as nameSaid says it, plain
+// and with Nerd Font's marks.
 type SessionsMeasured struct {
-	of     *views.ProjectPage
-	widest []int
+	of           *views.ProjectPage
+	widest       []int
+	name, marked int
 }
 
 // MeasureSessions measures the ended sessions of the page given at the
@@ -50,7 +53,10 @@ func MeasureSessions(page *views.ProjectPage, m status.Moment, now time.Time) Se
 	for i, p := range projectColumns {
 		widest[i] = words.widest(p, page.Sessions, sessionEnded)
 	}
-	return SessionsMeasured{of: page, widest: widest}
+	return SessionsMeasured{
+		of: page, widest: widest,
+		name: widestSaid(page.Sessions, sessionEnded, nameCells(false)), marked: widestSaid(page.Sessions, sessionEnded, nameCells(true)),
+	}
 }
 
 // Of is what was measured, as of the page given: one views' ProjectsPage's
@@ -86,23 +92,37 @@ func projectSessionsOf(words sessionWords, page *views.ProjectPage, measured Ses
 
 // columnsOf are SESSIONS' columns of the sessions given across a frame
 // width cells wide, from listFrom, listGap apart, as flex lays them: the
-// session's as the List's, from its least to its whole, taking what's spare
-// first; then each other at the widest of its head and what it says of the
-// sessions, the ended as measured has them and those running as they say
-// now, on's narrowing as the List's does toward listOnLeast. As it narrows,
-// model, started and requests leave in the turns above. No natural comes
-// from the rows shown, so the columns hold still as SESSIONS scrolls.
+// session's as the List's, from its least to its natural, as sessionNatural
+// has it of the widest name the sessions say whole, the ended as measured
+// has them, taking what's spare first, and past its natural, every cell
+// left, so the others end at the frame's edge; then each other at the
+// widest of its head and what it says of the sessions, the ended as
+// measured has them and those running as they say now, on's narrowing as
+// the List's does toward listOnLeast. As it narrows, model, started and
+// requests leave in the turns above. No natural comes from the rows shown,
+// so the columns hold still as SESSIONS scrolls.
 func (s projectSessions) columnsOf(width int, sessions []views.PeriodSession, measured SessionsMeasured) []listColumn {
 	parts := make([]flex.Part, len(projectColumns))
 	for i, p := range projectColumns {
 		w := max(measured.widest[i], s.words.widest(p, sessions, sessionRunning))
 		parts[i] = flex.Part{Least: w, Natural: w, Gap: listGap}
 	}
-	parts[0] = flex.Part{Least: listSessionLeast, Natural: listSessionWhole}
+	parts[0] = flex.Part{Least: listSessionLeast, Natural: sessionNatural(s.namesWhole(sessions, measured)), Grows: true}
 	parts[1].Least = min(parts[1].Natural, listOnLeast)
 	parts[2].Leaves, parts[4].Leaves, parts[5].Leaves = modelGivesWay, startedGivesWay, requestsGiveWay
 	spans, _ := flex.Lay(width-listFrom, parts...)
 	return columnsAt(spans, projectColumns)
+}
+
+// namesWhole are the cells of the widest name of the sessions given said
+// whole, as nameSaid says it, marked as the words' glyphs mark it: the
+// ended as measured has them, those running as they say now.
+func (s projectSessions) namesWhole(sessions []views.PeriodSession, measured SessionsMeasured) int {
+	name := measured.name
+	if s.words.glyphs {
+		name = measured.marked
+	}
+	return max(name, widestSaid(sessions, sessionRunning, nameCells(s.words.glyphs)))
 }
 
 // widest are the cells of the widest of the column's head and what it says

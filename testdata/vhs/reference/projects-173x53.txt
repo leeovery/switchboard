@@ -28,16 +28,16 @@ Mon         Tue          Wed         Thu         Fri          Sat         Sun   
 peak Wed $109
 
 SESSIONS
-  session                        on        model       state        started    requests   worth
-↑ router-fix d28c                side      opus-5-5    asking       12:02           445  $48.20
+  session                                                                                                      on        model       state        started    requests   worth
+↑ router-fix d28c                                                                                              side      opus-5-5    asking       12:02           445  $48.20
   ended yesterday  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-▸ dashboard                      side      opus-5-5    ended 18:46  13:20           595  $73.00
-  settings                       personal  opus-5-5    ended 16:45  Mon 12:08       201  $22.65
-  fix-login                      personal  opus-5-5    ended 15:23  Mon 11:37       179  $20.56
-  pools 1cb3                     side      sonnet-5-5  ended 13:27  Mon 10:39       159  $18.20
-  pools 0084                     side      opus-5-5    ended 12:17  Mon 13:27       192  $22.23
-  router-fix 31e1                side      opus-5-5    ended 11:33  Mon 12:34       146  $17.19
-  release                        work      opus-5-5    ended 11:23  Mon 09:36       142  $16.63
+▸ dashboard                                                                                                    side      opus-5-5    ended 18:46  13:20           595  $73.00
+  settings                                                                                                     personal  opus-5-5    ended 16:45  Mon 12:08       201  $22.65
+  fix-login                                                                                                    personal  opus-5-5    ended 15:23  Mon 11:37       179  $20.56
+  pools 1cb3                                                                                                   side      sonnet-5-5  ended 13:27  Mon 10:39       159  $18.20
+  pools 0084                                                                                                   side      opus-5-5    ended 12:17  Mon 13:27       192  $22.23
+  router-fix 31e1                                                                                              side      opus-5-5    ended 11:33  Mon 12:34       146  $17.19
+  release                                                                                                      work      opus-5-5    ended 11:23  Mon 09:36       142  $16.63
 
 
 

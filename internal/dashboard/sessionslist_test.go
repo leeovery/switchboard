@@ -176,36 +176,52 @@ func logOver(period views.Period, sessions ...listedSession) *views.SessionLog {
 // brought there for $1.82.
 var d28cMoved = listedSession{"d28c5e17", "~/Code/switchboard", "side", asking, routedClock(1, 12, 2), 445, 4820, views.MarkAsking, 182}
 
-// The List's columns narrow in one narrowing, from column 2, 2 cells apart:
-// routing, cut as the Log cuts it, its cost kept whole, to the last column
-// down to 24 cells, at 127 columns beside the session whole, and left below;
-// worth, at 101, and started, at 92, beside the session whole; and model as
+// The List's columns narrow in one narrowing, from column 2, 2 cells apart,
+// of d28c alone, switchboard d28c a session of 16 cells: routing, cut as the
+// Log cuts it, its cost kept whole, to the last column down to 24 cells, at
+// 114 columns beside the session at its natural, and left below; worth, at
+// 88, and started, at 79, beside the session at its natural; and model as
 // the leasts don't fit.
-// What's past the leasts goes to the session, to its project and its name,
-// 29 cells, then to on, its natural the widest account's name; nothing but
-// routing grows past its natural, so where routing's left the spare lies at
-// the row's end.
+// What's past the leasts goes to the session, to its natural, its project
+// and name whole, at most 29, then to on, its natural the widest account's
+// name; then where routing shows, to routing, and where it's left, to the
+// session, so the last column ends at the row's end and nothing floats short
+// of it.
 func TestTheListsColumnsByWidth(t *testing.T) {
-	whole := "  session                        on        model      state        started          requests    worth"
-	moved := "↑ switchboard d28c               side      opus-5-5   asking       12:02                 445   $48.20"
-	started := "  session                        on        model      state        started          requests"
-	movedStarted := "↑ switchboard d28c               side      opus-5-5   asking       12:02                 445"
+	whole := "  session           on        model      state        started          requests    worth"
+	moved := "↑ switchboard d28c  side      opus-5-5   asking       12:02                 445   $48.20"
 	tests := []struct {
 		width      int
 		heads, row string
 	}{
 		{width: 220, heads: whole + "  routing", row: moved + "  from work · at its cap  $1.82"},
 		{width: 160, heads: whole + "  routing", row: moved + "  from work · at its cap  $1.82"},
-		{width: 127, heads: whole + "  routing", row: moved + "  from work · at i…  $1.82"},
-		{width: 126, heads: whole, row: moved},
-		{width: 108, heads: whole, row: moved},
-		{width: 101, heads: whole, row: moved},
-		{width: 100, heads: started, row: movedStarted},
-		{width: 92, heads: started, row: movedStarted},
+		{width: 114, heads: whole + "  routing", row: moved + "  from work · at i…  $1.82"},
 		{
-			width: 91,
-			heads: "  session                        on        model      state        requests",
-			row:   "↑ switchboard d28c               side      opus-5-5   asking            445",
+			width: 113,
+			heads: "  session                                    on        model      state        started          requests    worth",
+			row:   "↑ switchboard d28c                           side      opus-5-5   asking       12:02                 445   $48.20",
+		},
+		{
+			width: 108,
+			heads: "  session                               on        model      state        started          requests    worth",
+			row:   "↑ switchboard d28c                      side      opus-5-5   asking       12:02                 445   $48.20",
+		},
+		{width: 88, heads: whole, row: moved},
+		{
+			width: 87,
+			heads: "  session                   on        model      state        started          requests",
+			row:   "↑ switchboard d28c          side      opus-5-5   asking       12:02                 445",
+		},
+		{
+			width: 79,
+			heads: "  session           on        model      state        started          requests",
+			row:   "↑ switchboard d28c  side      opus-5-5   asking       12:02                 445",
+		},
+		{
+			width: 78,
+			heads: "  session                           on        model      state        requests",
+			row:   "↑ switchboard d28c                  side      opus-5-5   asking            445",
 		},
 		{
 			width: 73,
@@ -247,40 +263,66 @@ func listLeasts(n listNaturals) map[listPart]int {
 	}
 }
 
-// At every width from 52 to 220, of short names and long, and of models and
+// At every width from 52 to 220, of short account names and long, of
+// sessions with no name measured, short ones and long, and of models and
 // worths within their columns' leasts and past them, the List's columns are
 // laid out as listLaidAsDesigned has them, and widen as listWidensSteadily
 // has them.
 func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
+	sessions := []listNaturals{{}, {project: len("switchboard"), name: len("d28c")}, {project: 24, name: 14}}
+	said := []listNaturals{{}, {model: len("sonnet-5-5"), worth: len("$126.75+")}, {model: len("opus-5-5-preview"), worth: len("$11549.04+")}}
 	for _, on := range []int{8, 14, 22} {
-		for _, said := range []listNaturals{{}, {model: len("sonnet-5-5"), worth: len("$126.75+")}, {model: len("opus-5-5-preview"), worth: len("$11549.04+")}} {
-			n := listNaturals{on: on, model: said.model, worth: said.worth}
-			before := listColumnsOf(51, n)
-			for width := 52; width <= 220; width++ {
-				columns := listColumnsOf(width, n)
-				for _, wrong := range slices.Concat(listLaidAsDesigned(width, n), listWidensSteadily(before, columns)) {
-					t.Errorf("of %+v at %d, %s: %+v", n, width, wrong, columns)
+		for _, named := range sessions {
+			for _, worded := range said {
+				n := listNaturals{on: on, model: worded.model, worth: worded.worth, project: named.project, name: named.name}
+				before := listColumnsOf(51, n)
+				for width := 52; width <= 220; width++ {
+					columns := listColumnsOf(width, n)
+					for _, wrong := range slices.Concat(listLaidAsDesigned(width, n), listWidensSteadily(before, columns)) {
+						t.Errorf("of %+v at %d, %s: %+v", n, width, wrong, columns)
+					}
+					before = columns
 				}
-				before = columns
 			}
 		}
 	}
 }
 
+// listSessionCells are the cells of the List's session column as the
+// design gives them, of the naturals given: whole, its project and name a
+// cell apart, or its name alone of no project; and its natural, that, at
+// least 11 and at most 29.
+func listSessionCells(n listNaturals) (whole, natural int) {
+	whole = n.name
+	if n.project > 0 {
+		whole = n.project + 1 + n.name
+	}
+	return whole, min(29, max(whole, 11))
+}
+
 // listWidensSteadily says how the List's columns, a cell wider than before,
-// narrow a name: the session never, but where model comes back; and on
-// never, once the session's whole. The session and on are its first two
-// columns, as they never leave.
+// narrow a name: the session and on never, but where a column comes back,
+// and then together by exactly the cells it and its gap take, less the cell
+// the frame widened by. The session and on are its first two columns, as
+// they never leave.
 func listWidensSteadily(before, after []listColumn) []string {
-	var wrong []string
-	modelBack := len(after) > len(before) && after[2].part == listModel && before[2].part != listModel
-	if after[listSession].width < before[listSession].width && !modelBack {
-		wrong = append(wrong, fmt.Sprintf("the session narrows from %d cells to %d", before[listSession].width, after[listSession].width))
+	back := 0
+	for _, col := range after {
+		if !slices.ContainsFunc(before, func(b listColumn) bool { return b.part == col.part }) {
+			back += col.width + listGap
+		}
 	}
-	if before[listSession].width == 29 && after[listOn].width < before[listOn].width {
-		wrong = append(wrong, fmt.Sprintf("on narrows from %d cells to %d", before[listOn].width, after[listOn].width))
+	narrowed := 0
+	for _, p := range []listPart{listSession, listOn} {
+		narrowed += max(before[p].width-after[p].width, 0)
 	}
-	return wrong
+	switch {
+	case back == 0 && narrowed > 0:
+		return []string{fmt.Sprintf("the session or on narrows, by %d cells, with no column back", narrowed)}
+	case back > 0 && narrowed != back-1:
+		return []string{fmt.Sprintf("the session and on narrow by %d cells where %d came back, want %d", narrowed, back, back-1)}
+	}
+	return nil
 }
 
 // listLaidAsDesigned says how the List's columns at width, of the naturals
@@ -289,13 +331,17 @@ func listWidensSteadily(before, after []listColumn) []string {
 // session, on, state and requests never; routing only while the leasts and
 // the session and on whole don't fit, worth and started while the leasts
 // and the session whole don't, and model while the leasts don't; what's
-// past the leasts goes to the session, to 29, before on takes a cell past
-// its least; neither worth nor started shows beside a session cut short;
-// routing, where it shows, ends at the last column, beside the session and
-// on whole, and where it's left, no column is past its natural; and model
+// past the leasts goes to the session, to its natural, before on takes a
+// cell past its least; neither worth nor started shows beside a session cut
+// short of its natural; routing, where it shows, ends at the last column,
+// beside on whole and the session at its natural or past it, its whole
+// before routing takes a cell past its least, and where it's left, on is
+// whole before the session takes the spare past its natural, no other
+// column past its natural, so the last ends at the last column; and model
 // and worth, wherever they show, are whole.
 func listLaidAsDesigned(width int, n listNaturals) []string {
 	on := n.on
+	whole, natural := listSessionCells(n)
 	leasts, columns := listLeasts(n), listColumnsOf(width, n)
 	shown := map[listPart]listColumn{}
 	var wrong []string
@@ -317,19 +363,23 @@ func listLaidAsDesigned(width int, n listNaturals) []string {
 			wrong = append(wrong, listPartFacts[p].head+" left out of turn")
 		}
 	}
-	if room := width - listFrom; taken > room || left > 0 && taken+listGap+listReturns(leasts, listLeaving[left-1], on) <= room {
+	if room := width - listFrom; taken > room || left > 0 && taken+listGap+listReturns(leasts, listLeaving[left-1], on, natural) <= room {
 		wrong = append(wrong, fmt.Sprintf("the leasts shown take %d of %d cells, %d columns left", taken, room, left))
 	}
 	session, routing, last := shown[listSession], shown[listRouting], columns[len(columns)-1]
 	switch {
-	case shown[listOn].width > leasts[listOn] && session.width != 29:
-		wrong = append(wrong, "on takes cells past its least before the session's whole")
-	case (hasPart(shown, listWorth) || hasPart(shown, listStarted)) && session.width != 29:
+	case shown[listOn].width > leasts[listOn] && session.width < natural:
+		wrong = append(wrong, "on takes cells past its least before the session's natural")
+	case (hasPart(shown, listWorth) || hasPart(shown, listStarted)) && session.width < natural:
 		wrong = append(wrong, "worth or started shows beside a session cut short")
-	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width != 29 || shown[listOn].width != on):
-		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short")
-	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
-		wrong = append(wrong, "with routing left, a column grows past its natural")
+	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width < natural || session.width > max(natural, whole) || shown[listOn].width != on):
+		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short, or a session past its whole")
+	case hasPart(shown, listRouting) && session.width < whole && routing.width > leasts[listRouting]:
+		wrong = append(wrong, "routing takes cells past its least before the session's whole")
+	case !hasPart(shown, listRouting) && (shown[listOn].width > on || last.x+last.width != width):
+		wrong = append(wrong, "with routing left, a column but the session grows past its natural, or the row ends short of the last column")
+	case !hasPart(shown, listRouting) && session.width > natural && shown[listOn].width != on:
+		wrong = append(wrong, "with routing left, the session grows past its natural beside on cut short")
 	}
 	if listCut(shown, listModel, n.model) || listCut(shown, listWorth, n.worth) {
 		wrong = append(wrong, "model or worth shown cut short")
@@ -338,14 +388,14 @@ func listLaidAsDesigned(width int, n listNaturals) []string {
 }
 
 // listReturns are the cells a column that left needs to show again, on's
-// natural on: its least; worth and started the session's whole past its
-// least too; and routing on's whole as well.
-func listReturns(leasts map[listPart]int, p listPart, on int) int {
+// natural on and the session's natural: its least; worth and started the
+// session's natural past its least too; and routing on's whole as well.
+func listReturns(leasts map[listPart]int, p listPart, on, natural int) int {
 	switch p {
 	case listRouting:
-		return leasts[p] + 29 - leasts[listSession] + on - leasts[listOn]
+		return leasts[p] + natural - leasts[listSession] + on - leasts[listOn]
 	case listWorth, listStarted:
-		return leasts[p] + 29 - leasts[listSession]
+		return leasts[p] + natural - leasts[listSession]
 	}
 	return leasts[p]
 }
@@ -382,7 +432,7 @@ func longListDoc() status.Document {
 // on holds its 14, work-team-plan still whole; and at 138, routing still
 // left, and 173, on as wide as the widest name, every name whole, the
 // session past its 29 to hold the widest project whole beside the widest
-// name.
+// name, and at 138 past that, to the row's end.
 func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 	infra := listedSession{"db8a71e3", "~/Code/infra-terraform-modules", "side", idleFor(50 * time.Second), yesterdayClock(15, 8), 126, 1137, views.MarkMoved, 0}
 	docs := listedSession{"3d7a8e12", "~/Code/docs-site-getting-started", "work", endedAt(10, 15), routedClock(1, 9, 40), 12, 84, views.NoMark, 0}
@@ -399,8 +449,8 @@ func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 			"  docs-site-getti… docs  work-team-plan  opus-5-5   ended 10:15        12",
 		}},
 		{width: 138, rows: []string{
-			"▸ infra-terraform-modules   plan  side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
-			"  docs-site-getting-started docs  work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
+			"▸ infra-terraform-modules   plan                        side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"  docs-site-getting-started docs                        work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
 		}},
 		{width: 173, rows: []string{
 			"▸ infra-terraform-modules   plan  side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
@@ -416,6 +466,52 @@ func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 				if got := rowOf(c, rowSaying(c, 2, named)); !strings.HasPrefix(got, want) {
 					t.Errorf("%s's row reads\n%q\nwant it to start\n%q", named, got, want)
 				}
+			}
+		})
+	}
+}
+
+// Of a short session, api auth, 8 cells, on side-hustle-consulting, 22, the
+// session's natural is its least, 11, so the row holds on whole sooner: at
+// 85, routing and worth left, on cut to keep started, as the narrowing has
+// it; at 90, worth back, on cut to keep it; and at 104 and 108 on whole, the
+// session taking the cells left past it.
+func TestTheListHoldsALongAccountWholeBesideShortSessions(t *testing.T) {
+	api := listedSession{"7f3a5c90", "~/Code/api", "side", idleFor(50 * time.Second), routedClock(1, 12, 47), 126, 1137, views.NoMark, 0}
+	tests := []struct {
+		width      int
+		heads, row string
+	}{
+		{
+			width: 85,
+			heads: "  session      on                   model      state        started          requests",
+			row:   "  api auth     side-hustle-consul…  opus-5-5   idle 50s     12:47                 126",
+		},
+		{
+			width: 90,
+			heads: "  session      on               model      state        started          requests    worth",
+			row:   "  api auth     side-hustle-co…  opus-5-5   idle 50s     12:47                 126   $11.37",
+		},
+		{
+			width: 104,
+			heads: "  session             on                      model      state        started          requests    worth",
+			row:   "  api auth            side-hustle-consulting  opus-5-5   idle 50s     12:47                 126   $11.37",
+		},
+		{
+			width: 108,
+			heads: "  session                 on                      model      state        started          requests    worth",
+			row:   "  api auth                side-hustle-consulting  opus-5-5   idle 50s     12:47                 126   $11.37",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			f := listFrame(t, tt.width, 30, placedList(api.placed("auth")))
+			c := f.page(longListDoc(), routedAt)
+			if got := rowOf(c, f.top()); got != tt.heads {
+				t.Errorf("the heads read\n%q\nwant\n%q", got, tt.heads)
+			}
+			if got := rowOf(c, rowSaying(c, 2, "api")); got != tt.row {
+				t.Errorf("api's row reads\n%q\nwant\n%q", got, tt.row)
 			}
 		})
 	}
@@ -712,10 +808,11 @@ func TestASessionOfNoRequestsTodayAndOfNoKnownStart(t *testing.T) {
 	f := listFrame(t, 160, 37, listOf(quiet))
 	c := f.page(framedDoc(nil, nil), routedAt)
 	y := f.top() + 1
-	if got, want := rowOf(c, y), "  db8a"+strings.Repeat(" ", 27)+"side      opus-5-5   idle 9m"+strings.Repeat(" ", 30)+"0        —"; got != want {
-		t.Errorf("its row reads\n%q\nwant\n%q", got, want)
+	row := rowOf(c, y)
+	if want := "  db8a" + strings.Repeat(" ", 9) + "side      opus-5-5   idle 9m" + strings.Repeat(" ", 30) + "0        —"; row != want {
+		t.Errorf("its row reads\n%q\nwant\n%q", row, want)
 	}
-	if got := c.at(100, y).ink; got != faintInk {
+	if got := c.at(columnOf(row, "—"), y).ink; got != faintInk {
 		t.Errorf("its worth is in %+v, want %+v", got, faintInk)
 	}
 }

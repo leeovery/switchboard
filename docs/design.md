@@ -5040,7 +5040,9 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
 `0 auto  1-3 pin  m move`; where they and this section differ, this section holds. Detail filling
 its space, and turned Compare's WEEKS and WORTH, are drawn in round 2 of the dashboard by entity,
 and kept as `accounts-detail-all-173x53`, all accounts' bands, `accounts-detail-work-12-weeks-173x53`,
-an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table on a phone.
+an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table on a phone; and
+`accounts-detail-104x58`, an account stacked on a tall, narrow screen, its USAGE bars filling the
+row.
 
 **Accounts' rules,** which Trends' YEAR, BY MONTH and MODELS BY DAY keep too:
 
@@ -5169,11 +5171,11 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   period, the label adds `now`, in `text.faint`.
 - **BY MODEL,** a blank row under WEEK USED, `share of use` after it in `text.faint`: on its heading
   row, each column's share of use as a stacked bar, the narrowest column less 4, at most 40, the
-  most of any bar beside words, so none reads as a rule; each version's part in its shade; then from
-  the row under it a row a version used in the period, in the version table's order, `●` in its
-  shade from column 2 and the version's name in `text.secondary`, cut to the labels' column, and in
-  each column its share, right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a share
-  that rounds to nothing (settled in the plan).
+  most of Compare's bars beside words, so none reads as a rule; each version's part in its shade;
+  then from the row under it a row a version used in the period, in the version table's order, `●`
+  in its shade from column 2 and the version's name in `text.secondary`, cut to the labels' column,
+  and in each column its share, right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a
+  share that rounds to nothing (settled in the plan).
 - **WEEKS,** a blank row under BY MODEL, `each week at its peak` after it in `text.faint`, and at
   12 months `, a month its fullest`: how full each column's weeks got, the weeks' own peaks and facts
   over the period's reach, as `views.AccountsRow`'s `Reached` and `Reaching` give them, worked out
@@ -5355,17 +5357,22 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   other models still come here`, in `accent.attention`, its USAGE row as `usage` draws a limit,
   while Compare's word stays the account's own (settled in the plan).
 - **USAGE,** row 8, then every window, used or not, from row 9, 2 rows apart: the window's name in
-  `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar, 40 wide at 160; a cell on, its
-  percentage, right-aligned in 4 and bold in its level's colour; and two cells on, `usage`'s full
-  words (see `usage`, the printout). A window the account doesn't have shows `no limit` in
-  `text.subtle` where its bar would start, its name beside it, as `usage` by account has it. For
-  `all accounts`, every account's window together, its words its room, `1.2 of 3 left`, of the
-  accounts that have it, as the pool's are. Its row is laid by flex as the stack's is (see Stacked):
-  the names as wide as the widest of every window listed in its shortest whole form, `Sonnet wk`,
-  never cut, and at least 8 cells; a cell on, the bars, at least 16, two fewer than the stack's, so
-  four weeks still fit at 108 columns; and the percentage and the words, in the cells of their form
-  at its widest, ending a cell before THIS WEEK. The bars take what's left, at most 40: 16 at 108
-  columns, 40 from 131.
+  `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar, 70 wide at 160, as
+  `accounts-detail-work-160` draws it; a cell on, its percentage, right-aligned in 4 and bold in its
+  level's colour; and two cells on, `usage`'s full words (see `usage`, the printout). A window the
+  account doesn't have shows `no limit` in `text.subtle` where its bar would start, its name beside
+  it, as `usage` by account has it. For `all accounts`, every account's window together, its words
+  its room, `1.2 of 3 left`, of the accounts that have it, as the pool's are. Its row is laid by
+  flex as the stack's is (see Stacked): the names as wide as the widest of every window listed in
+  its shortest whole form, `Sonnet wk`, never cut, and at least 8 cells; a cell on, the bars, at
+  least 16, two fewer than the stack's, so four weeks still fit at 108 columns; and the percentage
+  and the words, in the cells of their form at its widest, ending a cell before THIS WEEK. The bars
+  take every cell left, with no most: 18 at 108 columns, 47 at 138 and 70 at 160, with three
+  accounts. So the window's name stays at the left, the percentage and the words sit together at the
+  row's end, and the bar fills what's between them. The words' column keeps one width down the rows,
+  so every bar ends alike (the owner's call, 19 November 2026: a bar stopping halfway across, the
+  row blank past its words, left a floating gap on a tall, narrow screen; the bar long enough to
+  read as a rule is the lesser cost here, as its percentage and words end it).
 - **THIS WEEK,** on USAGE's row, from row 8, its title, then an item a row, labels 10 wide in
   `text.subtle`: `requests`; `limits`, each window's hits, `week ×1 · 5-hour ×2`, or for `all
   accounts`, how many; `plan`, by its name, or for `all accounts`, the plans summed, `$600/mo`;
@@ -5517,7 +5524,7 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     weeks, less than a week and a gap, stays blank at the right, or goes to the names where
     they're cut.
   - THIS WEEK, the rule and BY MODEL's bar end at the weeks' edge, and USAGE's row ends a cell
-    before THIS WEEK, its bars at most 40, so they don't grow past that.
+    before THIS WEEK, its words' column ending there and its bars taking what's left.
   - The layout follows the width, the period, the configured accounts and their labels, the
     windows the moment lists and the limits the period's page records alone, never the figures
     in view. The rows under BY MODEL move down with its second row, and with THIS WEEK's rows
@@ -5542,14 +5549,16 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     short, 14, under 70 columns; in full, the widest any window's words say within the week, a
     time on another day named by its weekday (`not read since Wed 14:20`, 24), so the words never
     lose their time and nothing moves as they change. A reading over a week back, said by its
-    date, is wider: where it doesn't fit, as at 73, it takes its short form, `read 22 Sep`, which
-    says when still, and from about 84 columns it reads in full. The bars take
-    their least of 18 first, then the names are raised toward their widest, then the bars grow
-    into what's left, at most 40, the one most of a bar beside words: 21 at 52 columns, 32 at 73
-    and 40 from 81. That's two cells short of the spike's 34 at 73, which kept only 22 for the
-    words (accuracy first, 21 October 2026).
+    date, is wider than the column, so Detail reads it in its short form, `read 22 Sep`, at every
+    width, stacked or wide, which still says when. The column isn't widened for it: that would
+    take cells from every bar, every reading, for a reading a week stale. The bars take their
+    least of 18 first, then the names are raised toward their widest, then the bars take every
+    cell left, so the words' column ends at the frame's edge, as wide, with the bars' ends in line
+    (the owner's call, 19 November 2026, as wide): 21 at 52 columns, 32 at 73 and 63 at 104. At 73
+    that's two cells short of the spike's 34, which kept only 22 for the words (accuracy first, 21
+    October 2026).
   - BY MODEL's bar runs on the heading's row from column 10 to the frame's edge, 62 at 73: a share
-    across the row, not a bar beside words, so the most of 40 doesn't hold it.
+    across the row, not a bar beside words.
   - BY DAY shows the latest weeks that fit from column 10 to the frame's edge, a week 14 cells,
     or 7 of 1-cell days, and a cell between: five of 1-cell days at 52 columns, seven at 73, and
     six of 2-cell days where they fit, from 100.
@@ -5717,7 +5726,8 @@ Where the use went: each project the period's sessions ran in, and the one chose
 is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the redesign by entity
 draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
 `projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
-`projects-108x24`, `projects-12-months-173x53` and `projects-many-114x40`.
+`projects-108x24`, `projects-12-months-173x53`, `projects-many-114x40` and `projects-104x58`, a
+tall, narrow screen, its SESSIONS filling the width.
 
 - **A session's project** is `status.Projects`'. It starts from `status.ProjectOf`: the project
   its lines name, else, of a line from before they named one, its directory's, a Claude Code
@@ -5849,21 +5859,25 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   widest that holds it, so every name starts at its column and the last ends at the edge
   (`namedSlots`, settled in the plan). Compare's charts keep whole steps and the spare at the
   right, because that spare is the gutter between its side-by-side charts (`compareSlots`,
-  settled in the plan: a fixed gutter thinned the columns and dropped names). SESSIONS is the
-  List's columns, the session's from 11 cells to its whole, then model, started and requests leaving as the width runs
-  short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
+  settled in the plan: a fixed gutter thinned the columns and dropped names). SESSIONS is the List's
+  columns, the session's from 11 cells to its natural, its widest name whole, 29 at the most, then
+  model, started and requests leaving as the width runs short; past every column's natural, the
+  session's takes every cell left, so the others, at their naturals, end at the frame's edge,
+  whatever the width (the owner's call, 19 November 2026: at 104 columns the table ended at `worth`,
+  a third of the row blank, and the session's name, which can run long, is what has a use for the
+  cells); its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
   and its date, each session's state its end by the clock alone and its start, where it began on
-  another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the widest each says of all
-  the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
-  as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
-  each frame. Past its rows, its last says how many sessions are out of view, as the List's row
-  over the key line does, but only where that leaves its page four rows, a rule over each of two
-  sessions, so it never costs a session at SESSIONS' least, however far it's scrolled. Where
-  rows run shorter than its least, a page of one line shows no rule, a rule showing only with the
-  session under it, and where no line fits, SESSIONS shows nothing, its heading never alone. BY
-  MODEL draws a version as Compare's BY MODEL does, ON ACCOUNTS its names as Detail's column of
-  names, marks and all. The chosen row is lit where `↑` and `↓` act, in the list or SESSIONS, the
-  other's bold, marked `▸`, a bar's own surface kept.
+  another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the
+  widest each says of all the project's sessions, so they hold still as it scrolls; the ended
+  sessions are measured once, as the watch builds the project's page (`dashboard.MeasureSessions`),
+  and only those running at each frame. Past its rows, its last says how many sessions are out of
+  view, as the List's row over the key line does, but only where that leaves its page four rows, a
+  rule over each of two sessions, so it never costs a session at SESSIONS' least, however far it's
+  scrolled. Where rows run shorter than its least, a page of one line shows no rule, a rule showing
+  only with the session under it, and where no line fits, SESSIONS shows nothing, its heading never
+  alone. BY MODEL draws a version as Compare's BY MODEL does, ON ACCOUNTS its names as Detail's
+  column of names, marks and all. The chosen row is lit where `↑` and `↓` act, in the list or
+  SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days before today, read off the update loop once
   Projects or Sessions' List first shows, one read serving both, from the period's first day, and
   again only where the dial reaches further back; and today's, folded off the loop at every read of
@@ -6258,7 +6272,7 @@ each at least its least and at most its natural, but `session`, which grows wher
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
-| `session` | 11 | 29, growing to hold the widest project and the widest name whole before `routing` takes what's left | Two cells, with no dot: its project, as Projects names the project's row, in `text.muted`, in a column of its own within this one, as wide as the widest project of the log, cut with `…` to leave the widest name whole, up to 14 cells of it, at its least 6, blank of a session of no project or of temporary folders, so the names line up; a space, then its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`, and a twin's id after it in `text.subtle`, cut with `…` to the rest, a twin's id kept whole |
+| `session` | 11 | Its whole, the widest project and the widest name of the log a cell apart, 29 at the most; growing to its whole before `routing` takes what's left; where `routing` has left, growing on to take what's left itself | Two cells, with no dot: its project, as Projects names the project's row, in `text.muted`, in a column of its own within this one, as wide as the widest project of the log, cut with `…` to leave the widest name whole, up to 14 cells of it, at its least 6, blank of a session of no project or of temporary folders, so the names line up; a space, then its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`, and a twin's id after it in `text.subtle`, cut with `…` to the rest, a twin's id kept whole |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
@@ -6294,11 +6308,11 @@ each at least its least and at most its natural, but `session`, which grows wher
   as much of its id as tells it from the others, its first 4 characters at the least, as `Named`
   names sessions among themselves. A twin's id is as long as that too. It's one owner, in `views`
   (`views.toldApart`, as the rows are made, setting `PeriodSession.Twinned` and `IDCells`).
-- **The project's column:** the List's projects take a column of their own within `session`, as
-  wide as the widest project of the log, measured as `started` is so it holds still as the List
-  scrolls, but cut to leave the widest name whole, up to 14 cells of it, at its least 6, so the
-  names line up; one long name is cut rather than cut every project. Within `session`'s 29 cells
-  at most, a short project leaves the name more.
+- **The project's column:** the List's projects take a column of their own within `session`, as wide
+  as the widest project of the log, measured as `started` is so it holds still as the List scrolls,
+  but cut to leave the widest name whole, up to 14 cells of it, at its least 6, so the names line
+  up; one long name is cut rather than cut every project. Within `session`'s natural, 29 cells at
+  most, a short project leaves the name more.
 - **The tree:** every Nerd Font glyph goes through one owner (`dashboard.nerdFont`), which gives
   what stands in for it without one: here, nothing, the name plain, as a font without the glyph
   draws a box.
@@ -6306,9 +6320,9 @@ each at least its least and at most its natural, but `session`, which grows wher
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
   what shows, giving way in this order as the frame narrows, so `routing` never shows beside either
   name cut short, nor `worth` or `started` beside `session` cut short:
-  1. `routing` leaves, while the leasts and `session` and `on` whole don't fit;
+  1. `routing` leaves, while the leasts, `session` at its natural and `on` whole don't fit;
   2. `on` is cut toward its least;
-  3. `worth`, then `started`, leave, while the leasts and `session` whole don't fit;
+  3. `worth`, then `started`, leave, while the leasts and `session` at its natural don't fit;
   4. `session` is cut toward its least;
   5. `model` leaves, only while the leasts don't fit, so before `on` is cut below 14.
 
@@ -6318,26 +6332,36 @@ each at least its least and at most its natural, but `session`, which grows wher
   fails safe.
 
   `session`, `on`, `state` and `requests` never leave. The second lays out what shows: what's past
-  the leasts goes to `session` first, to its natural, then to `on`, never past what the first left
-  it; then, where it shows, to `routing`, to the last column. Nothing else grows, so the spare lies
-  at the row's end until the next column fits. With a `model` of 9 cells and a `worth` of 7 at
-  most, as `opus-5-5` and `$48.20`: as the frame widens, `on` never narrows, and
-  `session` narrows only once, where `model` comes back: at 57 columns with names of 8 cells, from
-  21 cells to 11, and at 63 with names of 14 or more, likewise. `session` is whole from 75 with
-  names of 8 cells and from 81 with names of 14 or more; `started` comes back at 92 with names of
-  8 cells, `worth` at 101 and `routing` at 127; with the frames' long names, `on` 22, `started` at
-  98, `worth` at 107 and `routing` at 141. With those: at 108 columns `routing` has left, `session`
-  takes 29 and `on` 15; at 73 `worth` and `started` have too, `session` takes 21 and `on` holds its
-  14; at 138 both are whole. As `on` never takes back what it gave up for `worth` and `started`, a
-  name over 14 cells can stay cut with cells spare at the row's end: with the frames' long names,
-  from 82 to 97 columns and from 99 to 106, up to 16 cells. With `sonnet-5-5` and `$126.75+`, as
-  the frames' `sessions-list-sizable-200` has them, with names of 8 cells, `model` comes back at
-  58, `started` at 93, `worth` at 103 and `routing` at 129.
+  the leasts goes to `session` first, to its natural, then to `on`, to its whole; then, where
+  `routing` shows, to `session`, to its whole, and to `routing`, to the last column; and where
+  `routing` has left, to `session`, so the last column always ends at the row's end and nothing
+  floats short of it (the owner's call, 19 November 2026). `session`'s whole is the widest project
+  and the widest name of the whole log, a cell apart; its natural is that, at least 11 and at most
+  29, so a log of short names leaves the other columns its cells, and they come back sooner (decided
+  19 November 2026). With a `model` of 9 cells and a `worth` of 7 at most, as `opus-5-5` and
+  `$48.20`: as the frame widens, `session` and `on` narrow only where a column comes back, and then
+  together by exactly the cells it and its gap take, less the cell the frame widened by: where
+  `model` does, at 57 columns with names of 8 cells, `session` from 21 cells to 11, and at 63 with
+  names of 14 or more, likewise; and where `started`, `worth` and `routing` do, `session` back to
+  its natural and `on` to what the first pass left it. Of a log whose sessions take 29 cells or
+  more, `session` is at its natural from 75 with names of 8 cells and from 81 with names of 14 or
+  more; `started` comes back at 92 with names of 8 cells, `worth` at 101 and `routing` at 127; with
+  the frames' long names, `on` 22, `started` at 98, `worth` at 107 and `routing` at 141. With those:
+  at 108 columns `routing` has left, `session` takes 29 and `on` 15; at 73 `worth` and `started`
+  have too, `session` takes 21 and `on` holds its 14; at 138 `on` is whole and `session` takes the
+  rest. Of a shorter log, every column comes back sooner: of d28c alone, `switchboard d28c`, 16
+  cells, with names of 8 cells, `started` comes back at 79, `worth` at 88 and `routing` at 114. A
+  name over 14 cells is cut only where the row can't hold it beside the columns shown: beside a
+  session of 8 cells, `side-hustle-consulting` is cut at 85, keeping `started`, and at 90, keeping
+  `started` and `worth`, and reads whole at 104 and 108. With `sonnet-5-5` and `$126.75+`, as the
+  frames' `sessions-list-sizable-200` has them, its sessions 24 cells, with names of 8 cells,
+  `model` comes back at 58, `started` at 88, `worth` at 98 and `routing` at 124.
 - **No natural comes from the rows in view,** so the columns hold still as the List scrolls: the
-  session's is the directory's most, 24, and `on`'s the accounts configured; `model`'s and
-  `worth`'s are the widest of every session the List holds, out of view too. So they widen as a
-  session with a wider one comes, or as a running session's worth gains a digit, and narrow as
-  the widest session leaves the List or its latest request's model changes.
+  session's whole is the widest project and name of the whole log, and its natural that, up to 29;
+  and `on`'s the accounts configured; `model`'s and `worth`'s are the widest of every session the
+  List holds, out of view too. So they widen as a session with a wider one comes, or as a running
+  session's worth gains a digit, and narrow as the widest session leaves the List or its latest
+  request's model changes.
 - **What doesn't fit its cells** is cut with `…`: the directory to the cells after the id, the
   account to `on`'s, and `routing` as the Log cuts it, `…` in the colour of what it cuts and a
   move's cost kept whole.

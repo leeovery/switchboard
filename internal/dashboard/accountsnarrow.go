@@ -148,9 +148,10 @@ type detailUsageRow struct {
 // parts' leasts fit: its windows' names, from their least to their widest,
 // at least compareNameLeast and at most compareNameMost; a cell on, its
 // bars; then afterBar's cells, their percentages among them; and their
-// words. The bars take their least first, then the names are raised toward
-// their widest, then the bars grow into what's left, at most barMost, as
-// every bar beside words does.
+// words, ending the row. The bars take their least first, then the names are
+// raised toward their widest, then the bars take every cell left, with no
+// barMost, so the percentage and the words sit at the row's end (the owner's
+// call, 19 November 2026).
 func (r detailUsageRow) laid(room int) (detailUsage, bool) {
 	s, ok := flex.Lay(room, r.parts()...)
 	return detailUsage{names: s[detailUsageNames].Size, at: s[detailUsageBar].At, bar: s[detailUsageBar].Size}, ok
@@ -166,7 +167,7 @@ func (r detailUsageRow) leastCells() int {
 func (r detailUsageRow) parts() []flex.Part {
 	return []flex.Part{
 		detailUsageNames: {Least: max(r.least, compareNameLeast), Natural: r.names, Most: compareNameMost},
-		detailUsageBar:   {Least: r.bar, Natural: r.bar, Grows: true, Most: barMost, Gap: 1},
+		detailUsageBar:   {Least: r.bar, Natural: r.bar, Grows: true, Gap: 1},
 		detailUsageAfter: {Least: afterBar, Natural: afterBar},
 		detailUsageWords: {Least: r.words, Natural: r.words},
 	}
