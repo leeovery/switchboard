@@ -61,10 +61,3 @@ past ordinary use that fails safe, or an improvement. Gathered here for later.
   next look.
 - **About fifteen exact-match id lookups** (`a.ID == id`) in launch, setup, capture, dashboard,
   idmove and views could move onto `config.Accounts.ByID`, ignoring case, where that's right.
-
-## Tests
-
-- **`TestASummaryOfADayTheMacNeverSawIsCopiedInWithItsStamp` is timing-dependent.** Under load the
-  router can summarise the day an import copied in before the import copies that day's summary, so
-  it counts no summary copied. The content is the same. Seen once in a whole run on 11 November;
-  it dates from the import's first build (#246).
