@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-11-19
+
+💥 Breaking
+- The `w` key and the saved "show models' windows" preference are gone from the dashboard — a model's own week (e.g. Fable) now shows automatically wherever an account has used it.
+
+✨ Added
+- Sessions are named after the tmux or zmx terminal session they were started in — shown in the Sessions list, project pages and session page, and searchable in the Log's find.
+- Sessions started with `claude --worktree` are placed in the worktree's folder, and worktree names show on Sessions and Projects, with an optional Nerd Font tree marker via `[dashboard] nerd_font = true`.
+- Accounts held because their usage read was refused (subscription lapsed or token refused) now appear as "held" events in the Log, LATELY and notifications, with the sessions they moved and when the hold lifted.
+- Runway marks the stretch before a newly added account's first reading with dots and "new since …" words, instead of leaving it blank.
+- `switchboard pool` JSON now lists each pool's resolved absolute `paths` beside `dirs`.
+- Setup offers to add its shell line for completions alone when your shell already runs switchboard's claude but hasn't loaded its completions.
+- Setup's new pool card warns of directories that aren't on this Mac, as `pool add` does.
+- Held windows read "cap · back Mon" or "limit · back Sun" in narrow spaces, instead of just the time.
+- Ended sessions' summaries now remember the pool each idle account was in, so pool histories show idle accounts correctly.
+
+🔧 Changed
+- Sessions' List shows each session by project and name, with ids added only to tell apart sessions that would otherwise look alike.
+- `history --windows --json` now includes the pool and its label.
+- `usage` model-window flags (e.g. `--fable`) work only where some account has used that window, with clearer errors.
+- Restarts the router's binary refuses to start are now called "put off" instead of "held".
+- Runway's COMING UP and LATELY now take the full frame width when stacked.
+
+🐛 Fixed
+- Pool labels made of invisible characters or spaces now fall back to the pool's id instead of showing blank.
+- Labels split by invisible characters can no longer smuggle in a token-like string.
+- Events printed by `switchboard events` now pair each hold with its lift, as the Log does.
+- Moves counted for all accounts now add up the same in the Log, dashboard and history.
+- The pool's totals on ROUTING now match the sum of its accounts' sessions and requests.
+- Concurrent writers (ledger, tokens, preferences, logs) now share one file-locking implementation, making lock handling more consistent.
+- A month's "reached cap" mark on Accounts' reach chart now shows when any of its weeks hit the cap.
+
 ## [1.0.1] - 2026-11-18
 
 🐛 Fixed
