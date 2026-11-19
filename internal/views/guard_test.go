@@ -138,7 +138,7 @@ var (
 		"quota.Compare":     "status.CompareWindows",
 		"quota.CompareKeys": "status.CompareWindows",
 		// Which windows a live view lists: those every model shares, and
-		// each model's own while w shows them or it nears its limit.
+		// each model's own where some account has used it.
 		"score.Policy.IsShared": "status.Moment.Listed",
 		"score.Policy.Shared":   "status.Moment's Listed and SharedWindows",
 		// The time spent at a cap or a limit, together, and whether it's

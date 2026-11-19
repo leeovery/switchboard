@@ -1,0 +1,44 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log        Thu 1 Oct  16:05:42
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────
+
+9c2e website        idle 13m               ●━━━━━━━━━━━━━━━━━┓  ○ work          ● at its cap · 17:10
+                                                             ┃  ○  Week         ▊ ┃     34%  19%/day · Sun
+c61b mobile         ↓ answering            ●━━━━━━━━━━━━━━┓  ┃  ○
+d28c switchboard    idle 6s      ▸ work    ●━━━━━━━━━━━┓  ┃  ┃  ○  5-hour           ┃▋  95%  cap · 17:10
+7f3a api            idle 2m      ▸ work    ●━━━━━━━━┓  ┃  ┃  ┃
+db8a infra          idle 47s     ▸ work    ●━━━━━┓  ┃  ┃  ┃  ┃
+41e0 docs           ↑ asking     ▸ perso…  ●━━┓  ┃  ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┃  ┃  ┃╌╌○ personal    ◆ ■ limit reached · 16:30
+                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉  Week            ┃    66%  14%/day · Sun
+                                              ┃  ┃  ┃  ┃  ┃     ○
+                                              ┃  ┃  ┃  ┃  ┃     ○  5-hour            ┃ 100%  limit · 16:30
+                                              ┃  ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┃  ┃
+                                              ┃  ┃  ┃  ┃  ┗━━━━━◉ side        ▲ ● open · next
+                                              ┃  ┃  ┃  ┗━━━━━━━━◉  Week           ┃ ▎   78%  6%/day · Mon
+                                              ┃  ┃  ┗━━━━━━━━━━━◉
+                                              ┃  ┗━━━━━━━━━━━━━━◉  5-hour       ▌ ┃     31%  25%/h · 18:50
+                                              ┗━━━━━━━━━━━━━━━━━◉
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+┃ even pace: where you would be now, used evenly
+◆ primary    ▲ new sessions go here
+tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit

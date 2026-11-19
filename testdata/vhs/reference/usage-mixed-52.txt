@@ -16,15 +16,5 @@ WEEK
 
  side       ▲  ▌┃           13%  21%/h till 18:50
 
-FABLE WEEK
-
- work          ▌    ┃    ╎  12%  25%/day · Sun
-
- personal   ◆         ┃      0%  40%/day · Sun
-
- side       ▲ ▌    ┃         4%  25%/day · Mon
-────────────────────────────────────────────────────
- Σ pool       ▋      ┃       5%  2.8 of 3 left
-
 ┃ even pace: where you would be now, used evenly
 ╎ cap: work at 95%

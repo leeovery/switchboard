@@ -555,25 +555,29 @@ func TestTheStacksStretchHasNoCellsPastTheEdge(t *testing.T) {
 	}
 }
 
-// USAGE's names column is as wide as the widest of every window listed,
-// shown or not, so the bars hold still as a model's window comes and goes:
-// with Sonnet's week named long, Week's bar starts after its name whether
-// that window shows or not.
+// USAGE's names column is as wide as the widest of every window it may
+// list, used or not, so the bars hold still as a model's window comes and
+// goes: with Sonnet's week named long, Week's bar starts after its name
+// whether that window shows or not, as some account has used it or none has.
 func TestStackedDetailsUSAGEHoldsStillAsWindowsComeAndGo(t *testing.T) {
 	names := map[string]string{"7d": "Week", "5h": "5-hour", "7d_oi": "Sonnet long week"}
 	want := "Week           ████████▉"
-	for _, models := range []bool{true, false} {
+	for _, used := range []bool{true, false} {
+		doc := phoneDoc()
+		if !used {
+			doc = usageWorld(extraOff, func(d *status.Document) { d.Events = onAuto() }, fableUnused)
+		}
 		f := phoneText(t, 73, 60, AccountsDetail, "work", phonePage(t), nil)
-		f.Models, f.WindowName = models, func(key string) string { return names[key] }
-		f = f.At(phoneDoc(), routedAt)
+		f.WindowName = func(key string) string { return names[key] }
+		f = f.At(doc, routedAt)
 		c := newCanvas(f.Width, f.Height)
-		f.detailStackedBody(phoneDoc(), routedAt).draw(c, 0)
+		f.detailStackedBody(doc, routedAt).draw(c, 0)
 		rows := textOf(c.rows(Look{}))
 		if week := rowStarting(t, rows, "Week "); !strings.HasPrefix(week, want) {
-			t.Errorf("with the models' windows shown %v, Week's row is %q, want it to start %q", models, week, want)
+			t.Errorf("with Sonnet's week used %v, Week's row is %q, want it to start %q", used, week, want)
 		}
-		if shown := slices.ContainsFunc(rows, func(r string) bool { return strings.HasPrefix(r, "Sonnet long wk ") }); shown != models {
-			t.Errorf("with the models' windows shown %v, Sonnet's week shows %v", models, shown)
+		if shown := slices.ContainsFunc(rows, func(r string) bool { return strings.HasPrefix(r, "Sonnet long wk ") }); shown != used {
+			t.Errorf("with Sonnet's week used %v, it shows %v", used, shown)
 		}
 	}
 }

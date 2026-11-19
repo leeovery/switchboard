@@ -483,18 +483,19 @@ func (d detailDrawn) scrolls() (x, y, width, rows int) {
 	return d.l.panel, d.f.top(), d.f.Width - d.l.panel, d.f.viewRows()
 }
 
-// windows are the windows USAGE shows: those the Overview lists, used or
-// not, as listedWindows has them.
+// windows are the windows USAGE shows: those the Overview lists, as
+// listedWindows has them.
 func (d detailDrawn) windows() []shownWindow {
 	return d.f.listedWindows(d.m)
 }
 
 // windowNames are the cells of the widest name Detail's USAGE gives a
-// window, in its shortest whole form, of every window the moment m lists,
-// shown or not, so its row doesn't move as the windows shown change.
+// window, in its shortest whole form, of every window the moment m may list,
+// as its Reported has them, so its row doesn't move as the windows shown
+// change.
 func (f Frame) windowNames(m status.Moment) int {
 	names := 0
-	for _, w := range usageWindows(m.Listed(true), f.windowNamer(m)) {
+	for _, w := range usageWindows(m.Reported(), f.windowNamer(m)) {
 		names = max(names, ansi.StringWidth(status.Short(w.name)))
 	}
 	return names
@@ -996,7 +997,7 @@ func (d detailDrawn) sessionTargets() []Target {
 // eases from where it stood, but none USAGE draws empty; and all accounts'
 // windows, by their keys alone.
 func (d detailDrawn) filled() map[Ref]float64 {
-	filled := windowsFilled(d.m, func(w status.WindowNow) bool { return !drawsEmpty(w.Kind) })
+	filled := windowsFilled(d.m, func(w status.WindowNow) bool { return !drawsEmpty(w) })
 	for _, w := range d.m.All().Windows {
 		filled[Ref{Window: w.Key}] = w.Used
 	}

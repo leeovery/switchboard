@@ -82,12 +82,8 @@ func checkMomentAgainstStatus(t *testing.T, doc status.Document, m status.Moment
 	if want := dashboardBestOf(doc); m.Next != want {
 		t.Errorf("Next = %q, want %q, as the dashboard's bestOf marks ▲", m.Next, want)
 	}
-	shown, hidden := dashboardWindowsOf(doc, now)
-	if got := keysOf(m.Shown); !slices.Equal(got, shown) {
-		t.Errorf("Shown = %q, want %q", got, shown)
-	}
-	if got := keysOf(m.Hidden); !slices.Equal(got, hidden) {
-		t.Errorf("Hidden = %q, want %q", got, hidden)
+	if got, want := keysOf(m.Windows), windowKeysOf(doc); !slices.Equal(got, want) {
+		t.Errorf("Windows = %q, want %q", got, want)
 	}
 	for i, a := range doc.Accounts {
 		checkAccountAgainstStatus(t, doc, a, i+1, m)
@@ -196,6 +192,8 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		if want.Held {
 			want.Back, want.Since = want.At, got.Since
 		}
+		hold, limited := a.Held(now, policy)
+		want.HeldAsOwn = limited && slices.Contains(hold.Windows, w.Key)
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
 		want.RunsOut, want.Out = want.Kind == status.WindowRunsOut, out
@@ -206,8 +204,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		if share, ok := dashboardProjected(want.Kind, out.Projection); ok {
 			want.Projected = &share
 		}
-		want.Nearing = want.Projected != nil && !runsOut && *want.Projected >= doc.Floor(a)-status.Near-score.Tolerance
-		want.InUse = dashboardInUse(stands, doc.Project(a, w, now, policy).Projection)
+		want.Unused = !want.Shared && want.Kind != status.WindowStale && !want.Held && !want.Capped && want.Used == 0
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("%s's %s stands as\n%+v\nwant\n%+v", a.ID, w.Key, got, want)
@@ -276,45 +273,19 @@ func dashboardProjected(kind status.WindowKind, p score.Projection) (float64, bo
 	}
 }
 
-// dashboardInUse reports whether a window standing as stands, heading as p
-// says, is in use, as the dashboard's inUse has it.
-func dashboardInUse(stands quota.Window, p score.Projection) bool {
-	if stands.Utilization > 0 {
-		return true
-	}
-	switch p.Kind {
-	case score.RunsOut, score.Exhausted:
-		return true
-	case score.OnPace:
-		return p.AtReset > score.Tolerance
-	default:
-		return false
-	}
-}
-
-// dashboardWindowsOf are the keys of doc's accounts' windows shown at now,
-// and those hidden, as the dashboard's windowsOf has them.
-func dashboardWindowsOf(doc status.Document, now time.Time) (shown, hidden []string) {
-	used := make(map[string]bool)
+// windowKeysOf are the keys of doc's accounts' windows, and those a probe
+// of one expected but couldn't read, once each, in quota's order.
+func windowKeysOf(doc status.Document) []string {
+	var keys []string
 	for _, a := range doc.Accounts {
 		for _, w := range a.Windows {
-			stands, _ := a.WindowAt(w.Key, now, policy)
-			used[w.Key] = used[w.Key] || policy.IsShared(w.Key) || dashboardInUse(stands, doc.Project(a, w, now, policy).Projection)
+			keys = append(keys, w.Key)
 		}
 		for _, f := range a.Failures {
-			used[f.Window] = true
+			keys = append(keys, f.Window)
 		}
 	}
-	for key, inUse := range used {
-		if inUse {
-			shown = append(shown, key)
-		} else {
-			hidden = append(hidden, key)
-		}
-	}
-	slices.SortFunc(shown, quota.CompareKeys)
-	slices.SortFunc(hidden, quota.CompareKeys)
-	return shown, hidden
+	return slices.Compact(slices.SortedFunc(slices.Values(keys), quota.CompareKeys))
 }
 
 // dashboardBestOf is the account ▲ marks, as the dashboard's bestOf has it:
@@ -433,7 +404,7 @@ func TestAMomentNamesAWindowAsItsAccountsDoElseByItsKey(t *testing.T) {
 	}
 }
 
-func TestTheWindowsShownAndHiddenAreNamed(t *testing.T) {
+func TestTheMomentsWindowsAreNamed(t *testing.T) {
 	doc := routerDocOf(
 		with(readAt("work", windowIn("5h", 0.2, 3*time.Hour), windowIn("7d", 0.4, 2*day), windowIn("7d_oi", 0, 2*day)), func(a *status.Account) {
 			a.Failures = []quota.Failure{{Label: "Sonnet", Window: "7d_sonnet", Error: "HTTP 529 · Overloaded"}}
@@ -441,16 +412,14 @@ func TestTheWindowsShownAndHiddenAreNamed(t *testing.T) {
 		readAt("side", quota.Window{Key: "5h", Utilization: 0.1, ResetsAt: built.Add(time.Hour)}, windowIn("7d_oi", 0, 2*day)),
 	)
 	m := doc.At(built, policy)
-	wantShown := []status.WindowName{
+	want := []status.WindowName{
 		{Key: "5h", Label: "Session", Name: "5-hour"},
 		{Key: "7d", Label: "Week", Name: "Week"},
+		{Key: "7d_oi", Label: "Fable week", Name: "Fable week"},
 		{Key: "7d_sonnet", Label: "7d_sonnet", Name: "7d_sonnet"},
 	}
-	if !reflect.DeepEqual(m.Shown, wantShown) {
-		t.Errorf("Shown = %+v, want %+v: every model's windows, and one a probe couldn't read, named by their first label", m.Shown, wantShown)
-	}
-	if want := []status.WindowName{{Key: "7d_oi", Label: "Fable week", Name: "Fable week"}}; !reflect.DeepEqual(m.Hidden, want) {
-		t.Errorf("Hidden = %+v, want %+v: a model's own window unused on every account", m.Hidden, want)
+	if !reflect.DeepEqual(m.Windows, want) {
+		t.Errorf("Windows = %+v, want %+v: every window, used or not, and one a probe couldn't read, named by their first label", m.Windows, want)
 	}
 	work, _ := m.Account("work")
 	if w, _ := work.Window("7d_oi"); w.Name != "Fable week" || w.Label != "Fable week" {
@@ -937,8 +906,8 @@ func TestARunOutTheClockHasReachedIsNone(t *testing.T) {
 			if a.Routing.Kind != status.RoutingPressed || !slices.Equal(a.Routing.Clauses, clauses) {
 				t.Errorf("Routing = %+v, want under pressure, saying %q", a.Routing, clauses)
 			}
-			if !runsOut && (w.Out != status.RunOut{} || w.Projected != nil || w.Nearing) {
-				t.Errorf("the session heads to %+v, projected %v, nearing %v; want nowhere", w.Out, w.Projected, w.Nearing)
+			if !runsOut && (w.Out != status.RunOut{} || w.Projected != nil) {
+				t.Errorf("the session heads to %+v, projected %v; want nowhere", w.Out, w.Projected)
 			}
 		})
 	}
@@ -1315,7 +1284,7 @@ func factsOf(m status.Moment) status.Moment {
 	return status.Moment{
 		Now: m.Now, ReadAt: m.ReadAt, Routed: m.Routed, Probed: m.Probed, Fallback: m.Fallback, Health: m.Health, Restart: m.Restart, Pin: m.Pin,
 		Events: m.Events, Sessions: m.Sessions, ComingUp: m.ComingUp, Next: m.Next, Accounts: m.Accounts,
-		Shown: m.Shown, Hidden: m.Hidden, Coming: m.Coming,
+		Windows: m.Windows, Coming: m.Coming,
 	}
 }
 

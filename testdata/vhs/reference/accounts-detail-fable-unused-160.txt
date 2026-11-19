@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+
+ all accounts       │   personal ◆   ● open
+                    │
+ work          ●    │   USAGE                                                                                                          THIS WEEK
+                    │   Week                               ┃               66%  out ~Sat                                               requests  2,330
+ personal    ◆ ●    │                                                                                                                  limits    5-hour ×1
+                    │   5-hour                  ▋          ┃               39%  34%/h till 16:30                                       plan      Ultra
+ side          ●    │                                                                                                                  worth     $212  4.6×
+                    │   Fable wk no use                                                                                                extra use off
+                    │
+ ↑↓ choose          │   BY MODEL
+                    │               ● Opus 5.5 29%  ● Sonnet 5.5 60%  ● Sonnet 5 7%  ● Haiku 4.5 4%
+                    │
+                    │   ┄┄ the last seven weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │
+                    │   BY DAY      ▪     ▪                               ▪     ▪             ▪             ▪   ▪   ▪         ▪     ▪               ▪   ······
+                    │               17 Aug            24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
+                    │
+                    │   WEEKS             ▎   70           ▎    58            ▉   77            ▎   69              ▏ 90             ▋  85                66
+                    │
+                    │   limit hit 0 of the last 6 weeks · 25% left at a reset, on average
+                    │
+                    │   WORTH
+                    │
+                    │                                                                     ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+                    │
+                    │
+                    │
+                    │               Mon               Tue               Wed               Thu              Fri               Sat               Sun
+                    │               peak Wed $81.32
+                        ▼ 11 more below · j/k
+tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit

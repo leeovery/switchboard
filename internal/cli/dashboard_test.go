@@ -98,7 +98,6 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		{page: "every page", next: "Overview:", says: "j, k, PgDn, PgUp and the wheel scroll a view where it doesn't fit: the Overview's USAGE"},
 		{page: "every page", next: "Overview:", says: "Accounts' views, a project's SESSIONS, Sessions' List"},
 		{page: "every page", next: "Overview:", says: "Runway's lanes, Trends' page, the Log's table"},
-		{page: "every page", next: "Overview:", says: "w, where it's listed as models, shows and hides each model's own window"},
 		{page: "Overview", next: "Accounts:", says: "b groups the windows by window or by account"},
 		{page: "Overview", next: "Accounts:", says: "↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are"},
 		{page: "Accounts", next: "Projects:", says: "< and > step the period Compare, Detail and Tokens count over, the one Projects and Sessions' List share"},

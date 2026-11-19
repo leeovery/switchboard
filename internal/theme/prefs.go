@@ -23,7 +23,6 @@ const prefsName = "prefs.json"
 // Prefs are the dashboard's preferences, which it keeps as they change, and
 // the user never needs to write: the themes it's drawn in, the tab it
 // shows, the Overview's sections shown and how its windows are grouped,
-// whether the live views show each model's own window,
 // what Accounts, Sessions and Runway show, Graphs' sections shown, and the
 // Log's columns.
 type Prefs struct {
@@ -46,10 +45,6 @@ type Prefs struct {
 	// By names how the Overview's windows are grouped, window or account, as
 	// b last left it: "" for the config's [usage] by.
 	By string `json:"by,omitempty"`
-	// Models is whether the live views show each model's own window, as
-	// Fable's week, as w last left it: unset, as a file without it reads,
-	// hides them.
-	Models bool `json:"models,omitempty"`
 	// Period is the period the entity tabs count over, one dial they share,
 	// by its name, as < and > last left it: today, "" for this week, 30-days,
 	// 12-weeks or 12-months. "" reads the one Accounts.Period keeps, where a
@@ -149,8 +144,10 @@ var prefsKeys = func() []string {
 
 // retiredKeys are keys earlier builds kept that no build reads now, but as
 // read says, which the next write drops: graphs, the chart the Overview's
-// GRAPHS drew; and history, what the History tab's views showed.
-var retiredKeys = []string{"graphs", "history"}
+// GRAPHS drew; history, what the History tab's views showed; and models,
+// whether w showed each model's own window, which shows now where an
+// account has used it.
+var retiredKeys = []string{"graphs", "history", "models"}
 
 // retiredSections are the Overview's sections earlier builds kept shown that
 // it no longer has, which the next write drops: graphs, GRAPHS.

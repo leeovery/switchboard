@@ -66,10 +66,10 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 		{
 			name: "auto, as usage and the Overview draw it", world: worlds.auto(), best: "side",
 			words: []string{
-				"work 5h 95% pace 51%", "work 7d 34% pace 53% out Sat 19:20", "work 7d_oi 12% pace 53% 25%/day",
+				"work 5h 95% pace 51%", "work 7d 34% pace 53% out Sat 19:20", "work 7d_oi 0% pace 53% 29%/day",
 				"personal 5h 39% pace 64% 34%/hour", "personal 7d 66% pace 65% out Sat 05:45", "personal 7d_oi 0% pace 65% 40%/day",
-				"side 5h 13% pace 17% 21%/hour", "side 7d 78% pace 46% out Fri 16:08", "side 7d_oi 4% pace 46% 25%/day",
-				"pool 5h 49% 1.5 left", "pool 7d 59% 1.2 left", "pool 7d_oi 5% 2.8 left",
+				"side 5h 13% pace 17% 21%/hour", "side 7d 78% pace 46% out Fri 16:08", "side 7d_oi 0% pace 46% 26%/day",
+				"pool 5h 49% 1.5 left", "pool 7d 59% 1.2 left", "pool 7d_oi 0% 3.0 left",
 			},
 			comingUp: []string{
 				"Thu 16:30 personal reset 5h", "Thu 17:10 work back at its cap", "Thu 18:50 side reset 5h",
@@ -78,22 +78,29 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 			},
 		},
 		{
+			name: "the Fable world, its Fable weeks used on work and side", world: worlds.fable(), best: "side",
+			words: []string{
+				"work 7d_oi 12% pace 53% 25%/day", "personal 7d_oi 0% pace 65% 40%/day", "side 7d_oi 4% pace 46% 25%/day",
+				"pool 7d_oi 5% 2.8 left",
+			},
+		},
+		{
 			name: "pinned to personal since 14:02", world: worlds.pinned(), best: "personal",
 			words: []string{"pool 5h 39% 0.6 left", "pool 7d 66% 0.3 left", "pool 7d_oi 0% 1.0 left"},
 		},
 		{
 			name: "routing's limit, personal at its limit till 15:54", world: worlds.limit(), best: "side",
-			words:    []string{"personal 5h 100% pace 76%", "pool 5h 69% 0.9 left", "pool 7d_oi 5% 2.8 left"},
+			words:    []string{"personal 5h 100% pace 76%", "pool 5h 69% 0.9 left", "pool 7d_oi 0% 3.0 left"},
 			comingUp: []string{"Thu 15:54 personal back", "Thu 17:10 work back at its cap", "Thu 18:50 side reset 5h"},
 		},
 		{
 			name: "the bad hour, pinned to personal and side, work refused", world: worlds.badHour(), best: "side",
-			words:    []string{"pool 5h 56% 0.9 left", "pool 7d 72% 0.6 left", "pool 7d_oi 2% 2.0 left"},
+			words:    []string{"pool 5h 56% 0.9 left", "pool 7d 72% 0.6 left", "pool 7d_oi 0% 2.0 left"},
 			comingUp: []string{"Thu 15:54 personal back", "Thu 18:50 side reset 5h"},
 		},
 		{
 			name: "six accounts, lab under pressure", world: worlds.many(6), best: "side",
-			words: []string{"pool 5h 46% 3.2 left", "pool 7d 48% 3.1 left", "pool 7d_oi 8% 5.5 left"},
+			words: []string{"pool 5h 46% 3.2 left", "pool 7d 48% 3.1 left", "pool 7d_oi 0% 6.0 left"},
 		},
 		{
 			name: "ten accounts, lab under pressure and team at its limit", world: worlds.many(10), best: "side",

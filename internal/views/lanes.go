@@ -502,7 +502,7 @@ func (RunwayWindow) KeyIn(m status.Moment) string {
 // for, so has no lane in the view.
 func (from LanesFrom) lacks(a status.AccountNow) bool {
 	w, _ := a.Window(from.viewKey())
-	return w.Kind == status.WindowNone
+	return w.Without()
 }
 
 // saysFrom is the first column a lane's words are said of: now's, live, or

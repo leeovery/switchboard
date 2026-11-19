@@ -416,6 +416,17 @@ func Short(label string) string {
 	return label
 }
 
+// Headed is a window's label as its heading names it, cleaned: a model's
+// own week, as Fable week, is its model alone, Fable, as a model's only
+// window of its own is a week; any other label as it is.
+func Headed(label string) string {
+	label = prose.Clean(label)
+	if before, ok := strings.CutSuffix(label, " week"); ok && before != "" {
+		return before
+	}
+	return label
+}
+
 // projection says where a window standing at now as w has it is heading,
 // such as "on pace for 92%", "runs out ~19:40", "runs out ~Fri" or
 // "exhausted", with times in now's time zone, as prose.RunOut tells a

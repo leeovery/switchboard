@@ -165,8 +165,8 @@ func TestAFileOfV027WithGRAPHSReadsWithoutItAndTheNextWriteDropsIt(t *testing.T)
 		{
 			name: "GRAPHS shown and its burn-down",
 			file: `{"by": "account", "graphs": "burn-down", "models": true, "sections": ["usage", "graphs", "routing", "lately"], "tab": "overview", "theme": "nord"}`,
-			read: theme.Prefs{Choice: theme.Choice{Theme: "nord"}, Tab: "overview", Sections: []string{"usage", "routing", "lately"}, By: "account", Models: true},
-			written: "{\n  \"by\": \"account\",\n  \"models\": true,\n  \"sections\": [\n    \"usage\",\n    \"routing\",\n    \"lately\"\n  ],\n" +
+			read: theme.Prefs{Choice: theme.Choice{Theme: "nord"}, Tab: "overview", Sections: []string{"usage", "routing", "lately"}, By: "account"},
+			written: "{\n  \"by\": \"account\",\n  \"sections\": [\n    \"usage\",\n    \"routing\",\n    \"lately\"\n  ],\n" +
 				"  \"tab\": \"runway\",\n  \"theme\": \"nord\"\n}\n",
 		},
 		{
@@ -211,37 +211,31 @@ func TestAFileOfV027WithGRAPHSReadsWithoutItAndTheNextWriteDropsIt(t *testing.T)
 	}
 }
 
-// Whether the live views show each model's own window is kept beside the
-// rest and read back; left out while they're hidden, as a file without it
-// reads, and as one of an earlier build does.
-func TestWhetherModelsWindowsShowIsKeptAndHiddenWithout(t *testing.T) {
-	state := t.TempDir()
-	path := filepath.Join(state, "prefs.json")
-	prefs := theme.NewPrefsFile(state, clock)
+// Whether w showed each model's own window, which earlier builds kept, reads
+// cleanly and is ignored, shown or hidden, the rest as it was kept, and the
+// next write drops it: a model's own window shows now where an account has
+// used it, with no key.
+func TestWhetherModelsWindowsShowedReadsCleanlyAndTheNextWriteDropsIt(t *testing.T) {
+	for _, kept := range []string{"true", "false"} {
+		t.Run("models "+kept, func(t *testing.T) {
+			state := t.TempDir()
+			path := filepath.Join(state, "prefs.json")
+			write(t, path, `{"models": `+kept+`, "tab": "runway"}`)
+			prefs := theme.NewPrefsFile(state, clock)
 
-	if prefs.Read().Models {
-		t.Error("without a file, Read().Models is set; want them hidden")
-	}
-	if err := os.WriteFile(path, []byte(`{"tab": "runway", "graphs": "burn-down"}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if prefs.Read().Models {
-		t.Error("a file of an earlier build reads Models set; want them hidden")
-	}
-	if err := prefs.Update(func(p *theme.Prefs) { p.Models = true }); err != nil {
-		t.Fatal(err)
-	}
-	if got := prefs.Read(); !got.Models || got.Tab != "runway" {
-		t.Errorf("Read() = %+v, want Models read back beside the tab", got)
-	}
-	if data, err := os.ReadFile(path); err != nil || !strings.Contains(string(data), `"models": true`) {
-		t.Errorf("prefs.json holds %s, %v; want models kept", data, err)
-	}
-	if err := prefs.Update(func(p *theme.Prefs) { p.Models = false }); err != nil {
-		t.Fatal(err)
-	}
-	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "models") {
-		t.Errorf("prefs.json holds %s, %v; want models left out while hidden", data, err)
+			if got, want := prefs.Read(), (theme.Prefs{Tab: "runway"}); !reflect.DeepEqual(got, want) {
+				t.Errorf("Read() = %+v, want %+v", got, want)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Errorf("the file is gone after a read, %v; want it read cleanly, not set aside", err)
+			}
+			if err := prefs.Update(func(p *theme.Prefs) { p.By = "account" }); err != nil {
+				t.Fatal(err)
+			}
+			if data, err := os.ReadFile(path); err != nil || string(data) != "{\n  \"by\": \"account\",\n  \"tab\": \"runway\"\n}\n" {
+				t.Errorf("after the next write, prefs.json holds\n%s\nwant models dropped, the rest kept", data)
+			}
+		})
 	}
 }
 

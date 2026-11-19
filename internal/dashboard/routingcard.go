@@ -366,11 +366,11 @@ func till(what string, t time.Time, now time.Time) string {
 
 // figureOf is the use of an account's window as it stands, as usage reads it:
 // none where its bar draws empty, as where the account has no usable token or
-// nothing is read of the window, and where it has no such window, saying
-// so; else its use, stale or not.
+// nothing is read of the window, and where it goes without it, as Without
+// says, saying so; else its use, stale or not.
 func figureOf(w status.WindowNow) Figure {
-	if drawsEmpty(w.Kind) {
-		return Figure{None: w.Kind == status.WindowNone}
+	if drawsEmpty(w) {
+		return Figure{None: w.Without()}
 	}
 	return Figure{Used: w.Used, Read: true, Stale: w.Kind == status.WindowStale}
 }

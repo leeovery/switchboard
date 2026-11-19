@@ -26,45 +26,95 @@ func usageAccount(id string, used float64, session time.Time, weekUsed, fableUse
 	}}
 }
 
-// Every live view lists each model's own window, as Fable's week, only while
-// w shows them, as the moment's Listed has it: USAGE, by window and by
-// account; Accounts' Detail; Sessions' Switchboard; and a session's page. One
-// nearing its limit shows all the same.
-func TestEveryLiveViewListsAModelsWindowWhileWShowsThemOrItNearsItsLimit(t *testing.T) {
+// Every live view lists each model's own window, as Fable's week, as it
+// lists the 5-hour: where some account has used it, as the moment's Listed
+// has it: USAGE, by window and by account; Accounts' Detail; Sessions'
+// Switchboard; and a session's page. Where no account has, none lists it,
+// though a 99.99% reserve puts every account's floor at 0.01%. Its heading
+// is its model's name alone.
+func TestEveryLiveViewListsAModelsWindowWhereSomeAccountHasUsedIt(t *testing.T) {
 	byAccount := frameOf(160, 40)
 	byAccount.By = ByAccount
-	nearing := func(d *status.Document) { d.Accounts[2].Windows[2].Utilization = 0.95 }
 	tests := []struct {
 		name  string
 		f     Frame
-		doc   status.Document
+		doc   func(...func(*status.Document)) status.Document
 		now   time.Time
 		fable string
 	}{
-		{name: "USAGE by window", f: frameOf(160, 40), doc: usageWorld(), now: routedAt, fable: "FABLE WEEK"},
-		{name: "USAGE by account", f: byAccount, doc: usageWorld(), now: routedAt, fable: "Fable wk"},
-		{name: "Accounts' Detail", f: detailFrame(Look{}, framedAccounts, "side", "", nil, nil), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
-		{name: "Sessions' Switchboard", f: sceneFrame(160, 37, Look{}), doc: usageWorld(), now: routedAt, fable: "Fable wk"},
-		{name: "a session's page", f: pageFrame(t, resumed(), 160, 37), doc: pageDoc(), now: sessionNow, fable: "fable week"},
+		{name: "USAGE by window", f: frameOf(160, 40), doc: usageWorld, now: routedAt, fable: "FABLE"},
+		{name: "USAGE by account", f: byAccount, doc: usageWorld, now: routedAt, fable: "Fable wk"},
+		{name: "Accounts' Detail", f: detailFrame(Look{}, framedAccounts, "side", "", nil, nil), doc: usageWorld, now: routedAt, fable: "Fable wk"},
+		{name: "Sessions' Switchboard", f: sceneFrame(160, 37, Look{}), doc: usageWorld, now: routedAt, fable: "Fable wk"},
+		{name: "a session's page, on personal, which hasn't used it", f: pageFrame(t, resumed(), 160, 37), doc: pageDocChanged, now: sessionNow, fable: "no Fable use"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for _, models := range []bool{false, true} {
-				tt.f.Models = models
-				text := strings.Join(textOf(tt.f.Draw(tt.doc, tt.now)), "\n")
-				if strings.Contains(text, tt.fable) != models {
-					t.Errorf("with models %t, it says %q %t, want %t:\n%s", models, tt.fable, !models, models, text)
+			for _, used := range []bool{true, false} {
+				var change []func(*status.Document)
+				if !used {
+					change = append(change, fableUnused, nearlyAllReserved)
+				}
+				text := strings.Join(textOf(tt.f.Draw(tt.doc(change...), tt.now)), "\n")
+				if strings.Contains(text, tt.fable) != used || strings.Contains(text, "FABLE WEEK") {
+					t.Errorf("with Fable's week used %t, it says %q %t, want %t, and never FABLE WEEK:\n%s", used, tt.fable, !used, used, text)
 				}
 			}
 		})
 	}
-	t.Run("nearing its limit", func(t *testing.T) {
-		f := frameOf(160, 40)
-		f.Models = false
-		if text := strings.Join(textOf(f.Draw(usageWorld(nearing), routedAt)), "\n"); !strings.Contains(text, "FABLE WEEK") {
-			t.Errorf("side's Fable week at 95%%, models hidden, USAGE reads\n%s\nwant it listed", text)
+}
+
+// fableUnused has no account use any of its Fable week.
+func fableUnused(d *status.Document) {
+	for i := range d.Accounts {
+		for j, w := range d.Accounts[i].Windows {
+			if w.Key == "7d_oi" {
+				d.Accounts[i].Windows[j].Utilization = 0
+			}
 		}
-	})
+	}
+}
+
+// nearlyAllReserved has every account keep a 99.99% reserve, its floor at
+// 0.01%.
+func nearlyAllReserved(d *status.Document) {
+	for i := range d.Accounts {
+		d.Accounts[i].Reserve = 0.9999
+	}
+}
+
+// Side by side, an account that hasn't used a model's own window says so in
+// its column, as one without a 5-hour window says it has none: no Fable use,
+// in full, and no use beside a label naming the window. Stacked, its section
+// leaves the account out, as the 5-hour's does.
+func TestAnAccountThatHasntUsedAModelsWindowGoesWithoutIt(t *testing.T) {
+	m := usageWorld().At(routedAt, claudeLike)
+	personal, _ := m.Account("personal")
+	fableWeek, _ := personal.Window("7d_oi")
+	if got := wordsOf(fableWeek, routedAt).full.plain(); got != "no Fable use" {
+		t.Errorf("personal's Fable week reads %q, want no Fable use", got)
+	}
+	matrix := strings.Join(textOf(frameOf(160, 40).Draw(usageWorld(), routedAt)), "\n")
+	if !regexp.MustCompile(`personal .*  no Fable use`).MatchString(matrix) {
+		t.Errorf("by window, side by side, USAGE reads\n%s\nwant personal's row ending no Fable use", matrix)
+	}
+	byAccount := frameOf(160, 40)
+	byAccount.By = ByAccount
+	if text := strings.Join(textOf(byAccount.Draw(usageWorld(), routedAt)), "\n"); !regexp.MustCompile(`Fable wk +no use`).MatchString(text) {
+		t.Errorf("by account, USAGE reads\n%s\nwant personal's Fable wk saying no use", text)
+	}
+	b := newUsageBlock(m, 73, Look{}, ByWindow, usageWindows(m.Listed(), printName))
+	if b.sideBySide() {
+		t.Fatal("at 73 columns, the windows sit side by side; want them stacked")
+	}
+	fable := slices.IndexFunc(b.windows, func(w shownWindow) bool { return w.key == "7d_oi" })
+	var having []string
+	for _, r := range b.having(fable).rows {
+		having = append(having, r.id)
+	}
+	if want := []string{"work", "side", ""}; !slices.Equal(having, want) {
+		t.Errorf("stacked, Fable's section has the rows of %q, want work's, side's and the pool's, %q", having, want)
+	}
 }
 
 // usageWorld is the world the Overview's frames are drawn of, as change
@@ -175,11 +225,11 @@ func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 	}
 }
 
-// Stacked at 118 columns, the usage world's three windows are 32 rows laid
+// Stacked at 118 columns, the usage world's three windows are 30 rows laid
 // out whole: the week's heading on row 0, its accounts on 2, 4 and 6, its
-// pool on 8; the 5-hour's heading on 10, its accounts on 12, 14 and 16; Fable
-// week's on 20, its accounts on 22, 24 and 26, its pool on 28; the key line
-// on 30 and 31. In 8 rows, each window's heading is kept on the first row
+// pool on 8; the 5-hour's heading on 10, its accounts on 12, 14 and 16;
+// Fable's on 20, the two accounts that have used it on 22 and 24, its pool on
+// 26; the key line on 28 and 29. In 8 rows, each window's heading is kept on the first row
 // while the scroll is among its rows, a row of them under it, and hands it
 // to the next window's as the scroll passes into them: scrolled to its last
 // row, the pool's, the heading gives way, as none of its rows would show
@@ -195,8 +245,8 @@ func TestStackedUSAGEKeepsEachWindowsHeadingOverItsRowsAndHandsItOn(t *testing.T
 		{scroll: 8, want: map[int]string{0: " Σ pool", 1: "", 2: "5-HOUR"}},
 		{scroll: 9, want: map[int]string{0: "", 1: "5-HOUR", 3: " work"}},
 		{scroll: 13, want: map[int]string{0: "5-HOUR", 1: " personal"}},
-		{scroll: 23, want: map[int]string{0: "FABLE WEEK", 1: " personal", 5: " Σ pool"}},
-		{scroll: 99, want: map[int]string{0: "FABLE WEEK", 1: " side", 4: "", 5: "┃ even pace", 7: "▲ 25 more above"}},
+		{scroll: 21, want: map[int]string{0: "FABLE", 1: " work", 3: " side", 5: " Σ pool"}},
+		{scroll: 99, want: map[int]string{0: "FABLE", 1: " side", 4: "", 5: "┃ even pace", 7: "▲ 23 more above"}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("scrolled %d", tt.scroll), func(t *testing.T) {
@@ -414,7 +464,8 @@ func tenReadAs(change func(*status.Document)) status.Document {
 // A layout is kept while what it was made for holds, and USAGE's form with
 // it: so whatever a read changes, its key line's marks or the rows over
 // them, the form kept is the form a layout made afresh for the read would
-// have, at every width, height and grouping, models' windows hidden.
+// have, at every width, height and grouping, each model's own window shown
+// where some account has used it.
 func TestUSAGEsFormKeptWithItsLayoutIsTheFormMadeAfresh(t *testing.T) {
 	t.Parallel()
 	reads := []struct {
@@ -446,7 +497,7 @@ func TestUSAGEsFormKeptWithItsLayoutIsTheFormMadeAfresh(t *testing.T) {
 		for _, width := range []int{73, 120, 160} {
 			for _, height := range []int{14, 18, 24, 30} {
 				f := frameOf(width, height)
-				f.By, f.Models = by, false
+				f.By = by
 				f.Layout = f.LayoutOf(tenReadAs(nil), now)
 				for _, tt := range reads {
 					doc := tenReadAs(tt.read)

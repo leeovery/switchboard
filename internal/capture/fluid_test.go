@@ -143,7 +143,11 @@ var knownBreaks = []known{
 	},
 	{
 		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
-		sizes: []string{"108x24", "108x44", "109x53"}, fixtures: []string{"sessions-moved-160", "sessions-pinned-160"},
+		sizes: []string{"108x44", "109x53"}, fixtures: []string{"sessions-moved-160", "sessions-moved-108x44", "sessions-pinned-160"},
+	},
+	{
+		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
+		sizes: []string{"108x24"}, fixtures: []string{"sessions-pinned-160"},
 	},
 	// The Log's sessions' directories, as views.SessionDirName cuts them, with
 	// room at every size they show at with room; and the Requests' on, its
@@ -212,7 +216,10 @@ var knownBreaks = []known{
 	// rows given way, 3 rows: at 138x30, where ROUTING takes 13 more and COMING
 	// UP and LATELY 5, its headings' blank rows and its key giving way only
 	// where no section is open; and at 108x44, ROUTING open, where COMING UP
-	// and LATELY take 5.
+	// and LATELY take 5; and of a model's own week some accounts have used,
+	// stacked under the 5-hour, its unused account left out, 3 rows: at
+	// 73x36, every other section folded; and at 108x44, ROUTING open, where
+	// COMING UP and LATELY take 5.
 	{
 		byDesign: "2 rows under ROUTING, short of every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"73x61"}, fixtures: []string{"overview-six-running-173x53"},
@@ -224,6 +231,11 @@ var knownBreaks = []known{
 	{
 		byDesign: "3 rows under USAGE's ten accounts side by side, short of every folded section's least", rule: foldWithRowsSpare,
 		sizes: []string{"138x30", "108x44"}, fixtures: []string{"overview-ten-accounts-160"},
+	},
+	{
+		byDesign: "3 rows under a used model's week stacked, short of every folded section's least", rule: foldWithRowsSpare,
+		sizes:    []string{"73x36", "108x44"},
+		fixtures: []string{"overview-fable-160", "overview-fable-phone-52", "overview-fable-73x61", "overview-fable-108x44", "overview-model-nearing-160"},
 	},
 	// What's left at the foot at 73x36, every other section folded, where
 	// USAGE takes the least far step that fits whole, as it keeps its key

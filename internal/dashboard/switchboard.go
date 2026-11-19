@@ -317,6 +317,6 @@ func (d boardDrawn) targets() []Target {
 func (d boardDrawn) filled() map[Ref]float64 {
 	drawn := d.lines.windowsDrawn()
 	return windowsFilled(d.lines.m, func(w status.WindowNow) bool {
-		return slices.Contains(drawn, w.Key) && !drawsEmpty(w.Kind)
+		return slices.Contains(drawn, w.Key) && !drawsEmpty(w)
 	})
 }

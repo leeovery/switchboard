@@ -1286,24 +1286,24 @@ func windowsShown(d sessionDrawn, drawn [][]rune) []int {
 
 // A model's own window the session used is measured with those listed,
 // listed or not, as which windows it used is a fact of the session, not a
-// figure: with the frame's models' windows hidden, a row that took points
-// of Fable week says them whole wherever its bound fits; and where no
-// account took any, the row is measured by the windows listed alone.
+// figure: with Fable's week unlisted, as no account has used it this week, a
+// row that took points of it says them whole wherever its bound fits; and
+// where no account took any, the row is measured by the windows listed
+// alone.
 func TestAnAccountsRowMeasuresTheWindowsTheSessionUsed(t *testing.T) {
 	used := resumed()
 	used.Page.Accounts[1].Points = map[string]int{"5h": 9, "7d": 1, "7d_oi": 2}
+	unlisted := pageDocChanged(fableUnused)
 	for width := 40; width <= 220; width++ {
 		f := pageFrame(t, used, width, 37)
-		f.Models = false
-		d, drawn := pageDrawn(f, pageDoc())
+		d, drawn := pageDrawn(f, unlisted)
 		points, _ := d.stayColumnOf(stayPoints)
 		got := stayText(drawn[d.l.accountsAt+1], d, stayPoints)
 		if fits := points.width >= d.windowsCells.short; fits != strings.Contains(got, " · 2 of") {
 			t.Errorf("at %d columns, with %d cells to every window's %d, the row's points read %q, want Fable week's said where they fit", width, points.width, d.windowsCells.short, got)
 		}
 		alone := pageFrame(t, resumed(), width, 37)
-		alone.Models = false
-		listed := alone.At(pageDoc(), sessionNow).sessionDrawn(pageDoc(), sessionNow)
+		listed := alone.At(unlisted, sessionNow).sessionDrawn(unlisted, sessionNow)
 		if listed.windowsCells != pointsCells(measuredKeys(listed.listedWindows(listed.m), nil)) {
 			t.Errorf("at %d columns, with no model's own window used, the points are measured %+v, want by the windows listed alone", width, listed.windowsCells)
 		}

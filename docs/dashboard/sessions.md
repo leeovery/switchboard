@@ -115,6 +115,5 @@ windows of the account depend on the height:
 | `esc` | Deselects it. |
 | `<` `>` | On the List only, steps the period. |
 | `j` `k` | Scroll the List a row. |
-| `w` | On the Switchboard, shows or hides the model windows. |
 
 The keys every page shares are on [Every page](every-page.md).

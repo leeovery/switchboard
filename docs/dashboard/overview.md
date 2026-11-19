@@ -62,17 +62,38 @@ width wherever it fits.
 
 ### Model windows
 
-Some models have a window of their own, for example a week for Fable. These windows stay hidden
-until you press `w`. The key works on every view that shows the windows as they stand now:
+```text
+FABLE
 
-- USAGE;
+ work            ▌           ┃            ╎  12%  25%/day till Sun 21:00
+ side       ▲  ▏           ┃                  4%  25%/day till Mon 10:00
+```
+
+Some models have a week of their own, for example Fable. USAGE shows the Fable week only if an
+account has used it, the same way it shows the 5-hour window only if an account has one. Above,
+work and side have used Fable this week, and personal hasn't.
+
+| If | USAGE shows |
+|---|---|
+| An account has used the Fable week | Its bar, percentage and words. |
+| A limit names an account's Fable week | The FABLE section, even at 0%, with that account's bar and words, such as `limit · back Sun`. |
+| The FABLE section shows, and any limit holds an account | That account's words, such as `limit · back Sun`. |
+| An account hasn't used the Fable week, side by side | `no Fable use`, or `no use` if room is short or USAGE is by account. |
+| An account hasn't used the Fable week, stacked | Nothing: the account is left out of the FABLE section. |
+| No account has used the Fable week, and no limit names it | No FABLE section at all. |
+
+The section goes once the Fable week of every account resets to 0 and no limit names it. It
+comes back with the first use. The same holds on these views:
+
 - Detail on [Accounts](accounts.md);
 - the Switchboard on [Sessions](sessions.md);
 - [the session page](session-page.md).
 
-A hidden window still shows while it nears its limit on any account. That means at the limit, at
-the cap, running out, or within 10 points of running out. `usage` and [the Log](log.md) always show
-every model window.
+The [`usage`](../commands/usage.md) command prints the Fable week the same way. If the
+Switchboard's lanes sit side by side, they show only the week and the 5-hour window. Stacked, the
+lanes show the Fable week too.
+
+[The Log](log.md) and the JSON of every command keep every model window, used or not.
 
 ## ROUTING: how the router stands with each account
 
@@ -215,7 +236,6 @@ On a phone, see [On a phone](phone.md).
 | Key | Does |
 |---|---|
 | `u` `r` `s` `c` `l` | Shows or hides USAGE, ROUTING, SESSIONS, COMING UP or LATELY. |
-| `w` | Shows or hides the model windows. `?` lists it, and the key line leaves it out. |
 | `b` | Groups USAGE by window or by account. |
 | `↑` `↓` | Scroll USAGE a row, as `j` and `k` do, if its accounts don't fit. `?` lists them only then. |
 

@@ -59,9 +59,8 @@ func TestGraphsKeysShowOrHideItsSectionsAndKeepThem(t *testing.T) {
 			t.Errorf("after %s, the screen is\n%s\nwant %q on it, and no %q", step.key, shown, step.wantShown, step.wantHidden)
 		}
 	}
-	if h.model.sections != (dashboard.Sections{}) || h.model.models || prefs.kept.Sections != nil || prefs.kept.Models {
-		t.Errorf("Graphs' keys left the Overview showing %q, models %t, kept %#v, models %t; want them as they were",
-			h.model.sections.Names(), h.model.models, prefs.kept.Sections, prefs.kept.Models)
+	if h.model.sections != (dashboard.Sections{}) || prefs.kept.Sections != nil {
+		t.Errorf("Graphs' keys left the Overview showing %q, kept %#v; want them as they were", h.model.sections.Names(), prefs.kept.Sections)
 	}
 }
 
@@ -241,14 +240,14 @@ func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
 	}
 }
 
-// Over Graphs, a session's page keeps w as its own, showing and hiding each
-// model's own window, and leaves Graphs' sections as they were.
-func TestASessionsPageOverGraphsKeepsWForModels(t *testing.T) {
+// Over Graphs, w on a session's page does nothing, and leaves Graphs'
+// sections as they were: WEEK's key is Graphs' alone.
+func TestASessionsPageOverGraphsLeavesWToGraphs(t *testing.T) {
 	h := sessionPaged(t, "")
 	h.model.view = dashboard.Graphs
 	h.typed("w")
-	if !h.model.models || h.model.graphs != (dashboard.GraphsSections{}) {
-		t.Errorf("w on a session's page over Graphs left models shown %t, Graphs showing %q; want models shown, Graphs as it was", h.model.models, h.model.graphs.Names())
+	if h.model.graphs != (dashboard.GraphsSections{}) {
+		t.Errorf("w on a session's page over Graphs left Graphs showing %q; want it as it was", h.model.graphs.Names())
 	}
 }
 

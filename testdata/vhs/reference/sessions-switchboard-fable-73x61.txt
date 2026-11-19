@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  Projects  Sessions  Runway  Trends  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+SESSIONS   Switchboard  List
+
+work          ● at its cap · 17:10
+ Week                 ▉      ┃                34%  out ~Sat
+
+ 5-hour                     ┃             ▍   95%  at cap · back 17:10
+
+ Fable wk      ▉             ┃                12%  25%/day till Sun 21:00
+
+
+personal    ◆ ● open
+ Week                            ┃            66%  out ~Sat
+
+ 5-hour                 ▌       ┃             39%  34%/h till 16:30
+
+ Fable wk   no use
+
+  41e0 docs                      idle 34s
+  9c2e website                   idle 9m
+
+
+side        ▲ ● open · next
+ Week                      ┃                  78%  out ~Fri
+
+ 5-hour         ▏ ┃                           13%  21%/h till 18:50
+
+ Fable wk    ▎             ┃                   4%  25%/day till Mon 10:00
+
+  c61b mobile                    ↓ answering
+  d28c switchboard               ↑ asking     ▸ from work
+  7f3a api                       ↓ answering  ▸ from work
+  db8a infra                     idle 50s     ▸ from work
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+┃ even pace: where you would be now, used evenly
+◆ primary    ▲ new sessions go here
+tab views   ↑↓ session   enter open   [ ] view   ? keys   q quit

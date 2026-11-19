@@ -251,7 +251,7 @@ func (m Model) freshIn(pooled Pooled) Model {
 	if !pooled.Grounds.Same(cfg.LedgerGrounds) {
 		cfg.Ledger, cfg.LedgerGrounds = pooled.NewLedger(), pooled.Grounds
 	}
-	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Models, cfg.Graphs = m.size, m.view, m.sections, m.by, m.models, m.graphs
+	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Graphs = m.size, m.view, m.sections, m.by, m.graphs
 	cfg.Period, cfg.KeepGraphs = m.period, false
 	cfg.AccountsShown = dashboard.AccountsKept(m.accounts.shown.Kept())
 	cfg.SessionsShown = dashboard.SessionsKept(m.sessionsTab.shown.Kept())

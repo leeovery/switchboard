@@ -83,7 +83,9 @@ func checkROUTINGAgrees(t *testing.T, m status.Moment, table routingTable) {
 // against what ROUTING says of each account: closed in red, and not to be
 // picked, where ROUTING says it's held back from every request; closed by
 // its cap where ROUTING says its cap holds it; and its windows' figures
-// their use at the moment, faded where they're stale.
+// their use at the moment, faded where they're stale, and none where the
+// account has no usable token, nothing is read of it, or it goes without
+// it, saying so of that last.
 func checkCardAgrees(t *testing.T, m status.Moment, rows []RoutingRow) {
 	t.Helper()
 	if len(rows) != len(m.Accounts)+1 {
@@ -99,9 +101,9 @@ func checkCardAgrees(t *testing.T, m status.Moment, rows []RoutingRow) {
 			t.Errorf("%s: the card closes it by its cap: %v; ROUTING says it's %q", a.ID, row.Capped, a.Routing)
 		}
 		session, _ := a.Window(claudeLike.Started)
-		want := Figure{None: session.Kind == status.WindowNone}
-		if !drawsEmpty(session.Kind) {
-			want = Figure{Used: session.Used, Read: true, Stale: session.Kind == status.WindowStale}
+		want := Figure{Used: session.Used, Read: true, Stale: session.Kind == status.WindowStale}
+		if session.Kind == status.WindowTokenless || session.Kind == status.WindowUnread || session.Without() {
+			want = Figure{None: session.Without()}
 		}
 		if got, _ := cardFigure(row, claudeLike.Started); got != want {
 			t.Errorf("%s: the card's 5-hour figure is %+v, want %+v", a.ID, got, want)
