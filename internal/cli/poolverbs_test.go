@@ -150,6 +150,8 @@ func TestStatusNamesThePoolItShowsOnceThereIsASecond(t *testing.T) {
 		name, accounts, args, want string
 	}{
 		{name: "two pools", accounts: unfencedBesideFenced, args: "--pool q7mt", want: "pool Acme\n\nwork · Work (primary)\n"},
+		{name: "two pools, the label of the one shown showing nothing, named by its id", accounts: strings.Replace(unfencedBesideFenced, `label = "Acme"`, `label = "\u200e"`, 1),
+			args: "--pool q7mt", want: "pool q7mt\n\nwork · Work (primary)\n"},
 		{name: "one pool", accounts: threeInFirstPool, want: "work · Work (primary)\n"},
 	}
 	for _, tt := range tests {

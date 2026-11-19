@@ -66,11 +66,6 @@ type Frame struct {
 	// by window, or by account.
 	Sections Sections
 	By       By
-	// Models is set while w shows each model's own window, as Fable's week,
-	// wherever the live views list windows: unset, they list those every
-	// model shares, and a model's only while it nears its limit, as the
-	// moment's Listed has them.
-	Models bool
 	// Traces are the requests the Overview's traces draw, by account and by
 	// session, as the watch counts them; and TraceScale the requests a
 	// minute that fill a trace's height, 0 for the live rule, the busiest
@@ -167,6 +162,9 @@ type Frame struct {
 	Loading bool
 	// Log is the Log's sub-tab shown, its tables and how each stands.
 	Log LogPage
+	// NerdFont is set where the terminal's font draws Nerd Font's glyphs, as
+	// the config's [dashboard] nerd_font says, and the dashboard draws them.
+	NerdFont bool
 
 	// held is the moment of a document as At holds it, and built the
 	// Overview's sections and Accounts' form as Built built them, each for

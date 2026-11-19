@@ -493,7 +493,7 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 		!strings.HasSuffix(rows[6], "started yesterday 16:40 · resumed 09:12") {
 		t.Errorf("row 7 reads\n%q\nwant where it runs whole, three cells or more before when it started", rows[6])
 	}
-	windows := "personal now  week 66%   5-hour 39%   fable week 0%"
+	windows := "personal now  week 66%   5-hour 39%   no Fable use"
 	models := "opus-5-5 → personal   haiku-4-5 → side"
 	if !strings.HasPrefix(rows[7], models+"   ") || !strings.HasSuffix(rows[7], windows) {
 		t.Errorf("row 8 reads\n%q\nwant its models whole, all fitting, %q", rows[7], models)

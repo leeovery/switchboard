@@ -215,7 +215,8 @@ func TestAMeterOfAWindowItsAccountLacksSaysSoInFullWhereItFits(t *testing.T) {
 
 // The bars the lines draw are those a watch eases, each as full as it's
 // used: every window at steps 1 and 2, the week and the 5-hour at step 3,
-// and the week alone from step 4.
+// and the week alone from step 4; never one its account goes without, as
+// personal's unused Fable week.
 func TestTheBarsEasedAreTheLinesBarsAtTheirStep(t *testing.T) {
 	tests := []struct {
 		height int
@@ -230,7 +231,7 @@ func TestTheBarsEasedAreTheLinesBarsAtTheirStep(t *testing.T) {
 		t.Run(strconv.Itoa(tt.height), func(t *testing.T) {
 			doc := usageWorld()
 			got := sceneFrame(160, tt.height, Look{}).Filled(doc, routedAt)
-			want := windowsFilled(doc.At(routedAt, claudeLike), func(w status.WindowNow) bool { return slices.Contains(tt.keys, w.Key) })
+			want := windowsFilled(doc.At(routedAt, claudeLike), func(w status.WindowNow) bool { return slices.Contains(tt.keys, w.Key) && !w.Without() })
 			if !maps.Equal(got, want) {
 				t.Errorf("Filled() = %v, want %v", got, want)
 			}

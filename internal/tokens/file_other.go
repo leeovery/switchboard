@@ -23,9 +23,3 @@ func owner(fs.FileInfo) (int, bool) {
 func links(fs.FileInfo) (uint64, bool) {
 	return 0, false
 }
-
-// lockDir takes no lock where there's no flock: two writes of one account's
-// token at once may lose one's date.
-func lockDir(string) (unlock func()) {
-	return func() {}
-}

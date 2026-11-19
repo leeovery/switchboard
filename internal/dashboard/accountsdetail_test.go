@@ -181,14 +181,14 @@ func aloneDoc() status.Document {
 }
 
 // detailFrame is a frame of Detail at routedAt, 160 by wholeRows, in the look
-// given, every model's own window shown, as w shows them, of the accounts
+// given, each model's own window shown where used, of the accounts
 // configured, the one chosen, the session selected,
 // and the page given, the router listing the sessions given, the request
 // stream telling what it told in the Overview's world.
 func detailFrame(look Look, configured config.Accounts, chosen, selected string, page *views.AccountsPage, sessions []status.Session) Frame {
 	_, _, stream := overviewWorld()
 	return Frame{
-		Width: 160, Height: wholeRows, Look: look, View: Accounts, Policy: claudeLike, Models: true, Sessions: sessions, Stream: stream,
+		Width: 160, Height: wholeRows, Look: look, View: Accounts, Policy: claudeLike, Sessions: sessions, Stream: stream,
 		Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: chosen, Selected: selected, InSessions: selected != "", Page: page},
 	}
 }
@@ -1408,13 +1408,13 @@ func TestDetailNamesTheNumbersItDraws(t *testing.T) {
 
 // Detail fills every account's bars, whichever is chosen, so one chosen
 // next eases from where it stood, and all accounts', by their windows' keys
-// alone.
+// alone: none an account goes without, as personal's unused Fable week.
 func TestDetailFillsEveryAccountsBarsAndAllAccounts(t *testing.T) {
 	doc := usageWorld(extraOff, func(d *status.Document) { d.Accounts[2].TokenSet = false })
 	filled := detailFrame(Look{}, framedAccounts, "work", "", nil, nil).Filled(doc, routedAt)
 	want := map[Ref]float64{
 		{Account: "work", Window: "5h"}: 0.95, {Account: "work", Window: "7d"}: 0.34, {Account: "work", Window: "7d_oi"}: 0.12,
-		{Account: "personal", Window: "5h"}: 0.39, {Account: "personal", Window: "7d"}: 0.66, {Account: "personal", Window: "7d_oi"}: 0,
+		{Account: "personal", Window: "5h"}: 0.39, {Account: "personal", Window: "7d"}: 0.66,
 		{Window: "5h"}: (0.95 + 0.39) / 2, {Window: "7d"}: (0.34 + 0.66) / 2, {Window: "7d_oi"}: 0.12 / 2,
 	}
 	if len(filled) != len(want) {

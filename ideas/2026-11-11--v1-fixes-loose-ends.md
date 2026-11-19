@@ -34,10 +34,6 @@ v1.
 - **A broken answer** shows in `requests` alone, as `200 broken off`. The dashboard's Log shows
   canceled, cut off and broken off answers no differently from the rest, and its failed-only filter
   goes by status, so a broken 200 isn't among them.
-- **Accounts' all-accounts weeks** (Detail's WEEKS, once History's Weeks) mark a week where every
-  account with a known peak reached its cap, while the "short on N weeks" beside it counts a week
-  where any did. As signed off (the old
-  rule, a mean of 100%, was the same "every"); whether it should mark "any" is the owner's call.
 - **Accounts' WEEKS bar** marks no cap for an account with a reserve, though its figures are inked
   at the cap; the account's own gauges above it draw the reserve's mark.
 
@@ -46,9 +42,6 @@ v1.
 - **A login shell changed since setup** (`chsh`): uninstall asks the shell the account logs in with
   now, so a startup line setup put in the old shell's files, under another `ZDOTDIR`, is missed;
   uninstall says what it couldn't find rather than claiming it's gone.
-- **A fifth file lock:** the dashboard's prefs take a `flock` on the state directory
-  (`internal/theme`), a fifth copy beside the four [one-file-lock](2026-11-04--one-file-lock.md)
-  names.
 
 ## The second v1 fix round
 
@@ -73,3 +66,9 @@ ordinary use, and each fails safe.
   unsynced meanwhile.
 - **A failed write-back exports no pools.** A config whose router write-back failed exports with
   no pools, so its pools import as `empty`, kept apart and not lost.
+- **A token split by a character that doesn't show.** Redaction matches `sk-ant-` followed by
+  token characters, so a token split by a control character (a `ZMX_SESSION` value, a label written
+  into the config) keeps its tail, in either order of cleaning and redacting: the tail reads as an
+  ordinary word. A path holding a token split by a zero-width character is redacted before shown
+  text drops that character, so a cleaned path can show it whole. Both need the token typed into a
+  name or a folder by hand; redaction that sees through such characters would close both.

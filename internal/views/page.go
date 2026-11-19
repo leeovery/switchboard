@@ -66,6 +66,13 @@ type SessionPage struct {
 	// its own pin cleared, as autoOf has it: "" where the router can't say,
 	// as while it doesn't answer. It's the views' alone.
 	Auto string `json:"-"`
+	// ProjectName names the project it runs in, as Projects names one shown
+	// alone: "" of temporary folders and where none is known. Shown names
+	// it as the List does, as ShownName has it, but where that's by its id,
+	// which the heading shows already: its zero value then. The heading
+	// says them together, project then name. They're the views' alone.
+	ProjectName string    `json:"-"`
+	Shown       ShownName `json:"-"`
 	// names name its accounts, as Named was given them: nil before it's
 	// named.
 	names status.Namer
@@ -270,16 +277,31 @@ func eachWhole(string) ledger.Rest { return ledger.RestWhole }
 func onPage(string) ledger.Rest { return ledger.RestOnPage }
 
 // AskedPage is the page of the session with the given id as it's drawn
-// asked to open, while its lines are read: its id, and its directory as the
-// router lists it, of the sessions running given, as dir has it of a
-// session it lists, none where it doesn't list it; nothing else is known
+// asked to open, while its lines are read: its id, and its directory,
+// project and name as the router lists them, of the sessions running given,
+// as listedPlace has them of a session it lists, the project as projects
+// reads it, named as namedAs names a page, so its heading holds its shape as
+// its lines are read; none where it doesn't list it; nothing else is known
 // till its lines are.
-func AskedPage(id string, running []status.Session) SessionPage {
+func AskedPage(id string, running []status.Session, projects status.Projects) SessionPage {
 	page := SessionPage{Session: id}
 	if s := Routed(running, id); s != nil {
-		page.Dir = routedDir(*s)
+		place := listedPlace(*s, sessionPlace{}, projects)
+		page.Dir = place.dir
+		page.namedAs(ListedSession{Session: id, Dir: place.dir, Project: place.project, Name: place.name})
 	}
 	return page
+}
+
+// namedAs names the page as its heading names it, of the session as listed:
+// its project, as Projects names one shown alone; and the session as the
+// List names it, as shownName has it, but where that's by its id, which the
+// heading shows already.
+func (p *SessionPage) namedAs(s ListedSession) {
+	p.ProjectName = projectNamedAlone(s.Project)
+	if shown, byID := s.shownName(); !byID {
+		p.Shown = shown
+	}
 }
 
 // Named returns the ids of the sessions one is named among, by as much of its

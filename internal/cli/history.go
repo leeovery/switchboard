@@ -36,6 +36,14 @@ type historyDocument struct {
 	views.History
 }
 
+// windowsDocument is what history --windows --json prints: the pool it's
+// of, as historyDocument names it, and Windows' readings.
+type windowsDocument struct {
+	Pool      string `json:"pool,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
+	views.Windows
+}
+
 func newHistoryCommand(a *app) *cobra.Command {
 	var (
 		given, pool string
@@ -181,7 +189,7 @@ func (a *app) historyWindows(ctx context.Context, out io.Writer, given, pool str
 	names := namesIn(asked.stateDir, asked.cfg)
 	windows := asked.pool.windows(asked.stateDir, asked.accounts(), asked.from, asked.now).Named(names)
 	if asJSON {
-		return writeJSON(out, windows)
+		return writeJSON(out, windowsDocument{Pool: asked.pool.ID, PoolLabel: asked.pool.Label, Windows: windows})
 	}
 	if _, err := io.WriteString(out, asked.pool.heading()); err != nil {
 		return err

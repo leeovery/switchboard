@@ -194,6 +194,43 @@ func TestTheNewPoolCardFromTheAddCard(t *testing.T) {
 	}
 }
 
+// A new pool with a directory that isn't on this Mac passes, the card that
+// opened it warning of it under Pool's hint while it's chosen, as pool add
+// warns of one, the account made with it all the same. One typed in full in
+// the home is held as the config writes it, from ~/, so the hint and the
+// warning name it alike.
+func TestTheAddCardWarnsOfANewPoolsDirectoryNotOnThisMac(t *testing.T) {
+	steps := pooledSteps()
+	steps.poolMissing = []string{"~/Code/cleint"}
+	h := addingPooled(t, steps)
+	h.typeIn("Client 1")
+	for _, k := range []string{"tab", "left", "tab", "right", "right", "enter"} {
+		h.pressAndDeliver(k)
+	}
+	h.typeIn("Client")
+	h.pressAndDeliver("tab")
+	h.typeIn(fakeHome + "Code/cleint")
+	h.pressAndDeliver("enter")
+	warning := "~/Code/cleint isn't a directory on this Mac, so no session starts in it yet"
+	hint := "only sessions started in ~/Code/cleint use it"
+	said := strings.Join(strings.Fields(strings.Join(cardRows(h), " ")), " ")
+	if title, _ := h.card(); title != "ADD AN ACCOUNT" || !strings.Contains(said, hint+" "+warning) {
+		t.Fatalf("the card reads\n%s\nwant the add card warning under Pool's hint %q", strings.Join(cardRows(h), "\n"), warning)
+	}
+	h.pressAndDeliver("left")
+	if strings.Contains(strings.Join(cardRows(h), "\n"), "isn't a directory") {
+		t.Errorf("another pool chosen, the new pool's warning is still said")
+	}
+	h.pressAndDeliver("right")
+	h.pressAndDeliver("enter")
+	if len(h.steps.adds) != 1 || h.steps.adds[0].NewPool == nil {
+		t.Fatalf("CheckAdding was asked %+v, want Client 1 with Client to make, warned of or not", h.steps.adds)
+	}
+	if got := h.steps.nextMake(t); got.NewPool == nil || got.NewPool.Label != "Client" || !slices.Equal(got.NewPool.Dirs, []string{"~/Code/cleint"}) {
+		t.Errorf("MakeToken was asked %+v, want Client made with the account, its directory as the config writes it", got)
+	}
+}
+
 // A pool setup refuses is said under the new pool card's field it's of, the
 // directory refused among them, the card staying open; unsaid once the
 // value changes.

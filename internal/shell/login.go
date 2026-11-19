@@ -70,8 +70,23 @@ const (
 	None
 )
 
-// Answer is which claude the login shell runs, and where it reads its
-// startup file.
+// Completions is whether switchboard's completions are loaded in the login
+// shell, as it says.
+type Completions int
+
+const (
+	// CompletionsUntold is a shell that didn't say, or can't take them: zsh
+	// before compinit has defined compdef, and bash without bash-completion,
+	// as switchboard's file for it loads them only there.
+	CompletionsUntold Completions = iota
+	// CompletionsLoaded is a shell with them registered, by whatever means.
+	CompletionsLoaded
+	// CompletionsMissing is a shell that can take them, without them.
+	CompletionsMissing
+)
+
+// Answer is which claude the login shell runs, where it reads its startup
+// file, and whether switchboard's completions are loaded.
 type Answer struct {
 	// Kind is what the shell's PATH finds for claude.
 	Kind Kind
@@ -85,6 +100,8 @@ type Answer struct {
 	// directory. It's empty for bash, which isn't asked, and where it isn't
 	// absolute.
 	ConfigDir string
+	// Completions is whether switchboard's completions are loaded.
+	Completions Completions
 	// Why is why the shell couldn't be asked.
 	Why string
 }
@@ -104,7 +121,8 @@ func (a Answer) Through() bool {
 }
 
 // Which asks the login shell which claude it runs, whether PATH's is link,
-// switchboard's claude link, and where it reads its startup file. The
+// switchboard's claude link, where it reads its startup file, and whether
+// switchboard's completions are loaded, or missing where it can take them. The
 // shell's started as a new terminal's is, login and interactive, in the
 // environment one starts in, so the PATH setup runs with can't answer for
 // it: HOME, USER, LOGNAME, SHELL, TMPDIR, TERM, TMUX and the locale's
@@ -130,8 +148,9 @@ func (l Login) Which(ctx context.Context, link string) Answer {
 }
 
 // question is what sh is asked, between the sentinels, a line each: what
-// claude is, which claude PATH finds, and where the shell reads its startup
-// file.
+// claude is, which claude PATH finds, where the shell reads its startup
+// file, and whether switchboard's completions are loaded, as completed asks
+// it.
 func question(sh Shell) string {
 	is, found, config := `"$(command -v claude)"`, `"$(type -P claude)"`, `""`
 	switch sh {
@@ -146,8 +165,30 @@ func question(sh Shell) string {
 		`printf 'is:%s\n' ` + is,
 		`printf 'path:%s\n' ` + found,
 		`printf 'config:%s\n' ` + config,
+		completed(sh),
 		`printf '%s\n' ` + endSentinel,
 	}, "; ")
+}
+
+// The answers to whether switchboard's completions are loaded.
+const (
+	loadedSaid  = `printf 'completions:loaded\n'`
+	missingSaid = `printf 'completions:missing\n'`
+)
+
+// completed asks sh whether switchboard's completions are registered, as
+// each shell registers a command's: zsh's compdef puts it in _comps, bash's
+// complete gives it a spec, and fish's complete lists it; else, where sh can
+// take them, as switchboard's file for it loads them only there, bash
+// outside POSIX mode alone, that they're missing, saying nothing otherwise.
+func completed(sh Shell) string {
+	switch sh {
+	case Zsh:
+		return "if (( ${+_comps[switchboard]} )); then " + loadedSaid + "; elif (( ${+functions[compdef]} )); then " + missingSaid + "; fi"
+	case Fish:
+		return "if complete -c switchboard | string length -q; " + loadedSaid + "; else; " + missingSaid + "; end"
+	}
+	return "if complete -p switchboard >/dev/null 2>&1; then " + loadedSaid + "; elif declare -F _get_comp_words_by_ref >/dev/null 2>&1 && ! shopt -oq posix; then " + missingSaid + "; fi"
 }
 
 // loginEnv is the environment a new terminal's shell starts in, taken from
@@ -223,6 +264,7 @@ func read(sh Shell, said answers, home, link string) Answer {
 	if dir := said["config"]; filepath.IsAbs(dir) {
 		a.ConfigDir = dir
 	}
+	a.Completions = map[string]Completions{"loaded": CompletionsLoaded, "missing": CompletionsMissing}[said["completions"]]
 	switch {
 	case found == "":
 		a.Kind = None

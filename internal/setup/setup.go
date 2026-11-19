@@ -11,6 +11,7 @@ package setup
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -43,6 +44,9 @@ type Setup struct {
 	// Accounts are the config file and the token files, where accounts are
 	// added and tokens saved.
 	Accounts accounts.Registry
+	// Root is the filesystem from its root, as os.DirFS("/") gives it, where
+	// CheckPool looks for a new pool's directories: nil looks for none.
+	Root fs.FS
 	// LaunchAgent is the service, which Install says how to run: this
 	// switchboard binary, as the path it was run by names it, and the config
 	// file given, if one was.

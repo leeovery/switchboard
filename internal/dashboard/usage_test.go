@@ -123,7 +123,7 @@ func blockOn(t *testing.T, doc status.Document, width int, slug string) *canvas 
 // prints it at printNow, by window, of every window, named as Claude's are.
 func printBlock(doc status.Document, width int, look Look) usageBlock {
 	m := doc.At(printNow, printPolicy)
-	return newUsageBlock(m, width, look, ByWindow, usageWindows(m.Listed(true), printName))
+	return newUsageBlock(m, width, look, ByWindow, usageWindows(m.Listed(), printName))
 }
 
 // windowNowOf is the window with the given key of doc's account with the
@@ -147,7 +147,7 @@ func TestTheMatrixLaysEachWindowOutAsAGroupFromTheNameColumn(t *testing.T) {
 		row, col int
 		want     string
 	}{
-		{2, 14, "WEEK"}, {2, 63, "5-HOUR"}, {2, 112, "FABLE WEEK"},
+		{2, 14, "WEEK"}, {2, 63, "5-HOUR"}, {2, 112, "FABLE"},
 		{4, 0, "work "}, {4, 33, "34%"}, {4, 38, "19%/day till Sun 21:00"},
 		{6, 0, "personal    ◆ "}, {8, 0, "side        ▲ "},
 		{9, 0, strings.Repeat("─", 160)},
@@ -283,10 +283,10 @@ func TestWindowsWhoseMatrixDoesntFitStack(t *testing.T) {
 		}
 		return headings
 	}
-	if got, want := headings(150), []string{"WEEK", "5-HOUR", "FABLE WEEK", "SONNET WEEK"}; !slices.Equal(got, want) {
+	if got, want := headings(150), []string{"WEEK", "5-HOUR", "FABLE", "SONNET"}; !slices.Equal(got, want) {
 		t.Errorf("four windows at 150 columns are headed %q, want %q, each a section of its own", got, want)
 	}
-	if got, want := headings(160), []string{"WEEK 5-HOUR FABLE WEEK SONNET WEEK"}; !slices.Equal(got, want) {
+	if got, want := headings(160), []string{"WEEK 5-HOUR FABLE SONNET"}; !slices.Equal(got, want) {
 		t.Errorf("four windows at 160 columns are headed %q, want %q, side by side", got, want)
 	}
 }
@@ -299,7 +299,7 @@ func TestStackedWindowsBarsLeaveTheirWordsTheRowsEnd(t *testing.T) {
 		{width: 118, percentAt: 14 + 74 + 2, wordsAt: 95, words: "at cap · back 17:10"},
 		{width: 80, percentAt: 14 + 36 + 2, wordsAt: 57, words: "at cap · back 17:10"},
 		{width: 60, percentAt: 14 + 16 + 2, wordsAt: 37, words: "at cap · back 17:10"},
-		{width: 52, percentAt: 14 + 12 + 2, wordsAt: 33, words: "back 17:10"},
+		{width: 52, percentAt: 14 + 12 + 2, wordsAt: 33, words: "cap · back 17:10"},
 	}
 	for _, tt := range tests {
 		rows := printed(trio(), tt.width, ByWindow)
@@ -719,8 +719,8 @@ func TestTheWindowsGivenPrintAlone(t *testing.T) {
 		windows []string
 		want    []string
 	}{
-		{name: "none given: every one, in the order of care", want: []string{"WEEK", "5-HOUR", "FABLE WEEK"}},
-		{name: "two given", windows: []string{"5h", "7d_oi"}, want: []string{"5-HOUR", "FABLE WEEK"}},
+		{name: "none given: every one, in the order of care", want: []string{"WEEK", "5-HOUR", "FABLE"}},
+		{name: "two given", windows: []string{"5h", "7d_oi"}, want: []string{"5-HOUR", "FABLE"}},
 		{name: "the week alone", windows: []string{"7d"}, want: []string{"WEEK"}},
 	}
 	for _, tt := range tests {
@@ -728,7 +728,7 @@ func TestTheWindowsGivenPrintAlone(t *testing.T) {
 			var got []string
 			for _, r := range printed(trio(), 120, ByWindow, tt.windows...) {
 				for _, heading := range regexp.MustCompile(`\s{2,}`).Split(strings.TrimSpace(r), -1) {
-					if slices.Contains([]string{"5-HOUR", "WEEK", "FABLE WEEK"}, heading) {
+					if slices.Contains([]string{"5-HOUR", "WEEK", "FABLE"}, heading) {
 						got = append(got, heading)
 					}
 				}
@@ -921,8 +921,8 @@ func TestByAccountAWindowAnAccountLacksKeepsItsRow(t *testing.T) {
 		})
 	}
 	m, all := doc.At(printNow, printPolicy), trio().At(printNow, printPolicy)
-	placed := newUsageBlock(m, 160, Look{}, ByAccount, usageWindows(m.Listed(true), printName)).placed()
-	if want := newUsageBlock(all, 160, Look{}, ByAccount, usageWindows(all.Listed(true), printName)).placed(); !slices.Equal(placed, want) {
+	placed := newUsageBlock(m, 160, Look{}, ByAccount, usageWindows(m.Listed(), printName)).placed()
+	if want := newUsageBlock(all, 160, Look{}, ByAccount, usageWindows(all.Listed(), printName)).placed(); !slices.Equal(placed, want) {
 		t.Errorf("the blocks are placed at %+v, want %+v, as where every account has a 5-hour window", placed, want)
 	}
 }
@@ -1076,8 +1076,8 @@ func TestAStackedSectionTakesTheRowsItDraws(t *testing.T) {
 		fewer  int
 		placed map[string]int
 	}{
-		{name: "work without it", doc: trio(account("work", noSession)), fewer: 2, placed: map[string]int{"work": 2, "personal": 3, "side": 3, "": 3}},
-		{name: "side alone with it", doc: trio(account("work", noSession), account("personal", noSession)), fewer: 6, placed: map[string]int{"work": 2, "personal": 2, "side": 3, "": 2}},
+		{name: "work without it", doc: trio(account("work", noSession)), fewer: 2, placed: map[string]int{"work": 2, "personal": 2, "side": 3, "": 3}},
+		{name: "side alone with it", doc: trio(account("work", noSession), account("personal", noSession)), fewer: 6, placed: map[string]int{"work": 2, "personal": 1, "side": 3, "": 2}},
 	}
 	for _, layout := range stackedLayouts {
 		every := printBlock(trio(), layout.width, Look{})
@@ -1448,8 +1448,8 @@ func TestUsageListsTheWindowsInTheOrderOfCare(t *testing.T) {
 		by    By
 		want  []string
 	}{
-		{name: "the matrix", width: 160, by: ByWindow, want: []string{"WEEK", "5-HOUR", "FABLE WEEK"}},
-		{name: "stacked", width: 80, by: ByWindow, want: []string{"WEEK", "5-HOUR", "FABLE WEEK"}},
+		{name: "the matrix", width: 160, by: ByWindow, want: []string{"WEEK", "5-HOUR", "FABLE"}},
+		{name: "stacked", width: 80, by: ByWindow, want: []string{"WEEK", "5-HOUR", "FABLE"}},
 		{name: "by account", width: 160, by: ByAccount, want: []string{"Week", "5-hour", "Fable wk"}},
 	}
 	for _, tt := range tests {
@@ -1535,8 +1535,8 @@ func TestWordsACellTooLongInFullAreShortLeavingTheCellsAfterThemBlank(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			rows := printed(capped, tt.width, tt.by)
 			row := rows[tt.row]
-			if got := strings.TrimRight(colAt(row, tt.wordsAt, 22), " "); got != "back Sun" {
-				t.Fatalf("work's week reads %q from column %d, want %q, short, as in full it runs a cell over:\n%s", got, tt.wordsAt, "back Sun", strings.Join(rows, "\n"))
+			if got := strings.TrimRight(colAt(row, tt.wordsAt, 22), " "); got != "cap · back Sun" {
+				t.Fatalf("work's week reads %q from column %d, want %q, short, as in full it runs a cell over:\n%s", got, tt.wordsAt, "cap · back Sun", strings.Join(rows, "\n"))
 			}
 			if got := colAt(row, tt.blankFrom, tt.blank); strings.TrimSpace(got) != "" {
 				t.Errorf("row %d reads %q from column %d, want it blank", tt.row, got, tt.blankFrom)
@@ -1566,7 +1566,7 @@ func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 	for _, hm := range statustest.HardMoments(claudeLike) {
 		t.Run(hm.Name, func(t *testing.T) {
 			m := hm.Doc.At(hm.Now, claudeLike)
-			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m)))
+			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(), labelsOf(m)))
 			for i, a := range m.Accounts {
 				row := b.rows[i]
 				if marked := strings.Contains(b.name(row).plain(), "▲"); marked != a.Next {
@@ -1582,7 +1582,9 @@ func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 }
 
 // checkGaugeAgrees checks that the gauge g USAGE draws of account a's window
-// w, as it stands at now, says what w says.
+// w, as it stands at now, says what w says: its bar empty, nothing on it,
+// where the account has no usable token, nothing is read of the window, or
+// it goes without it.
 func checkGaugeAgrees(t *testing.T, a status.AccountNow, w status.WindowNow, g gauge, now time.Time) {
 	t.Helper()
 	full := g.words.full.plain()
@@ -1599,7 +1601,7 @@ func checkGaugeAgrees(t *testing.T, a status.AccountNow, w status.WindowNow, g g
 		t.Errorf("%s's %s runs out %t, want %t", a.ID, w.Key, g.runsOut, w.RunsOut)
 	}
 	want := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
-	if drawsEmpty(w.Kind) {
+	if w.Kind == status.WindowTokenless || w.Kind == status.WindowUnread || w.Without() {
 		want = usageBar{empty: true}
 	}
 	if got := g.bar; got.empty != want.empty || got.stale != want.stale || got.used != want.used || got.capAt != want.capAt || paceAt(got.pace) != paceAt(want.pace) {

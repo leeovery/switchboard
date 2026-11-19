@@ -104,7 +104,7 @@ func (s sessionsByDay) drawLine(c *canvas, y int, l sessionLine) {
 		endedRule(c, y, s.width, line{{"ended " + prose.DayGone(s.words.now, cmp.Or(l.session.Ended, s.words.now)), dimInk}})
 		return
 	}
-	s.words.sessionRow(c, y, s.columns, l.session.ListedSession, s.width, l.session.Session == s.lit)
+	s.words.sessionRow(c, y, s.columns, *l.session, s.width, l.session.Session == s.lit)
 }
 
 // lineOf is the index of the line of the session with the given id: -1

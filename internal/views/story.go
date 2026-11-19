@@ -32,9 +32,8 @@ func (d LedgerDay) Holds(t time.Time) bool {
 }
 
 // story is what a session's requests tell, taken in in order, as inOrder
-// has it, as add takes them: its first and last request; what names it; the
-// directory it last named, and the project its last request to name either
-// named, which status.ProjectOf reads with the directory; its last request
+// has it, as add takes them: its first and last request; what names it;
+// where it ran, as sessionPlace's after has it of its requests; its last request
 // whose answer gave usage, and its last such turn of its own conversation;
 // its requests on the day and their worth; each move a request of it made;
 // and, of each of its threads, when its last request ended, and how long its
@@ -48,8 +47,7 @@ type story struct {
 	begun       bool
 	first, last flight
 	naming      naming
-	dir         string
-	project     string
+	sessionPlace
 	// used and usedMain are each none, as metered says it's not, till a
 	// request of each kind is taken in.
 	used, usedMain heldRequest
@@ -153,7 +151,7 @@ func (s *story) add(r *heldRequest) {
 		s.begun, s.first = true, r.flight
 	}
 	s.last = r.flight
-	s.dir, s.project = placeAfter(s.dir, s.project, r.dir.Value(), r.project.Value())
+	s.sessionPlace = s.after(r.place())
 	class, from := r.class.Value(), r.from.Value()
 	s.classed = s.classed || class != ""
 	main := class == ledger.ClassMain
@@ -182,17 +180,30 @@ func (s *story) add(r *heldRequest) {
 	}
 }
 
-// placeAfter returns where a session ran, its directory and its project,
-// once a request of it naming dir and project is taken in, after it ran in
-// wasDir and wasProject: the request's directory, where it names one, and
-// its project, where it names either, so the project is always that of the
-// directory named with it, as the router's assignment of the session takes
-// them.
-func placeAfter(wasDir, wasProject, dir, project string) (string, string) {
-	if dir == "" && project == "" {
-		return wasDir, wasProject
+// sessionPlace is where a session ran, as its requests name it: the
+// directory it was started in, the project that's in, which
+// status.ProjectOf reads with the directory, and the name of the terminal
+// session it was started in.
+type sessionPlace struct {
+	dir, project, name string
+}
+
+// after returns where a session ran, after it ran in p, once a request of
+// it naming q is taken in, as the router's assignment of the session takes
+// them: the request's directory, where it names one; its project, where it
+// names either, so the project is always that of the directory named with
+// it; and its name, where it names any of the three, so a session resumed
+// outside every terminal session is named by none.
+func (p sessionPlace) after(q sessionPlace) sessionPlace {
+	placed := q.dir != "" || q.project != ""
+	if !placed && q.name == "" {
+		return p
 	}
-	return cmp.Or(dir, wasDir), project
+	if !placed {
+		q.project = p.project
+	}
+	q.dir = cmp.Or(q.dir, p.dir)
+	return q
 }
 
 // classCompaction is the class, as a line's hints give it, of a compaction

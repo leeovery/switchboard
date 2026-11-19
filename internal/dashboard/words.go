@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -30,7 +29,7 @@ func name(a status.AccountNow) string {
 // labelled is what the dashboard calls the account with the given label
 // and id: its label, else its id, cleaned.
 func labelled(label, id string) string {
-	return prose.Clean(cmp.Or(label, id))
+	return prose.Clean(prose.LabelOr(label, id))
 }
 
 // modelNamed is what the dashboard calls the model with the given id,

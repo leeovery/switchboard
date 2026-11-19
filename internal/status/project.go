@@ -46,6 +46,21 @@ func worktreeRepository(dir string) (string, bool) {
 	return repo, ok && repo != ""
 }
 
+// WorktreeName names the worktree Claude Code made that dir, a session's
+// directory, is in, as claude.WorktreesDir has it: <name> of
+// <repo>/.claude/worktrees/<name>, or of a folder in it, the innermost where
+// one is made inside another's; and whether dir is in one.
+func WorktreeName(dir string) (string, bool) {
+	dir = cleaned(dir)
+	within := "/" + claude.WorktreesDir + "/"
+	at := strings.LastIndex(dir, within)
+	if at <= 0 {
+		return "", false
+	}
+	name, _, _ := strings.Cut(dir[at+len(within):], "/")
+	return name, name != ""
+}
+
 // ProjectNames names projects shown together, each by its path as ProjectOf
 // gives it, cleaned, the names keyed so: by its last part, as
 // "switchboard", and where two share that, by as many of its parents' too

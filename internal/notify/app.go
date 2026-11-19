@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 const (
@@ -232,29 +233,23 @@ func lockBeside(ctx context.Context, path string, wait time.Duration) (unlock fu
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("make the notifications' app's directory: %w", err)
 	}
-	f, err := os.OpenFile(lockPath(path), os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("open the notifications' app's lock: %w", err)
-	}
+	lock := lockPath(path)
 	deadline := time.Now().Add(wait)
 	for ctx.Err() == nil {
-		taken, err := tryLock(f)
+		unlock, taken, err := filelock.TryTake(lock)
 		switch {
 		case err != nil:
-			_ = f.Close()
-			return nil, fmt.Errorf("lock the notifications' app, %s: %w", f.Name(), err)
+			return nil, fmt.Errorf("lock the notifications' app: %w", err)
 		case taken:
-			return func() { _ = f.Close() }, nil
+			return unlock, nil
 		case !time.Now().Before(deadline):
-			_ = f.Close()
-			return nil, fmt.Errorf("another switchboard held the notifications' app's lock, %s, past %s", f.Name(), wait)
+			return nil, fmt.Errorf("another switchboard held the notifications' app's lock, %s, past %s", lock, wait)
 		}
 		select {
 		case <-ctx.Done():
 		case <-time.After(min(lockPoll, time.Until(deadline))):
 		}
 	}
-	_ = f.Close()
 	return nil, fmt.Errorf("wait for the notifications' app's lock: %w", ctx.Err())
 }
 

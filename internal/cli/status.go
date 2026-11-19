@@ -102,7 +102,7 @@ switchboard service install (or switchboard serve).
 // counts them, as where the config can't be loaded, and the router's
 // document is printed in its place.
 func (a *app) momentHeading(ctx context.Context, m status.Moment) string {
-	return poolHeading(poolNamed(a.poolsStanding(ctx), m.PoolLabel))
+	return poolHeading(poolNamed(a.poolsStanding(ctx), m.PoolLabel, m.PoolID))
 }
 
 // unrouted says, in a paragraph of a line, when the claude a shell runs from

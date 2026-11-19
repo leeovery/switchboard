@@ -229,18 +229,33 @@ const (
 )
 
 // What the offer card says, the startup file named where each %s is: its
-// title; what setup can do; what the line does, and what it leaves; and
-// while it's added, that it is.
+// title; what setup can do, and what the line gains the shell, as setup
+// words it; what the line does, and what it leaves; and while it's added,
+// that it is.
 const (
 	offerTitle    = "ADD A LINE TO %s"
-	offerCan      = "Setup can add one line to the end of %s, so your shell finds switchboard's claude first:"
+	offerCan      = "Setup can add one line to the end of %s, %s:"
 	offerHandsOff = "The line hands off to a file of switchboard's own, which puts its claude first and loads its completions."
 	offerLeaves   = "It does nothing once switchboard is gone, and nothing else in %s changes."
 	offerAdding   = "Adding the line to the end of %s"
 )
 
-// offerKeys are the offer card's keys.
-var offerKeys = []Key{{Key: "enter", Does: "add it"}, {Key: "n", Does: "I'll add it myself"}}
+// The offer card's keys: enter adds the line; n leaves it to add by hand,
+// or, where it's offered for the completions alone, goes without them, as
+// the step then ends.
+var (
+	addIt         = Key{Key: "enter", Does: "add it"}
+	addItYourself = Key{Key: "n", Does: "I'll add it myself"}
+	noCompletions = Key{Key: "n", Does: "no completions"}
+)
+
+// offerKeys are the offer card's keys, of the line sh offers.
+func offerKeys(sh setup.ShellFound) []Key {
+	if sh.Situation == setup.OfferCompletions {
+		return []Key{addIt, noCompletions}
+	}
+	return []Key{addIt, addItYourself}
+}
 
 // offerCard is the offer card open over the claude link page, at the
 // screen's time, width cells wide as the dashboard Card's rule has it: nil
@@ -255,7 +270,8 @@ func (s Setup) offerCard(width int) *setupCard {
 
 // card is the offer card at now, width cells wide, of the startup file and
 // the line sh names: ADD A LINE TO and the file in its top edge; what setup
-// can do, in text.secondary, or while the line's added, the spinner and that
+// can do, and what the line gains the shell, as sh's Gains says it, in
+// text.secondary, or while the line's added, the spinner and that
 // it is; a row on, the line, in accent.mode, wrapped whole; a row on, what
 // the line does, and what it leaves, muted; and its keys, but q quit alone
 // while the line's added.
@@ -264,7 +280,7 @@ func (o SetupOfferCard) card(width int, now time.Time, sh setup.ShellFound) *set
 	says := func(text string, k ink) []line {
 		return indented(line{{text, k}}.wrap(content-offerSaysAt), offerSaysAt)
 	}
-	body, keys := says(fmt.Sprintf(offerCan, sh.Where), secondaryInk), offerKeys
+	body, keys := says(fmt.Sprintf(offerCan, sh.Where, sh.Gains()), secondaryInk), offerKeys(sh)
 	if o.Adding {
 		body, keys = indented([]line{waiting(now, fmt.Sprintf(offerAdding, sh.Where))}, offerSaysAt), []Key{Quit}
 	}

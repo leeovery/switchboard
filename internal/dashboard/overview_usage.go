@@ -101,10 +101,9 @@ func (f Frame) overviewWindows(doc status.Document, now time.Time) []shownWindow
 }
 
 // listedWindows are the windows of m the live views list, as m's Listed has
-// them while the frame's Models shows each model's own or not, each named as
-// windowNamer names it.
+// them, each named as windowNamer names it.
 func (f Frame) listedWindows(m status.Moment) []shownWindow {
-	return usageWindows(m.Listed(f.Models), f.windowNamer(m))
+	return usageWindows(m.Listed(), f.windowNamer(m))
 }
 
 // windowNamer names m's windows by their keys as the Overview names them

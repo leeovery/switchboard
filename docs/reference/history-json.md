@@ -47,6 +47,8 @@ Once the config has pools, the history is of one pool:
 
 - the work each request recorded in the pool at the time;
 - the work from before pools, counted in the first pool;
+- the days an account that has left the pool spent in it sending no requests, such as a day at its
+  cap;
 - the windows, plans and weeks of the accounts in the pool now.
 
 The windows of an account are its own, whatever pool it's in.
@@ -131,6 +133,8 @@ priced. Every share is exact too.
 ```json
 {
   "schema": 1,
+  "pool": "b2n8",
+  "pool_label": "Default",
   "windows": [
     {
       "account": "b6s7",
@@ -149,5 +153,11 @@ priced. Every share is exact too.
   ]
 }
 ```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `schema` | number | `1`. See [Reading the JSON](reading-the-json.md). |
+| `pool` and `pool_label` | string | The pool the windows are of, as `history --json` gives it. Left out before the router has made the first pool. |
+| `windows` | list of objects | Each window of each account in the pool, with its `readings`. |
 
 Each reading has the fields of the [readings history](readings.md), less `account` and `window`.

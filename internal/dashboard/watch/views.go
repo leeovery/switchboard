@@ -93,36 +93,6 @@ func (m Model) regroup() Model {
 	return m.keepPrefs("how the windows are grouped", func(p *theme.Prefs) { p.By = layout }, "by", layout)
 }
 
-// toggleModels shows each model's own window, as Fable's week, where the
-// live views hide it, and hides it where they show it, as w does, and keeps
-// it, for the next watch to open with.
-func (m Model) toggleModels() Model {
-	m.models = !m.models
-	shown := m.models
-	return m.keepPrefs("whether models' windows show", func(p *theme.Prefs) { p.Models = shown }, "models", shown)
-}
-
-// listsModels reports whether the page shown lists windows as they stand
-// now, each model's own among them while w shows them: the Overview,
-// Accounts' Detail, Sessions' Switchboard and a session's page.
-func (m Model) listsModels() bool {
-	switch m.shownView() {
-	case dashboard.Overview, dashboard.SessionPage:
-		return true
-	case dashboard.Accounts:
-		return m.accounts.shown.View() == dashboard.AccountsDetail
-	case dashboard.Sessions:
-		return m.sessionsTab.shown.Shown == dashboard.SessionsSwitchboard
-	}
-	return false
-}
-
-// modelsKey is w, as the key line and help list it, its word faint while
-// each model's own window is hidden, as a hidden section's is.
-func (m Model) modelsKey() dashboard.Key {
-	return dashboard.Key{Key: "w", Does: "models", Hidden: !m.models}
-}
-
 // layoutOf is the layout the config, and the preferences, name grouping by
 // by: window or account.
 func layoutOf(by dashboard.By) config.Layout {

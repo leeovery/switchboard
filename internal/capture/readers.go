@@ -64,7 +64,7 @@ func (a accountWorlds) recordsOf(w accountWorld) *records {
 		r.lines, r.events = a.traffic()
 	}
 	if w.lines != nil {
-		r.lines = filedOf(heldAsWritten(w.lines(a.now)))
+		r.lines = filedOf(heldAsWritten(inTerminals(w.lines(a.now))))
 	}
 	if w.ownEvents {
 		r.events = logged(w.events, a.now)

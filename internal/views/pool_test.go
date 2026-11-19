@@ -111,6 +111,51 @@ func TestAPoolsDaysHoldItsWorkAndItsOwnIdleAccounts(t *testing.T) {
 	}
 }
 
+// An account's day of no work that names the pool it was in as the day was
+// summarised shows in that pool's read, as a worked day's work does, and in
+// the read of the pool the account is in now, as its windows are its own:
+// so the pool an account left keeps its days spent capped there, and the
+// pool it joined keeps them in the account's weeks. One that names a pool,
+// of an account none places now, shows in that pool alone; one naming none,
+// as a day summarised before idle days named their pools, goes by the pool
+// the account is in now.
+func TestAnAccountsDayOfNoWorkShowsInThePoolItNamesAndThePoolItsInNow(t *testing.T) {
+	day := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	capped := 30
+	idleIn := func(account, pool string) ledger.AccountDay {
+		return ledger.AccountDay{Account: account, Pool: pool, Highest: map[string]float64{"5h": 1}, MinutesAtCap: &capped}
+	}
+	read := givenDays{{Day: "2026-11-03", Accounts: []ledger.AccountDay{
+		idleIn("gone", "x9z9"),   // none places it; its pool kept apart by an import
+		idleIn("lapsed", "q7mt"), // removed from Acme
+		idleIn("side", "q7mt"),   // moved from Acme to Default since
+		idleIn("spare", ""),      // summarised before idle days named their pools
+		idleIn("work", "b2n8"),   // moved from Default to Acme since
+	}}}
+	reads := []struct {
+		name string
+		read views.PoolRead
+		want []string
+	}{
+		{name: "Acme's", read: acmeRead, want: []string{"lapsed", "side", "work"}},
+		{name: "Default's", read: views.PoolRead{ID: "b2n8", First: acmeRead.First, PoolOf: acmeRead.PoolOf}, want: []string{"side", "spare", "work"}},
+		{name: "the kept pool's", read: views.PoolRead{ID: "x9z9", First: acmeRead.First, PoolOf: acmeRead.PoolOf}, want: []string{"gone"}},
+		{name: "every pool's", read: views.PoolRead{}, want: []string{"gone", "lapsed", "side", "spare", "work"}},
+	}
+	for _, tt := range reads {
+		var kept []string
+		for _, a := range tt.read.Days(read).Days(day)[0].Accounts {
+			kept = append(kept, a.Account)
+			if *a.MinutesAtCap != capped {
+				t.Errorf("%s day of %s holds %d minutes at its cap, want its %d", tt.name, a.Account, *a.MinutesAtCap, capped)
+			}
+		}
+		if !slices.Equal(kept, tt.want) {
+			t.Errorf("%s day holds the days of no work of %q, want %q", tt.name, kept, tt.want)
+		}
+	}
+}
+
 // A pool's windows are those of the accounts status.AccountIn has as the
 // pool's, the one removed from it and the one none places among them; every
 // pool's are every one.

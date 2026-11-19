@@ -71,8 +71,8 @@ func (m Model) sessionKeys() pageKeys {
 // sessionListings are a session's page's own keys, with a turn open or not,
 // in the design's order: esc, back where the page was opened from, or with a
 // turn open, closing it; ↑↓ through its turns, or the open turn's requests;
-// enter opening the turn chosen into its requests, or the request chosen;
-// and w, as modelsKey has it, which the key line leaves to help.
+// and enter opening the turn chosen into its requests, or the request
+// chosen.
 func (m Model) sessionListings(open bool) []keyListing {
 	esc, move, enter := dashboard.Key{Key: "esc", Does: "back"}, dashboard.Key{Key: "↑↓", Does: "turn"}, dashboard.Key{Key: "enter", Does: "its requests"}
 	if open {
@@ -80,7 +80,6 @@ func (m Model) sessionListings(open bool) []keyListing {
 	}
 	return []keyListing{
 		{Key: esc, works: true, leads: true}, {Key: move, works: true, apart: true}, {Key: enter, works: true, phoneDoes: "open"},
-		{Key: m.modelsKey(), works: true, helpful: true},
 	}
 }
 

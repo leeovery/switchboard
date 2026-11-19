@@ -56,6 +56,28 @@ func TestTheLimitsAreCountedAndTheTimeAtACapOrLimitIsTheTwoTogether(t *testing.T
 	}
 }
 
+// An account's moves are those onto it and off it together; every
+// account's, each move once, as it came onto the account it went to.
+func TestTheMovesAreAnAccountsInAndOutOrEveryAccountsMovesOnce(t *testing.T) {
+	tests := []struct {
+		name   string
+		totals views.AccountTotals
+		want   int
+	}{
+		{name: "an account's in and out", totals: views.AccountTotals{MovedOn: 2, MovedOff: 1}, want: 3},
+		{name: "an account's out alone", totals: views.AccountTotals{MovedOff: 3}, want: 3},
+		{name: "every account's, each once", totals: views.AccountTotals{All: true, MovedOn: 4, MovedOff: 4}, want: 4},
+		{name: "none moved", totals: views.AccountTotals{}, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.totals.Moves(); got != tt.want {
+				t.Errorf("Moves() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
 // The sessions of the totals' tests.
 const (
 	sessionA = "aaaa1111"

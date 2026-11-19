@@ -17,7 +17,7 @@ func overviewHelp() []helpPart {
 		{
 			heading: SectionUsage.heading(),
 			says: []line{
-				said("Each account's windows, those every model shares, and each model's own while `w` shows them, as switchboard usage " +
+				said("Each account's windows, those every model shares, and each model's own where an account has used it, as switchboard usage " +
 					"prints them, first as the rest of the page is read against them. " +
 					"A bar fills along the theme's ramp as its window is used, and its percentage takes the ramp's second colour from 70% " +
 					"and its last from 90%."),
@@ -25,7 +25,7 @@ func overviewHelp() []helpPart {
 					"runs out before it resets, or its day alone, out ~Tue, more than a day ahead, dated where that day is today's weekday, " +
 					"out ~Thu 12 Nov, short out ~12 Nov: a week as forecast, the 5-hour at its " +
 					"recent rate; at cap where its use has reached the cap; and limit while Claude's own " +
-					"limit holds it."),
+					"limit holds it, short cap · back Mon and limit · back Sun."),
 				said("Σ pool is the room new sessions can go to now, in accounts' worth: every account's on auto, the pinned accounts' alone " +
 					"when pinned, each to its cap; all accounts, on Accounts, counts every account, to its limit. An account out " +
 					"of the pool is faint."),
@@ -33,10 +33,10 @@ func overviewHelp() []helpPart {
 					"ROUTING keeps a section of its own. With more accounts than fit, " +
 					"USAGE scrolls within itself, whole, a row at a time, each window's heading kept on its first row while the window's " +
 					"rows scroll under it, and its last row says how many rows are out of view above and below."),
-				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: " +
-					"Accounts' Detail, Sessions' Switchboard and a session's page. Hidden, one shows all the same while it nears its limit " +
-					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage and the Log list " +
-					"every window."),
+				said("A model's own week, as FABLE, shows as the 5-hour does, here and wherever windows are listed as they stand now: " +
+					"Accounts' Detail, Sessions' Switchboard and a session's page. An account that has used it this week shows its bar; " +
+					"one that hasn't says no Fable use, or is left out where the windows are stacked. Once no account has any use left " +
+					"in it, as after it resets, it goes, and comes back with the first use."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{paceMark, paceInk}}, means: "even pace: where you would be now, used evenly"},

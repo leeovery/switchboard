@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  Projects  Sessions  Runway  Trends  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+USAGE  ──────────────────────────────────────────────────────────────── u
+
+WEEK
+
+ work                  ▉     ┃            ╎  34%  out ~Sat
+ personal   ◆                    ┃           66%  out ~Sat
+ side       ▲              ┃        ▋        78%  out ~Fri
+─────────────────────────────────────────────────────────────────────────
+ Σ pool                       ┃▎             59%  1.2 of 3 left
+
+5-HOUR
+
+ work                        ┃           ▌╎  95%  at cap · back 17:10
+ personal   ◆            ▎       ┃           39%  34%/h till 16:30
+ side       ▲    ▊ ┃                         13%  21%/h till 18:50
+─────────────────────────────────────────────────────────────────────────
+ Σ pool                    ┃▎                49%  1.5 of 3 left
+
+FABLE
+
+ work            ▌           ┃            ╎  12%  25%/day till Sun 21:00
+ side       ▲  ▏           ┃                  4%  25%/day till Mon 10:00
+─────────────────────────────────────────────────────────────────────────
+ Σ pool        ▌              ┃               5%  2.8 of 3 left
+
+┃ even pace: where you would be now, used evenly
+╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+
+ROUTING   auto ──────────────────────────────────────────────────────── r
+
+ work         ● at its cap · 17:10
+              ▂▄▅▄▂▂▂▃▂▄▆▆▄▃▃▂▂▂▂▂▂▁▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0 sessions  0/min
+
+ personal   ◆ ● open
+              ▁▂▁▂▂▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▃▅▅▃▁▁▁▁▁▁▁▁▁▁▂▁   2 sessions  3/min
+
+ side       ▲ ● open · next
+              ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▆    ▇▇▇▅▄▄▅▆  4 sessions  11/min
+
+COMING UP  ──────────────────────────────────────────────────────────── c
+
+16:30  personal's 5-hour resets                                 in 1h 48m
+17:10  work back from its cap                                   in 2h 28m
+18:50  side's 5-hour resets                                     in 4h 08m
+~Fri   side's week runs out at its pace                          in 1d 1h
+~Sat   personal's week runs out at its pace                     in 1d 15h
+
+LATELY  ─────────────────────────────────────────────────────────────── l
+
+14:41  ▲ mobile started on side
+14:31  ╎ work reached its cap: 3 sessions moved to side
+14:12  ▲ api started on work
+13:50  ◇ side primed: its 5-hour window started
+13:22  ▸ infra moved personal → work: personal came under pressure, its…
+
+tab views   ? keys and toggles   q quit

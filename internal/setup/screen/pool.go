@@ -11,12 +11,14 @@ import (
 
 // poolField is a card's Pool as the screen holds it: the pools configured,
 // as the review gives them; the new pool the card holds, made with the
-// account, where it holds one; and the option chosen, by its place among
-// the options, as options has them.
+// account, where it holds one, and those of its directories that aren't on
+// this Mac; and the option chosen, by its place among the options, as
+// options has them.
 type poolField struct {
-	pools  []setup.PoolChoice
-	made   *accounts.NewPool
-	chosen int
+	pools   []setup.PoolChoice
+	made    *accounts.NewPool
+	missing []string
+	chosen  int
 }
 
 // poolOf is the Pool of a card over review, the pool with the given id
@@ -37,7 +39,7 @@ func (f poolField) choices() []setup.PoolChoice {
 	if f.made == nil {
 		return f.pools
 	}
-	return append(slices.Clone(f.pools), setup.PoolChoice{Label: f.made.Label, Dirs: f.made.Dirs, Held: true})
+	return append(slices.Clone(f.pools), setup.PoolChoice{Label: f.made.Label, Dirs: f.made.Dirs, Held: true, Missing: f.missing})
 }
 
 // options are the field's options, each pool by its label, as choices has
@@ -67,9 +69,10 @@ func (f poolField) moved(by int) poolField {
 }
 
 // holding is the field holding the new pool given, made with the account,
-// in place of any it held, and chosen.
-func (f poolField) holding(pool accounts.NewPool) poolField {
-	f.made, f.chosen = &pool, len(f.pools)
+// in place of any it held, and chosen, with those of its directories that
+// aren't on this Mac.
+func (f poolField) holding(pool accounts.NewPool, missing []string) poolField {
+	f.made, f.missing, f.chosen = &pool, missing, len(f.pools)
 	return f
 }
 
@@ -82,10 +85,11 @@ func (f poolField) usedBy() string {
 	return setup.NewPoolHint
 }
 
-// drawn is the field as dashboard.Setup draws it, hinted as given.
+// drawn is the field as dashboard.Setup draws it, hinted as given, and
+// warning of the pool chosen as setup words it.
 func (f poolField) drawn(hint string) *dashboard.SetupPool {
-	_, chosen := f.choice()
-	return &dashboard.SetupPool{Options: f.options(), Chosen: f.chosen, Hint: hint, New: !chosen}
+	p, chosen := f.choice()
+	return &dashboard.SetupPool{Options: f.options(), Chosen: f.chosen, Hint: hint, Warning: p.Warning(), New: !chosen}
 }
 
 // placed is the pool the field has an account go in: the id of the one

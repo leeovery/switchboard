@@ -69,7 +69,8 @@ func (p Period) WeeksLeast() int {
 // verdict on it, as weeks gives them, Weeks over the weeks the reach is of,
 // at in: a column a week, as weekBuckets names them; or of the last 12
 // months, a column a month, the months they fall in, as monthBuckets names
-// them, each its fullest week's.
+// them, each as full as its fullest week got, at its cap where any of its
+// weeks was, as fullestIn has them.
 func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 	today := dayfile.CivilOf(in.Now)
 	first, _ := dayfile.Civil(weeks.Weeks[0])
@@ -86,12 +87,15 @@ func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 	page.All.Reached, page.All.Reaching = columns(weeks.All.Peaks), weeks.All.AccountVerdict
 }
 
-// fullestIn are the peaks of the months given, each its fullest week's of
-// the weeks given, by their first days, peaks holding each week's: of the
-// weeks that begin in it, the one whose peak is known and highest, the
-// first of any that tie; unknown in a month none of whose weeks' is known.
+// fullestIn are the peaks of the months given, of the weeks given, by their
+// first days, peaks holding each week's: of the weeks that begin in a month,
+// the share and Open of the one whose peak is known and highest, the first
+// of any that tie; unknown in a month none of whose weeks' is known. A month
+// is at its cap where any of its weeks is, and isn't open where a week other
+// than its fullest is, so a short week is marked though this week so far is
+// fuller.
 func fullestIn(months, weeks []Bucket, peaks []WeekPeak) []WeekPeak {
-	fullest := make([]WeekPeak, len(months))
+	fullest, capped := make([]WeekPeak, len(months)), make([]int, len(months))
 	m := 0
 	for i, w := range weeks {
 		for m+1 < len(months) && !w.Start.Before(months[m+1].Start) {
@@ -99,6 +103,14 @@ func fullestIn(months, weeks []Bucket, peaks []WeekPeak) []WeekPeak {
 		}
 		if p := peaks[i]; p.Share != nil && (fullest[m].Share == nil || *p.Share > *fullest[m].Share) {
 			fullest[m] = p
+		}
+		if peaks[i].AtCap {
+			capped[m]++
+		}
+	}
+	for m := range fullest {
+		if capped[m] > 1 || capped[m] == 1 && !fullest[m].AtCap {
+			fullest[m].Open, fullest[m].AtCap = false, true
 		}
 	}
 	return fullest

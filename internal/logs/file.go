@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+
+	"github.com/leeovery/switchboard/internal/filelock"
 )
 
 const (
@@ -151,7 +153,7 @@ func (l *logFile) open() (*os.File, error) {
 // rolled-over one. A log that can't be rolled over is still written, past
 // its cap, rather than losing records.
 func (l *logFile) roll(full os.FileInfo) {
-	unlock := lockDir(filepath.Dir(l.path))
+	unlock := filelock.TakeDir(filepath.Dir(l.path))
 	defer unlock()
 	if named, err := os.Stat(l.path); err != nil || !os.SameFile(named, full) {
 		return

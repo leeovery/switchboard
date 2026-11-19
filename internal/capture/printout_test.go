@@ -47,6 +47,9 @@ func TestAPrintoutIsWhatUsagePrintsOfItsRouter(t *testing.T) {
 		{fixture: "usage-mixed-52"},
 		{fixture: "usage-mixed-by-account-160", args: []string{"--by", "account"}},
 		{fixture: "usage-token-160"},
+		{fixture: "usage-fable-160"},
+		{fixture: "usage-fable-52"},
+		{fixture: "usage-fable-by-account-160", args: []string{"--by", "account"}},
 		{name: "by account, as the config says", fixture: "usage-by-account-160", by: "account"},
 		{name: "--by window beating the config's account", fixture: "usage-160", by: "account", args: []string{"--by", "window"}},
 	}

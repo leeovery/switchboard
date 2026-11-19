@@ -157,16 +157,18 @@ func (m Model) newPoolPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // poolCheckedMsg is what CheckPool answered, checking the new pool card's
-// pool.
+// pool: the pool as it passed, or why it failed.
 type poolCheckedMsg struct {
-	pool accounts.NewPool
-	err  error
+	pool    accounts.NewPool
+	checked setup.CheckedPool
+	err     error
 }
 
 // checkPool is the job that checks the pool given, with CheckPool.
 func checkPool(steps Steps, pool accounts.NewPool) job {
 	return func(context.Context) tea.Msg {
-		return poolCheckedMsg{pool: pool, err: steps.CheckPool(pool)}
+		checked, err := steps.CheckPool(pool)
+		return poolCheckedMsg{pool: pool, checked: checked, err: err}
 	}
 }
 
@@ -174,7 +176,9 @@ func checkPool(steps Steps, pool accounts.NewPool) job {
 // open: where setup refused a value, why, said under its row, the card
 // staying open; where it failed otherwise, the step failed, not checked,
 // every card closed; else the card closed, and the card that opened it
-// holding the pool, chosen.
+// holding the pool, chosen, its directories as the config would write them,
+// so its hint and its warning name them alike, with those that aren't on
+// this Mac.
 func (m Model) poolChecked(msg poolCheckedMsg) (Model, tea.Cmd) {
 	if m.newPool == nil {
 		return m, nil
@@ -196,16 +200,18 @@ func (m Model) poolChecked(msg poolCheckedMsg) (Model, tea.Cmd) {
 		m.walk, m.accountsFailed = m.walk.finished(msg.err), dashboard.AccountsNotChecked
 		return m, nil
 	}
+	pool := msg.pool
+	pool.Dirs = msg.checked.Dirs
 	switch {
 	case m.add != nil:
 		add := *m.add
-		held := add.pool.holding(msg.pool)
+		held := add.pool.holding(pool, msg.checked.Missing)
 		add.pool = &held
 		add.form = add.unrefused(setup.PoolField)
 		m.add = &add
 	case m.edit != nil:
 		edit := *m.edit
-		held := edit.pool.holding(msg.pool)
+		held := edit.pool.holding(pool, msg.checked.Missing)
 		edit.pool = &held
 		edit.form = edit.unrefused(setup.PoolField)
 		m.edit = &edit

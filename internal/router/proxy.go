@@ -44,6 +44,10 @@ const (
 	// PoolHeader names the pool run started claude in, by its id, which the
 	// router routes the session's requests within.
 	PoolHeader = ownPrefix + "Pool"
+	// NameHeader names the terminal session run started claude in, as
+	// ledger.LineName gives it, encoded as DirHeader's directory is, for the
+	// dashboard to name the session by.
+	NameHeader = ownPrefix + "Name"
 )
 
 const (
@@ -261,7 +265,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client sender) {
 // request is what the chooser is to know of a routed request, whose body is
 // body, sent by client's token, but for its pin, which route reads once the
 // request is to be routed: its session, the directory it was started in, its
-// project and the pool it names, its model and whether the model's thinking
+// project, its name and the pool it names, its model and whether the model's thinking
 // is bound to its account, whether it's the client's quota check, and
 // whether it's the first of its session's main conversation after that was
 // compacted; and the request's shape, which the provider reads in the same
@@ -275,6 +279,7 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 		Session:   p.provider.Session(r.Header),
 		Dir:       dirOf(r.Header),
 		Project:   projectOf(r.Header),
+		Name:      nameOf(r.Header),
 		Pool:      namedPool(r.Header),
 		Model:     model,
 		Check:     check,
@@ -885,7 +890,7 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	f := finishing(r, time.Since(ex.started), false)
 	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
-	ex.req.Session, ex.req.Dir, ex.req.Project, ex.req.Pool = p.provider.Session(r.Header), dirOf(r.Header), projectOf(r.Header), namedPool(r.Header)
+	ex.req.Session, ex.req.Dir, ex.req.Project, ex.req.Name, ex.req.Pool = p.provider.Session(r.Header), dirOf(r.Header), projectOf(r.Header), nameOf(r.Header), namedPool(r.Header)
 	ex.pool = p.pools.current().of(ex.req.Pool)
 	ex.status = http.StatusBadRequest
 	kind, message := "invalid_request_error", "switchboard: couldn't read the request body"

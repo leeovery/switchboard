@@ -28,7 +28,7 @@ func EmptyPool(label, id string, dirs []string, waiting int) [][]string {
 		}
 		where, held = "in "+ListOr(cleaned), "Its directories stay fenced"
 	}
-	id = Clean(id)
+	label, id = LabelOr(label, id), Clean(id)
 	none, how := " has no accounts", []string{
 		"Add one with switchboard accounts add <label> --pool " + id + ", or in switchboard setup.",
 		"Move one in with switchboard accounts edit <id> --pool " + id + ".",

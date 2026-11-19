@@ -59,10 +59,15 @@ WORTH BY picks its bucket by the period:
 | 12 months | a week, or a month if a column a week doesn't fit |
 
 SESSIONS lists the running sessions first. The rest follow under a rule for the day they ended:
-`ended today`, `ended yesterday`, a weekday this week, or a date before. Each session
-starts at its first request, with the day if it began on another. If the sessions don't all fit,
-the last row counts those out of view, as the List does: `▲ 3 more sessions · ▼ 12 more sessions`.
-On a short screen, that row shows only if two sessions still fit above it.
+`ended today`, `ended yesterday`, a weekday this week, or a date before. Each session starts at its
+first request, with the day if it began on another. If the sessions don't all fit, the last row
+counts those out of view: `▲ 3 more sessions · ▼ 12 more sessions`. On a short screen, that row
+shows only if two sessions still fit above it.
+
+Each session shows its [session name](sessions.md) alone, such as `router-fix`, because the project
+heads the page. The session name is the terminal session's name, else the worktree's name, else
+the id. Two sessions of one name each add their id, dimmed, as the List does. The id shows as much
+as tells the two apart, at least 4 characters.
 
 Only the part where `↑` and `↓` act, the list or the sessions, lights its chosen row. The other
 keeps its chosen row bold, marked `▸`.

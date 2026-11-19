@@ -22,8 +22,7 @@ var keysSaid = map[string]string{
 		"read afresh, starting the view afresh, or says there's one alone. j, k, PgDn, PgUp and the wheel scroll " +
 		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, a project's SESSIONS, " +
 		"Sessions' List and lanes, Runway's lanes, Trends' page, the Log's table, and a session's " +
-		"turns, or an open turn's requests. w, where it's listed as models, shows and hides each model's own " +
-		"window; one near its limit shows either way.",
+		"turns, or an open turn's requests.",
 	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
 		"and ↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are.",

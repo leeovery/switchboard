@@ -163,7 +163,6 @@ Total and worth always show. The names stay whole until every other column has g
 | `→` `←` | In Detail, `→` moves into the sessions of the chosen account, and `←` goes back to the list. |
 | `↑` `↓`, then `enter` | In the sessions on Detail, chooses a session, and opens its page. |
 | `enter` | In the list on Detail, opens the page of the session last chosen, or else of the first one running. |
-| `w` | In Detail, shows or hides the model windows. |
 | `v` | On Tokens, splits each row by account, by model, by both, or not at all. |
 | `j` `k` | Scroll Compare, Detail or Tokens, a row at a time. |
 

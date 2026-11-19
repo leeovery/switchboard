@@ -250,7 +250,7 @@ func (g glance) accountGauge(a status.AccountNow, known bool) glanceGauge {
 	card := burnCardOf(a, key, g.trails[Ref{Account: a.ID, Window: key}], g.m.Now)
 	card.heldSince = g.heldSince(a, key)
 	gg := glanceGauge{spark: card, words: gauge{of: Ref{Account: a.ID, Window: key}, words: wordsOf(win, g.m.Now)}}
-	if drawsEmpty(win.Kind) {
+	if drawsEmpty(win) {
 		gg.figure = line{noFigure}
 	} else {
 		gg.figure = line{roomFigure(gg.words.of, win.Used, a.OutOfPool, win.Kind == status.WindowStale)}

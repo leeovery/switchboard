@@ -252,7 +252,7 @@ func TestRoutingNamesALabelCutToItsMost(t *testing.T) {
 	want := "from " + prose.Cut(label, labelMost) + ", at its cap"
 	for name, said := range map[string]line{
 		"the Log":  rowWordsIn(requestWords(views.RequestRow{Routing: routing}, LogRouting, logLayout{}), func(id string) string { return id }, 80),
-		"the List": sessionWords{}.says(listColumn{part: listRouting, width: 80}, views.ListedSession{Routing: routing}),
+		"the List": sessionWords{}.says(listColumn{part: listRouting, width: 80}, views.PeriodSession{Routing: routing}),
 	} {
 		c := newCanvas(80, 1)
 		c.line(0, 0, said)

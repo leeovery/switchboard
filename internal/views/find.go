@@ -49,9 +49,11 @@ func (f Found) Done() bool {
 
 // FoundSession is a session the find matches, on the newest day it's of.
 type FoundSession struct {
-	// ID is its whole id, and Dir the directory it ran in on Day, as today's
-	// sessions and a day's lines name it: "" of a day not read yet.
-	ID, Dir string
+	// ID is its whole id, and Dir the directory it ran in on Day, and Name
+	// the terminal session it was started in, as today's sessions and a
+	// day's lines name them: "" of a day not read yet, and Name "" where
+	// none was.
+	ID, Dir, Name string
 	// Day is the day it matches on: today, or the newest past day it's of.
 	Day LedgerDay
 	// Ended is set where it has ended: one of today's that has, and every
@@ -64,15 +66,16 @@ type FoundSession struct {
 
 // FindSessions finds the sessions what's typed matches, as far back as the
 // find has read: each whose id starts with it, or whose directory's name, its
-// last part, holds it, whatever the case. Each session is judged once, on
-// the newest day it's of: today's first, in the panel's order; then each
-// past day's the summaries give, newest first, back to the oldest day the
-// ledger keeps: of a day read, its sessions as its lines name them, the last
-// to arrive first, then those its summary names that its lines don't, as
-// where its lines are damaged; of a day not read yet, those its summary
-// names. A session its summary alone names is found by its id alone, as its
-// directory isn't known till its lines are read. A day whose summary names
-// no session, and might name none, is never read.
+// last part, or its name, as the List shows it (ListedSession.ShownName),
+// holds it, whatever the case. Each session is judged once, on the newest
+// day it's of: today's first, in the panel's order; then each past day's
+// the summaries give, newest first, back to the oldest day the ledger keeps:
+// of a day read, its sessions as its lines name them, the last to arrive
+// first, then those its summary names that its lines don't, as where its
+// lines are damaged; of a day not read yet, those its summary names. A
+// session its summary alone names is found by its id alone, as its directory
+// and name aren't known till its lines are read. A day whose summary names no
+// session, and might name none, is never read.
 func FindSessions(src FindSources) Found {
 	today := Today(src.Now)
 	f := finder{typed: strings.ToLower(src.Typed), judged: make(map[string]bool)}
@@ -98,7 +101,7 @@ func FindSessions(src FindSources) Found {
 // foundToday is s, one of today's sessions, as the find finds it: ended,
 // its last request come when it ended, where it has.
 func foundToday(s LogSession, today LedgerDay) FoundSession {
-	found := FoundSession{ID: s.ID, Dir: s.Dir, Day: today}
+	found := FoundSession{ID: s.ID, Dir: s.Dir, Name: s.Name, Day: today}
 	if s.Activity.Doing == Ended {
 		found.Ended, found.Last = true, s.Activity.Since
 	}
@@ -120,7 +123,7 @@ type finder struct {
 func (f *finder) judgeDay(summary ledger.Summary, day LedgerDay, read map[string][]DaySession) (toRead bool) {
 	sessions, isRead := read[summary.Day]
 	for _, s := range sessions {
-		f.judge(FoundSession{ID: s.ID, Dir: s.Dir, Day: day, Ended: true, Last: s.Last})
+		f.judge(FoundSession{ID: s.ID, Dir: s.Dir, Name: s.Name, Day: day, Ended: true, Last: s.Last})
 	}
 	ids, might := sessionsNamed(summary)
 	for _, id := range ids {
@@ -136,8 +139,9 @@ func (f *finder) judge(s FoundSession) {
 		return
 	}
 	f.judged[s.ID] = true
-	name := strings.ToLower(status.DirName(s.Dir, math.MaxInt))
-	if strings.HasPrefix(strings.ToLower(s.ID), f.typed) || strings.Contains(name, f.typed) {
+	dir := strings.ToLower(status.DirName(s.Dir, math.MaxInt))
+	name := strings.ToLower(ListedSession{Session: s.ID, Dir: s.Dir, Name: s.Name}.ShownName().Name)
+	if strings.HasPrefix(strings.ToLower(s.ID), f.typed) || strings.Contains(dir, f.typed) || strings.Contains(name, f.typed) {
 		f.found = append(f.found, s)
 	}
 }

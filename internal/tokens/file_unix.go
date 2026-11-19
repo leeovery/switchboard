@@ -3,7 +3,6 @@
 package tokens
 
 import (
-	"errors"
 	"io/fs"
 	"os"
 	"syscall"
@@ -34,30 +33,4 @@ func links(info fs.FileInfo) (uint64, bool) {
 		return 0, false
 	}
 	return uint64(st.Nlink), true
-}
-
-// lockDir takes an exclusive lock on dir, waiting while another holds it,
-// another process or another of this one's, and returns what releases it.
-// When it can't take the lock, it carries on without one.
-func lockDir(dir string) (unlock func()) {
-	d, err := os.Open(dir)
-	if err != nil {
-		return func() {}
-	}
-	if err := flock(d); err != nil {
-		_ = d.Close()
-		return func() {}
-	}
-	return func() { _ = d.Close() }
-}
-
-// flock takes an exclusive lock on f, waiting while another holds it, and
-// trying again when a signal cuts the wait short.
-func flock(f *os.File) error {
-	for {
-		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
-		if !errors.Is(err, syscall.EINTR) {
-			return err
-		}
-	}
 }

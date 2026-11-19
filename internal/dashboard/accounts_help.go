@@ -169,8 +169,10 @@ func (f Frame) detailHelp() helpPart {
 	}
 	sessions := "With sessions running on the account, SESSIONS lists them: `→` takes the choice into them and `←` back, " +
 		"`↑` and `↓` select one there, and `enter` opens its page, from the list too."
+	atCap := "a week it hit its limit, or of all accounts, a week some account did"
 	if f.Accounts.Alone() {
 		sessions = "With sessions running on it, SESSIONS lists them: `↑` and `↓` select one, and `enter` opens its page."
+		atCap = "a week it hit its limit"
 	}
 	return helpPart{
 		heading: accountsHeading(AccountsDetail),
@@ -194,7 +196,7 @@ func (f Frame) detailHelp() helpPart {
 		glyphs: append(shadesHelp("a day", "days", f.byDaySwatch),
 			glyph{drawn: f.daySwatch(dayInk(2), 2, true, f.detailDays()), means: daysLimitNote},
 			glyph{drawn: dayToCome(f.detailDays()), means: "a day still to come"},
-			glyph{drawn: line{{atItsCap, exhaustedInk}}, means: "a week it hit its limit"},
+			glyph{drawn: line{{atItsCap, exhaustedInk}}, means: atCap},
 		),
 	}
 }

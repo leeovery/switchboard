@@ -29,10 +29,12 @@ func mergedWritten(a, b json.RawMessage) (json.RawMessage, error) {
 // order they came, each once, as limitsKnowing and resetsKnowing have them;
 // the minutes summed; and the windows read before of both. A window's rises,
 // resets and minutes that one of them never read, as its readings were under
-// the other's id, are the other's.
+// the other's id, are the other's. Two days of no work name the pool a's
+// names, else b's, as IdlePool reads each.
 func mergedDays(a, b AccountDay) AccountDay {
 	return AccountDay{
 		Account:        a.Account,
+		Pool:           cmp.Or(a.IdlePool(), b.IdlePool()),
 		Work:           mergedWork(a.Work, b.Work),
 		Highest:        mergedMaps(a.Highest, b.Highest, func(x, y float64) float64 { return max(x, y) }),
 		Rise:           mergedMaps(a.Rise, b.Rise, func(x, y float64) float64 { return x + y }),

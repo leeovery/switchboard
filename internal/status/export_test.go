@@ -106,9 +106,6 @@ func (r Refusal) Holds(now time.Time) bool {
 	return r.holds(now)
 }
 
-// Near is near.
-const Near = near
-
 // Projection is projection.
 func Projection(now time.Time, w WindowNow, floor float64) string {
 	return projection(now, w, floor)

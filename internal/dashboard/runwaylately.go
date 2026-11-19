@@ -16,9 +16,8 @@ const (
 	// comingAlone is COMING UP alone, as comingColumns lays it, no LATELY.
 	comingAlone latelyPlace = iota
 	// latelyStacked is LATELY under COMING UP, a blank row between, from the
-	// first column: COMING UP in the columns comingColumns lays, LATELY as
-	// wide as they span, or both in one column, as wide as stackedWidth has
-	// it, where COMING UP takes one.
+	// first column: COMING UP in the columns comingColumns lays, LATELY across
+	// the frame under them, or both across it, where COMING UP takes one.
 	latelyStacked
 	// latelySideBySide is LATELY from the first column, as wide as the
 	// Overview's LATELY column, and COMING UP as wide as the Overview's
@@ -67,47 +66,22 @@ func (f Frame) latelyPlaceOf() latelyPlace {
 	return comingAlone
 }
 
-// runwayColumns are the columns COMING UP's lines and LATELY's take at the
-// moment m, where the fit places LATELY: beside COMING UP, LATELY as wide as
-// the Overview's LATELY column from the first, and COMING UP as wide as the
-// Overview's COMING UP column, ending at the frame's edge; stacked, COMING
-// UP's as comingColumns lays them, and LATELY from the first, as wide as
-// stackedWidth has it, or as COMING UP spans where that's wider, COMING
-// UP's one column as wide as LATELY where it has one; else COMING UP's as
+// runwayColumns are the columns COMING UP's lines and LATELY's take, where
+// the fit places LATELY: beside COMING UP, LATELY as wide as the Overview's
+// LATELY column from the first, and COMING UP as wide as the Overview's
+// COMING UP column, ending at the frame's edge; stacked, COMING UP's as
+// comingColumns lays them, and LATELY across the frame under them, as a
+// section alone takes the Overview's width; else COMING UP's as
 // comingColumns lays them, and LATELY none.
-func (f Frame) runwayColumns(m status.Moment, fit runwayFit) (coming []flex.Span, lately flex.Span) {
+func (f Frame) runwayColumns(fit runwayFit) (coming []flex.Span, lately flex.Span) {
 	switch fit.place {
 	case latelySideBySide:
 		width := comingWidth(f.Width)
 		return []flex.Span{{At: f.Width - width, Size: width}}, flex.Span{Size: f.Width - latelyAt(f.Width)}
 	case latelyStacked:
-		coming = f.comingColumns()
-		last := coming[len(coming)-1]
-		lately = flex.Span{Size: max(f.stackedWidth(m, fit), last.At+last.Size)}
-		if len(coming) == 1 {
-			coming[0] = lately
-		}
-		return coming, lately
+		return f.comingColumns(), flex.Span{Size: f.Width}
 	}
 	return f.comingColumns(), flex.Span{}
-}
-
-// stackedWidth is the width COMING UP and LATELY share stacked at the moment
-// m, as fitted: what their lines need to read whole, never under
-// runwayComingWidth, or the frame's width where that's narrower, nor over
-// the frame's width. A line of COMING UP needs its words and its countdown,
-// as comingLines draws them; a line of LATELY shown, its short form beside
-// how long ago it was, as runwayLatelyLines lays it.
-func (f Frame) stackedWidth(m status.Moment, fit runwayFit) int {
-	need, things := runwayComingWidth, f.runwayHappenings(m)
-	column := whenColumn(things, m.Now)
-	for _, h := range things {
-		need = max(need, h.said(m.Now, column).width()+comingTail)
-	}
-	for _, l := range runwayLatelyParts(m, f.latelyShown(fit)) {
-		need = max(need, l.least())
-	}
-	return min(need, f.Width)
 }
 
 // latelyShown are the sentences Runway's LATELY shows as fitted: as many as
@@ -144,12 +118,6 @@ func (f Frame) runwayLately(c *canvas, laid runwayLaid) {
 // short, each led by its time, and how long ago it was.
 type latelyParts struct {
 	full, short, ago line
-}
-
-// least is the fewest cells the line reads whole in: its short form, agoGap
-// and how long ago.
-func (l latelyParts) least() int {
-	return l.short.width() + agoGap + l.ago.width()
 }
 
 // runwayLatelyParts are the sentences given as Runway's LATELY lines at m's

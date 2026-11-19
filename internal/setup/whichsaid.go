@@ -1,7 +1,6 @@
 package setup
 
 import (
-	"cmp"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -42,7 +41,7 @@ func (a *Asked) Asking(now time.Time) WhichAsk {
 	}
 	ask.Choices = []WhichChoice{{Label: newAccountChoice}}
 	for _, e := range a.Question.Choices {
-		choice := WhichChoice{Label: cmp.Or(e.Label, e.ID)}
+		choice := WhichChoice{Label: prose.LabelOr(e.Label, e.ID)}
 		if !e.Removed.IsZero() {
 			choice.Seen = "last seen " + prose.DayMonthYear(e.Removed.In(now.Location()))
 		}
@@ -74,5 +73,5 @@ func (f TokenFor) Logged(args ...any) []any {
 // Name is how the token's cards name the account f is for: by its label,
 // as the user knows it, else by its id.
 func (f TokenFor) Name() string {
-	return cmp.Or(f.Account.Label, f.Account.ID)
+	return prose.LabelOr(f.Account.Label, f.Account.ID)
 }

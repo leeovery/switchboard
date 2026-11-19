@@ -13,9 +13,7 @@ import (
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
 // PgUp scroll the view where it doesn't fit, as scrollView has it, and on
 // the Overview ↓ and ↑ as j and k, as overviewScroll has it; and the rest
-// each as acting has the page act: w shows and hides each model's own
-// window, where the page lists windows, as listsModels says, as
-// toggleModels has it; on the Overview, u, r, s, c and l show and hide its
+// each as acting has the page act: on the Overview, u, r, s, c and l show and hide its
 // sections and b switches how its windows are grouped, as overviewKey says;
 // on Trends, w, o, g, h, y, m and d show and hide its sections, and v and
 // ← → act, as graphsKey says;
@@ -40,9 +38,6 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.scrollView(by), nil
 	}
 	afresh := m.acting()
-	if k == "w" && afresh.listsModels() {
-		return afresh.toggleModels(), nil
-	}
 	if next, ok := afresh.overviewKey(k); ok {
 		return next, nil
 	}
@@ -190,8 +185,7 @@ func (m Model) viewKeys(running []string) pageKeys {
 }
 
 // overviewListings are the Overview's own keys: its toggles, each word
-// faint where its section is hidden, then w, as modelsKey has it, which the
-// key line leaves to help; b, its word saying how the windows are grouped;
+// faint where its section is hidden; b, its word saying how the windows are grouped;
 // and ↑↓, which scroll USAGE, listed only where it scrolls and left to help,
 // as the other scroll keys are.
 func (m Model) overviewListings() []keyListing {
@@ -201,7 +195,6 @@ func (m Model) overviewListings() []keyListing {
 		own = append(own, keyListing{Key: dashboard.Key{Key: s.Key(), Does: s.Word(), Hidden: !m.sections.Has(s)}, works: overview})
 	}
 	return append(own,
-		keyListing{Key: m.modelsKey(), works: overview, helpful: true},
 		keyListing{Key: dashboard.Key{Key: "b", Does: "by", State: string(layoutOf(m.by))}, works: overview},
 		keyListing{Key: dashboard.Key{Key: "↑↓", Does: "scroll"}, works: overview, helpful: true, scrolls: true},
 	)
@@ -234,8 +227,7 @@ func (m Model) graphsListings() []keyListing {
 // the chosen one's SESSIONS, which the key line leaves to help, and enter
 // opening the session selected there, faint where none is; in its SESSIONS,
 // ↑↓ through them, ← back to the list and enter; with one account, which
-// has no list, ↑↓ and enter while a session is selected on Detail; and on
-// Detail, w, as modelsKey has it, which the key line leaves to help. A
+// has no list, ↑↓ and enter while a session is selected on Detail. A
 // phone's line keeps [ ] view alone.
 func (m Model) accountsListings(running []string) []keyListing {
 	s := m.accounts.shown
@@ -257,7 +249,6 @@ func (m Model) accountsListings(running []string) []keyListing {
 		{Key: dashboard.Key{Key: "←", Does: "accounts"}, works: listed && s.InSessions, wide: true},
 		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: !s.Opens(running)}, works: compare || listed || inSessions, wide: true},
 		{Key: dashboard.Key{Key: "esc", Does: "unfocus"}, works: compare && s.Focused, wide: true},
-		{Key: m.modelsKey(), works: shown && m.listsModels(), helpful: true},
 	}
 }
 

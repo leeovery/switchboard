@@ -10,11 +10,12 @@ import (
 
 // The variables no test may see: those that configure switchboard, Claude
 // Code and the Anthropic API, which can hold real tokens; tmux's, which lead
-// to the real tmux server; and proxies', as a proxy on loopback would carry a
-// request past the dial guard to the network. scripts/test-isolated unsets
-// the same before any test binary starts.
+// to the real tmux server; zmx's, which name the real terminal session a
+// launch would tell the router; and proxies', as a proxy on loopback would
+// carry a request past the dial guard to the network. scripts/test-isolated
+// unsets the same before any test binary starts.
 var (
-	clearedPrefixes = []string{"SWITCHBOARD_", "CLAUDE_", "ANTHROPIC_", "TMUX"}
+	clearedPrefixes = []string{"SWITCHBOARD_", "CLAUDE_", "ANTHROPIC_", "TMUX", "ZMX_"}
 	// clearedSuffix counts in either case, as proxies' lower-case names are
 	// honoured too.
 	clearedSuffix = "_PROXY"

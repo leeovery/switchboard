@@ -59,7 +59,9 @@ func (f Frame) lanesHelp() helpPart {
 				"before, and drop parts from the end where even that can't fit them."),
 			said("Now's column and those after it are read from the router at each look; those before it from the readings " +
 				"history, each by the last reading of each window by the column's middle, a window whose reset had passed by then " +
-				"counted reset. A column with no reading of its account by then is blank, as an account not read yet. A cap is " +
+				"counted reset. A column with no reading of its account by then is blank, as an account not read yet; but an " +
+				"account newly added, read first while others were read before it, is dotted ┈ before its first reading, the " +
+				"words under it saying since when. A cap is " +
 				"drawn by the reserve the config gives now, as the readings keep none: change a reserve, and the caps of days gone " +
 				"are drawn again by it."),
 			said("The legend sits at the foot, over the key line. As rows run short, LATELY under COMING UP goes first; then an " +
@@ -74,6 +76,7 @@ func (f Frame) lanesHelp() helpPart {
 			{drawn: line{f.Look.laneMark(views.CellCapped)}, means: "at its cap, where its reserve starts: the router passes it over, unless a pin spends it"},
 			{drawn: line{f.Look.laneMark(views.CellLimited)}, means: "at its limit, its token refused, or without a usable token: held back from every request"},
 			{drawn: line{{resetCell, dimInk}}, means: "where its " + runwayWeek + " resets"},
+			{drawn: line{f.Look.laneNewMark()}, means: "before a newly added account's first reading, new since 09:44 under it saying when"},
 		},
 	}
 }
@@ -146,8 +149,8 @@ func runwayComingHelp() helpPart {
 			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap, its limit or " +
 				"its refused token, whichever lifts last, a window running out at its pace, ~ marking it projected, and each " +
 				"other reset of a window every model shares, a week's where its │ stands. No prime is listed. It sits under the " +
-				"pool's lane, or at the right beside LATELY, and takes the rows left; where its lines don't all fit, its last " +
-				"says how many more. Stepped back, there's none."),
+				"pool's lane, in two columns where both fit, else across the frame, or at the right beside LATELY, and takes " +
+				"the rows left; where its lines don't all fit, its last says how many more. Stepped back, there's none."),
 		},
 	}
 }
@@ -166,9 +169,9 @@ func runwayLatelyHelp() helpPart {
 			said("It takes only the rows the lanes and COMING UP leave. Where the frame holds both, and those rows hold COMING " +
 				"UP's every line in one column, LATELY sits at the left and COMING UP at the right, the past and what's coming " +
 				"as the lanes lie, each down to the legend; else under COMING UP, where its heading and two lines fit: COMING " +
-				"UP in its two columns where they fit, LATELY across the frame under them, or else the two sharing one " +
-				"column, as wide as their lines need to read whole, from 72 to the frame's; else it's gone, the first to give " +
-				"way as rows run short. Stepped back, there's none."),
+				"UP in its two columns where they fit, LATELY across the frame under them, or else the two one over the " +
+				"other, each across the frame; else it's gone, the first to give way as rows run short. Stepped back, " +
+				"there's none."),
 		},
 	}
 }

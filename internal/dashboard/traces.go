@@ -81,22 +81,6 @@ func (t tracing) shows(i int) bool {
 	return false
 }
 
-// summed are the traces' columns, as columnsOf gives them, summed column by
-// column: their requests a minute together, as many columns as the widest
-// has.
-func summed(traces []views.Trace, columnsOf func(views.Trace) []float64) []float64 {
-	var sum []float64
-	for _, t := range traces {
-		for i, v := range columnsOf(t) {
-			if i == len(sum) {
-				sum = append(sum, 0)
-			}
-			sum[i] += v
-		}
-	}
-	return sum
-}
-
 // drawTrace draws the trace t at now in the bounds given, as drawCells
 // draws its cells, as many as it's cells wide.
 func (f Frame) drawTrace(c *canvas, t views.Trace, now time.Time, at bounds, faded bool) {

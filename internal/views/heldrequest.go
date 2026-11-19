@@ -23,11 +23,11 @@ import (
 // fraction of its line's size, so the store holds it in place of the line.
 type heldRequest struct {
 	flight
-	dir, project, model, account, reason, from, class, agentID unique.Handle[string]
-	geo, prompt, stop, tools                                   unique.Handle[string]
-	upstream                                                   bool
-	tried                                                      []ledger.Tried
-	spend                                                      ledger.Spend
+	dir, project, name, model, account, reason, from, class, agentID unique.Handle[string]
+	geo, prompt, stop, tools                                         unique.Handle[string]
+	upstream                                                         bool
+	tried                                                            []ledger.Tried
+	spend                                                            ledger.Spend
 	// life is how long its writes to the cache last, as ledger.Spend's
 	// CacheLife has it: none where it wrote nothing to the cache.
 	life time.Duration
@@ -47,11 +47,11 @@ type heldRequest struct {
 // went out on that couldn't serve it, and what it spent.
 type decodedRequest struct {
 	flight
-	dir, project, model, account, reason, from, class, agentID, geo, prompt, stop string
-	tools                                                                         []string
-	upstream                                                                      bool
-	tried                                                                         []ledger.Tried
-	spend                                                                         ledger.Spend
+	dir, project, name, model, account, reason, from, class, agentID, geo, prompt, stop string
+	tools                                                                               []string
+	upstream                                                                            bool
+	tried                                                                               []ledger.Tried
+	spend                                                                               ledger.Spend
 }
 
 // heldRequestOf returns the request of the line l, decoded once, as decodedOf
@@ -67,13 +67,23 @@ func heldRequestOf(l *ledger.Line) heldRequest {
 func newHeldRequest(d decodedRequest) heldRequest {
 	r := heldRequest{
 		flight: d.flight, upstream: d.upstream, tried: d.tried, spend: d.spend,
-		dir: unique.Make(d.dir), project: unique.Make(d.project), model: unique.Make(d.model), account: unique.Make(d.account), reason: unique.Make(d.reason),
+		dir: unique.Make(d.dir), project: unique.Make(d.project), name: unique.Make(d.name), model: unique.Make(d.model), account: unique.Make(d.account), reason: unique.Make(d.reason),
 		from: unique.Make(d.from), class: unique.Make(d.class), agentID: unique.Make(d.agentID), geo: unique.Make(d.geo),
 		prompt: unique.Make(d.prompt), stop: unique.Make(d.stop), tools: unique.Make(strings.Join(d.tools, toolsApart)),
 	}
 	r.life, _ = r.spend.CacheLife()
 	r.sum = r.summed()
 	return r
+}
+
+// place is where r's session ran, as r names it.
+func (r *heldRequest) place() sessionPlace {
+	return sessionPlace{dir: r.dir.Value(), project: r.project.Value(), name: r.name.Value()}
+}
+
+// place is where d's session ran, as d names it.
+func (d *decodedRequest) place() sessionPlace {
+	return sessionPlace{dir: d.dir, project: d.project, name: d.name}
 }
 
 // toolsApart is what parts the names of the tools an answer called as a
@@ -111,12 +121,12 @@ func (r *heldRequest) summed() uint64 {
 	h.SetSeed(sumsSeed)
 	maphash.WriteComparable(&h, struct {
 		flight
-		dir, project, model, account, reason, from, class, agentID, geo, prompt, stop, tools string
-		upstream                                                                             bool
-		tried                                                                                int
-		spend                                                                                uint64
+		dir, project, name, model, account, reason, from, class, agentID, geo, prompt, stop, tools string
+		upstream                                                                                   bool
+		tried                                                                                      int
+		spend                                                                                      uint64
 	}{
-		r.flight, r.dir.Value(), r.project.Value(), r.model.Value(), r.account.Value(), r.reason.Value(), r.from.Value(), r.class.Value(), r.agentID.Value(),
+		r.flight, r.dir.Value(), r.project.Value(), r.name.Value(), r.model.Value(), r.account.Value(), r.reason.Value(), r.from.Value(), r.class.Value(), r.agentID.Value(),
 		r.geo.Value(), r.prompt.Value(), r.stop.Value(), r.tools.Value(), r.upstream, len(r.tried), r.spend.Sum(sumsSeed),
 	})
 	for _, t := range r.tried {

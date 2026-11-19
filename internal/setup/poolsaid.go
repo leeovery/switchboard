@@ -26,8 +26,11 @@ const (
 type PoolChoice struct {
 	ID, Label string
 	Dirs      []string
-	// Held is set on the new pool the card holds, made with the account.
+	// Held is set on the new pool the card holds, made with the account,
+	// and Missing are those of its directories that aren't on this Mac, as
+	// CheckPool found them.
 	Held     bool
+	Missing  []string
 	Accounts bool
 	First    bool
 }
@@ -38,7 +41,7 @@ func (r Review) PoolChoices() []PoolChoice {
 	choices := make([]PoolChoice, len(r.Pools))
 	for i, p := range r.Pools {
 		in := func(a Reviewed) bool { return config.SamePool(a.Pool, p.ID) }
-		choices[i] = PoolChoice{ID: p.ID, Label: p.Label, Dirs: p.WrittenDirs, Accounts: slices.ContainsFunc(r.Accounts, in), First: config.SamePool(p.ID, r.First)}
+		choices[i] = PoolChoice{ID: p.ID, Label: prose.LabelOr(p.Label, p.ID), Dirs: p.WrittenDirs, Accounts: slices.ContainsFunc(r.Accounts, in), First: config.SamePool(p.ID, r.First)}
 	}
 	return choices
 }
@@ -55,6 +58,19 @@ func (c PoolChoice) UsedBy(pools int) string {
 		return "every session uses it"
 	}
 	return "sessions started " + EverywhereElse + " use it"
+}
+
+// Warning warns of the new pool's directories that aren't on this Mac, as
+// the card's Pool says it under its hint, the pool made all the same, as
+// pool add makes it: "" where there are none.
+func (c PoolChoice) Warning() string {
+	switch len(c.Missing) {
+	case 0:
+		return ""
+	case 1:
+		return prose.Clean(c.Missing[0]) + " isn't a directory on this Mac, so no session starts in it yet"
+	}
+	return prose.List(cleaned(c.Missing)) + " aren't directories on this Mac, so no session starts in them yet"
 }
 
 // Places says where the sessions the pool serves start, beside its label

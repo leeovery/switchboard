@@ -319,21 +319,21 @@ func wrongLabel(account, why string) error {
 }
 
 // takeLabel returns a label given to put in the file as it shows, so what's
-// saved is what's shown: without the characters drawn as nothing, as
-// prose.Unseen has them, but for those prose.MapUnseen keeps, as they make
-// an emoji, a keycap, a variant or a flag, or shape a joining script, and
-// the direction marks within it; each run of whitespace within it one space;
-// and the whitespace and direction marks at its edges trimmed. Every other
-// character is kept. It's checked as it shows, and refused, as a label in
-// the file isn't: when it isn't UTF-8, as TOML's text must be; when it holds
-// a control character, such as a newline or a tab, which can't show, or a
-// bidirectional embedding, override or isolate, which can reorder the rest
-// of the row it's shown in; when it holds a prepended concatenation mark,
-// such as an Arabic number sign, which joins the character after it, so
-// that character can draw as nothing; and when nothing of it would show but
-// it isn't "", which shows the account by its id, matching ErrBlankLabel.
-// Then it's checked as checkLabel checks one, of the kind given, the
-// account or pool name names.
+// saved is what's shown: cleaned as prose.Clean cleans all that's shown,
+// without the characters drawn as nothing but for those that make an emoji,
+// a keycap, a variant or a flag, or shape a joining script; each run of
+// whitespace within it one space; and its direction marks kept only within
+// a label holding a letter written right to left, and trimmed at its edges.
+// Every other character is kept. It's checked as it shows, and refused, as a
+// label in the file isn't: when it isn't UTF-8, as TOML's text must be; when
+// it holds a control character, such as a newline or a tab, which can't
+// show, or a bidirectional embedding, override or isolate, which can reorder
+// the rest of the row it's shown in; when it holds a prepended concatenation
+// mark, such as an Arabic number sign, which joins the character after it,
+// so that character can draw as nothing; and when nothing of it would show
+// but it isn't "", which shows the account by its id, matching
+// ErrBlankLabel. Then it's checked as checkLabel checks one, of the kind
+// given, the account or pool name names.
 func takeLabel(kind, account, given string) (string, error) {
 	switch {
 	case !utf8.ValidString(given):
@@ -342,11 +342,10 @@ func takeLabel(kind, account, given string) (string, error) {
 		return "", wrongLabel(account, "holds a control character, such as a newline or a tab, which can't show")
 	case strings.ContainsFunc(given, prose.Reorders):
 		return "", wrongLabel(account, "holds a bidirectional embedding, override or isolate, which could reorder the rest of what it's shown in")
-	case strings.ContainsFunc(given, prepends):
+	case strings.ContainsFunc(given, prose.Prepends):
 		return "", wrongLabel(account, "holds a sign that joins the character after it, such as an Arabic number sign, which can hide that character")
 	}
-	kept := prose.MapUnseen(given, keptIfAMark)
-	label := strings.TrimFunc(strings.Join(strings.Fields(kept), " "), spaceOrMark)
+	label := prose.Clean(given)
 	if given != "" && !strings.ContainsFunc(label, shows) {
 		return "", &WrongLabel{account: account, Why: blankWhy, is: ErrBlankLabel}
 	}
@@ -363,20 +362,15 @@ func TakeLabel(given string) (string, error) {
 	return takeLabel(accountKind, "", given)
 }
 
-// keptIfAMark is what prose.MapUnseen makes of an unseen character of a label
-// that does nothing that shows: a direction mark is kept, as it orders
-// what's around it, and anything else dropped.
-func keptIfAMark(r rune) string {
-	if prose.DirectionMark(r) {
-		return string(r)
+// TakePoolLabel returns a label given the pool with the given id, as
+// takeLabel takes it: "" for "". A pool not yet added has no id, "", and a
+// WrongLabel it fails with names none.
+func TakePoolLabel(id, given string) (string, error) {
+	name := ""
+	if id != "" {
+		name = poolNamed(id)
 	}
-	return ""
-}
-
-// spaceOrMark reports whether r, at a label's edge, is trimmed: whitespace,
-// or a direction mark, which does its part only within it.
-func spaceOrMark(r rune) bool {
-	return unicode.IsSpace(r) || prose.DirectionMark(r)
+	return takeLabel(poolKind, name, given)
 }
 
 // blankBraille is the braille pattern with no dots, a symbol drawn as
@@ -392,26 +386,19 @@ func shows(r rune) bool {
 		!unicode.IsSpace(r) && !unicode.IsMark(r) && r != blankBraille
 }
 
-// checkLabel keeps anything that looks like a token out of a label, and keeps
-// a label to mostLabelCharacters, the label of an account or a pool, of the
-// kind given, which name names. It never quotes the label, which could be
-// anything.
+// checkLabel keeps anything that looks like a token out of a label, as it's
+// written and as it's shown, cleaned, as a token split by a character drawn
+// as nothing is joined again once that's dropped; and keeps a label to
+// mostLabelCharacters, the label of an account or a pool, of the kind given,
+// which name names. It never quotes the label, which could be anything.
 func checkLabel(kind, name, label string) error {
 	switch length := utf8.RuneCountInString(label); {
-	case redact.HoldsToken(label):
+	case redact.HoldsToken(label) || redact.HoldsToken(prose.Clean(label)):
 		return wrongLabel(name, "looks like a token, which a label mustn't, as it shows wherever the "+kind+" does")
 	case length > mostLabelCharacters:
 		return wrongLabel(name, fmt.Sprintf("is %d characters: must be at most %d", length, mostLabelCharacters))
 	}
 	return nil
-}
-
-// prepends reports whether r is a prepended concatenation mark, such as an
-// Arabic number sign, which joins the character after it into one, and the
-// two, as the dashboard measures what it draws, take no cells, so that
-// character never shows.
-func prepends(r rune) bool {
-	return unicode.Is(unicode.Prepended_Concatenation_Mark, r)
 }
 
 // checkReserve keeps a reserve a share of each window short of the whole of

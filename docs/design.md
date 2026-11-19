@@ -563,7 +563,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     router starts, and posts nothing, as its news is old: its `since` when it began, which its
     card gives as `held since`, and its `at` the same, but no earlier than the event files take an
     event back, 7 days before now; with no `status`, as nothing kept the read's answer. One whose
-    start the state file doesn't give is filed at now, with no `since`. A router taken back to a
+    start the state file doesn't give is filed at the end of its last read; with neither, at now,
+    with no `since`. A router taken back to a
     version from before and then upgraded again tells such a hold a second time, a second row
     with no notification: accepted, as a router from before keeps no `held_told`. A hold told
     before a restart, whose account's token changed while the router was down, was lifted by the
@@ -1124,7 +1125,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 - **Request lines record their pool:** `pool`, its id. It's recorded at the time of the request,
   because an account's pool can change and the config keeps no history of it.
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
-  partway through a day: summary version 7 (see The request ledger).
+  partway through a day: summary version 7 (see The request ledger). An account's day of no work
+  names the pool the router had the account in as it first summarised the day (see below).
 - **Events:** the events of a session's work name its pool: `started` and `moved`, the pool the
   session's request was routed within, and `pin` and `auto`, the pool whose pin was set or cleared,
   or the session's, of its own pin. What befalls an account, a limit, a cap, a refusal or a hold,
@@ -1241,9 +1243,11 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   2 or 1, has its lines, the events that name their pool and its summaries given this Mac's first
   pool as `import` takes them in. So each Mac gives the days from before pools its own first pool, and a request line or
   an event alike but for its pool is one as an import merges a day, the line held standing: a
-  folder taken in before its Mac moved and again after never doubles a day. A summary is never
-  merged, copied in only where this Mac knows nothing of the day, so one under another pool never
-  adds to what's held.
+  folder taken in before its Mac moved and again after never doubles a day. A summary's counts are
+  never merged, copied in only where this Mac knows nothing of the day, so one under another pool
+  never adds to what's held; only its days of no work that name a pool are carried, into whichever
+  summary the day keeps, for the accounts it holds no day of or a day of no work naming none, as
+  below.
 
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
@@ -1253,15 +1257,57 @@ show:
 
 - in the pool it's in now, on every day, as they're the account's;
 - in a pool it left, on the days it worked there, as the past stands;
-- and not on the days it did no work in a pool it left, as a day's summary keeps no pool for an
-  account that sent nothing (recording one is in the Backlog).
+- and in a pool it left, on the days it did no work at all, where the day's summary names that pool,
+  the pool the router had the account in as it first summarised the day.
 
-So an account moved out keeps its work in the pool it left, and is named there by its label, as a
-removed account is shown, with where it is now in place of when it was removed: in text.faint on
-the screens that draw a removed account so, and in the verbs' text as `work (now in Acme)`
-(`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a
-column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
-Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
+So the pool an account left keeps its days spent capped there, and the pool it joined keeps them
+too, in the account's weeks. An account none places now, whose windows show in every pool, shows
+an idle day naming a pool in that pool alone. The router places an idle account by its pool table,
+the owner that routes by the pools (`ledger.IdlePools`, given `poolTable.in`, as `poolTable.of`
+names a request's pool), as the pools stand as it summarises the day: none where no pool holds the
+account, as once it's removed, or before pools. A pool's read shows such a day by the pool's read,
+`views.PoolRead`, by the pool the day names, as `keeps` has it of a request's, or by the pool the
+account is in now. Its limits:
+
+- **Fixed when first summarised.** An account's idle day takes its pool only the first time its
+  day is summarised, or from an import, and keeps it for good: a day summarised again, as a line
+  comes to be filed under it or a new summary version summarises every kept day again, places no
+  account, keeping the pools its summary before named, so an account that summary holds no day
+  of, as one whose readings couldn't be read then, names none; and two ids of one account merged
+  into one keep the pool either day named, where neither worked.
+- **A move on the day, or before the router first summarises it,** files the day under the new
+  pool: as an account moved because it's capped, during the day itself, or moved while the router
+  was stopped, or after midnight in the hour before the router summarises the day.
+- **No backfill, no version.** The days summarised before it name none, and keep none, so they go
+  by the pool the account is in now. No summary version marks it, as a version would summarise every
+  kept day again.
+- **An older release drops it.** An older release passes over an idle day's `pool` as it reads a
+  day, and one that summarises a day again drops it, as on a downgrade, or in a handover's overlap,
+  as the release going summarises a day the new one wrote.
+- **Readers name none.** A reader summarising a day as it reads it, as today's, names no pool for an
+  idle day, the pool the account is in now being its pool then; it never writes the summary, so it
+  never becomes a summary before a router's.
+- **An import's summary knows both Macs' pools.** Whichever summary a day keeps, an import carries
+  into it the other's days of no work that name a pool, for the accounts it holds no day of, and
+  the pool alone into its days of no work that name none (see Export and import). A day this Mac
+  holds lines of, but hasn't summarised yet, carries nothing: its first summary places by this
+  Mac's pools. A carried day's `minutes_at_cap`
+  is the other Mac's reckoning, by that Mac's reserves.
+- **Renamed as work is.** An import gives an idle day's pool another Mac's pool's id here as it
+  gives a worked day's, or keeps it apart under its own id, read with `--pool` and that id alone,
+  so an account removed there or moved, then imported, keeps its idle days where they were. A day
+  from before pools, its work in none given the first pool, gives an idle day naming none no pool,
+  as which pool its account was in was never recorded. An older release importing a folder this
+  one exported leaves its idle days' pools as the other Mac named them, unrenamed.
+- **A summary that doesn't read** as its day's, summarised again from its day's lines, as a
+  summary first made, places its idle accounts afresh, in the pools they're in then.
+
+So an account moved out keeps its work in the pool it left, and the days it spent there idle, and
+is named there by its label, as a removed account is shown, with where it is now in place of when
+it was removed: in text.faint on the screens that draw a removed account so, and in the verbs' text
+as `work (now in Acme)` (`status.MovedOf`, read through the names of every view and verb).
+`history`'s totals give it a column of its own there, and its JSON lists it under `moved`, with its
+pool's id and label. Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 
 ### Reading a pool
 
@@ -1358,8 +1404,13 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   pools, or can't be read, the router is read as before, there being no pools to tell it by; once
   the move is done, a config naming no pools has its pools as they stand, from the accounts record,
   as `launch.PoolsOf` gives them, so such a router is read as above.
-- **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
-  add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
+- **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries,
+  its JSON giving each pool's directories twice: `dirs` as the config writes them, and `paths`,
+  one for each of them, in order, as the config resolves them, absolute and clean (a directory it
+  can't resolve fails the config's load, so none is ever left out). The router matches a session's
+  directory to them with links resolved on both sides, ignoring case and how accents are written
+  (`launch`'s `fencesHolding`), so an exact compare of strings can miss. `pool add <label>
+  [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
   label with `--label`, replaces its directories with `--dirs` and clears them with `--unfence`; and
   `pool remove <id>` removes one that has no accounts. Leaving a second pool unfenced is refused,
@@ -1373,32 +1424,35 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   label over lines is. `pool add` and `pool edit` say, as they fence a pool, that the sessions
   running in its directories keep the pool they started in till they're resumed (see What pools
   can't hold); they warn of a directory that isn't one on this Mac, making the pool all the same,
-  as it may be made later. `pool edit` says, as it fences the one unfenced pool, that `claude`
-  won't start outside every fence now, but within a session or in a worktree of a repository
-  inside one; `pool add` and `pool edit`, as they make a pool unfenced, that the sessions started
-  outside every fence go to it now; and each, where the pool the verbs act on without `--pool`
-  changes, as `pool add` beside one pool alone, fenced, changes it, which it is now, or that they
-  need `--pool`, `accounts add` among them. An account
-  moved to another pool is its new pool's primary only with `--primary`: without it, the pool
-  keeps its primary, `accounts edit` marking it where the config marks none, so the account moved
-  doesn't take it by coming first in the config's order, and saying so. The pool it leaves takes
-  its next account as its primary where it was the primary, and `accounts edit` says which, that
-  the sessions running on the moved account's token, where it has a usable one, are refused now it
-  has left, and which account's token they start on resumed, as a launch in that pool would choose
-  it by the config and the tokens, or another's where the router holds that one back then, or
+  as it may be made later. Which directories are missing is `config.Pool.Missing`'s alone, looked
+  for on the filesystem from its root, a directory that can't be looked for not among them, and
+  `pool add`, `pool edit`, `import` and setup's new pool card all ask it, so they never disagree.
+  `pool edit` says, as it fences the one unfenced pool, that `claude` won't start outside every
+  fence now, but within a session or in a worktree of a repository inside one; `pool add` and `pool
+  edit`, as they make a pool unfenced, that the sessions started outside every fence go to it now;
+  and each, where the pool the verbs act on without `--pool` changes, as `pool add` beside one pool
+  alone, fenced, changes it, which it is now, or that they need `--pool`, `accounts add` among them.
+  An account moved to another pool is its new pool's primary only with `--primary`: without it, the
+  pool keeps its primary, `accounts edit` marking it where the config marks none, so the account
+  moved doesn't take it by coming first in the config's order, and saying so. The pool it leaves
+  takes its next account as its primary where it was the primary, and `accounts edit` says which,
+  that the sessions running on the moved account's token, where it has a usable one, are refused now
+  it has left, and which account's token they start on resumed, as a launch in that pool would
+  choose it by the config and the tokens, or another's where the router holds that one back then, or
   doesn't route it yet, unless every account there is so, as the router isn't asked; or, where it
-  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same
-  of the removed account's pool: its primary now, by the pool, or that it has no accounts.
+  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same of
+  the removed account's pool: its primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
-  beside each account's day's `pool` and in its `pools`; `history` and `sessions` name the pool
-  they read at their top, `sessions` saying too where it read its list, its `source` `router`
-  where the router listed its sessions, else `ledger`; and `pool` lists every pool so. The
-  status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the room, and
-  as it gives its accounts' labels in its `accounts`, not on each event, its events name their pool
-  by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps
-  it, else, of a pool the record keeps but the config doesn't name, as the config last wrote it.
+  beside each account's day's `pool` and in its `pools`; `history`, `history --windows` and
+  `sessions` name the pool they read at their top, `sessions` saying too where it read its list, its
+  `source` `router` where the router listed its sessions, else `ledger`; and `pool` lists every pool
+  so. The status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the
+  room, and as it gives its accounts' labels in its `accounts`, not on each event, its events name
+  their pool by its id, as they name their accounts. A removed pool is labelled as the accounts
+  record keeps it, else, of a pool the record keeps but the config doesn't name, as the config last
+  wrote it.
 - **The skill** tells Claude to pass `--pool "$SWITCHBOARD_POOL"`, the session's pool's id, to the
   verbs, so that a session reads its own pool, named explicitly. Outside a pool, as in a config
   without pools or a session not started through switchboard, it's empty, and `--pool ""` is no
@@ -1550,11 +1604,16 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
     directory left empty passed over; with none, the pool's unfenced. `enter` elsewhere has
     `accounts.Registry.CheckNewPool` check it, by the config's own rules, a refusal said under the
     label or under the directory refused, which `config.DirError` places; once it passes, the card
-    that opened it holds it among its pools, chosen, and `esc` goes back to that card. Its keys
-    are `tab next`, `enter create pool` and `esc back`, `enter add a directory` on `+ another
-    directory`; the card under it says `enter new pool` while its Pool is on `new pool`. The pool
-    held is written with the account, in the one edit that adds it, after its token, or moves it,
-    under an id drawn as `pool add` draws one (`accounts.NewPool`).
+    that opened it holds it among its pools, chosen, its directories as the config would write
+    them, `setup.CheckedPool`'s, so the hint and the warning name them alike, and `esc` goes back
+    to that card. Of a directory that isn't on this Mac, as `config.Pool.Missing` finds it, that
+    card warns under Pool's hint while the pool's chosen, in `accent.attention`, `~/Code/acme isn't
+    a directory on this Mac, so no session starts in it yet`, as `pool add` warns of one: a warning,
+    never a refusal, as the directory may be made later. Its keys are `tab next`, `enter create
+    pool` and `esc back`, `enter add a directory` on `+ another directory`; the card under it says
+    `enter new pool` while its Pool is on `new pool`. The pool held is written with the account, in
+    the one edit that adds it, after its token, or moves it, under an id drawn as `pool add` draws
+    one (`accounts.NewPool`).
   - The add card's `enter` checks the pool chosen and any new pool with the account, as
     `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
     Pool, a pool removed meanwhile among them, on the edit card too; with no plan chosen, once the
@@ -2437,9 +2496,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
   system's directories alone.
 - `accounts add <label>` registers an account, shown as the label, under the id its token's
   organization decides (see Account identity). It takes the label as it shows, and saves it so,
-  by Unicode's own property, not a list: the characters drawn as nothing (`prose.Unseen`: its
-  default ignorables, the format characters and the variation selectors, but for whitespace and
-  the prepended concatenation marks, such as the Arabic number signs, which draw) kept only
+  by the one rule all that's shown is cleaned by (`prose.Clean`), so what's saved is what any
+  view or verb shows; that rule, by Unicode's own property, not a list: the characters drawn as
+  nothing (`prose.Unseen`: its default ignorables, the format characters and the variation
+  selectors, but for whitespace and the prepended concatenation marks, such as the Arabic number
+  signs, which draw) kept only
   where one makes an emoji or a flag, a subdivision's only where it's England's, Scotland's or
   Wales's, the three Unicode recommends, as any other draws as a black flag, its tags hidden; or
   shapes a joining script; and a variation selector only after a symbol, non-ASCII punctuation,
@@ -2447,15 +2508,18 @@ formats below; the screens as signed off in Paper (see The screens, below).
   to right on what's kept: a character dropped is passed over, one shown escaped owns nothing
   after it, and the character after one is the first seen), and dropped everywhere else; a
   joiner's pictographs are symbols beyond ASCII, so one between `+` and `=` goes. Direction marks
-  are kept within it. Then each run of whitespace within it is one space, and the whitespace and
-  direction marks at its edges trimmed. It refuses a label that's none as it shows, one another
+  are kept within a label holding a letter written right to left, and dropped from any other.
+  Then each run of whitespace within it is one space, and the whitespace and direction marks at
+  its edges trimmed. A clash with another label is judged on the label as it's taken, cleaned as
+  the other is shown. It refuses a label that's none as it shows, one another
   configured account shows, ignoring case, one holding anything shaped like a token, or one over
   100 characters as it shows, holding a control character, such as a newline or a tab, a
   bidirectional embedding, override or isolate, or a prepended concatenation mark, which joins
   the character after it, so that character can draw as nothing, drawing as nothing (spaces,
   characters drawn as nothing, marks on their own or blank braille alone; a private-use glyph
   shows) or that isn't UTF-8, before it asks for the token, saving nothing. A label written in
-  the config by hand is read as it is. It always takes a token, asking for it, hidden, pointing to
+  the config by hand, or saved by a release that kept more, is read as it is, and shown through
+  `prose.Clean` as any other is. It always takes a token, asking for it, hidden, pointing to
   `claude setup-token` run while signed in to that subscription, or reading it from stdin when
   stdin isn't a terminal. An interrupt while it waits puts the terminal back as it was, showing
   what's typed again, and the command exits 130, as a shell expects of an interrupt, saving
@@ -2480,10 +2544,11 @@ formats below; the screens as signed off in Paper (see The screens, below).
   untidily and tidied said so; or, when every value given is the account's already, that nothing
   changed, writing nothing. A label written by hand can't go through `add`'s rules, so
   `prose.Quoted` shows what it holds: a character drawn as nothing that `add` would drop, a
-  bidirectional control among them, as its `\u` escape, so it can't reorder the line, and a
-  direction mark too, which `add` keeps but whose part can't be seen, while what `add` keeps in
-  an emoji, a keycap, a variant, a flag or a joining script shows as it is, unless an escape
-  stands before it, and so does private use.
+  bidirectional control among them, as its `\u` escape, so it can't reorder the line; a
+  direction mark too, which `add` keeps only within a label written right to left, and whose
+  part can't be seen; and a prepended concatenation mark, which `add` refuses, so it can't hide
+  the closing quote; while what `add` keeps in an emoji, a keycap, a variant, a flag or a
+  joining script shows as it is, unless an escape stands before it, and so does private use.
   Moving the primary, it says what the sessions running through the router keep as Claude Code's
   own until they restart, as launch chose it from the config the edit read, the tokens as they
   stand now: the former primary's token, pinned or not; or, where it has no usable token, the
@@ -2923,6 +2988,22 @@ show.
      off to a file of switchboard's own, which puts its claude first and loads its completions.` and
      `It does nothing once switchboard is gone, and nothing else in ~/.zshrc changes.` Its keys:
      `enter add it`, `n I'll add it myself`.
+   - **The offer for the completions** (owner's call, 18 Nov 2026), where the shell's `PATH`
+     finds switchboard's `claude` already, as one kept in another file does, but switchboard's
+     completions aren't loaded and the startup file it reads lacks switchboard's line. The login
+     shell says whether they're loaded in the same asking, by the mechanism each registers a
+     command's with: zsh's `_comps[switchboard]`, which `compdef` sets; bash's `complete -p
+     switchboard`; fish's `complete -c switchboard` listing any. It says they're missing only where
+     it can take them, as switchboard's file loads them only there: zsh once `compdef` is defined,
+     bash where bash-completion is loaded outside POSIX mode, fish always. An alias in front that
+     runs the link by its path is never offered it, as the line would change which `claude` `PATH`
+     finds. The card is the same, its reason `so your shell loads switchboard's completions` in
+     place of `so your shell finds switchboard's claude first` (`OfferCompletions`, worded by
+     `ShellFound.Gains`), and its `n` is `n no completions`. Your shell's row is `✓`, adding `·
+     switchboard's completions aren't loaded: its line isn't in ~/.zshrc`. Nothing is left to put
+     right by hand, so `n` and `esc` end the step, installing the hook; a line setup couldn't add
+     says why on the row, and ends it alike. Where the file can't be looked in, a new terminal may
+     read another, or a line of another switchboard's is there, nothing is offered.
    - **By hand** (frame 11), declined, or where setup writes nothing: `Add this line to your shell's
      startup file yourself, after anything else there that changes PATH:` and the line; `Or, where
      you keep your PATH another way, put this directory first on it:` and the directory; then `Then
@@ -3245,7 +3326,9 @@ not the owner's decisions:
   directory is written from `$HOME`, as it goes on `PATH`.
 - **The step ends with the session hook:**
   - It runs at once where the shell runs switchboard's claude, or where the step stopped before
-    asking. From by hand, it runs on `enter leave it for now`.
+    asking. Where the line's offered for the completions, it runs once `n` or `esc` closes the
+    offer card; after `enter`, once the line's added and the shell asked again, or at once where
+    it couldn't be added. From by hand, it runs on `enter leave it for now`.
   - The step is under way, `q quit` alone, until the hook answers. Then the page shows its row,
     with a warning where it couldn't be installed, and `enter next: Skill`: leaving by hand takes
     a second `enter`.
@@ -3451,8 +3534,9 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       in the verdict's words, with how many weeks it hit its limit, the share it had left at a
       reset, on average, and how many weeks the rest would have been short `without_it`, then every
       account's together, marked `all`.
-  - **`history --windows`:** one object, `{"windows": [{account, window, readings}]}`, printed in
-    place of the blocks (settled in the plan): each account's every window's readings over the days
+  - **`history --windows`:** one object, `{"pool": …, "pool_label": …, "windows": [{account,
+    window, readings}]}`, printed in place of the blocks (settled in the plan): the pool it read,
+    as `history` and `sessions` name it, and each account's every window's readings over the days
     asked for, each `{at, utilization, resets_at, status, source}`, as the readings history holds
     them (see Files).
   - **`sessions`:** one object,
@@ -3639,8 +3723,11 @@ Every view speaks as `usage` does:
   apart: the pool to each account's cap, the room new sessions can take, and `all accounts` to each
   account's limit.
 - **A session is named by the first 4 characters of its id,** and, where switchboard knows it, the
-  directory it was started in. A request of it in flight is `asking`, until its answer's first
-  byte, then `answering`.
+  directory it was started in. On Sessions' List, a project's SESSIONS and a session page's
+  heading, the session name names it: the terminal session it was started in, else the worktree's
+  name, else the id (the owner's call, 18 November 2026), its first 4 characters, or more where
+  another row would show the same (see Sessions, The List). A request of it in flight is
+  `asking`, until its answer's first byte, then `answering`.
 - **Times** read `16:30` for today and `Sun 21:00` for another day, `~` before one projected.
 
 ### The page
@@ -3872,13 +3959,11 @@ Overview).
 
 - `t`, the theme picker, and `R`, refresh, work on every page and are never on the key line: `?`
   lists them.
-- `w`, each model's own window shown or hidden, works wherever windows are listed as they stand:
-  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. Trends, which draws
-  the windows every model shares, as Runway does, takes `w` for its WEEK (see Trends). It's never
-  on the key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
-  hidden. It's set once and remembered, so it doesn't earn the 10 cells it would cost every other
-  key: on the Overview's line, they'd have it fall to a phone's below 117 columns, where it fits
-  whole from 107 (the owner's call, 17 October 2026).
+- `w` is Trends' alone, for its WEEK (see Trends). The views that list windows as they stand, the
+  Overview, Accounts' Detail, Sessions' Switchboard and a session's page, took it to show each
+  model's own window, hidden at first; they show one now wherever an account has used it, as the
+  5-hour shows (see The Overview), so they take no key for it, and neither `?` nor the
+  keys-and-toggles card lists one (the owner's call, 18 November 2026).
 - `[ ]`'s word is `view` everywhere; `enter`'s word says what it does on the page, as `enter its
   page` or `enter open`.
 - A key that can't act now is drawn in `text.faint`, its key not bold, as `p pin` is while the
@@ -3955,13 +4040,15 @@ too. The accepted misses, which get the list's wheel backwards, include:
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
 shown, which the dashboard opens on; the Overview's sections shown and its `b`; Trends'
-sections shown; `w`; the dashboard's period, which the entity tabs share; Accounts' view and its
+sections shown; the dashboard's period, which the entity tabs share; Accounts' view and its
 Tokens' `v` split; Sessions' view; Runway's `a`; and the Log's columns.
 A file from before History went as a tab, which kept History as the tab shown, opens Trends with
 YEAR shown too, where History's Year went, the rest of Trends' sections as kept, and keeps Trends
 and its sections so as it opens, as `y` keeps them; History's Tokens' split, which it kept as
 `history.tokens.split`, reads as Accounts' Tokens' where the file keeps none, and the next write
-keeps it there and drops what History kept.
+keeps it there and drops what History kept. A file that keeps whether `w` showed each model's own
+window, as `models`, as builds before 18 November 2026 kept it, reads cleanly, the key passed over,
+and the next write drops it.
 A file from before the Overview's GRAPHS was removed (see The Overview), which may keep GRAPHS
 among the sections shown and its chart under `graphs`, reads without them, and the next write drops
 them. A page's sections kept, where every name is of none of its sections, as a later build's or one
@@ -3988,9 +4075,10 @@ Overview's USAGE draws the same block (see The Overview).
 - **The windows:** `--5h`, `--week`, and one flag for each model's own window switchboard knows,
   named for its model (`--fable`), each print the header, that window alone in either layout, and
   the key line. Given together, they print the windows given, in the order of care (see below). A
-  flag for a window no account reports fails, naming the windows there are (settled in the plan), as
-  `--5h` does where every account is on a verified Ultra plan: `no account reports the 5-hour
-  window: give --week`.
+  flag for a window the printout wouldn't print fails, naming the windows it would (settled in the
+  plan): one no account has, as `--5h` where every account is on a verified Ultra plan, `no account
+  has the 5-hour window to show: give --week`, and a model's own no account has used (see Which
+  windows show, below).
 - **The layout:** `--by window` or `--by account`. `[usage] by` in the config sets the default for
   `usage` and the dashboard alike, `window` unless set (see Config); the flag beats it.
 - **Where it reads,** as `status` does: the router's status document while the router answers,
@@ -4011,8 +4099,8 @@ and the windows shown, never what's read of them, but for the windows an account
 | By account, the name beside its first bar | Wherever its row's parts fit at their leasts beside the name column; else on a line of its own |
 | The key line | One line from the name column wherever it fits there at its widest, its gaps at their least; else two |
 
-A model's window status lists, as it lists one while it nears its limit, is a window shown, so where
-it makes three, the arrangement follows: from 86 columns to 121, two windows sit side by side, but
+A model's own window, listed where some account has used it, is a window shown, so where it makes
+three, the arrangement follows: from 86 columns to 121, two windows sit side by side, but
 three stack.
 
 **A row's parts,** in every layout, laid out as the dashboard's flex lays a row: the name column;
@@ -4055,8 +4143,11 @@ name column, that's from 86 columns for two windows and 122 for three; a printou
 a matrix of one.
 
 - **Headings,** in `text.subtle`, not bold: `WEEK`, `5-HOUR`, then each model's own window as its
-  model's name in capitals and ` WEEK`, as `FABLE WEEK`; each over its group's first column, with a
-  blank line under them.
+  model's name in capitals alone, as `FABLE`; each over its group's first column, with a blank line
+  under them. A model's only window of its own is a week, as Anthropic reports no model's own
+  5-hour, so the name says which (the owner's call, 18 November 2026). Sentences keep `Fable week`
+  and labels `Fable wk`, as in `reached its Fable week limit`, where the week says what resets.
+  `status.Headed` names a heading, beside `status.Short`'s labels.
 - **A row an account,** in the config's order, with a blank line under each, then the pool, last,
   under its rule. The account's name is at column 0.
 - **Each window is a group** at column `n + i·g`, where `n` is the name column and `g` is the
@@ -4163,10 +4254,11 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | Its subscription has ended: its last read was answered 403, the message saying OAuth authentication is currently not allowed for its organization, in any case, which is how an ended subscription is answered; the last reading, faded (below) | `subscription lapsed` | `lapsed` | `state.destructive` |
   | Its token is refused: the router saw it refused, or its last read was answered 401; the last reading, faded (below) | `token refused` | `refused` | `state.destructive` |
   | Its last read failed otherwise, a 403 with another message among them: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
-  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54`, `back 12 Nov` a week on | `state.destructive` |
-  | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10`, `back 12 Nov` a week on | `accent.attention` |
+  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `limit · back Sun`, `limit · back 12 Nov` a week on; narrower, `limit · Sun`, then `back Sun` | `state.destructive` |
+  | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `cap · back Mon`, `cap · back 12 Nov` a week on; narrower, `cap · Mon`, then `back Mon` | `accent.attention` |
   | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
+  | A model's own window the account is known not to have used: read fresh, and neither a limit nor its cap holding it (below) | `no Fable use` | `no use` | `text.subtle` |
   | A 5-hour window not started (settled in the plan) | `not started` | `not started` | `text.muted` |
   | The reset is less than an hour away for the 5-hour window, or a day for a week (settled in the plan) | `34% till 16:30` | `34% · 16:30` | as the allowance |
   | Otherwise, the allowance | `19%/day till Sun 21:00`, `34%/h till 16:30` | `19%/day · Sun`, `34%/h · 16:30` | the rate and the time in `text.muted`; ` till ` and ` · ` in `text.subtle` |
@@ -4174,10 +4266,16 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   A time reads `16:30` for today and `Sun 21:00` for another day; the short form keeps a time today,
   and only the weekday for another day, but a run-out's or `back`'s more than a day ahead on
   today's weekday, which alone would read as today, gives its date instead, `out ~12 Nov`,
-  `back 12 Nov`. An allowance's reset keeps its day alone, `19%/day · Thu`: its 14 cells can't
-  hold a date beside the rate, and a rate a day can't be read as running out today. `back` is when
-  room returns: when a limit lifts, or the router's refusal of the token ends where that's later,
-  or the capped window resets. While the account's read is refused, nothing says when room returns,
+  `cap · back 12 Nov`. A window held back keeps what holds it short, `cap · back Mon` and
+  `limit · back Sun`: on the owner's iPad, a cell short of the full form, a capped account read
+  `back Mon`, which left the ink alone to tell a cap from a limit (the owner's call, 18 November
+  2026). The short form of a limit, and of a time today, `cap · back 17:10`, runs past the 14
+  cells the short words are laid in, as the Switchboard's lines and Detail on a phone lay them, so
+  where it doesn't fit it narrows, keeping the state before the word `back`: `cap · Mon`, then
+  `back Mon`, as `usageWords`' narrower forms have them. An allowance's reset keeps its day alone,
+  `19%/day · Thu`: its 14 cells can't hold a date beside the rate, and a rate a day can't be read
+  as running out today. `back` is when room returns: when a limit lifts, or the router's refusal of
+  the token ends where that's later, or the capped window resets. While the account's read is refused, nothing says when room returns,
   as no time lifts that hold (see Requests that need special handling): a window a limit holds
   reads `limit` alone, its short form `limit` too. Red is for Claude's own limit; a
   cap is movable, so it's amber. A stale reading says why where the API refused it, an ended
@@ -4275,22 +4373,54 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   Stacked, a window's section leaves the account out. `status`'s text lists it under the account as
   `5-hour  no 5-hour window`, and the status document leaves it out of the account's `windows`, as
   any window not read (see The status document).
-- **Every window shows, used or not, but each model's own on `w`:** the windows every model shares
-  show on every account that may have them, as nothing read before any is. Each model's own window,
-  as Fable's week, any window the policy doesn't share, so a new model's falls under it with no
-  change, shows on `w`, remembered in the preferences and hidden at first (the owner's call, 17
-  October 2026). It shows then on every account, at 0% as at 40%, as probes read every model
-  family's window before any use; an account that hasn't reported it shows it as nothing read.
-  Hidden, one shows all the same for as long as it nears its limit on any account: held at it, at
-  the account's cap, running out, or nearing where it runs out, within 10 points, as the moment
-  judges each window (`WindowNow`'s `Held`, `Capped`, `RunsOut` and `Nearing`). The toggle is for
-  the live views alone, display and nothing else: USAGE by window and by account, the Switchboard's
-  lines, a session's page and Accounts' Detail, its figures of now. Runway's `<` `>` step between
-  the week and the 5-hour alone, where an account has one, and the routing card shows those two, so
-  neither has a model's window to hide. `usage`'s printout keeps every window, as do the
-  records Trends draws, the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring
-  never read it. The moment's `Listed(models)` owns which windows a live view lists, with `w`'s
-  state; the views guard holds drawing packages from asking the policy which windows are shared.
+- **Which windows show:** the windows every model shares show on every account that may have
+  them, as nothing read before any is. **A model's own week shows as the 5-hour does** (the
+  owner's call, 18 November 2026, replacing that of 17 October): any window the policy doesn't
+  share, as Fable's, so a new model's falls under it with no change.
+  - An account that has used it, its reading above 0 as it stands now, shows it: its bar, percentage
+    and words. So does one held on it by a limit naming it, or its cap reached in it, at 0% or not,
+    as a limit may still hold a window read again at 0% once it resets. A limit naming no window
+    holds every window alike, so says nothing of a model's use, and never brings the window up alone
+    (the owner's rule: shown where used); where another account's use shows it, the held account's
+    row reads by its kind, `limit · back Sun`. It's live: as an account's resets to 0, its bar goes,
+    and the window goes once no account has use left in it, or a hold on it; the first use on any
+    account brings it back.
+  - An account known not to have used it goes without it, as an account without a 5-hour window
+    does: read fresh, neither stale nor held by a limit or its cap, and at 0% as it stands. Stacked,
+    its section leaves the account out; side by side, in the matrix and by account, its words alone
+    from where its bar would start, `no Fable use`, or `no use` where the words are short or its
+    label beside them names the window, in `text.subtle`. Its row draws nothing else: no bar, no
+    cap's mark and no even pace, so the key names no cap of it. An account unread, without a usable
+    token, stale or held may have used it, so keeps its row, worded as its kind says: `not read
+    since 09:00`, `limit · back Sun`. A stale one at 0% alone doesn't bring the window back, as its
+    last reading had no use.
+  - Where no account has used it, it isn't drawn at all, as the 5-hour isn't where no account has
+    one.
+  - The 17 October call hid each model's own window behind `w`, and showed one anyway while it
+    neared its limit on any account, within 10 points of the account's floor. That asked about
+    nearness, never use, and Anthropic reports a Fable week on every account, at 0% where it's
+    unused: a 99.99% reserve, which puts the floor at 0.01%, had every unused Fable week near, and
+    showed FABLE WEEK on every account.
+  - It holds wherever windows are listed as they stand: USAGE by window and by account, Accounts'
+    Detail, the Switchboard's lines, a session's page and `usage`'s printout. Runway's `<` `>` step
+    between the week and the 5-hour alone, where an account has one, and the routing card shows
+    those two. The Switchboard's lines side by side, at its step 3 and in a phone's lanes, show the
+    week and the 5-hour alone, so a model's own goes there as the rows run short. The status
+    document keeps every window, used or not, as do the records Trends draws, the Log, Accounts'
+    records (limits hit, past weeks) and every JSON; routing and scoring never read which show.
+    Accounts' Compare is such a record: its WEEK USED reads a model's week an account hasn't used
+    as the known 0% it is (`recordedGauge`), a dash only for one not read or not had.
+  - One owner: the moment's `Listed` lists the windows a view lists, those every model shares that
+    some account has or may have, then each model's own some account has used, or a limit holds as
+    its own (`WindowNow.HeldAsOwn`, as the outlook's `holds` has it) or a cap reached in it holds,
+    and `Reported` every model's own any account reports, for a layout to hold still as use comes
+    and goes. Of an account's window, `WindowNow.Unused` says it's a model's own the account is
+    known not to have used, and `WindowNow.Without` takes it with `WindowNone`, a window the account
+    doesn't have: every view leaves an account out, words it so, and draws its bar empty, by
+    `Without`. The 17 October rule's parts are gone: `WindowNow.Nearing`, and `Moment.Shown`,
+    `Moment.Hidden` and `WindowNow.InUse`, the windows once worth showing; the moment's `Windows`
+    names every window its accounts have, for naming alone. The views guard holds drawing packages
+    from asking the policy which windows are shared.
 - **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
   17 October 2026). In general, the windows every model shares, the policy's, longest first; then
   each model's own, as any window the policy doesn't share is, a new model's among them, in
@@ -4391,8 +4521,8 @@ header would. By window:
   and `w − n − 30` cells wide: 62 at 108 columns with the sample's 16-cell name column, 114 at 160,
   170 at 216. Room chooses which, as "Room", below, says. The matrix's bars follow `usage`'s rule:
   15 cells for two windows at 108 columns, 30 at 138, 16 for three at 160.
-- **One window,** as where no account has a 5-hour window (see `usage`, the printout) and `w` hides
-  each model's own, has big bars no taller than its matrix, so USAGE draws them wherever they fit,
+- **One window,** as where no account has a 5-hour window (see `usage`, the printout) and none has
+  used a model's own, has big bars no taller than its matrix, so USAGE draws them wherever they fit,
   at each step it gives way, each step measuring its own, as Paper's `phone-all-ultra` draws them
   (signed off 1 November 2026); two windows or more keep the matrix at each step it gives way to.
 - **Where they don't,** as on a phone, `usage`'s stacked layout at that width: at 73 columns its
@@ -4752,7 +4882,8 @@ remembered").
   account's, and beside them its accounts' states counted, `2 open · 1 at cap`, each count in its
   state's colour (`open` in `text.secondary`, `pressure` and `at cap` in `accent.attention`, `limit`
   and `refused` in `state.destructive`) with ` · ` in `text.faint`; its accounts' sessions summed,
-  `6 sessions`; and their requests a minute summed, as a trace and a rate, `16/min`.
+  `6 sessions`, as `views.PoolSessions` sums them; and their requests a minute summed, as a trace
+  and a rate, `16/min`, both of the pool's trace, `views.Traces.Pool`, their requests together.
 - **The key line** follows the last block, from the name column.
 - **Under 150 columns,** USAGE draws as `usage --by account` does at that width, but its names
   from the page's column (see The page), and ROUTING stays a section of its own under it
@@ -5027,8 +5158,11 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   once, by `views`' `weeksOver`, never again for Compare.
   - **Its reach:** the weeks that begin in the period, this one last, never fewer than eight:
     eight at today, this week and 30 days, and 12 at 12 weeks. At 12 months, a column a month, the
-    13 months the period touches, each its fullest week of those beginning in it; a month no week
-    has begun in yet, as on the 1st, is empty, so the months stand over WORTH's.
+    13 months the period touches, each as full as its fullest week of those beginning in it; a
+    month no week has begun in yet, as on the 1st, is empty, so the months stand over WORTH's. A
+    month is at its cap where any of its weeks is. Its `…` is its fullest week's, but where
+    another of its weeks is at its cap, the month isn't open, so it's drawn marked, though this
+    week so far is fuller.
   - **Its columns,** 5 rows tall at a full week, drawn up the ramp in
     `viz.ramp`, this week's dimmer, its top cell in eighths. They're laid across the column less a
     cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
@@ -5086,16 +5220,16 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
     words give way, never a figure. The shortest are turned Compare's words, one owner of each.
     `sessions moved` says how many moves, the in and out summed, `21`, and for `all accounts` its
-    moves, `5`, in the column's ink, as `all accounts` says its count of limits, wide or turned,
-    where the full doesn't fit a cell short of the next column. `limits hit` names its windows short,
-    `week ×1 · 5h ×2`, then says how many, `3`, in the column's ink, as `all accounts` says its
-    count; turned Compare's `hit` takes the same forms but the full, the fullest its column holds,
-    so three windows read `4` there. `left at its last reset` drops the day, `0%`; `plan` drops the
-    plan's name, `$200/mo`, and for `all accounts` its plans, to `$400/mo · 2/3` where some aren't
-    known, then `$400/mo`; `extra usage` drops what it means, `on`, and for `all accounts`
-    `on all`, `off`; `against its price` drops its price, `4.0×`, and for `all accounts` where
-    some plans aren't known, every form keeps how many are, its words shorter, then `4.4× · 2/3`,
-    as its ratio is of those alone. The rest have one form.
+    moves, `5`, as `views.AccountTotals.Moves` counts them, in the column's ink, as `all accounts`
+    says its count of limits, wide or turned, where the full doesn't fit a cell short of the next
+    column. `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, in the
+    column's ink, as `all accounts` says its count; turned Compare's `hit` takes the same forms but
+    the full, the fullest its column holds, so three windows read `4` there. `left at its last
+    reset` drops the day, `0%`; `plan` drops the plan's name, `$200/mo`, and for `all accounts` its
+    plans, to `$400/mo · 2/3` where some aren't known, then `$400/mo`; `extra usage` drops what it
+    means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
+    `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are, its
+    words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
@@ -5264,6 +5398,13 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   follows the layout alone.
 - **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
   and as its table in the stack, or in the wide form where not a week of bands fits across.
+  `all accounts`' peak of a week is at its cap where any account's peak is. So its marks agree
+  with its `short on 3 of 14`, the weeks the capacity verdict counts short, in all but two kinds of
+  week. This week is never drawn marked. A past week that isn't whole is marked but never counted.
+  A whole week is marked where one account reached its cap while another's peak isn't known. The
+  verdict can't judge that week. The owner chose this rule on 18 November 2026. The old rule
+  marked a week where every account's peak was at its cap, and left the marks and the count
+  disagreeing. `views.WeekPeak.AtCap` holds it.
   - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
     account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
     WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest
@@ -5602,8 +5743,11 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   - **No new version:** the day's heads and digests keep each session's directory and project as
     its lines named them, so the rule needs no new version of either.
 
-  Inside a project a session keeps its own directory's name, so a worktree's session reads
-  `fix-login`.
+  Inside a project a session is named by its session name alone, the project being the row
+  above it (the owner's call, 18 November 2026), as the List names it after its project (see
+  Sessions, The List): a worktree's session started outside zmx and tmux reads `fix-login`, and
+  one started in the tmux session `router-fix` reads `router-fix`. Two rows that read alike each
+  add their id, as the List's do.
   A session is one project's, the one of where its latest day ran, as its story places it, so one
   whose days name it two ways, as across the upgrade that began recording projects, counts once.
   Sessions of no directory make one `no directory` row. Projects are named as `status.ProjectNames`
@@ -5751,7 +5895,8 @@ Switchboard stays live, with no dial. The frames are in the Paper file
 `sessions-switchboard-mixed-160` (work and personal without a 5-hour window). The List as a log is
 in the Paper file *Switchboard · Entities*, on page `p-3-0` (round 3, signed off 13 November 2026),
 and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73x61` and
-`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. Columns and rows are at 160 by 37
+`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. The List under `nerd_font` is
+`sessions-list-nerd-font-160`. Columns and rows are at 160 by 37
 unless they say otherwise.
 
 **The heading row,** row 4: `SESSIONS` in `text.muted`; three spaces; the sub-tabs, `Switchboard`
@@ -5808,11 +5953,11 @@ where the parts lay it, as Narrower and wider says.
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
     (see The Overview); and ending at the last column, `● pinned` or `✕ out of the pool` (see
     Pinned, below);
-  - a row a window, `Week`, `5-hour`, then each model's own week on `w`, `Fable wk`, a blank row
-    between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
+  - a row a window, `Week`, `5-hour`, then each model's own week where some account has used it,
+    `Fable wk`, a blank row between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
     cells at 131, two cells, and its words, 22 cells, at 137. A window the account doesn't have (see
-    `usage`, the printout) shows `no limit` in `text.subtle` from where its bar would start, its
-    label naming the window, wherever the lines draw it, side by side or in a lane, its bar and
+    `usage`, the printout) shows `no limit` in `text.subtle` from where its bar would start, and a
+    model's own it hasn't used `no use`, its label naming the window, wherever the lines draw it, side by side or in a lane, its bar and
     percentage in each step's.
 
   The lines start on row 6, each 3 blank rows after the one before where the view's rows hold them
@@ -6018,7 +6163,8 @@ October 2026).
     `● at its cap · 17:10`, `● open · next`, `■ limit reached · 15:54`; and ending at the last
     column, `● pinned` or `✕ out of the pool`;
   - its windows, stacked where rows allow, as the board's lines stack them at its step 1: `Week`, a
-    blank row, `5-hour`, and each model's own week on `w`, a row each, a blank row between. A
+    blank row, `5-hour`, and each model's own week where some account has used it, a row each, a
+    blank row between. A
     window's row is the board's, its label a cell in, its bar, its percentage and its words laid by
     the lines' parts, as the board lays them, but running to the last column, as the board's leave
     a cell at the edge. So from 73 columns the bars stand at their natural, 32, and the words take
@@ -6028,7 +6174,11 @@ October 2026).
   - else its week and its 5-hour alone, as the board's step 3 draws a line's, side by side on the
     row under its name: `Week` at column 1, its bar from 8, a cell and its percentage; three cells
     on, `5-hour`, its bar 7 cells after it, a cell and its percentage, ending at the last column;
-    each bar `⌊(width − 28) ÷ 2⌋` cells, 12 at 52;
+    each bar `⌊(width − 28) ÷ 2⌋` cells, 12 at 52. A model's own week, listed where some account
+    has used it, isn't among them: a known trait, it shows in stacked lanes only (the owner's call,
+    18 November 2026). `dashboard.BesideKeys` owns the windows drawn side by side, and the scroll
+    sweep reads a lane's windows by it, so it never asks a page of side-by-side lanes to reach a
+    model's week the stacked lanes draw;
   - a blank row, then its sessions, a row each, their parts laid by the board's rule from column 2,
     alike in every lane so their columns align, what's spare at the row's end: the id, bold
     `text.primary` while the session works, else `text.muted`; a space and the directory, 6 to 24
@@ -6062,12 +6212,13 @@ October 2026).
      (`pageDown` and `pageUp`, in `scrolling.go`).
 
   The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
-  as the board's lines count them: among them a model's own week while it nears its limit, is held
-  at it, or is capped, with `w` off, two rows more an account stacked, which can tip the lanes to
-  side by side, where only `Week` and `5-hour` show, as on the board's step 3. As a call comes or
-  goes, the form changes only where a step's rows stop fitting or start to. With three accounts,
-  three windows and six calls at 73 columns, the windows stack from 41 rows of terminal, go side by
-  side from 29, take the least gaps from 25, and scroll under that.
+  as the board's lines count them: among them a model's own week while some account has used it,
+  two rows more an account stacked, which can tip the lanes to side by side, where only `Week` and
+  `5-hour` show, as on the board's step 3: so a used model week shows in stacked lanes only, a
+  known trait (above). As a call comes or goes, the form changes only where a step's rows stop
+  fitting or start to. With three accounts, three windows and six calls at 73 columns, the windows
+  stack from 41 rows of terminal, go side by side from 29, take the least gaps from 25, and scroll
+  under that.
 - **No cords, no travel:** the state words carry the motion, bold while the session works.
 - **The heading:** `SESSIONS` in `text.muted`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).
@@ -6081,11 +6232,11 @@ project's SESSIONS rows on Projects, the same function's (`SessionDays.SessionLo
 `SessionDays.Projects` keeps), so a session reads alike on either. Its heads are on row 6 in
 `text.subtle`, each at its column's start, or right-aligned where its column is, and its rows run
 from row 7 (settled in the plan). Its columns run from column 2, two cells apart, in this order,
-each at least its least and at most its natural:
+each at least its least and at most its natural, but `session`, which grows where the row has room:
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
-| `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
+| `session` | 11 | 29, growing to hold the widest project and the widest name whole before `routing` takes what's left | Two cells, with no dot: its project, as Projects names the project's row, in `text.muted`, in a column of its own within this one, as wide as the widest project of the log, cut with `…` to leave the widest name whole, up to 14 cells of it, at its least 6, blank of a session of no project or of temporary folders, so the names line up; a space, then its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`, and a twin's id after it in `text.subtle`, cut with `…` to the rest, a twin's id kept whole |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
@@ -6094,6 +6245,41 @@ each at least its least and at most its natural:
 | `worth` | 7, or the widest the log says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
 
+- **A session's name.** The owner chose, on 18 November 2026: a session is named by the
+  terminal session it was started in, as `run` reads it once at its launch (see Launching), a
+  rename since never followed; else by its worktree's name; else by its id. The List shows its
+  project, then its name; a project's SESSIONS its name alone. A worktree's name carries Nerd
+  Font's `fa-tree`, U+F1BB, under the config's `nerd_font`, off by default. The project and the
+  name are two things that may share words, as zmx's `switchboard-Q7rWx2` under `switchboard`,
+  so the name shows whole: in a table, such as the List, as two cells with no dot; and where the
+  two read as one phrase, as in a session page's heading, as a breadcrumb,
+  `switchboard · switchboard-Q7rWx2`, the dot in `text.muted`.
+- **How the name is built.** The name a session's lines and the router's listing keep is that of
+  its last request to name a place, so a session resumed outside every terminal session is named
+  by none. A worktree is one Claude Code made, as the project fold knows one by its path
+  (`status.WorktreeName`: `<repo>/.claude/worktrees/<name>` or a folder in it, the innermost of
+  one made in another's), as a worktree made elsewhere has no folder of a known shape to name it.
+  The id is its first 4 characters (`status.ShownID`), as every other view names a session. The
+  name is worked out once, in `views` (`PeriodSession.ShownName`), which says where it's a
+  worktree's, and read alike by the List and a project's SESSIONS; the project's name is
+  Projects' row's (`PeriodSession.ProjectName`, set on the List alone). The row shows no id
+  beside the name, but a twin's, nor the directory: the project stands for the directory, and the
+  id would take the cells the name needs.
+- **Twins:** two rows of one list that show the same project and name, as every pane of one tmux
+  session does, and every `/clear` or `claude -p` under one zmx session, each add their id after
+  the name, in `text.subtle`, as `ProjectNames` sets two projects of one name apart. Rows of one
+  project each named by their id are told apart alike, though never marked as twins: each shows
+  as much of its id as tells it from the others, its first 4 characters at the least, as `Named`
+  names sessions among themselves. A twin's id is as long as that too. It's one owner, in `views`
+  (`views.toldApart`, as the rows are made, setting `PeriodSession.Twinned` and `IDCells`).
+- **The project's column:** the List's projects take a column of their own within `session`, as
+  wide as the widest project of the log, measured as `started` is so it holds still as the List
+  scrolls, but cut to leave the widest name whole, up to 14 cells of it, at its least 6, so the
+  names line up; one long name is cut rather than cut every project. Within `session`'s 29 cells
+  at most, a short project leaves the name more.
+- **The tree:** every Nerd Font glyph goes through one owner (`dashboard.nerdFont`), which gives
+  what stands in for it without one: here, nothing, the name plain, as a font without the glyph
+  draws a box.
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
   what shows, giving way in this order as the frame narrows, so `routing` never shows beside either
@@ -6274,8 +6460,9 @@ over the week. The frames are in the Paper file *Switchboard · Sessions and Run
 beside COMING UP, and `runway-108x44` and `runway-73x61`, LATELY under it; with the account column
 collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`; and of
 accounts without a 5-hour window, `runway-ultra-160`, every account on a verified Ultra plan, and
-`runway-mixed-160`, side alone keeping its 5-hour. Columns and rows are at 160 by 37 unless they
-say otherwise.
+`runway-mixed-160`, side alone keeping its 5-hour; and of an account added today,
+`runway-added-160` and `runway-added-73x61`. Columns and rows are at 160 by 37 unless they say
+otherwise.
 
 **The heading row,** row 4: `RUNWAY` in `text.muted`, and a rule of `─` in `border` from two cells
 after it to the frame's last column, as Sessions' runs, with nothing at its right (the owner's call,
@@ -6364,6 +6551,40 @@ request ledger).
   13 October 2026), or, where the API refused the read, ROUTING's words, `subscription lapsed: its
   subscription needs renewing`. An account whose token is refused has the windows' use under its
   name faded as stale (the owner's call, 13 October 2026).
+
+**An account new in the view** has its stretch before its first reading drawn, so its lane isn't
+left blank (the owner's call, 18 November 2026). A lane carries each reading forward to the next,
+so only an account not read yet is blank, and blank alone can't tell an account not added yet
+from one the router can't read. An account is new where its first reading falls inside the view
+and the readings history reaches back before the view, another account read before then. The time
+is the account's first reading, and the fact is views' (`views.LaneNew`), Trends' week cards
+holding it too, though only Runway draws it.
+
+```
+spare         ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈████████████████████████████████████████████████████━━━━━━
+  week 12%    new since 09:44                                                     out ~Sat
+```
+
+- **The rule:** `┈` in `text.faint` on the lane's row, in every column before the first column
+  read, the same without colour. The dots fade as the lane does, stale or out of the pool, but
+  aren't dimmed as the past, being faint already.
+- **The words:** `new since 09:44` in `text.muted` on the row under it, as the lane's other quiet
+  words are, since `text.faint` is hard to read on a phone. They start from the lanes' first
+  column, or collapsed, two cells after the use, the time as an event's is said, `new since Tue
+  09:44` on another day. They end by the stretch's last column, and two cells before the lane's
+  other words, which keep their place: `new` where the whole doesn't fit, and nothing where `new`
+  doesn't.
+- **The legend** keys `┈` and ` new` wherever a lane draws dots (see The legend), as the words
+  rarely fit under a phone's narrow stretch.
+- **Not new:** on a fresh install, where every account's readings start inside the view; an
+  account read before the view; and one removed and added again whose history is restored, as
+  its first reading is old. A gap in an account's readings, such as a restart or a missed probe,
+  draws its last reading carried on, as before.
+- **Within the readings judged:** "first" is first among the readings the view is judged by, about
+  two weeks of them live, and the week before a week stepped back to. An account added again after
+  about two weeks or more away is drawn as new (accepted, 18 November 2026).
+- **Why not a colour:** every colour in a lane is a state of the account's room, and blue is the
+  marks'. Dotted against the solid `━`, it stays apart without colour, and the words carry why.
 
 **The account column collapsed.** `a` collapses the labels to each account's use, to give the
 lanes more room, at every width, and `a` again expands them; expanded is the default, and the
@@ -6463,8 +6684,9 @@ blank row; with two, on the row after its words.
 call, 21 October 2026), keys only what the view draws, four spaces apart: `█` and ` room`; `█` in
 `accent.attention` and ` room, but it runs out at its pace`; `━` in `accent.attention` and
 ` at its cap`; `━` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
-`▂` in `state.destructive` and ` the pool at its limit`; and `│` and ` its week resets`; each
-glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's length
+`▂` in `state.destructive` and ` the pool at its limit`; `│` and ` its week resets`; and where a
+lane is new in the view, `┈` in `text.faint` and ` new`; each glyph in its colour, its words in
+`text.muted`. Four spaces on, in `text.subtle`, a column's length
 and what's dimmed: `a column ≈ 69 minutes · the past dimmed` at 160; stepped back to a week gone,
 `a column ≈ 69 minutes · under each name, the week's highest`. A column's length is in whole
 minutes where it's whole, else after `≈`, to a tenth of a minute under 20 minutes and to the minute
@@ -6490,15 +6712,18 @@ legend (the owner's call, 12 November 2026):
 - **Stacked** else, where one column holds LATELY's least and those rows hold COMING UP's every
   line in the columns it takes alone, a blank row, LATELY's heading and two lines: LATELY then
   runs down to the blank row over the legend, from column 0. Where COMING UP takes one column,
-  both share one width: what their lines need to read whole, never under 72, or the frame's width
-  where that's narrower, nor over the frame's width, so the frames' accounts keep 72 and a long
-  name widens both rather than being cut with room beside it (the owner's call, 12 November
-  2026). Where it takes two, from 148 columns, it keeps them, and LATELY spans the frame under
-  them. LATELY is the first to give way as rows run short.
+  both take the frame's full width, as the Overview's stacked sections do (the owner's call, 18
+  November 2026). It replaces his call of 12 November, a width of what their lines need, never
+  under 72, which left half an iPad's screen empty at 116 columns. Where COMING UP takes two
+  columns, from 148, it keeps them, and LATELY spans the frame under them. LATELY is the first to
+  give way as rows run short.
 - **COMING UP alone** else, as before LATELY: two columns, four cells apart, where both fit at the
   lines' natural width, 72, so from 148 columns, each taking half of what's left after the gap, the
-  odd cell the second's, the lines running in time order down the first, then across; else one, at
-  its natural, or the frame's width where that's narrower (the owner's call, 21 October 2026).
+  odd cell the second's, the lines running in time order down the first, then across (the owner's
+  call, 21 October 2026). Else one, across the frame's full width, as the stacked lists are (the
+  owner's call, 18 November 2026). It replaces his call of 21 October, one column at its natural
+  72: on a short frame, where LATELY gives way, that brought back the iPad's half-empty screen,
+  and the width jumped as the height changed.
 
 LATELY's least is 46: a time at its widest, a week back's, 12; two blanks; a name at its least,
 8; its shortest words, ` open again`, 11; and how long ago at its widest, `23h 59m ago`, 11, two
@@ -6592,7 +6817,7 @@ at every width:
 - the words are placed and cut by the rule above, as `capped 14:31  ·  back 17:10`;
 - the rows, COMING UP, LATELY and the legend as at every width: the legend on as many lines as it
   takes, the keyed glyphs, then `a column ≈ 265 minutes · the past dimmed`; COMING UP and LATELY
-  stacked, the frame's width where that's under their natural;
+  stacked, across the frame;
 - the heading keeps its rule to the last column.
 
 **Keys.** Where a reference's key row differs from these, these hold:
@@ -6631,7 +6856,8 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
   config gives now, as the readings keep none, and lifts alike. A column with no reading of its
   account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
-  14 October 2026).
+  14 October 2026), but before the first reading of an account new in the view, which is dotted
+  (see An account new in the view, above).
 - **When a limit, a cap or a refusal began:** the router's `limit`, `cap` and `refused` events'
   `at`; where no event tells it, the first reading that shows it; a hold whose start neither tells
   runs from before the timeline (the owner's call, 14 October 2026). A limit or a cap one window
@@ -6742,8 +6968,8 @@ burn-up, the burn rate, the week by day, sessions over the day, the model mix an
 plan, are drawn on round 1's page in Paper, not taken up. The keys were left to the design by the
 owner (25 October 2026): `w` week, `o` pool, `g` glance, `h` hours; round 4's frames chose `y`
 year, `m` months and `d` models for the three History had. The window drawn is the week
-every model shares, as on Runway: a model's own week has no card, and `w` is WEEK's here, where on
-the pages that list windows as they stand it shows the models' own (see Keys). The watch builds the
+every model shares, as on Runway: a model's own week has no card, and `w` is WEEK's, the one page
+that takes it (see Keys). The watch builds the
 lanes of Runway's week view alone for Trends, while WEEK or GLANCE shows. A preferences file that
 keeps `5-hour` among Trends' sections, as one kept before it went, has it passed over, as any name
 of none of its sections is; where it keeps no other, as where WEEK was hidden, Trends opens on the
@@ -7578,11 +7804,12 @@ follows again, the newest line at the foot and nothing chosen; `s` opens the cho
 page, and `esc` there comes back to the Log as it was, paused at its line; `f` opens the panel; `/`
 opens a find line in the state line's row, `/ api▏`, typed in as setup's fields are (`←→`, `home`,
 `end`, `delete` and a paste, through `internal/dashboard/textfield`), the cursor drawn where it
-stands, what's typed scrolling to keep it in view, which finds a session by its id's start or by
-its directory's name, today's sessions first, then back a day at a time through the days the
-ledger keeps, each past day's sessions read from the side its head holds where it stands, and its
-lines only where none does (see Live updates); `↑↓` and `enter` pick among the sessions it
-matches, and `enter` filters both tables to the one picked, its lines alone, headed
+stands, what's typed scrolling to keep it in view, which finds a session by its id's start, by
+its directory's name, or by its session name as the List shows it (`ListedSession.ShownName`,
+the one owner the List reads), today's sessions first, then back a day at a time through
+the days the ledger keeps, each past day's sessions read from the side its head holds where it
+stands, and its lines only where none does (see Live updates); `↑↓` and `enter` pick among the
+sessions it matches, and `enter` filters both tables to the one picked, its lines alone, headed
 `only <id> <name>`, paused at its newest line where it has ended, the panel listing it among
 today's sessions, ticked; `esc` cancels the find, and with a filter on and nothing open, `esc`
 clears the filter (the owner's call, 13 October 2026; see The request ledger); `p` opens new
@@ -7692,8 +7919,9 @@ one:
   following, a new line joins the foot and the table moves up a line, and a line in flight's `took`
   counts; paused, only `▼ N new` and `took` move (settled in the plan).
 - **Not live:** the ledger's files and the router's files of events alone.
-- **Text from elsewhere,** a directory, a label, an error's message, shows with its control
-  characters as spaces.
+- **Text from elsewhere,** a directory, a label, an error's message, shows cleaned
+  (`prose.Clean`): its control characters as spaces, and without what could reorder or hide the
+  rest of its line.
 
 ### A session's page
 
@@ -7832,13 +8060,27 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   more.
 
 **The heading** (row 4): `SESSION` in `text.muted`; three spaces; the session's id cut to 4, as the
-dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
-`text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
-(`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words (the owner's call,
-17 October 2026); one space; a rule of `─` in `border`; two spaces; and, ending at the last column,
-`esc` bold `accent.key` and ` back` in `text.muted`. While it loads, three spaces and `loading…` in
-`text.subtle` go before the rule; on a phone, two, as its parts are spaced there (settled in the
-plan).
+dashboard shows ids, bold `text.primary`; three spaces; its project and its session name as one
+phrase, a breadcrumb (the owner's call, 18 November 2026), `switchboard · router-fix`, each bold
+`text.primary`, the ` · ` in `text.muted`; two spaces; the directory as the ledger holds
+it, the home as `~` (`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words
+(the owner's call, 17 October 2026); one space; a rule of `─` in `border`; two spaces; and,
+ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
+three spaces and `loading…` in `text.subtle` go before the rule; on a phone, two, as its parts are
+spaced there (settled in the plan).
+- **The breadcrumb** takes the place the directory's last part had: the project stands for it,
+  and the path after it still says where the session ran. Its project is as Projects names one
+  shown alone (`SessionPage.ProjectName`), and its name as the List's (`SessionPage.Shown`), a
+  worktree's marked as the List marks one. A session named by its id shows its project alone, as
+  the id is beside it already; one of no project, or of temporary folders, its name alone; and
+  one that names neither, named by its id in temporary folders, the directory's last part, as
+  before, loaded or not. While its page loads, the router's listing names it, as it names the
+  List's rows (`views.AskedPage`, through the same owner), so the heading holds its shape as the
+  page's lines are read; a session the router doesn't list shows the directory's last part till
+  then. Cut short, the project gives way first, the dot and the name kept whole while a cell of
+  it fits.
+  It's the one place the dashboard shows the project and the name as one phrase: the Overview's
+  SESSIONS, the Switchboard's calls and the Log name a session by its id and directory.
 
 **Now** (rows 6 and 7). They take this wide form only where every part of each fits whole at its
 least, each measured for the session's own kind:
@@ -7900,10 +8142,11 @@ yielding from 99 (155), and `resumed`, today or the day before, from 133 (165).
   (settled in the plan). At the right, while it runs, ending at the last column: the account in
   `text.secondary` and ` now  ` in `text.subtle`, then each of its windows, three spaces apart, its
   name in `text.muted` and its use bold in its level's colour (see `usage`, the printout): `side now
-  week 78%   5-hour 13%   fable week 4%`, in the order of care. Every window shows, used or not,
-  each model's own on `w` (see The Overview). A window the account doesn't have (see `usage`, the
-  printout) says so in place of its name and use, in `text.subtle`:
-  `personal now week 66%   no 5-hour limit`.
+  week 78%   5-hour 13%   fable week 4%`, in the order of care. The windows every model shares
+  show, used or not, and each model's own where some account has used it (see The Overview). A
+  window the account doesn't have (see `usage`, the printout), or a model's own it hasn't used,
+  says so in place of its name and use, in `text.subtle`:
+  `personal now week 66%   no 5-hour limit   no Fable use`.
 - **Account names are white** wherever named: bold `text.primary` where it runs (`on side`) and on
   an account's own row, `text.secondary` everywhere else, the story's labels and a turn's `on` among
   them, so a name reads as an account and not a word.
@@ -8178,9 +8421,9 @@ page), the page heads itself shorter, and its story has no heading; the rest is 
 each form taken where its parts fit, as the wide page's rules give way:
 
 - **Rows 0, 1 and 3:** the title, the tabs and the status line, as every page's phone has them.
-- **Row 5, the heading:** `SESSION` in `text.muted`, two spaces, the id and the directory's name,
-  bold `text.primary`, two spaces apart, and while it loads, two spaces and `loading…`; `esc back`
-  at the right. No path and no rule.
+- **Row 5, the heading:** `SESSION` in `text.muted`, two spaces, the id and the breadcrumb, as
+  the wide heading has them, two spaces apart, and while it loads, two spaces and `loading…`;
+  `esc back` at the right. No path and no rule.
 - **Rows 7 and 8,** the now rows' short form, as the wide one doesn't fit: `↑ asking  on side ▲
   since 14:31`, coloured as row 6 is; then `moved from work: its cap` in `text.muted`, `work` in
   `text.secondary`, and at the right `2h 40m` in `text.secondary`. No models and no windows.
@@ -8516,9 +8759,8 @@ alone act, and `esc` closes it; so do the theme picker's while it's open, as The
 
 **Keys that mean one thing on one page and another elsewhere** are kept apart by the page: `r` and
 `s` hide sections on the Overview, where `R` refreshes on every page, and `s` opens a session's page
-on the Log; `g` shows GLANCE on Trends, and Requests from an event's details on the Log; `w` shows
-each model's own window where windows are listed as they stand, and WEEK on Trends; and `f` opens
-the Log's panel.
+on the Log; `g` shows GLANCE on Trends, and Requests from an event's details on the Log; and `f`
+opens the Log's panel.
 
 ### What moves
 
@@ -9073,9 +9315,10 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
 ### Kept from the dashboard before milestone 5
 
 - Desktop notifications: see Notifications.
-- Text from elsewhere, such as labels and the upstream's errors, shows with its control characters
-  as spaces, here and in `status` alike, so none can move the cursor or restyle what follows, a
-  statusline's included.
+- Text from elsewhere, such as labels and the upstream's errors, shows cleaned (`prose.Clean`),
+  here and in `status` alike: its control characters as spaces, so none can move the cursor or
+  restyle what follows, a statusline's included, and without what could reorder or hide the rest of
+  its line, as the `internal/prose` row of Packages says.
 - `status`'s text keeps the form and the words it has, as `usage`, the printout quotes them, until
   it's designed afresh with the dashboard's words, as the Backlog says; it projects as the
   dashboard does.
@@ -9258,7 +9501,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   object:
 
   ```json
-  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "project": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "project": "~/Code/project", "name": "router-fix", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
   - `at`: when it arrived, before its body was read, in UTC, to the millisecond.
@@ -9279,7 +9522,19 @@ from the first day a router that has it runs, so nothing before then is in it.
     `~/Code/api` for a session in `~/Code/api/.claude/worktrees/fix-login`, or, for a `claude`
     `run` started within a session outside every repository, that session's (see A session's page,
     A project); left out where a request names none, as every line from before it was told does.
-    `model`: the model it asked for. Each is cut to 200 bytes once anything shaped like a token in
+    `name`: the terminal session `run` started `claude` in, as it tells the router (see Launching),
+    cleaned and cut to 100 bytes (`ledger.LineName`); left out where a request names none, as
+    outside zmx and tmux, and on every line from before it was told. It was added to the v1 line
+    as a field a line may leave out, so it needed no new version of the line: a reader from before
+    passes over it, and one reading a line from before finds none. The day's heads and digests
+    keep it with each session, as they keep its directory and project, so they took new versions
+    (`RowsVersion` 6, `DigestVersion` 4), as the project did: a day from before the upgrade holds
+    no name, so its old head and digest would still read right, but every field they store is in
+    their version, the rule their tests hold, so a change of what they store can't ship unseen.
+    The cost is the router building every day's digest again once, oldest first, some 2½ minutes
+    of CPU for a year of busy days, some 5 minutes as it runs paced to half a core, then the
+    heads, each day read raw till its own is built (see A digest a day). `model`: the model it
+    asked for. Each is cut to 200 bytes once anything shaped like a token in
     it is hidden, a session's id and a model's at their end, as the request stream cuts them, but
     a directory and a project, which are kept whole to 1024 bytes, macOS's `PATH_MAX`, the longest
     working directory the system gives: a directory past that is cut at its start, `…` standing
@@ -9552,8 +9807,11 @@ from the first day a router that has it runs, so nothing before then is in it.
     its windows, its `highest`, `rise`, `resets`, `limits`, minutes and `read_before`, stay the
     account's, once, whatever pool it's in.
     - `pool`: the id of the pool all the account's work that day was in, left out where its lines
-      named none, as every line did before pools, where its work was in more than one pool, and
-      where it did no work.
+      named none, as every line did before pools, and where its work was in more than one pool. Of
+      a day it did no work, the id of the pool the router had it in as it first summarised the
+      day, kept for good; left out where none held it, and in a day summarised before idle days
+      named theirs, which came after version 7 with no version of its own: see Pools' What's
+      recorded for the rule, and its limits.
     - `pools`: where its work was in more than one pool, each pool's, in the order of their ids,
       that of the lines that named none first, its `pool` left out: its `models`, `sessions`,
       `session_ids`, `moved_on` and `moved_off`, counted of the pool's lines alone as the account's
@@ -9767,8 +10025,9 @@ from the first day a router that has it runs, so nothing before then is in it.
   answer read the `claude` package's, and a session's state, its part and the part's times the
   views', which the ledger carries as it's given and never reads. The envelope's version is 3,
   since its entries name their pools and hold a split session's states apart, and
-  `views.DigestVersion` 3, since a session's state and its requests hold their project beside
-  their directory (2 from phase 2 of the digests; see Milestones): a digest of another version
+  `views.DigestVersion` 4, since a session's state and its requests hold the terminal session it
+  was started in beside their project and directory (3 since they held their project, 2 from
+  phase 2 of the digests; see Milestones): a digest of another version
   of either is read past, its sessions read raw, and the router digests its day again. The
   envelope's 3 builds every day's digest again once, oldest first, as each rests
   on the day before's: on the busy world, 5,000 requests a day, some 0.4 s of CPU a day, as before
@@ -9943,9 +10202,10 @@ from the first day a router that has it runs, so nothing before then is in it.
   seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
   they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 5, since a row and a
-    side's session hold their project beside their directory and name the pools their lines
-    recorded, each of which was version 4 alone, so a head of 4 is built again); its day, and the
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 6, since a row and a
+    side's session hold the terminal session they were started in; 5 since they held their
+    project beside their directory and named the pools their lines recorded, each of which was
+    version 4 alone; so a head of an older version is built again); its day, and the
     day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the
     summary it was built against; how many lines the day's read gave; `rests_on`, each day beside
     it whose files gave it a line, as a change of time zone files one, with the lines the ledger
@@ -10425,15 +10685,23 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   readings alone, as it does once the readings history covers a day (see The request ledger), and
   the folder's counts some: the Mac then knows nothing of the day's requests, and the folder's
   summary knows more. One that counts none gives way to none, so an import repeated copies none
-  again. The day's lines and its summary
-  are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
-  import cut short, the look sees the day's lines as the take left them. The readings history's
-  writer isn't held off: its summarising before a prune, on its first round as the router starts,
-  which may come after the router first answers, and on its first of each day, may summarise the
-  day from the lines just taken in, between the take and the look, and the folder's summary then
-  gives way to that one, which loses no request. Else the Mac's own stands, and the round
-  summarises again each day whose lines changed, as its files' sizes tell it, building its digest,
-  parts, head and rows again too (see The request ledger).
+  again. The day's lines and its summary are taken in as one, on the ledger's writer, so whatever
+  it ran before, a round, a stop or an import cut short, the look sees the day's lines as the take
+  left them. The take holds the ledger's summarising from before the day's lines until its summary
+  is decided, as a rename of a day does. So the readings history's summarising before a prune, on
+  its first round as the router starts, which may come after the router first answers, and on its
+  first of each day, comes before the take or after the summary, never between them. The ledger's
+  own rounds run on its writer, as the take does, so never wait on it. Else the Mac's own stands,
+  and the round summarises again each day whose lines changed, as its files' sizes tell it,
+  building its digest, parts, head and rows again too (see The request ledger). Either way the
+  summary the day keeps knows every pool of a day of no work either Mac recorded: the folder's days
+  of no work that name a pool are carried into the Mac's own, and the Mac's into the folder's where
+  that's copied in (`ledger`'s `carriedIdle`). An account the summary kept holds no day of takes
+  the day whole, as the other summary writes it; one whose day of no work names no pool takes the
+  pool alone; a worked day, or one naming a pool, stands. Every other field is kept as written. Of
+  an account neither recorded one for, the day names none. A staged summary that can neither be
+  copied in nor carried from, as on a day this Mac holds lines of but no summary that reads, is
+  left unread.
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
@@ -10774,23 +11042,22 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     into unchecked, and a refusal is told of once, of the files it was given. `service restart`
     still restarts at once, without waiting for a quiet moment, but is refused, to be tried again,
     where either file changed as it checked, naming which.
-  - **While it's held,** the router carries on as it is, and says why once: at `warn` in its log,
-    in a `restart` event with `held` (see The router's events), and in the status document's
+  - **While it's put off,** the router carries on as it is, and says why once: at `warn` in its
+    log, in a `restart` event with `held` (see The router's events), and in the status document's
     `restart`, `held` (see The status document), which `status`, the status line, LATELY and the
-    Log word as put off. A restart that falls due again while the refusal holds, as when a config
-    change's config file has been gone a while and comes back as it was, is told of held too, with
-    no second
-    warning. It asks again only once the config file or the binary moves on, there and
-    another file or changed, never at a look, so a config put right is taken up, and a newer
-    binary is too. A path that leads nowhere for a moment, as `brew` moves the binary's link on or
-    an editor saves the config, hasn't moved on: lifting the hold then would ask a binary that
-    isn't there, which can't answer, and restart into the one that refused. `service restart`
+    Log word as put off. A restart that falls due again while the refusal stands, as when a
+    config change's config file has been gone a while and comes back as it was, is told of as put
+    off too, with no second warning. It asks again only once the config file or the binary moves
+    on, there and another file or changed, never at a look, so a config put right is taken up,
+    and a newer binary is too. A path that leads nowhere for a moment, as `brew` moves the
+    binary's link on or an editor saves the config, hasn't moved on: asking again then would ask
+    a binary that isn't there, which can't answer, and restart into the one that refused. `service restart`
     meanwhile is refused with the binary's reason. The CLI the user runs is that newer binary, and
     can't read the config either: `status`, as text or JSON, shows the router's document while the
-    router answers, its restart held, then fails with the config's error, which it fails with
+    router answers, its restart put off, then fails with the config's error, which it fails with
     alone where the router doesn't answer, or with `--probe`, which needs the config; `usage` and a
     dashboard opened then fail on the config; and each `claude` started meanwhile is routed
-    through the held router all the same, on the accounts the router's document names, saying on
+    through the router all the same, on the accounts the router's document names, saying on
     stderr that the config can't be read, as for any config it can't read while the router
     answers, and starts unaided only where the router doesn't answer, until the config is put
     right (see Launching's Without the config; the owner's call, 9 November 2026).
@@ -11180,6 +11447,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept for its `keep`, though, unlike its lines, without waiting for their day's summary, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
 | `internal/export` | The history exported into a folder and brought back: the install's id, a Mac's folder and its `export.json`, a day's files copied or compressed into it, and a folder's files staged for import; the import itself, a day's lines added to its files, `internal/dayfile`'s, run by the router between its rounds (see Export and import) |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place, unless a check its caller gives, just before the rename, says otherwise; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
+| `internal/filelock` | Every file lock switchboard takes, the one owner of `flock`: exclusive or shared, waited for or tried without waiting, let go as its file closes, the file left in place (see Files); outside Unix none is held |
 | `internal/linescan` | Reading text a line at a time, holding a line only as far as a most given: a longer one is passed over without being held, and counted, and the lines after it read, as the request ledger's, the readings history's and the router's events' files are read back and an answer's stream of events is counted |
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
@@ -11207,7 +11475,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
 | `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
-| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it |
+| `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown but text to copy, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line, while emoji, keycaps, variants, flags and joining scripts are kept whole. A prepended concatenation mark, such as an Arabic number sign, is dropped too, as the dashboard measures it and the character after it as no cells, so that character would never show; a label refuses one. A direction mark is kept only within text holding a letter written right to left, which it orders, and dropped from any other and from the edges of all, as a terminal that orders text by direction carries a mark at a field's end on to reorder the digits and punctuation of the next. A label is taken by the same rule, after its own refusals, so it's saved as it shows, and two labels clash where they're the same once cleaned; one written by hand, or saved by an earlier release, is read as written and shown cleaned. Where nothing of a label shows once cleaned, an account or a pool is named by its id (`prose.LabelOr`) wherever its label is shown: the dashboard's words, title row, empty-pool page and alerts, setup's cards, the verbs' tables, text and headings, the router's notifications and its answers to Claude Code, and launch's words, an account's title (`work · Work`) giving the id alone; a label kept as data, in the accounts record, an export or the status document's `pool_label`, stays as written. Accepted: a mark dropped can let a joiner or selector after it be judged on the character before the mark, and kept; a directory's name (`status.DirName`) can show a mark that was within the path only through a trailing slash. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. Text to copy, such as setup's lines and a token, keeps all but its control characters (`prose.Visible`), so what's copied is what was given. `prose.Quoted` shows as escapes the characters drawn as nothing that `prose.Clean` drops, the direction marks and the prepended concatenation marks, which would hide the closing quote |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
 
 Each view's data is built once, in `internal/views`, and drawn by `internal/dashboard` or printed
@@ -11408,6 +11676,14 @@ hiding it behind the provider would take a wider interface than it's worth:
   `~/.local/share/switchboard/Switchboard.app`, the app a release's switchboard posts through,
   written out from the one embedded, with `.Switchboard.app.sum` beside it, the embedded zip's
   SHA-256 (see Notifications, "How they're posted").
+- **Locks:** each lock switchboard takes is a `flock` taken through `internal/filelock`, its one
+  owner, and no other package takes one (`internal/filelock/guard_test.go`): `accounts.lock` and
+  `import.lock` in the state directory, the router's copy's `.lock`, `.Switchboard.app.lock`, the
+  tokens directory, the logs directory, the state directory, which the preferences hold as
+  they're kept, and a day's plain file. A lock goes as its file closes, however the process
+  holding it ends, so letting it go leaves its file in place; `service uninstall` removes the
+  router's copy's and the notifications' app's with what they guard. Accepted: the guard knows
+  the lock calls by name, so a raw `syscall.Syscall` of `SYS_FLOCK` would pass it.
 - **The `claude` link:** a link named `claude` to switchboard, by the path it was run by, alone in
   switchboard's bin directory, `$XDG_DATA_HOME/switchboard/bin`, else
   `~/.local/share/switchboard/bin`, which `setup` makes, and switchboard's file for the shell
@@ -11495,6 +11771,9 @@ dir = "~/Dropbox/Switchboard"      # where the router exports the history, hourl
 [usage]                            # optional: how usage and the dashboard lay out their windows
 by = "window"                      # window or account: the accounts compared a window at a time, or each account's windows together
 
+[dashboard]                        # optional: how the dashboard draws
+nerd_font = false                  # true where the terminal's font is a Nerd Font, to draw its glyphs, as a worktree's tree
+
 [prices.plans]                     # optional: what a plan costs, in US dollars a month, in place of the built-in price
 max = 90
 
@@ -11523,8 +11802,9 @@ fails as it is; one that parses has every problem reported at once:
   mean routing. The id names the account's token file, which these rules keep safe as a file name;
   so no two ids differ only in case, as `work` and `Work` do, which macOS, ignoring case in file
   names, would give one token file. Neither the `id` nor the `label` may hold anything shaped like a
-  token, as both show wherever the account does: the error never quotes it, and names an account
-  whose id holds one by its place, as `account #2`. A `label` is at most 100 characters, counted
+  token, as both show wherever the account does, the label judged as written and as shown, once
+  `prose.Clean` has dropped what draws as nothing, which can split a token: the error never quotes
+  it, and names an account whose id holds one by its place, as `account #2`. A `label` is at most 100 characters, counted
   as runes; the error gives its length, never the label.
 - **`primary`** is true on one account at most.
 - **`reserve`** is 0, or more than 0 and less than 1.
@@ -11564,6 +11844,11 @@ fails as it is; one that parses has every problem reported at once:
   account's windows together; `window` unless given. It's the layout `usage` prints and the
   dashboard's Overview opens with: `usage --by` overrides it for one printout, and the Overview's
   `b` for the dashboard, which remembers the choice (see `usage`, the printout, and The Overview).
+- **`[dashboard]`**: `nerd_font`, `false` unless given, says the terminal's font is a Nerd Font, so
+  the dashboard draws its glyphs, as the tree before a worktree's session name (see Sessions, The
+  List). Off by default, as a font without them draws a box for each (the owner's call, 18
+  November 2026). It has a table of its own, as no other key is the dashboard's alone: `[usage]`
+  lays out `usage` too. The dashboard reads it as it opens; the router never reads it.
 - **`[prices]`** overrides the price table built into switchboard (see The request ledger).
   `[prices.plans]` gives a plan's price, by its name, `pro`, `max` or `ultra`, in US dollars a
   month; by its old name too, but a plan priced by both is an error naming the two keys.
@@ -11618,6 +11903,12 @@ fails as it is; one that parses has every problem reported at once:
   path is passed over, never refusing the request, and the request names no project: its session's
   project is then its directory's, as a line from before projects has it. It's read as cheaply as
   the directory, from the header alone.
+- `X-Switchboard-Name: <name>`, set by `run` beside the directory, names the terminal session
+  `run` started in (see Launching), encoded as the directory is. The router reads it as the line
+  keeps it (`ledger.LineName`), cleaned and cut to 100 bytes, so a header sent by hand can't put a
+  control character on a screen or run a line long. One that's missing or doesn't decode names
+  none, and never refuses the request nor changes where it goes: the name is a label, read by
+  nothing that routes. Like every `X-Switchboard-` header, it never goes upstream.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
   its answer in, to count it for the request stream (see Control API): gzip, deflate and identity,
   in the order the client gave them, or identity where it offered none of those. A request passed
@@ -11641,7 +11932,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving, restart}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's. `restart` is the restart it has due, as the status document's `restart`, left out where none is, given here for a pool it can't give a document of, as one added since it started, which waits on that restart: the dashboard says it on such a pool's status line |
 | `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below. It, `GET /sessions`, `GET /history`, `GET /stream`, `POST /refresh` and `DELETE /pin` take `?pool=<id>`, and answer for that pool, else the one the verbs act on, refusing with a 400 `{error, pools, named}` where there's none, or the pool named isn't configured (see Reading a pool); `POST /pin` takes its pool from the accounts it names; and `GET /sessions/{id}` and a session's pin take `?pool=<id>` as they say. Each stream event names its request's `pool`, where there are pools |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, project, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `project`, the project its last request of the model to name a directory or a project named, kept and left out alike, so it's always that of the directory named with it, and left out by a router from before; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. With `?pool=<id>`, it answers for the session in that pool, a 404 where it was never seen there; without, for the pool it was routed in last, as a session resumed in another pool has work in each. 404 for a session never seen |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, project, name, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `project`, the project its last request of the model to name a directory or a project named, kept and left out alike, so it's always that of the directory named with it, and left out by a router from before; `name`, the terminal session its last request of the model to name a directory, a project or a name was started in, kept and left out alike, so a session resumed outside every terminal session is named by none; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. With `?pool=<id>`, it answers for the session in that pool, a 404 where it was never seen there; without, for the pool it was routed in last, as a session resumed in another pool has work in each. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Each acts in one pool: the one `?pool=<id>` names, a 404 for a session never seen there; else, for a pin, the account's pool, where the session runs there, routed within the hour; else the pool the session was routed in last, where a pin to an account outside it is a 400 (see Pinning in a pool). 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
@@ -11903,12 +12194,47 @@ them (see The data verbs).
   a moment with no request in flight, and one run by hand with `serve` until it's run again (see
   Proxy rules). The project header goes with it, and only with it, naming the repository that
   directory is in, which `run` finds by walking up from it, as A project says, shown from home
-  alike, as `~/Code/api`. It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
+  alike, as `~/Code/api`. The name header goes to such a router too, naming the terminal session
+  `run` started in: `ZMX_SESSION` where it's set, as zmx sets it; else, inside tmux, as `TMUX`
+  says, the tmux session's name; else none; read once, as the launch starts, a rename since not
+  followed (the owner's call, 18 November 2026). So nothing polls, nothing reads Claude Code's own
+  files, and no verb renames a session. It's read in one place (`Launcher.terminalName`), tmux
+  asked by `tmux display-message -p '#S'`, given a second at most, after the router's health is
+  known. A tmux that fails, or isn't there, names none, and the launch goes on, logging it at
+  debug. A name of digits alone names none, so the fallbacks name the session: tmux numbers the
+  sessions it isn't given a name for, `0`, `1` and on, which say nothing of the work. The name is
+  text from outside, so it's cleaned and cut as a line keeps it (`ledger.LineName`:
+  `prose.Clean`, then anything token-shaped hidden, as cleaning drops characters that don't show
+  and so joins a token they split, 100 bytes at most) before it's encoded as the
+  directory is, and the router cleans and cuts it again as it reads it. A name inherited from a
+  session this one is started within goes: what this launch reads is the only one.
+- **A worktree `claude` makes:** run as `claude -w <name>` or `claude --worktree <name>`, or
+  `--worktree=<name>`, Claude Code makes the worktree, or opens the one it made before, at
+  `.claude/worktrees/<name>` in the repository's root, as its docs say, and starts in it. `run`
+  reads the flag before Claude Code has made the worktree, so it tells the router that worktree
+  as the directory, in place of the one it's run in (`claude.WorktreeArg`, `Launcher.startedIn`),
+  where the directory is in a repository, its root as the project finds it, so the session's
+  lines name the worktree from its first request and its name falls back to the worktree's. That
+  root is the canonical one, the main checkout's, launched from a linked worktree too, as Claude
+  Code 2.1.327 itself was checked to make it. The pool and the project stay those of the
+  directory it's run in, which are the worktree's too: a worktree follows its repository. The
+  flag's value is read as Claude Code reads an optional one, as its own `--tmux` launcher reads
+  it: the next argument where it doesn't start with `-`, the last flag's where it's given twice,
+  none past `--`. A name is taken as Claude Code 2.1.327 takes one: segments of letters, digits,
+  `.`, `-` and `_`, `/` apart, none of them `.`, `..` or `.git`, 64 characters at most in all,
+  its folder the segments joined by `+`, so `-w feature/auth` makes `feature+auth`
+  (`claude.WorktreeArg`). A flag with no name, as Claude Code then makes one up, and a name
+  Claude Code doesn't take so, as a prompt after the flag, leave the directory as it is. A pull
+  request's number or address, `#123` or its URL, which Claude Code makes a worktree named
+  `pr-123` of, is a known miss: the directory stays as it is, and the session is named by its id,
+  as before. A `WorktreeCreate` hook that places worktrees elsewhere isn't seen, and the router is
+  told the path Claude Code would have used.
+- **The hints:** `run` sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
   send a base URL the headers it sends the API directly, the prompt each request serves and its
   class among them, which the router records (see The request ledger); but where the environment
   sets it already, as to `0`, which turns them off, it's left as it is, though not where it's set
   empty, which Claude Code reads as unset (settled in the plan). An unhealthy router is routed
-  through exactly as a healthy one is, the token, pin, directory, project and hints alike, and
+  through exactly as a healthy one is, the token, pin, directory, project, name and hints alike, and
   `run` says so in a
   line on stderr: `switchboard: the router is unhealthy (5 of the 8 requests in the last 5 minutes
   failed) — starting claude through it all the same`, logging `starting claude` at warn with
@@ -12446,7 +12772,7 @@ dashboard on a phone, an iPad and the Mac, as sorted with the owner on 17 Octobe
 - **Order:** the week first wherever windows are listed (`status.CompareWindows`), with Runway
   opening on it.
 - **Model windows:** each model's own window behind `w`, hidden at first, and shown anyway near its
-  limit.
+  limit (replaced 18 November 2026).
 - **The pool:** its percentage is its accounts' mean use.
 - **Layout:** USAGE's blocks a blank row apart; the heading's clock live under a card; Runway's pool
   lane named at its top; Runway's account column collapsing on `a`; a phone's view tabs padded; a
@@ -12890,20 +13216,13 @@ was dropped binds a later choice, the design proper says so.
 | Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: after v1; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026, Fable 5.2 on 17 November | [current-prices](../ideas/2026-10-09--current-prices.md) |
 | Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
 | Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
-| Shown text that reorders or hides itself: bidi controls and invisible characters in hand-written labels, working directories and titles, which `prose.Clean` passes | found by the review of `accounts edit` on 27 October 2026; open | [shown-text-reorders](../ideas/2026-10-27--shown-text-reorders.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
-| One owner of switchboard's file locks, the four packages that each take a `flock` their own way | open: a refactor, any time | [one-file-lock](../ideas/2026-11-04--one-file-lock.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
-| Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
-| An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
-| Setup's card for a new pool warns of a fence folder that isn't on this Mac, as `pool add` and `pool edit` do | open: after v1 | [setup-fence-folder-warning](../ideas/2026-11-17--setup-fence-folder-warning.md) |
-| `history --windows --json` names the pool it read, as `history --json` and `sessions --json` do | open: after v1 | [history-windows-json-pool](../ideas/2026-11-17--history-windows-json-pool.md) |
-| `pool --json` gives each fence folder resolved, absolute, beside `dirs` as written | open: after v1 | [pool-json-resolved-paths](../ideas/2026-11-17--pool-json-resolved-paths.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
-| Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |
+| Pins that keep sessions on their accounts at a limit, waiting rather than spending the others | open: to discuss with its owner, 18 November 2026 | [pins-that-stay](../ideas/2026-11-18--pins-that-stay.md) |

@@ -157,7 +157,7 @@ func (a *app) readPool(cfg *config.Config, dir, named string) (filedPool, error)
 	case err != nil || p.ID == "":
 		return filedPool{}, poolFlagNeeded(err)
 	}
-	return filedPool{Pool: p, read: a.poolRead(cfg, dir, record, p.ID), named: poolNamed(cfg.Pools, p.Label)}, nil
+	return filedPool{Pool: p, read: a.poolRead(cfg, dir, record, p.ID), named: poolNamed(cfg.Pools, p.Label, p.ID)}, nil
 }
 
 // keptPool returns the pool with the id named that the accounts record
@@ -192,21 +192,22 @@ func pooledRead(cfg *config.Config, first string, record func() identity.Record,
 	return views.PoolRead{ID: id, First: first, PoolOf: status.AccountPools(cfg.Accounts, record)}
 }
 
-// poolNamed names the pool with the given label, as prose.Pool does, where
-// pools are more than one, so a verb's text says which it tells of: "" where
-// there's one or none, as no screen names a pool till there's a second.
-func poolNamed(pools config.Pools, label string) string {
+// poolNamed names the pool with the given label and id, as prose.Pool does,
+// by its id where nothing of the label shows, where pools are more than one,
+// so a verb's text says which it tells of: "" where there's one or none, as
+// no screen names a pool till there's a second.
+func poolNamed(pools config.Pools, label, id string) string {
 	if !status.NamesThePool(len(pools)) {
 		return ""
 	}
-	return prose.Pool(label)
+	return prose.Pool(prose.LabelOr(label, id))
 }
 
 // inPoolNamed names the pool with the given label after what a verb says of
 // it, as " in pool Acme", where pools are more than one, as poolNamed names
 // it: "" where there's one or none.
-func inPoolNamed(pools config.Pools, label string) string {
-	return inNamed(poolNamed(pools, label))
+func inPoolNamed(pools config.Pools, label, id string) string {
+	return inNamed(poolNamed(pools, label, id))
 }
 
 // inNamed names a pool, named as poolNamed or status.KeptPool's Said names

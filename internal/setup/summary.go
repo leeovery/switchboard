@@ -122,7 +122,7 @@ func (r Review) primariesSaid() string {
 	for _, p := range r.Pools {
 		in := slices.DeleteFunc(slices.Clone(r.Accounts), func(a Reviewed) bool { return !config.SamePool(a.Pool, p.ID) })
 		if len(in) > 0 {
-			label := prose.Clean(p.Label)
+			label := prose.Clean(prose.LabelOr(p.Label, p.ID))
 			said.WriteString(primarySaid(label+"'s primary: ", label+" has no primary", in, config.SamePool(p.ID, r.First)))
 		}
 	}
@@ -287,7 +287,7 @@ func (f LinkFound) stated() StepLine {
 		return StepLine{Mark: Warning, Detail: f.after(", but ", fronted(detail))}
 	}
 	switch sh.Situation {
-	case Through:
+	case Through, OfferCompletions:
 		return StepLine{Mark: Done, Detail: f.after(" · ", "your shell runs "+it)}
 	case LineAdded:
 		added := f.after(", and ", "switchboard's line is added to "+sh.Where)

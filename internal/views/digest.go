@@ -34,11 +34,12 @@ func (Digests) Builder() ledger.DigestBuilder {
 // release that keeps either otherwise writes another, and a head of another
 // version doesn't stand, nor its rows: the day's lines are read instead.
 // Every head of this version holds a side, each of its sessions saved whole,
-// and a row of each of its lines, each naming its project, and names the
-// pools each row, each chunk and each session of its side recorded: none
-// was released without them. Version 4 was two, each holding one of those,
-// so neither stands.
-const RowsVersion = 5
+// and a row of each of its lines, each naming its project and the terminal
+// session its line named, and names the pools each row, each chunk and each
+// session of its side recorded: none was released without them. Version 4
+// was two, each holding one of those, so neither stands; version 5 named no
+// terminal session.
+const RowsVersion = 6
 
 // RowsVersion is the version of the sides and rows of the days' heads the
 // Digests give, RowsVersion.

@@ -156,7 +156,7 @@ func (a *app) accountIn(cfg *config.Config, dir, account string) (filedPool, boo
 	if !placed {
 		return filedPool{}, false, nil
 	}
-	pool, err := a.poolTold(cfg, dir, in, "account "+prose.Clean(redact.Text(account))+" is in")
+	pool, err := a.poolTold(cfg, dir, in, "account "+redact.Text(prose.Clean(account))+" is in")
 	return pool, true, err
 }
 

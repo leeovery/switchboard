@@ -90,11 +90,12 @@ func (from LanesFrom) poolCounts(members int) (int, bool) {
 }
 
 // Drawn are what the lanes draw, as the legend keys it: the cells, in the
-// legend's order, a blank one not among them; and whether any marks a
-// reset.
+// legend's order, a blank one not among them; whether any marks a reset;
+// and whether any is new in the view, as its LaneNew has it.
 type Drawn struct {
 	Cells  []Cell
 	Resets bool
+	New    bool
 }
 
 // drawnOf are what the lanes given draw, as Drawn has it.
@@ -107,6 +108,7 @@ func drawnOf(lanes []Lane) Drawn {
 			}
 		}
 		d.Resets = d.Resets || len(l.Resets) > 0
+		d.New = d.New || l.New.Columns > 0
 	}
 	slices.Sort(d.Cells)
 	return d

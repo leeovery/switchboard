@@ -41,6 +41,7 @@ func deps() cli.Deps {
 		Getwd:         os.Getwd,
 		FindProject:   launch.FindProject,
 		Processes:     launch.ProcessTable{},
+		TmuxSession:   launch.TmuxSession,
 		RepositoryOf:  launch.RepositoryOf,
 		Root:          os.DirFS("/"),
 		Executable:    os.Executable,

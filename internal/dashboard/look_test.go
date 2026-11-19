@@ -81,12 +81,12 @@ func onTheBoard() (dashboard.SessionsShown, dashboard.Traffic) {
 }
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
-// screen, at a size each, every model's own window shown, as w shows them,
+// screen, at a size each, each model's own window shown where used,
 // Sessions' Switchboard, and Runway, among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
-			Width: width, Height: height, View: dashboard.Overview, Policy: claude, Models: true,
+			Width: width, Height: height, View: dashboard.Overview, Policy: claude,
 			KeyLine: dashboard.KeyLine{Groups: [][]dashboard.Key{{{Key: "q", Does: "quit"}}}},
 		}
 	}

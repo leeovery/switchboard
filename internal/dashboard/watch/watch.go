@@ -194,8 +194,7 @@ type Config struct {
 	// View is the tab the preferences kept, which the watch opens on where
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
-	// has it; Models whether they keep the live views showing each model's
-	// own window; Graphs Graphs' sections they keep shown, and KeepGraphs
+	// has it; Graphs Graphs' sections they keep shown, and KeepGraphs
 	// whether the watch keeps those and Graphs as the tab shown as it opens,
 	// as dashboard.GraphsKept reads them; and Log the Log's columns they keep
 	// shown, as dashboard.LogKept reads them. Prefs keeps each as it changes,
@@ -204,7 +203,6 @@ type Config struct {
 	View       dashboard.View
 	Sections   dashboard.Sections
 	By         dashboard.By
-	Models     bool
 	Graphs     dashboard.GraphsSections
 	KeepGraphs bool
 	Log        dashboard.LogTicks
@@ -246,6 +244,9 @@ type Config struct {
 	// Home is the user's home directory, which a session's page shows a
 	// directory under as ~: "" shows it whole.
 	Home string
+	// NerdFont is set where the terminal's font draws Nerd Font's glyphs, as
+	// the config's [dashboard] nerd_font says, for the dashboard to draw them.
+	NerdFont bool
 	// Projects reads each session's project, as every view of it reads it.
 	Projects status.Projects
 	// Scrolling is which way the Mac scrolls, as the dashboard read it as it
@@ -365,11 +366,9 @@ type Model struct {
 	// nothing that can.
 	toldBefore *toldSoFar
 	// sections are the Overview's sections shown, and by how its windows are
-	// grouped; models whether the live views show each model's own window,
-	// as w toggles it; and graphs Graphs' sections shown.
+	// grouped; and graphs Graphs' sections shown.
 	sections dashboard.Sections
 	by       dashboard.By
-	models   bool
 	graphs   dashboard.GraphsSections
 	// layout is the Overview's layout as it was last made, kept from look to
 	// look, as keepLayout keeps it, so it changes only on an input the page
@@ -552,7 +551,7 @@ type frameMsg struct {
 func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
-		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, models: cfg.Models, graphs: cfg.Graphs,
+		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, graphs: cfg.Graphs,
 		period: cfg.Period, accounts: accountsTab{shown: cfg.AccountsShown}, past: pastDays{starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
@@ -1025,7 +1024,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
 		View: m.view, Pool: m.pool(now),
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
-		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
+		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
 		Policy:           m.cfg.Policy,
 		WindowName:       m.cfg.WindowName,
@@ -1040,6 +1039,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		Session:          m.session.frame(),
 		Loading:          m.loading(now),
 		Log:              m.log.page,
+		NerdFont:         m.cfg.NerdFont,
 	}.Holding(m.taking.moment).At(m.doc, now)
 	if m.view == dashboard.Accounts {
 		f.Accounts = m.accounts.standing(f)

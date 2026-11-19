@@ -203,6 +203,45 @@ func TestNamesNameAccountsAsTheConfigAndTheRecordDo(t *testing.T) {
 	if got := status.ConfiguredName(configured[1]); got != (status.AccountName{Label: "side"}) {
 		t.Errorf("ConfiguredName(side, unlabelled) = %+v, want it named by its id", got)
 	}
+	for _, label := range []string{"\u200e", "\u200b\u2066", " "} {
+		if got := status.ConfiguredName(config.Account{ID: "side", Label: label}); got != (status.AccountName{Label: "side"}) {
+			t.Errorf("ConfiguredName(side, labelled %+q) = %+v, want it named by its id, as nothing of its label shows", label, got)
+		}
+	}
+}
+
+// A label given names the accounts that show it, cleaned, ignoring case, so
+// one written by hand untidily is still known as a label; a label that shows
+// nothing names none.
+func TestALabelGivenNamesTheAccountsThatShowIt(t *testing.T) {
+	names := status.NamesOf(config.Accounts{{ID: "k3f9", Label: "Acme "}, {ID: "side", Label: "\u200e"}}, nil)
+	if got := names.Labelled("acme"); !slices.Equal(got, []string{"k3f9"}) {
+		t.Errorf("Labelled(acme) = %q, want [k3f9], as its label shows", got)
+	}
+	if got := names.Labelled("\u200b"); got != nil {
+		t.Errorf("Labelled(a zero-width space) = %q, want none", got)
+	}
+}
+
+// An account whose label shows nothing once cleaned is titled by its id.
+func TestAnAccountWhoseLabelShowsNothingIsTitledByItsID(t *testing.T) {
+	for _, label := range []string{"", "\u200e", "\u200b "} {
+		if got := (status.Account{ID: "work", Label: label}).Title(); got != "work" {
+			t.Errorf("Title() of work labelled %+q = %q, want its id alone", label, got)
+		}
+	}
+	if got := (status.Account{ID: "work", Label: "Work"}).Title(); got != "work · Work" {
+		t.Errorf("Title() of work labelled Work = %q, want work · Work", got)
+	}
+}
+
+// A pool shown whose label shows nothing once cleaned is named by its id.
+func TestAPoolShownWhoseLabelShowsNothingIsNamedByItsID(t *testing.T) {
+	pools := config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "\u200e"}}
+	shown := status.PoolShown(pools, nil, "q7mt")
+	if shown.Label != "q7mt" || shown.Named() != "q7mt" {
+		t.Errorf("PoolShown labels it %q, named %q, want q7mt for each", shown.Label, shown.Named())
+	}
 }
 
 // Words name each account they name by its id as the names given say it,

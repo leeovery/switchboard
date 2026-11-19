@@ -176,6 +176,21 @@ func TestAccountsWithoutAStateDirectory(t *testing.T) {
 	}
 }
 
+// An account, and a pool, whose hand-written label shows nothing once
+// cleaned is listed by its id in the LABEL column.
+func TestALabelThatShowsNothingIsListedAsTheID(t *testing.T) {
+	deps, _ := accountsDeps(t, "http://127.0.0.1:1", strings.Replace(strings.Replace(unfencedBesideFenced,
+		`label = "Work"`, `label = "\u200e"`, 1), `label = "Acme"`, `label = "\u200e"`, 1))
+	writeToken(t, deps, "work", "test-token-work")
+
+	if got := onATerminal.run(t, deps, "accounts"); !strings.Contains(got.stdout, "\nwork      work ") {
+		t.Errorf("switchboard accounts =\n%s\nwant work's LABEL its id", got.stdout)
+	}
+	if got := onATerminal.run(t, deps, "pool"); !strings.Contains(got.stdout, "\nq7mt  q7mt ") {
+		t.Errorf("switchboard pool =\n%s\nwant q7mt's LABEL its id", got.stdout)
+	}
+}
+
 func TestAccountsCleansLabels(t *testing.T) {
 	path := writeConfig(t, "[[account]]\nid    = \"work\"  # do not edit: links the account to its history\nlabel = \"Work\\u001b[2J\\tday\"\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())

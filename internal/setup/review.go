@@ -139,7 +139,7 @@ type Reviewed struct {
 // Name is how setup names the account to the user: by its label, else by
 // its id.
 func (r Reviewed) Name() string {
-	return cmp.Or(r.Label, r.ID)
+	return prose.LabelOr(r.Label, r.ID)
 }
 
 // PlanName is the account's plan as the price table names it, as PlanName

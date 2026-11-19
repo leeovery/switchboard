@@ -296,7 +296,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "page-routing-phone", want: []string{"╭─ ROUTING · NEW AND RUNNING SESSIONS ─", "The 4 sessions running elsewhere move there", "Rebuilding their caches costs ≈ $"}},
 		{name: "page-help-scrolled", want: []string{"─ HELP · OVERVIEW ", "│  USAGE"}, wantNoneOf: []string{"t themes"}},
 		{name: "page-not-answering", want: []string{"■ the router isn't answering  ·  since 14:42:07  ·  auto  ·  6 sessions"}},
-		{name: "page-session-loading", want: []string{"SESSION   d28c   switchboard  ~/Code/switchboard   loading… ─", "esc back    ? help  q quit"},
+		{name: "page-session-loading", want: []string{"SESSION   d28c   switchboard · router-fix  ~/Code/switchboard   loading… ─", "esc back    ? help  q quit"},
 			wantNoneOf: []string{"STORY", "TURNS", "↑↓ turn"}},
 		{name: "page-sessions-chosen", want: []string{"d28c switchboard              ↑ asking     ▸ from work      ●"}},
 		{name: "page-sessions-short", want: []string{"▲ 1 more above", "side        ▲", "db8a infra"}, wantNoneOf: []string{"○ work", "◉ work", "▼"}},

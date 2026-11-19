@@ -131,13 +131,16 @@ type Option func(*options)
 
 // options are what the options given set: the Digester the ledger digests
 // its days with, nil for none, which a follower passes over; what gives the
-// first pool's id, as FirstPool says, nil for none; and what holds the
-// ledger's rounds, as Holding says, nil for none, which a follower passes
-// over too.
+// first pool's id, as FirstPool says, nil for none; what holds the ledger's
+// rounds, as Holding says, nil for none, which a follower passes over too;
+// and what places each account in a pool as its day of no work is
+// summarised, as IdlePools says, nil for none, which a follower and a reader
+// pass over.
 type options struct {
 	digester  Digester
 	firstPool func() string
 	held      func() bool
+	idlePools func(account string) (string, bool)
 }
 
 // optionsOf are what the options given set.

@@ -240,21 +240,20 @@ func TestSessionsChoiceEndsOpensAndIsClicked(t *testing.T) {
 }
 
 // The Switchboard's lines are the moment's accounts, in their order, each a
-// row a window the live views list of it: each model's own, quiet, only
-// while w shows them.
+// row a window the live views list of it: each model's own only where some
+// account has used it.
 func TestTheSwitchboardsLinesAreTheMomentsAccounts(t *testing.T) {
-	doc := routerDoc("side", 5, pressedAccount("work"), limitedAccount("personal"),
-		readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day), windowOf("7d_oi", "Fable week", 0.1, 5*quota.Day)))
-	m := doc.At(now, claudeLike)
-	for _, models := range []bool{false, true} {
-		got := Frame{Models: models}.boardLines(m)
-		want, windows := []string{"work", "personal", "side"}, len(m.Listed(models))
-		if !reflect.DeepEqual(got.accounts, want) || got.windows != windows {
-			t.Errorf("with models %t, the lines are %+v, want %v, each of %d windows", models, got, want, windows)
+	for _, tt := range []struct {
+		fable   float64
+		windows int
+	}{{fable: 0, windows: 2}, {fable: 0.1, windows: 3}} {
+		doc := routerDoc("side", 5, pressedAccount("work"), limitedAccount("personal"),
+			readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day), windowOf("7d_oi", "Fable week", tt.fable, 5*quota.Day)))
+		m := doc.At(now, claudeLike)
+		got := Frame{}.boardLines(m)
+		if want := []string{"work", "personal", "side"}; !reflect.DeepEqual(got.accounts, want) || got.windows != tt.windows {
+			t.Errorf("with side's Fable week at %v, the lines are %+v, want %v, each of %d windows", tt.fable, got, want, tt.windows)
 		}
-	}
-	if hidden, shown := len(m.Listed(false)), len(m.Listed(true)); hidden != 2 || shown != 3 {
-		t.Errorf("the moment lists %d windows, and %d with models; want 2 and 3", hidden, shown)
 	}
 }
 

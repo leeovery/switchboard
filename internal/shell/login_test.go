@@ -386,14 +386,22 @@ func TestEachShellIsAskedInItsOwnWords(t *testing.T) {
 	tests := []struct {
 		shell string
 		// is, path and config are how it's asked what claude is, which
-		// claude PATH finds, and where it reads its startup file.
-		is, path, config string
+		// claude PATH finds, and where it reads its startup file; and
+		// completions whether switchboard's completions are loaded.
+		is, path, config, completions string
 	}{
-		{shell: "/bin/zsh", is: `"$(command -v claude)"`, path: `"$(whence -p claude)"`, config: `"${ZDOTDIR:-$HOME}"`},
-		{shell: "/bin/bash", is: `"$(command -v claude)"`, path: `"$(type -P claude)"`, config: `""`},
+		{
+			shell: "/bin/zsh", is: `"$(command -v claude)"`, path: `"$(whence -p claude)"`, config: `"${ZDOTDIR:-$HOME}"`,
+			completions: `if (( ${+_comps[switchboard]} )); then printf 'completions:loaded\n'; elif (( ${+functions[compdef]} )); then printf 'completions:missing\n'; fi`,
+		},
+		{
+			shell: "/bin/bash", is: `"$(command -v claude)"`, path: `"$(type -P claude)"`, config: `""`,
+			completions: `if complete -p switchboard >/dev/null 2>&1; then printf 'completions:loaded\n'; elif declare -F _get_comp_words_by_ref >/dev/null 2>&1 && ! shopt -oq posix; then printf 'completions:missing\n'; fi`,
+		},
 		{
 			shell: "/opt/homebrew/bin/fish", is: "(functions -q claude; and echo function claude; or command --search claude)",
 			path: "(command --search claude)", config: "$__fish_config_dir",
+			completions: `if complete -c switchboard | string length -q; printf 'completions:loaded\n'; else; printf 'completions:missing\n'; end`,
 		},
 	}
 	for _, tt := range tests {
@@ -409,6 +417,7 @@ func TestEachShellIsAskedInItsOwnWords(t *testing.T) {
 				`printf 'is:%s\n' ` + tt.is,
 				`printf 'path:%s\n' ` + tt.path,
 				`printf 'config:%s\n' ` + tt.config,
+				tt.completions,
 				`printf '%s\n' ` + endSentinel,
 			}, "; ")}
 			if len(runs) != 1 || runs[0].path != tt.shell || !slices.Equal(runs[0].args, want) {
@@ -542,6 +551,60 @@ func TestTheQuestionInARealShell(t *testing.T) {
 			})
 		}
 	}
+}
+
+// The shell says whether switchboard's completions are registered, by the
+// mechanism its completion script registers them with, sourced as it is;
+// that they're missing only where the shell can take them, as switchboard's
+// file loads them only there, bash outside POSIX mode alone; and nothing
+// otherwise.
+func TestTheQuestionInARealShellHearsWhetherTheCompletionsAreLoaded(t *testing.T) {
+	shells := []struct {
+		sh   shell.Shell
+		path string
+		args []string
+		// ready makes the shell able to take completions, as its startup
+		// file leaves it: zsh's compinit finding completions only in the
+		// directory it's in, so none of the machine's own, as one for a
+		// switchboard installed here, reads as loaded.
+		ready string
+		// more are cases of its own.
+		more []completionsCase
+	}{
+		{sh: shell.Zsh, path: "/bin/zsh", args: []string{"-f", "-i"}, ready: "fpath=(${^fpath}/compinit(N:h)); autoload -Uz compinit; compinit -D -u; "},
+		{
+			sh: shell.Bash, path: "/bin/bash", args: []string{"--noprofile", "--norc", "-i"}, ready: "_get_comp_words_by_ref() { :; }; ",
+			more: []completionsCase{{name: "able, but in POSIX mode", before: "_get_comp_words_by_ref() { :; }; set -o posix; ", want: shell.CompletionsUntold}},
+		},
+	}
+	for _, s := range shells {
+		script := filepath.Join(t.TempDir(), "completion")
+		write(t, script, string(completion(t, s.sh)))
+		tests := append([]completionsCase{
+			{name: "unable to take them", want: shell.CompletionsUntold},
+			{name: "able, without them", before: s.ready, want: shell.CompletionsMissing},
+			{name: "able, with them", before: s.ready + ". '" + script + "'; ", want: shell.CompletionsLoaded},
+		}, s.more...)
+		for _, tt := range tests {
+			t.Run(string(s.sh)+"/"+tt.name, func(t *testing.T) {
+				run := func(ctx context.Context, _ string, args, env []string) ([]byte, error) {
+					env = append(slices.DeleteFunc(slices.Clone(env), func(kv string) bool { return strings.HasPrefix(kv, "PATH=") }), "PATH=/usr/bin:/bin")
+					return shell.Run(ctx, s.path, append(slices.Clone(s.args), "-c", tt.before+args[len(args)-1]), env)
+				}
+				login := shell.Login{Environ: []string{"SHELL=" + s.path, "HOME=" + t.TempDir()}, Run: run}
+				if got := login.Which(t.Context(), "/nowhere/claude"); got.Why != "" || got.Completions != tt.want {
+					t.Errorf("Which() = %+v, want the completions %v", got, tt.want)
+				}
+			})
+		}
+	}
+}
+
+// completionsCase is a case of the completions a real shell says it has:
+// what's run before it's asked, and the answer wanted.
+type completionsCase struct {
+	name, before string
+	want         shell.Completions
 }
 
 func TestTheLoginShellIsntAskedWithoutShell(t *testing.T) {

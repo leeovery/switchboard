@@ -85,6 +85,9 @@ type Fixture struct {
 	// second, and a pool with no accounts draws its page: none, as before
 	// pools, where it's unset.
 	pool status.ShownPool
+	// nerdFont draws the Nerd Font glyphs the dashboard has, as the config's
+	// [dashboard] nerd_font turns them on.
+	nerdFont bool
 	// setup is set for a fixture of setup's screen, drawn by its own model
 	// rather than the watch.
 	setup *setupShown
@@ -226,7 +229,9 @@ type printout struct {
 // it; by account, as --by account prints it; work alone, with six sessions
 // on it, as its frame counts them; and the worlds of verified Ultra
 // accounts, all three's and the mixed one's, the mixed one's on a phone and
-// by account too; and the auto world's with its tokens' years nearly up.
+// by account too; the auto world's with its tokens' years nearly up; and
+// the Fable world's, its Fable week used on work and side, personal going
+// without it, side by side, on a phone and by account.
 var printouts = []printout{
 	{name: "usage-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.auto},
 	{name: "usage-120", size: watch.Size{Width: 120, Height: 36}, world: accountWorlds.auto},
@@ -242,6 +247,9 @@ var printouts = []printout{
 	{name: "usage-mixed-52", size: watch.Size{Width: 52, Height: 30}, world: accountWorlds.mixed},
 	{name: "usage-mixed-by-account-160", size: watch.Size{Width: 160, Height: 31}, world: accountWorlds.mixed, by: dashboard.ByAccount},
 	{name: "usage-token-160", size: watch.Size{Width: 160, Height: 17}, world: accountWorlds.tokensUp},
+	{name: "usage-fable-160", size: watch.Size{Width: 160, Height: 13}, world: accountWorlds.fable},
+	{name: "usage-fable-52", size: watch.Size{Width: 52, Height: 46}, world: accountWorlds.fable},
+	{name: "usage-fable-by-account-160", size: watch.Size{Width: 160, Height: 37}, world: accountWorlds.fable, by: dashboard.ByAccount},
 }
 
 // called is the printout's name.
@@ -271,22 +279,23 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 // as the fixture's settling finds it; the tab its preferences keep, which
 // it opens on, the Overview where it's unset, and the Log's columns they
 // keep shown; the requests a minute that fill a trace's height, where its
-// frame pins them otherwise than the frames' usual; and the pool it shows,
-// where it shows one.
+// frame pins them otherwise than the frames' usual; the pool it shows,
+// where it shows one; and whether it draws Nerd Font's glyphs.
 type page struct {
-	name    string
-	size    watch.Size
-	world   func(accountWorlds) accountWorld
-	keys    []tea.KeyPressMsg
-	before  earlier
-	gone    bool
-	goneFor time.Duration
-	view    dashboard.View
-	log     dashboard.LogTicks
-	scale   float64
-	loading bool
-	looked  *looked
-	pool    status.ShownPool
+	name     string
+	size     watch.Size
+	world    func(accountWorlds) accountWorld
+	keys     []tea.KeyPressMsg
+	before   earlier
+	gone     bool
+	goneFor  time.Duration
+	view     dashboard.View
+	log      dashboard.LogTicks
+	scale    float64
+	loading  bool
+	looked   *looked
+	pool     status.ShownPool
+	nerdFont bool
 }
 
 // looked is a page's moment as a later look at the router has it: after
@@ -319,7 +328,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	router := routerOf(w, now)
 	if p.looked != nil {
 		was := router
-		was.sessions, was.stream = p.looked.listed(now.Add(-p.before.by)), nil
+		was.sessions, was.stream = routedInTerminals(p.looked.listed(now.Add(-p.before.by))), nil
 		was.doc.Events = slices.DeleteFunc(slices.Clone(was.doc.Events), func(e status.Event) bool { return e.Kind == status.EventLimit })
 		router = was.then(now, router)
 	}
@@ -329,15 +338,17 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
 		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), moved: movedOf(w.gone, p.pool.ID), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
-		pool: p.pool,
+		pool: p.pool, nerdFont: p.nerdFont,
 	}
 }
 
 // pages are the pages the watch draws over the worlds. The Overview's frames
 // and the routing card's over it, each named after its frame, at its size,
 // over its world, with the keys that reach it: on auto, pinned and in the bad
-// hour; by account; each model's own window shown, with w; side's Fable week
-// nearing its limit, shown with them hidden; USAGE alone; SESSIONS shown
+// hour; by account; work's and side's Fable weeks used, personal's not, as
+// the Fable world has them, at 160, by account, on a phone, at 73 and at
+// 108; side's Fable week
+// near its limit; USAGE alone; SESSIONS shown
 // too, the rest folded; six accounts and ten; at 216 columns, with SESSIONS,
 // and everything shown; on a phone; over the worlds of verified Ultra
 // accounts, all three's and the mixed one's, on a phone and on an iPad, the
@@ -365,14 +376,18 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // Requests, / sw typed, and HELP · LOG over them. Then a session's page's
 // frames, each reached through the Log, its story's scale pinned at 8: d28c's
 // page, and on a phone; 9c2e's; b9c4's, ended yesterday; f41a's, over its
-// world, come back this morning; d28c's with ↓ to turn 12 and enter; and
+// world, come back this morning; over the Fable world, d28c's, on side,
+// which has used its Fable week, and f41a's, on personal, which hasn't;
+// d28c's with ↓ to turn 12 and enter; and
 // the routing card over 9c2e's page, with p and 3; and over the mixed world,
 // d28c's, on side, and 9c2e's, on personal, which has no 5-hour limit.
 // Where no frame draws it,
 // to judge by eye: d28c's page loading, its read under way. Then Accounts'
 // frames, each reached from the Overview with tab: Compare as it opens, over
 // the auto world, ten accounts' and the bad hour's, and with >, the last 30
-// days; Detail with ], all accounts chosen, ↓ to work, and over the bad
+// days; Detail with ], all accounts chosen, ↓ to work, over the Fable
+// world, ↓ to work, which has used its Fable week, and ↓ twice to personal,
+// which hasn't, and over the bad
 // hour's world, ↓ twice to personal, and over the mixed world, ↓ to work;
 // where no frame draws them, to judge by
 // eye, side chosen as Detail opens on Accounts, its list holding the focus,
@@ -388,12 +403,14 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // with > three times, the last 12 months. Then Sessions' frames, each
 // reached from the Overview with tab three times: the Switchboard and, with ], the List, over
 // the scene's world, wide and on a phone; the Switchboard over the mixed
-// world; and, each as a later look has it,
+// world, and over the Fable world, wide and at 73 × 61, its lanes stacked;
+// and, each as a later look has it,
 // the Switchboard kept from a look before its moment that saw its sessions
 // in the frame's order, then left for Runway and come back to with
 // shift-tab, so its stream opens afresh: of ten accounts, of work alone, and
 // pinned to personal and side, looked at a minute before; and at personal's
-// limit, refused at 16:05:41, and moved at 16:05:42, looked at at 14:42:07.
+// limit, refused at 16:05:41, and moved at 16:05:42, looked at at 14:42:07,
+// and moved at 108 × 44 too, personal's limit in its narrower words.
 // Where no frame draws it, to judge by eye: the Switchboard at 120 × 30;
 // with ↓ four times, d28c chosen, its call lit to its plug; at 160 × 14, its
 // lines scrolling, ↓ six times scrolling to db8a; and the router gone, R
@@ -423,7 +440,11 @@ var pages = []page{
 	{name: "overview-lapsed-160", size: wide(37), world: accountWorlds.lapsed},
 	{name: "overview-lapsed-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.lapsed},
 	{name: "overview-by-account-160", size: wide(42), world: accountWorlds.auto, keys: keysOf("b")},
-	{name: "overview-models-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("w")},
+	{name: "overview-fable-160", size: wide(37), world: accountWorlds.fable},
+	{name: "overview-fable-by-account-160", size: wide(42), world: accountWorlds.fable, keys: keysOf("b")},
+	{name: "overview-fable-phone-52", size: watch.Size{Width: 52, Height: 66}, world: accountWorlds.fable},
+	{name: "overview-fable-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.fable},
+	{name: "overview-fable-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.fable},
 	{name: "overview-model-nearing-160", size: wide(37), world: accountWorlds.fableNearing},
 	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
 	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("s")},
@@ -484,6 +505,8 @@ var pages = []page{
 	{name: "session-quiet-160", size: wide(37), world: accountWorlds.auto, keys: toSession("9c2e"), scale: storyScale},
 	{name: "session-ended-160", size: wide(37), world: accountWorlds.auto, keys: toSession("b9c4"), scale: storyScale},
 	{name: "session-resumed-160", size: wide(37), world: accountWorlds.resumed, keys: toSession("f41a"), scale: storyScale},
+	{name: "session-fable-used-160", size: wide(37), world: accountWorlds.fable, keys: toSession("d28c"), scale: storyScale},
+	{name: "session-fable-unused-160", size: wide(37), world: accountWorlds.resumedFable, keys: toSession("f41a"), scale: storyScale},
 	{name: "session-turn-opened-160", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c", downKey, enterKey), scale: storyScale},
 	{name: "session-phone-52", size: watch.Size{Width: 52, Height: 32}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
 	{name: "session-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale},
@@ -501,6 +524,8 @@ var pages = []page{
 	{name: "accounts-compare-bad-hour-160", size: wide(37), world: accountWorlds.badHour, keys: toAccounts()},
 	{name: "accounts-detail-all-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts("]")},
 	{name: "accounts-detail-work-160", size: wide(37), world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "accounts-detail-fable-used-160", size: wide(37), world: accountWorlds.fable, keys: toDetail(downKey)},
+	{name: "accounts-detail-fable-unused-160", size: wide(37), world: accountWorlds.fable, keys: toDetail(downKey, downKey)},
 	{name: "accounts-detail-12-months-160", size: wide(37), world: accountWorlds.auto, keys: toDetail(append(keysOf(">", ">", ">"), downKey)...)},
 	{name: "accounts-detail-limit-160", size: wide(37), world: accountWorlds.badHour, keys: toDetail(downKey, downKey)},
 	{name: "accounts-detail-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toDetail(downKey)},
@@ -540,7 +565,10 @@ var pages = []page{
 	{name: "projects-12-months-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects(">", ">", ">")},
 	{name: "projects-many-114x40", size: watch.Size{Width: 114, Height: 40}, world: accountWorlds.manyProjects, keys: toProjects()},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
+	{name: "sessions-switchboard-fable-160", size: wide(37), world: accountWorlds.sceneFable, keys: toSessions()},
+	{name: "sessions-switchboard-fable-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.sceneFable, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
+	{name: "sessions-list-nerd-font-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]"), nerdFont: true},
 	{name: "sessions-switchboard-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSessions()},
 	{name: "sessions-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-phone-52", size: phone(33), world: accountWorlds.scene, keys: toSessions("]")},
@@ -575,6 +603,10 @@ var pages = []page{
 		name: "sessions-moved-160", size: wide(37), world: accountWorlds.movedAt, before: lookedAway(movedAfter), keys: cameBack,
 		looked: &looked{after: movedAfter, listed: inTheFramesOrder(sceneSessions)},
 	},
+	{
+		name: "sessions-moved-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.movedAt, before: lookedAway(movedAfter), keys: cameBack,
+		looked: &looked{after: movedAfter, listed: inTheFramesOrder(sceneSessions)},
+	},
 	{name: "page-sessions-120x30", size: watch.Size{Width: 120, Height: 30}, world: accountWorlds.scene, keys: toSessions()},
 	{name: "page-sessions-chosen", size: wide(37), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 4)...)},
 	{name: "page-sessions-short", size: wide(14), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 6)...)},
@@ -595,6 +627,8 @@ var pages = []page{
 	{name: "runway-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-added-160", size: wide(37), world: accountWorlds.added, keys: toRunway()},
+	{name: "runway-added-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.added, keys: toRunway()},
 	{name: "graphs-160x37", size: wide(37), world: accountWorlds.auto, keys: toGraphs()},
 	{name: "graphs-lapsed-160x37", size: wide(37), world: accountWorlds.lapsed, keys: toGraphs()},
 	{name: "graphs-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toGraphs()},

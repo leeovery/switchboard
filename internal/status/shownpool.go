@@ -4,10 +4,12 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // ShownPool is the pool a dashboard shows, as the config stood as it was
-// last read: its id and label; its directories, as the config writes them,
+// last read: its id and label, its id where nothing of the label shows, as
+// prose.LabelOr has it; its directories, as the config writes them,
 // none where it's unfenced; how many accounts the config put in it; and how
 // many pools there are, as no screen names a pool till there's a second.
 // One with no id is no pool: a config without pools, or one of several,
@@ -47,7 +49,7 @@ func PoolShown(pools config.Pools, accounts config.Accounts, id string) ShownPoo
 	if !ok {
 		return ShownPool{Pools: len(pools)}
 	}
-	return ShownPool{ID: p.ID, Label: p.Label, Dirs: slices.Clone(p.WrittenDirs), Accounts: len(PoolAccounts(pools, accounts, p.ID)), Pools: len(pools)}
+	return ShownPool{ID: p.ID, Label: prose.LabelOr(p.Label, p.ID), Dirs: slices.Clone(p.WrittenDirs), Accounts: len(PoolAccounts(pools, accounts, p.ID)), Pools: len(pools)}
 }
 
 // PoolAccounts are the accounts of accounts a dashboard shows of the pool of
@@ -75,7 +77,10 @@ func NamesThePool(pools int) bool {
 
 // Named is the pool's label, as a screen names the pool it shows once
 // there's a second, as NamesThePool has it: "" where there's one or none, or
-// no pool is shown.
+// no pool is shown. PoolShown has put the id in place of a label that shows
+// nothing, so Named needn't clean it: a session's page asks it at every
+// scroll, and the label passed to prose.Clean, which keeps what it's given,
+// would have the frame's contents escape to the heap at each.
 func (p ShownPool) Named() string {
 	if p.ID == "" || !p.Turns() {
 		return ""

@@ -376,7 +376,7 @@ func (a *app) inPoolOf(ctx context.Context, id string) string {
 		return ""
 	}
 	pools := a.poolsStanding(ctx)
-	return inPoolNamed(pools, poolLabel(pools, id))
+	return inPoolNamed(pools, poolLabel(pools, id), id)
 }
 
 // contrary reports whether given answers otherwise than the account was
@@ -712,17 +712,23 @@ func nowAndWas(name, now, was string) string {
 	return name + " " + now + " (was " + was + ")"
 }
 
-// labelChanged says how an edit changed the account's label: as it is now
-// and as it was, quoted, or none where the config writes none; and where the
-// two show the same, as a label written untidily does once tidied, that it
-// was written untidily.
+// labelChanged says how an edit changed the account's label, as
+// labelEdited says it: each quoted, or none where the config writes none.
 func labelChanged(e accounts.Edited) string {
 	now, was := labelSaid(e.Now.Label, e.NowLabelled), labelSaid(e.Was.Label, e.WasLabelled)
-	switch {
-	case now == was:
-		return "label " + now + " (was written untidily)"
-	case !e.NowLabelled:
+	if now != was && !e.NowLabelled {
 		now += ", shown by its id"
+	}
+	return labelEdited(now, was)
+}
+
+// labelEdited says how an edit changed a label, an account's or a pool's,
+// each as said: as it is now and as it was; and where the two read the
+// same, as a label written untidily does once tidied, that it was written
+// untidily.
+func labelEdited(now, was string) string {
+	if now == was {
+		return "label " + now + " (was written untidily)"
 	}
 	return nowAndWas("label", now, was)
 }
@@ -783,7 +789,7 @@ func emptiedSays(left accounts.Left) string {
 	if left.Emptied.ID == "" {
 		return ""
 	}
-	return "\n" + prose.Pool(left.Emptied.Label) + " has no accounts now: its sessions aren't routed until one is added to it " +
+	return "\n" + prose.Pool(prose.LabelOr(left.Emptied.Label, left.Emptied.ID)) + " has no accounts now: its sessions aren't routed until one is added to it " +
 		"(switchboard accounts add <label> --pool " + prose.Clean(left.Emptied.ID) + ")"
 }
 
@@ -943,7 +949,7 @@ func accountRows(cfg *config.Config, readToken func(id string) (tokens.Token, er
 	}
 	rows := [][]string{head}
 	for _, acct := range cfg.Accounts {
-		row := []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken, foreign)}
+		row := []string{acct.ID, prose.Clean(prose.LabelOr(acct.Label, acct.ID)), primary(acct), tokenState(acct.ID, readToken, foreign)}
 		if pooled {
 			row = slices.Insert(row, 2, poolLabel(cfg.Pools, acct.Pool))
 		}

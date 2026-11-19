@@ -30,11 +30,16 @@ var longDirs = map[string]string{
 	"~/Code/website":     "~/Code/website-marketing-redesign-2026",
 }
 
+// longTerminal is the terminal session the world of long names starts c61b
+// in, 32 cells, longer than the List gives a name, so its cut shows.
+const longTerminal = "offline-sync-conflict-resolution"
+
 // longNames is the scene's world with long names, so a view's cut name shows
 // in its frame: each account labelled as longLabels has it, and each
 // session, as the router lists it, as the ledger holds its lines and as the
 // router records its events, in the directory and project longDirs gives in
-// place of its own, so an event's directory agrees with its session's lines.
+// place of its own, so an event's directory agrees with its session's lines;
+// and c61b started in the terminal session longTerminal.
 func (a accountWorlds) longNames() accountWorld {
 	return a.kept("longNames", func() accountWorld {
 		w := a.scene()
@@ -47,6 +52,9 @@ func (a accountWorlds) longNames() accountWorld {
 			lines := sessionsLines(now)
 			for i := range lines {
 				lines[i].Dir, lines[i].Project = longDir(lines[i].Dir), longDir(lines[i].Project)
+				if lines[i].Session == idC61B {
+					lines[i].Name = longTerminal
+				}
 			}
 			return lines
 		}
@@ -66,11 +74,15 @@ func eventsInLongDirs(told []status.Event) []status.Event {
 }
 
 // inLongDirs are the sessions given, each assignment in the directory and
-// project longDir gives in place of its own.
+// project longDir gives in place of its own, c61b's started in the terminal
+// session longTerminal.
 func inLongDirs(sessions []status.Session) []status.Session {
 	for _, s := range sessions {
 		for i := range s.Assignments {
 			s.Assignments[i].Dir, s.Assignments[i].Project = longDir(s.Assignments[i].Dir), longDir(s.Assignments[i].Project)
+			if s.ID == idC61B {
+				s.Assignments[i].SessionName = longTerminal
+			}
 		}
 	}
 	return sessions

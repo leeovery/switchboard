@@ -65,6 +65,10 @@ type Deps struct {
 	// so run finds the session a claude is started within, through the
 	// processes that started it: nil tells of none.
 	Processes launch.Processes
+	// TmuxSession asks tmux the name of the session run runs in, as
+	// launch.TmuxSession does, which run tells the router, inside tmux, as
+	// the session's name: nil asks none.
+	TmuxSession func() (string, error)
 	// RepositoryOf returns the project of the repository a directory is in,
 	// and whether it's in one, as launch.RepositoryOf does, which a
 	// scratchpad's session is read against where its slug names a worktree
@@ -73,9 +77,9 @@ type Deps struct {
 	// Root is the filesystem from its root, as os.DirFS("/") gives it, which
 	// the project of a session that ran in a Claude Code scratchpad, or a
 	// temporary folder, is read against, as status.Projects reads it, and
-	// where pool add and edit look for the directories they fence a pool
-	// to: nil reads every project as status.ProjectOf does, and looks for
-	// none.
+	// where pool add and edit, import and setup's new pool look for the
+	// directories they fence a pool to: nil reads every project as
+	// status.ProjectOf does, and looks for none.
 	Root fs.FS
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes

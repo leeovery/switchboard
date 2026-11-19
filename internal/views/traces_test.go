@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -105,6 +106,33 @@ func TestTheRateIsTheRequestsOfTheLastMinute(t *testing.T) {
 	}
 	if got := (views.Trace{}).Rate(tracedAt); got != 0 {
 		t.Errorf("a trace with no requests has a rate of %d, want 0", got)
+	}
+}
+
+// The pool's trace is its accounts' requests together, in the order sent,
+// so its rate and its cells are theirs added up: spare, left out of the
+// pool, counts for nothing.
+func TestThePoolsTraceIsItsAccountsTogether(t *testing.T) {
+	m := status.Moment{Accounts: []status.AccountNow{{ID: "work", InPool: true}, {ID: "side", InPool: true}, {ID: "spare", OutOfPool: true}}}
+	work := views.Trace{Sent: []time.Time{tracedAt.Add(-12 * time.Minute), tracedAt.Add(-2 * time.Minute), tracedAt.Add(-time.Second), tracedAt}}
+	side := views.Trace{Sent: []time.Time{tracedAt.Add(-20 * time.Minute), tracedAt.Add(-90 * time.Second), tracedAt.Add(-30 * time.Second)}}
+	traces := views.Traces{Accounts: map[string]views.Trace{"work": work, "side": side, "spare": {Sent: []time.Time{tracedAt}}}}
+	pool := traces.Pool(m)
+
+	if !slices.IsSortedFunc(pool.Sent, time.Time.Compare) || len(pool.Sent) != 7 {
+		t.Errorf("the pool's requests are %v, want work's 4 and side's 3, in the order sent", sentTimes(pool))
+	}
+	if got := pool.Rate(tracedAt); got != 3 {
+		t.Errorf("the pool's rate is %d, want work's 2 and side's 1", got)
+	}
+	cells, workCells, sideCells := pool.Cells(60, tracedAt), work.Cells(60, tracedAt), side.Cells(60, tracedAt)
+	for i := range cells {
+		if cells[i] != workCells[i]+sideCells[i] {
+			t.Fatalf("the pool's cell %d is %v, want work's %v and side's %v added", i, cells[i], workCells[i], sideCells[i])
+		}
+	}
+	if got := (views.Traces{}).Pool(m); len(got.Sent) != 0 {
+		t.Errorf("the pool's trace with no requests holds %v, want none", got.Sent)
 	}
 }
 

@@ -37,10 +37,11 @@ func (f Frame) thisWeekCells(m status.Moment) int {
 }
 
 // limitedWindows are the windows a limit may be named of in THIS WEEK, by
-// their keys: every one the moment m lists, and every one any row of the
-// period's page records a limit of, listed or not.
+// their keys: every one the moment m may list, as its Reported has them,
+// and every one any row of the period's page records a limit of, listed or
+// not.
 func (f Frame) limitedWindows(m status.Moment) []string {
-	keys := m.Listed(true)
+	keys := m.Reported()
 	if page := f.Accounts.Page; page != nil {
 		keys = append(keys, page.LimitedWindows()...)
 	}

@@ -14,15 +14,21 @@ import (
 // The glyphs a lane draws: a column where its account has room, whether it
 // runs out at its pace or not, as its colour tells, or where the look has
 // no colour, runsOutCell; one where it has none, heavy so it holds its own
-// beside room; and where the view's window resets. Room fills the cell
-// whole, so a held column's ━ meets it at its middle and a reset's │ at its
-// top and bottom.
+// beside room; where the view's window resets; and one before its account
+// was first read, where it's new in the view, dotted so it tells from ━ by
+// its shape alone, in any look. Room fills the cell whole, so a held
+// column's ━ meets it at its middle and a reset's │ at its top and bottom.
 const (
 	roomCell    = "█"
 	runsOutCell = "▒"
 	heldCell    = "━"
 	resetCell   = "│"
+	newCell     = "┈"
 )
+
+// newMeans is what a lane's dots mean, as the words under them and the
+// legend's key say it.
+const newMeans = "new"
 
 const (
 	// pastFade is how far Runway fades what's before now's column into the
@@ -125,12 +131,17 @@ func (ln laidLane) collapsedUse() span {
 	return ln.useFigure()
 }
 
-// drawLane draws the lane ln along its row from column x: each column known,
-// as laneMark marks it, and │ in text.subtle at each reset of the view's
-// window it marks; each faded as laneInk fades it, before now's column as the
-// past.
+// drawLane draws the lane ln along its row from column x: each column before
+// its account was first read, where it's new in the view, as laneNewMark
+// marks it, faded as the lane is but never dimmed as the past, as it's faint
+// already; each column known, as laneMark marks it, and │ in text.subtle at
+// each reset of the view's window it marks; each faded as laneInk fades it,
+// before now's column as the past.
 func (f Frame) drawLane(c *canvas, ln laidLane, x int) {
-	now, fade := f.Runway.Timeline.NowColumn(), ln.fade()
+	now, fade, dotted := f.Runway.Timeline.NowColumn(), ln.fade(), f.Look.laneNewMark()
+	for col := range ln.New.Columns {
+		c.text(x+col, ln.row, dotted.text, laneInk(dotted.ink, false, fade))
+	}
 	for col, cell := range ln.Cells {
 		if cell != views.CellUnknown {
 			mark := f.Look.laneMark(cell)
@@ -167,6 +178,14 @@ func (l Look) laneMark(c views.Cell) span {
 		return span{heldCell, errorInk}
 	}
 	return spaces(1)
+}
+
+// laneNewMark is a column of a lane before its account was first read, where
+// it's new in the view, as the lane draws it in the look: ┈ in text.faint,
+// the same without colour, as its dots tell it from ━ and from a blank
+// column unread.
+func (l Look) laneNewMark() span {
+	return span{newCell, faintInk}
 }
 
 // laneInk is k as a lane draws it: faded fade into the canvas, as a lane

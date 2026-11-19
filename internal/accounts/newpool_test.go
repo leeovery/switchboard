@@ -261,6 +261,8 @@ func TestANewPoolTheRulesRefuseIsRefusedWritingNothing(t *testing.T) {
 	}{
 		{name: "no label", pool: accounts.NewPool{Dirs: []string{"/Code/acme"}}, is: func(err error) bool { return errors.Is(err, accounts.ErrNoPoolLabel) }},
 		{name: "another pool's label", pool: accounts.NewPool{Label: "default", Dirs: []string{"/Code/acme"}}, is: isA[*accounts.PoolLabelTakenError]},
+		{name: "another pool's label, a direction mark at its edge", pool: accounts.NewPool{Label: "\u200edefault", Dirs: []string{"/Code/acme"}}, is: isA[*accounts.PoolLabelTakenError]},
+		{name: "another pool's label, a zero-width space within it", pool: accounts.NewPool{Label: "def\u200bault", Dirs: []string{"/Code/acme"}}, is: isA[*accounts.PoolLabelTakenError]},
 		{name: "a second pool unfenced", pool: accounts.NewPool{Label: "Acme"}, is: isA[*accounts.UnfencedError]},
 		{name: "a directory inside another pool's", pool: accounts.NewPool{Label: "Client", Dirs: []string{"/Code/client", "/Code/work/client"}}, is: func(err error) bool {
 			refused, ok := errors.AsType[*config.DirError](err)
@@ -275,7 +277,7 @@ func TestANewPoolTheRulesRefuseIsRefusedWritingNothing(t *testing.T) {
 			adding := accounts.Adding{Account: config.NewAccount{Label: "Side"}, NewPool: &tt.pool}
 
 			for name, err := range map[string]error{
-				"CheckNewPool": registry.CheckNewPool(tt.pool),
+				"CheckNewPool": second(registry.CheckNewPool(tt.pool)),
 				"CheckNew":     second(registry.CheckNew(adding)),
 				"AddChecked":   second(registry.AddChecked(t.Context(), adding, tokenOf(t, sideToken), accounts.Checked{Organization: organization}, nil, accounts.Answer{})),
 			} {
@@ -373,4 +375,26 @@ func isA[E error](err error) bool {
 // second is the error of a call that returns a value and an error.
 func second[V any](_ V, err error) error {
 	return err
+}
+
+// A new pool that passes its check is returned as the config would read it,
+// its directories as it would write them and as it resolves them, written
+// nowhere.
+func TestANewPoolCheckedIsGivenAsTheConfigWouldReadIt(t *testing.T) {
+	was := pooled(defaultPool)
+	w := newWorld(t, was)
+	registry := w.unasked(t, &user{})
+	registry.HomeDir = func() (string, error) { return "/Users/test", nil }
+
+	got, err := registry.CheckNewPool(accounts.NewPool{Label: "Client", Dirs: []string{"~/Code/client", "/Users/test/Code/other"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"~/Code/client", "~/Code/other"}; got.Label != "Client" || !slices.Equal(got.WrittenDirs, want) {
+		t.Errorf("CheckNewPool() = %+v, want Client, written %q", got, want)
+	}
+	if want := []string{"/Users/test/Code/client", "/Users/test/Code/other"}; !slices.Equal(got.Dirs, want) {
+		t.Errorf("CheckNewPool() resolved its directories as %q, want %q", got.Dirs, want)
+	}
+	w.checkConfig(t, was)
 }
