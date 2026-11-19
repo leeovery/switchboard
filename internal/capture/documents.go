@@ -312,7 +312,9 @@ type builtWorlds struct {
 // newAccountWorlds are the accounts' worlds at now.
 func newAccountWorlds(now time.Time) accountWorlds {
 	y := newYear(now)
-	traffic := sync.OnceValues(func() ([]filed, []events.Line) { return filedOf(heldAsWritten(sessionsLines(now))), routerEvents(now) })
+	traffic := sync.OnceValues(func() ([]filed, []events.Line) {
+		return filedOf(heldAsWritten(inTerminals(sessionsLines(now)))), routerEvents(now)
+	})
 	built := &builtWorlds{worlds: make(map[string]func() accountWorld)}
 	return accountWorlds{now: now, year: y, past: y.readings().history(), traffic: traffic, built: built}
 }

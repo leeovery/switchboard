@@ -42,6 +42,7 @@ puts `pool_label` after it too.
 | `session` | string | The session id of the request. |
 | `dir` | string | The directory `claude` started Claude Code in, with your home as `~`. |
 | `project` | string | The repository that directory is in, with your home as `~`. See below. |
+| `name` | string | The name of the terminal session `claude` started Claude Code in. See below. |
 | `pool` | string | The id of the pool the request was routed within. |
 | `model` | string | The model the request asked for. |
 | `account` | string | The account whose answer the client got, by id only. |
@@ -58,6 +59,22 @@ puts `pool_label` after it too.
   longer `dir` is cut from its start, with `…` for what's cut, and a longer `project` is left out.
   Lines that v0.9.0 and earlier filed kept 200 bytes of each, so a folder in a Claude Code
   scratchpad often shows cut there, with no `project`.
+- **`name`** is the zmx session's name, else the tmux session's name, read once when `claude`
+  starts. A name of digits alone counts as none, so the next source is read. `name` is left out
+  outside both, and on lines filed before switchboard recorded it. It holds 100 bytes at most,
+  cleaned of control characters. A rename of the terminal session after the start never reaches
+  the line.
+- **`dir` for `claude --worktree <name>`** is the worktree Claude Code makes,
+  `<repository>/.claude/worktrees/<name>`, because Claude Code starts the session there. This
+  holds only inside a repository, and only for a name Claude Code takes as it is:
+
+  | If the name is | `dir` is |
+  |---|---|
+  | Letters, digits, `.`, `-` and `_`, up to 64 characters | `<repository>/.claude/worktrees/<name>` |
+  | Segments of those, `/` apart, as `feature/auth` | The segments joined by `+`, as `feature+auth` |
+  | A pull request, as `#123`, or anything else | The folder `claude` started in |
+- **`name` came in after `schema` 1,** and keeps it at 1. A reader that doesn't know `name`
+  passes over it.
 
 ### The project of a line
 

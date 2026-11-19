@@ -136,14 +136,20 @@ type SessionLog struct {
 
 // SessionLog is Sessions' List over in's period, as SessionLog has it, of
 // the days d holds at in's Now, each project tallied as tallied has it, so
-// it rows every session alike with Projects' pages.
+// it rows every session alike with Projects' pages, each named by its
+// project as Projects names its row.
 func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 	t := d.tallied(in)
+	names := t.names()
 	sessions := make(map[string]*sessionTally)
+	projectNamed := make(map[string]string)
 	for _, p := range t.all {
 		maps.Copy(sessions, p.sessions)
+		for id := range p.sessions {
+			projectNamed[id] = names[p.path]
+		}
 	}
-	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in), All: t.totals(), list: in.List}
+	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), list: in.List}
 }
 
 // tallied are the projects of in's period, each tallied of the days d holds
@@ -182,26 +188,16 @@ func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	return t
 }
 
-// sessionPlace is where a session ran, its directory and its project, as
-// placeAfter has them.
-type sessionPlace struct {
-	dir, project string
-}
-
 // sessionPlaces are where each session of the period from the date first to
-// the date today ran last, by its id, as placeAfter has it of its days in
+// the date today ran last, by its id, as sessionPlace's after has it of its days in
 // their order, then of list's listing of it, where it runs.
 func (d SessionDays) sessionPlaces(first, today string, list SessionList) map[string]sessionPlace {
 	places := make(map[string]sessionPlace)
-	ranIn := func(id, dir, project string) {
-		was := places[id]
-		was.dir, was.project = placeAfter(was.dir, was.project, dir, project)
-		places[id] = was
-	}
-	d.each(first, today, func(_ string, s *foldedSession) { ranIn(s.ID, s.Dir, s.Project) })
+	ranIn := func(id string, q sessionPlace) { places[id] = places[id].after(q) }
+	d.each(first, today, func(_ string, s *foldedSession) { ranIn(s.ID, s.place()) })
 	for _, s := range list.Sessions {
 		if s.Running {
-			ranIn(s.Session, s.Dir, s.Project)
+			ranIn(s.Session, s.place())
 		}
 	}
 	return places
@@ -318,10 +314,17 @@ func (t projectTallies) started(started map[string]time.Time) {
 	}
 }
 
+// names name each project tallied, by its path, as status.ProjectNames names
+// projects shown together, uncut: none of temporary folders, nor of the
+// sessions with no directory.
+func (t projectTallies) names() map[string]string {
+	paths := slices.DeleteFunc(slices.Collect(maps.Keys(t.all)), func(p string) bool { return p == status.TemporaryFolders })
+	return status.ProjectNames(paths, math.MaxInt)
+}
+
 // page is the list of the tallies, as Projects has it.
 func (t projectTallies) page(in PeriodInput) ProjectsPage {
-	paths := slices.DeleteFunc(slices.Collect(maps.Keys(t.all)), func(p string) bool { return p == status.TemporaryFolders })
-	names := status.ProjectNames(paths, math.MaxInt)
+	names := t.names()
 	page := ProjectsPage{Period: in.Period, All: t.totals(), PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
 	for _, p := range t.all {
 		page.Rows = append(page.Rows, p.row(names[p.path], in.List, t.v, page.All))
@@ -382,7 +385,8 @@ type projectTally struct {
 // names it over its days; and its last day, by date, and the moves of each
 // of its models that day.
 type sessionTally struct {
-	id, dir, project          string
+	id string
+	sessionPlace
 	requests                  int
 	worth                     Worth
 	firstRequest, lastRequest time.Time
@@ -407,7 +411,7 @@ func (p *projectTally) session(id string) *sessionTally {
 // date, its uses priced as price prices them, named as v names them.
 func (p *projectTally) take(date string, s DaySession, price pricing, v versions) {
 	st := p.session(s.ID)
-	st.dir, st.project = placeAfter(st.dir, st.project, s.Dir, s.Project)
+	st.sessionPlace = st.after(s.place())
 	st.lastLine = score.Later(st.lastLine, s.Last)
 	st.naming = st.naming.with(s.naming)
 	if date >= st.lastDay {

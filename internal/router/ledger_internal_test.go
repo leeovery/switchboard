@@ -404,7 +404,7 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 			name: "a message whose body is over its cap",
 			path: "/v1/messages",
 			body: func(context.Context) io.Reader { return io.LimitReader(zeros{}, maxBody+1) },
-			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project", Project: "~/Code/project",
+			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project", Project: "~/Code/project", Name: "deploy",
 				Status: http.StatusRequestEntityTooLarge, Agent: testAgent, Betas: betas, Hints: hints},
 		},
 		{
@@ -414,7 +414,7 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				return &paced{ctx: ctx, pause: 2 * time.Second, pieces: []string{opusAsked}}
 			},
 			goneAfter: time.Second,
-			want: ledger.Line{At: start, Kind: ledger.KindCount, Session: "one", Dir: "~/Code/project", Project: "~/Code/project",
+			want: ledger.Line{At: start, Kind: ledger.KindCount, Session: "one", Dir: "~/Code/project", Project: "~/Code/project", Name: "deploy",
 				Status: http.StatusBadRequest, Canceled: true, TotalMS: 1000, Agent: testAgent, Betas: betas, Hints: hints},
 		},
 		{
@@ -424,7 +424,7 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				return &paced{ctx: ctx, pause: 2 * time.Second, pieces: []string{opusAsked}}
 			},
 			cutAfter: time.Second,
-			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project", Project: "~/Code/project",
+			want: ledger.Line{At: start, Kind: ledger.KindMessage, Session: "one", Dir: "~/Code/project", Project: "~/Code/project", Name: "deploy",
 				Status: http.StatusBadRequest, CutOff: true, TotalMS: 1000, Agent: testAgent, Betas: betas, Hints: hints},
 		},
 	}
@@ -441,6 +441,7 @@ func TestTheLedgerHoldsALineOfARequestWhoseBodyCouldntBeRead(t *testing.T) {
 				req := claudeCodeAsks(client, tt.path, "one", tt.body(client))
 				req.Header.Set(DirHeader, "~/Code/project")
 				req.Header.Set(ProjectHeader, "~/Code/project")
+				req.Header.Set(NameHeader, "deploy")
 				req.Header.Set(claude.PromptHeader, hints.Prompt)
 				req.Header.Set(claude.ClassHeader, hints.Class)
 

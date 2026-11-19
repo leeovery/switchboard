@@ -213,6 +213,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),
 		Home:          home,
+		NerdFont:      cfg.Dashboard.NerdFont,
 		Projects:      a.projects(),
 		Scrolling:     swipe.Read(ctx, a.Scrolling),
 	}

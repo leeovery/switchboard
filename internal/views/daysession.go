@@ -19,8 +19,9 @@ import (
 // Claude Code's quota checks: what a day's head keeps of it, for the Log's
 // find, Projects and the List to read a day gone without its lines. Its
 // whole id; the directory it ran in, as they last named it, "" where none
-// did, and its project, as the last to name either named it, which
-// status.ProjectOf reads with the directory; how many they are, and when the
+// did, its project, as the last to name either named it, which
+// status.ProjectOf reads with the directory, and the name of the terminal
+// session it was started in, as sessionPlace's after has it; how many they are, and when the
 // last arrived; when its first request and its last arrived, zero where it
 // made none that day; and what its requests spent, by the account each went
 // to and the model it asked for, as usedOn has them. What names it, as its
@@ -28,7 +29,7 @@ import (
 // day are the views' own, for a session ended on a day gone to be listed as
 // the List lists one, as listedEnded has it.
 type DaySession struct {
-	ID, Dir, Project          string
+	ID, Dir, Project, Name    string
 	Lines                     int
 	Last                      time.Time
 	FirstRequest, LastRequest time.Time
@@ -187,7 +188,7 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	}
 	s.Lines++
 	s.Last = score.Later(s.Last, r.arrived())
-	s.Dir, s.Project = placeAfter(s.Dir, s.Project, r.dir, r.project)
+	s.placed(r.place())
 	s.pools = ledger.RecordingPool(s.pools, r.pool)
 	if !r.isRequest() {
 		return
@@ -199,6 +200,18 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	if d.told {
 		s.requests = append(s.requests, newHeldRequest(r.decodedRequest))
 	}
+}
+
+// place is where the session ran, as its lines that day named it.
+func (s *DaySession) place() sessionPlace {
+	return sessionPlace{dir: s.Dir, project: s.Project, name: s.Name}
+}
+
+// placed takes in where a line of the session names it ran, q, as
+// sessionPlace's after has it.
+func (s *DaySession) placed(q sessionPlace) {
+	p := s.place().after(q)
+	s.Dir, s.Project, s.Name = p.dir, p.project, p.name
 }
 
 // requested takes in r, a request of the session: when it arrived, what
@@ -345,6 +358,7 @@ type storedDaySession struct {
 	ID           string          `json:"id"`
 	Dir          string          `json:"dir,omitzero"`
 	Project      string          `json:"project,omitzero"`
+	Name         string          `json:"name,omitzero"`
 	Lines        int             `json:"lines,omitzero"`
 	Last         int64           `json:"last,omitzero"`
 	FirstRequest int64           `json:"first_request,omitzero"`
@@ -392,7 +406,7 @@ type storedDayMove struct {
 // stored is s as a day's side stores it.
 func (s DaySession) stored() storedDaySession {
 	stored := storedDaySession{
-		ID: s.ID, Dir: s.Dir, Project: s.Project, Lines: s.Lines, Last: sideNanos(s.Last),
+		ID: s.ID, Dir: s.Dir, Project: s.Project, Name: s.Name, Lines: s.Lines, Last: sideNanos(s.Last),
 		FirstRequest: sideNanos(s.FirstRequest), LastRequest: sideNanos(s.LastRequest),
 		Main: s.naming.main.stored(), Latest: s.naming.latest.stored(),
 	}
@@ -414,7 +428,7 @@ func (s DaySession) stored() storedDaySession {
 // daySession is the DaySession s stores.
 func (s storedDaySession) daySession() DaySession {
 	d := DaySession{
-		ID: s.ID, Dir: s.Dir, Project: s.Project, Lines: s.Lines, Last: sideTime(s.Last),
+		ID: s.ID, Dir: s.Dir, Project: s.Project, Name: s.Name, Lines: s.Lines, Last: sideTime(s.Last),
 		FirstRequest: sideTime(s.FirstRequest), LastRequest: sideTime(s.LastRequest),
 		naming: naming{main: s.Main.sighting(), latest: s.Latest.sighting()},
 	}

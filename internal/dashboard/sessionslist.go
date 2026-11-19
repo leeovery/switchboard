@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"cmp"
+	"math"
 	"slices"
 	"time"
 
@@ -21,14 +22,18 @@ const (
 	endedApart = 2
 )
 
-// The List's columns' widths, in cells: the session's least, its id and
-// listDirLeast cells of its directory, and its natural, its id and its
-// directory at its most; and the most on's least takes, where the widest
-// name is wider.
+// The List's columns' widths, in cells: a session's directory's least, as
+// the Overview's SESSIONS cuts it; the session's least, listProjectLeast
+// cells of its project, as the List cuts one before its name, and as many
+// of its name as the dashboard shows of an id; its natural, a project and a
+// name of listNameMost cells each, either taking what the other leaves; and
+// the most on's least takes, where the widest name is wider.
 const (
 	listDirLeast     = 6
-	listSessionLeast = status.IDShown + 1 + listDirLeast
-	listSessionWhole = status.IDShown + 1 + views.SessionDirMost
+	listProjectLeast = 6
+	listNameMost     = 14
+	listSessionLeast = listProjectLeast + 1 + status.IDShown
+	listSessionWhole = 2*listNameMost + 1
 	listOnLeast      = 14
 )
 
@@ -85,10 +90,11 @@ var listPartFacts = [...]struct {
 
 // listNaturals are the cells the List's columns take whole where they're
 // what the List holds says: on the widest account's name; model the widest
-// model named; started the widest start said; and worth the widest worth
-// said, its + counted.
+// model named; started the widest start said; worth the widest worth said,
+// its + counted; and within the session's, project the widest project
+// named, and name the widest name said.
 type listNaturals struct {
-	on, model, started, worth int
+	on, model, started, worth, project, name int
 }
 
 // listParts are the List's columns as flex lays them, listGap apart, each
@@ -203,10 +209,14 @@ var sessionsOut = []outForm{{noun: "session", gap: " · ", inks: keyedOut}, {gap
 // sessions of the List's log say, as the watch measures them as it builds
 // the log, and the log it measured, so those columns are as wide as the log
 // needs, whatever it scrolls to, and a frame measures only the sessions
-// running, not every session of a long period at every frame.
+// running, not every session of a long period at every frame. project is
+// the widest project they name, and name and marked the widest name they
+// say, as nameSaid says it, plain and with Nerd Font's marks, so names line
+// up under the project however the List scrolls.
 type LogMeasured struct {
 	of                    *views.SessionLog
 	model, started, worth int
+	project, name, marked int
 }
 
 // MeasureLog measures the ended sessions of the log given at now, as
@@ -216,19 +226,54 @@ func MeasureLog(log *views.SessionLog, now time.Time) LogMeasured {
 	return LogMeasured{
 		of: log, model: words.widest(listModel, log.Sessions, sessionEnded),
 		started: words.widest(listStarted, log.Sessions, sessionEnded), worth: words.widest(listWorth, log.Sessions, sessionEnded),
+		project: widestSaid(log.Sessions, sessionEnded, projectCells),
+		name:    widestSaid(log.Sessions, sessionEnded, nameCells(false)), marked: widestSaid(log.Sessions, sessionEnded, nameCells(true)),
 	}
 }
 
 // naturals are the List's naturals of the log's sessions given, said as
 // words says them: on's its widest account's name, as widestLabel has it of
-// words' moment; and model's, started's and worth's the widest the sessions
-// say, the ended as measured, those running as they say now.
+// words' moment; and model's, started's, worth's, project's and name's the
+// widest the sessions say, the ended as measured, those running as they say
+// now, a name as words' glyphs mark it.
 func (m LogMeasured) naturals(words sessionWords, sessions []views.PeriodSession) listNaturals {
+	name := m.name
+	if words.glyphs {
+		name = m.marked
+	}
 	return listNaturals{
 		on:      widestLabel(words.m),
 		model:   max(m.model, words.widest(listModel, sessions, sessionRunning)),
 		started: max(m.started, words.widest(listStarted, sessions, sessionRunning)),
 		worth:   max(m.worth, words.widest(listWorth, sessions, sessionRunning)),
+		project: max(m.project, widestSaid(sessions, sessionRunning, projectCells)),
+		name:    max(name, widestSaid(sessions, sessionRunning, nameCells(words.glyphs))),
+	}
+}
+
+// widestSaid is the most cells any of the sessions of says measures, as cells
+// measures each: none of none.
+func widestSaid(sessions []views.PeriodSession, of func(views.PeriodSession) bool, cells func(views.PeriodSession) int) int {
+	widest := 0
+	for _, s := range sessions {
+		if of(s) {
+			widest = max(widest, cells(s))
+		}
+	}
+	return widest
+}
+
+// projectCells are the cells the session's project takes, as the List
+// names it.
+func projectCells(s views.PeriodSession) int {
+	return ansi.StringWidth(s.ProjectName)
+}
+
+// nameCells measures the cells a session's name takes, whole, as nameSaid
+// says it, glyphs marking it.
+func nameCells(glyphs nerdFont) func(views.PeriodSession) int {
+	return func(s views.PeriodSession) int {
+		return sessionWords{glyphs: glyphs}.nameSaid(s, math.MaxInt).width()
 	}
 }
 
@@ -262,15 +307,18 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 // LogMeasured's naturals has them, of measured where it's of the log.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
-	log, words := f.SessionsTab.Log, sessionWords{m: m, now: now}
+	log, words := f.SessionsTab.Log, sessionWords{m: m, now: now, glyphs: nerdFont(f.NerdFont)}
 	measured := f.SessionsTab.Measured
 	if measured.of != log {
 		measured = MeasureLog(log, now)
 	}
+	naturals := measured.naturals(words, log.Sessions)
+	columns := listColumnsOf(f.Width, naturals)
+	words.projectCells = projectCellsOf(sessionCells(columns), naturals)
 	rows := f.Height - underView - f.top()
 	l := listed{
 		f: f, period: log.Period, top: f.top(), foot: periodLine(*log, f.Width),
-		words: words, columns: listColumnsOf(f.Width, measured.naturals(words, log.Sessions)),
+		words: words, columns: columns,
 		lines: sessionLines(log.Sessions), width: f.Width, lit: f.SessionsTab.Chosen.Session,
 	}
 	l.page = rows - len(l.foot)
@@ -417,7 +465,7 @@ func endedRule(c *canvas, y, width int, said line) {
 // of what's in flight as last known, as asKnown has it; each column's
 // words, as says has them, cut to its cells; and where lit says, lit across
 // width cells.
-func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views.ListedSession, width int, lit bool) {
+func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views.PeriodSession, width int, lit bool) {
 	mark := rowMarkInks[s.Mark]
 	if s.Mark == views.MarkAsking || s.Mark == views.MarkAnswering {
 		mark = asKnown(s.Activity, mark)
@@ -434,37 +482,95 @@ func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views
 // sessionWords say what the List's columns say of a session, of the moment
 // m at now, grouped by the day each ended, as the List and Projects'
 // SESSIONS group them: its end and its start said on that day, and a start
-// on another day with that day, as the rules name the days.
+// on another day with that day, as the rules name the days. Where
+// projectCells gives its projects cells, as the List does, a session is
+// named after its project, in a column of its own within the session's, as
+// a project's SESSIONS, under the project, names one without it; and glyphs
+// draws the marks of its name.
 type sessionWords struct {
-	m   status.Moment
-	now time.Time
+	m            status.Moment
+	now          time.Time
+	projectCells int
+	glyphs       nerdFont
 }
 
 // says is what the column says of the session, in its cells: the session
-// named as sessionIn names it, its id in text.secondary; the model of its
-// latest request, its id less claude-, and its requests counted, in
-// text.muted; its routing in a word or two, as its BriefSaid says it, each
-// account named as the moment names it, cut as the Log cuts its routing, a
-// move's cost kept whole; and the rest as their own say them.
-func (w sessionWords) says(col listColumn, s views.ListedSession) line {
+// named as named names it; the model of its latest request, its id less
+// claude-, and its requests counted, in text.muted; its routing in a word or
+// two, as its BriefSaid says it, each account named as the moment names it,
+// cut as the Log cuts its routing, a move's cost kept whole; and the rest as
+// their own say them.
+func (w sessionWords) says(col listColumn, s views.PeriodSession) line {
 	switch col.part {
 	case listSession:
-		return sessionIn(s.Session, s.Dir, secondaryInk, col.width)
+		return w.named(s, col.width)
 	case listOn:
-		return w.onSays(s)
+		return w.onSays(s.ListedSession)
 	case listModel:
 		return line{{modelNamed(s.Model), mutedInk}}
 	case listState:
-		return w.stateSays(s)
+		return w.stateSays(s.ListedSession)
 	case listStarted:
-		return w.startedSays(s)
+		return w.startedSays(s.ListedSession)
 	case listRequests:
 		return line{{prose.Grouped(s.Requests), mutedInk}}
 	case listWorth:
-		return worthSays(s)
+		return worthSays(s.ListedSession)
 	default:
 		return rowWordsIn(s.Routing.BriefSaid(), func(id string) string { return named(w.m, id) }, col.width)
 	}
+}
+
+// named names the session in the cells given: where w gives projects their
+// projectCells, its project, as Projects names the project's row, cut to
+// them with an ellipsis and padded to them, in text.muted, blank of a
+// session of no project, so the names line up, then a space; then its name,
+// as nameSaid has it, in the rest.
+func (w sessionWords) named(s views.PeriodSession, cells int) line {
+	if w.projectCells == 0 {
+		return w.nameSaid(s, cells)
+	}
+	project := padded(prose.Cut(s.ProjectName, w.projectCells), w.projectCells) + " "
+	return append(line{{project, mutedInk}}, w.nameSaid(s, cells-w.projectCells-1)...)
+}
+
+// nameSaid is the session's name in the cells given, as its ShownName has
+// it: a worktree's marked as glyphs marks one, in text.secondary; then,
+// where it shows its id, a space and the id in text.subtle, kept whole
+// while the name keeps a cell, the name cut with an ellipsis to the rest.
+func (w sessionWords) nameSaid(s views.PeriodSession, cells int) line {
+	shown := s.ShownName()
+	name := line{{w.glyphs.marked(shown), secondaryInk}}
+	if shown.ID == "" {
+		return name.fit(cells)
+	}
+	id := line{{" " + shown.ID, dimInk}}
+	if room := cells - id.width(); room > 0 {
+		return slices.Concat(name.fit(room), id)
+	}
+	return slices.Concat(name, id).fit(cells)
+}
+
+// sessionCells are the cells of the session column among those given: none
+// where it isn't among them.
+func sessionCells(columns []listColumn) int {
+	if i := slices.IndexFunc(columns, func(c listColumn) bool { return c.part == listSession }); i >= 0 {
+		return columns[i].width
+	}
+	return 0
+}
+
+// projectCellsOf are the cells the List gives its sessions' projects, of a
+// session column cells wide, as the naturals given measure its projects and
+// names: the widest project's, cut to leave the widest name its cells,
+// listNameMost of them at the most, so one long name doesn't cut every
+// project, and listProjectLeast at the least; none where no session has a
+// project, each then named by its name alone.
+func projectCellsOf(cells int, n listNaturals) int {
+	if n.project == 0 {
+		return 0
+	}
+	return min(n.project, max(listProjectLeast, cells-1-min(n.name, listNameMost)))
 }
 
 // sessionIn names the session with the given id, running in dir, in the

@@ -24,7 +24,8 @@ it. A session that has run for weeks takes a moment to read. While it does, the 
 
 ## What the page shows
 
-From top to bottom:
+The heading shows the session's id, project and [session name](sessions.md), for example
+`d28c   switchboard · router-fix`. From top to bottom:
 
 1. **Now:** what the session is doing, and where it runs.
 2. **STORY:** the requests a minute, from the first to now, with each move marked and costed.

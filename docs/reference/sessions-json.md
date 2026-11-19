@@ -50,6 +50,7 @@ routed within. A session from before pools is in the first pool.
 | `session` | string | The whole id of the session. |
 | `dir` | string | The directory it runs in, with your home as `~`. |
 | `project` | string | The repository it runs in, or `temporary folders`, as Projects on the dashboard reads it. See below. |
+| `name` | string | The name of the terminal session it was started in, as the [request ledger](ledger.md) gives it. Left out if none was. |
 | `account` and `label` | string | The account its main thread is on now. |
 | `model` | string | The model of its latest main request. |
 | `running` | boolean | Set while the router lists it. |

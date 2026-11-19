@@ -57,10 +57,19 @@ type AccountShare struct {
 // SESSIONS row it, in the List's form, so it's drawn in the List's columns:
 // its requests and their worth over the period. EndedOn is the date of the
 // local day it ended on, as its rule groups it, by its last request; ""
-// while it runs.
+// while it runs. ProjectName names its project, on Sessions' List alone,
+// as Projects names the project's row: "" on a project's SESSIONS, which
+// the project heads, and of a session with no directory or of temporary
+// folders. Twinned is set where another row of its list shows the same
+// project and name, so ShownName gives its id too; and IDCells, where it
+// shows its id beside one that would show alike, is how much of its id
+// tells it apart, 0 for status.IDShown: each as toldApart has them.
 type PeriodSession struct {
 	ListedSession
-	EndedOn string
+	EndedOn     string
+	ProjectName string
+	Twinned     bool
+	IDCells     int
 }
 
 // page is the project's page, its row given, the page built of in.
@@ -68,7 +77,7 @@ func (p *projectTally) page(row ProjectRow, in PeriodInput) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
 	page := ProjectPage{ProjectRow: row, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
 	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, in.Began, p.days, &p.hours)
-	page.Sessions = periodRows(p.sessions, in)
+	page.Sessions = periodRows(p.sessions, in, nil)
 	return page
 }
 
@@ -111,9 +120,11 @@ func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
 // the order inPeriodOrder has: each of in's List as the List has it, its
 // requests and worth those of the period, started at the earlier of the
 // List's start and its first request, as the days and the walk back before
-// them found it; each other as listedEnded has it. It's the one way a
-// session of the period is rowed, a project's or the List's.
-func periodRows(sessions map[string]*sessionTally, in PeriodInput) []PeriodSession {
+// them found it; each other as listedEnded has it; each named by its project
+// as projects names it, by its id, none for nil; and those that show alike
+// told apart, as toldApart has it. It's the one way a session of the period
+// is rowed, a project's or the List's.
+func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[string]string) []PeriodSession {
 	listed := make(map[string]ListedSession, len(in.List.Sessions))
 	for _, s := range in.List.Sessions {
 		listed[s.Session] = s
@@ -128,13 +139,14 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput) []PeriodSessi
 		} else {
 			s = st.listedEnded(price, in.Projects)
 		}
-		row := PeriodSession{ListedSession: s.named(in.Names)}
+		row := PeriodSession{ListedSession: s.named(in.Names), ProjectName: projects[st.id]}
 		if !s.Running {
 			row.EndedOn = dayfile.DateOf(cmp.Or(s.Ended, in.Now))
 		}
 		rows = append(rows, row)
 	}
 	slices.SortFunc(rows, inPeriodOrder)
+	toldApart(rows)
 	return rows
 }
 
@@ -164,7 +176,8 @@ func earliestKnown(a, b time.Time) time.Time {
 
 // listedEnded is the session as the List lists one that ended, of the days
 // it ran on in the period, as their records tell it: in the directory, and
-// of the project, it last named, as projects reads them together;
+// of the project, it last named, as projects reads them together, and
+// named by the terminal session it last named;
 // its requests and their worth; started at its first request and ended at
 // its last, or of none, its last line; named as names has it of what names
 // it over its days, as no router lists it; and brought to its account, as
@@ -174,7 +187,7 @@ func earliestKnown(a, b time.Time) time.Time {
 func (st *sessionTally) listedEnded(price pricing, projects status.Projects) ListedSession {
 	ended := cmp.Or(st.lastRequest, st.lastLine)
 	s := ListedSession{
-		Session: st.id, Dir: st.dir, Project: projects.Of(st.project, st.dir), Requests: st.requests, Worth: st.worth,
+		Session: st.id, Dir: st.dir, Project: projects.Of(st.project, st.dir), Name: st.name, Requests: st.requests, Worth: st.worth,
 		Started: st.firstRequest, Ended: ended, Activity: Activity{Doing: Ended, Since: ended, LastSeen: ended},
 	}
 	s.Account, s.Model = st.naming.names(nil)

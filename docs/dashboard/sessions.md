@@ -45,6 +45,7 @@ Running sessions come first. The rest follow, newest first, under a rule for the
 
 Each row shows the session with:
 
+- its project, then its session name, as `switchboard router-fix`;
 - the account, model and state, as `ended 18:20` once it's over;
 - the start time, with the day if it started on another;
 - the requests in the period, and their worth at API prices;
@@ -56,6 +57,37 @@ the period, as `30 days  150 sessions · 33,010 requests · $3,257.86 at API pri
 If the sessions don't all fit, the row over the key line says how many are out of view, as
 `▲ 12 more sessions · ▼ 130 more sessions`. The rule for a day stays at the top while its sessions
 scroll under it, so the day always shows.
+
+## Session names: your terminal's
+
+```
+switchboard router-fix
+switchboard fix-login
+api         billing 2b6d
+api         billing 5e7d
+api         0b5c
+```
+
+Each session takes the name of the [terminal session](../glossary.md) you started it in. `claude`
+reads the name once, when it starts Claude Code. If you rename the terminal session later, the
+session name stays.
+
+| If you started the session | Its session name is |
+|---|---|
+| Inside a zmx session | The zmx session's name |
+| Inside a tmux session you named | The tmux session's name |
+| With `claude --worktree <name>` | The worktree's name, if no terminal session names it |
+| Outside both, in a Claude Code worktree | The worktree's name |
+| Anywhere else | The first 4 characters of its id |
+
+The project and the name are two columns, so the names line up. If two rows show the same project
+and name, each adds the first 4 characters of its id, dimmed. For example, every pane of one tmux
+session gives its sessions one name. If two sessions named by their ids share those 4 characters,
+each shows as many more as tell them apart.
+
+If your terminal uses a Nerd Font, set `nerd_font = true` under `[dashboard]` in
+[the config](../configuration.md). A worktree's name then carries a tree icon. Without a Nerd
+Font, the icon draws as a box, so it's off unless you turn it on.
 
 ## While the router isn't answering
 

@@ -56,6 +56,7 @@ type Config struct {
 	Ledger        Ledger
 	Export        Export
 	Usage         Usage
+	Dashboard     Dashboard
 	// Prices are the config's prices in place of those switchboard carries.
 	Prices Prices
 }
@@ -290,6 +291,15 @@ type Usage struct {
 	By Layout
 }
 
+// Dashboard says how the dashboard draws what only some terminals' fonts
+// draw.
+type Dashboard struct {
+	// NerdFont draws the Nerd Font glyphs the dashboard has, such as the
+	// tree that marks a worktree's name: off unless the config turns it on,
+	// as a font without them draws each as a box.
+	NerdFont bool `toml:"nerd_font"`
+}
+
 // Layout is how the accounts' windows are laid out, as [usage] by and usage
 // --by name it.
 type Layout string
@@ -350,6 +360,7 @@ type file struct {
 	Ledger         fileKeep      `toml:"ledger"`
 	Export         fileExport    `toml:"export"`
 	Usage          fileUsage     `toml:"usage"`
+	Dashboard      Dashboard     `toml:"dashboard"`
 	Prices         Prices        `toml:"prices"`
 }
 
@@ -523,6 +534,7 @@ func (f file) config(undecoded []toml.Key, homeDir func() (string, error)) (*Con
 		Ledger:         Ledger{Keep: ledgerKeep},
 		Export:         export,
 		Usage:          Usage{By: by},
+		Dashboard:      f.Dashboard,
 		Prices:         f.Prices.renamed(),
 	}, nil
 }

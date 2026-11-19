@@ -80,6 +80,11 @@ folder the session started in. Tools often start `claude -p` there.
 **Session.** One conversation in Claude Code, from start to exit. A resumed session carries on the
 same conversation, but starts a new process.
 
+**Session name.** What Sessions' List, Projects and the session page's heading call a session:
+the name of the terminal session it started in, read when `claude` starts. A session started
+outside a terminal session takes the name of the Claude Code worktree it runs in. Else the
+session goes by the first 4 characters of its id. See [Sessions](dashboard/sessions.md).
+
 **The service.** The LaunchAgent that runs the router at login and restarts it when needed.
 
 **Slug.** The name Claude Code makes from a folder's path, with every character but an ASCII
@@ -94,6 +99,10 @@ letter or digit turned into `-`. For example, `-Users-you-Code-api` is the slug 
 
 It isn't a project. In `sessions --json`, these sessions give `temporary folders` as `project`,
 which isn't a path.
+
+**Terminal session.** A named session of zmx or tmux, which keeps your shells running when you
+close the terminal window. A tmux session that you didn't name, which tmux numbers `0`, `1` and
+on, doesn't count.
 
 **The unfenced pool.** The pool with no fence. A config holds at most one, and it takes every session
 started outside all the fences. If every pool is fenced, a session started outside them doesn't

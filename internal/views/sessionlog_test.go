@@ -14,8 +14,8 @@ import (
 
 // The log lists every session of the period, whatever its project: those
 // running first, then those ended, the latest ended first, each rowed as
-// its project's SESSIONS rows it, and every session's totals as Projects'
-// every project's.
+// its project's SESSIONS rows it, its project named as Projects names the
+// project's row, and every session's totals as Projects' every project's.
 func TestTheLogRowsEverySessionOfThePeriodAsItsProjectRowsIt(t *testing.T) {
 	in := projectsIn(views.PeriodThisWeek, now, listedRunning(repoSession, "/code/switchboard", "/code/switchboard"))
 	days := heldDays(now, projectsWorld()...)
@@ -31,6 +31,7 @@ func TestTheLogRowsEverySessionOfThePeriodAsItsProjectRowsIt(t *testing.T) {
 	for _, r := range page.Rows {
 		project, _ := page.Project(r.Path)
 		for _, s := range project.Sessions {
+			s.ProjectName = r.Name
 			rowed[s.Session] = s
 		}
 	}

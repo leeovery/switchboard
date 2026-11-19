@@ -45,6 +45,7 @@ The document is of one session in one pool. A session resumed in another pool ru
 | `auto` | string | The account the next request would go to without the session's own pin. |
 | `dir` | string | The directory the last request of the model named. |
 | `project` | string | The repository of that directory, as the [request ledger](ledger.md) gives it. Left out until a request names one. |
+| `name` | string | The name of the terminal session the last request of the model to name a place was started in, as the [request ledger](ledger.md) gives it. Left out if none was. |
 | `in_flight` | string | `asking` or `answering`, while a request is in flight. |
 | `pinned` | boolean | Set if the session's own pin put it there. |
 | `yielded` | boolean | Set while the session's own pin has given way. |

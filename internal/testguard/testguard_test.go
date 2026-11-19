@@ -42,6 +42,7 @@ var seeded = []string{
 	"TMUX=/nonexistent/tmux,1,0",
 	"TMUX_PANE=%1",
 	"TMUX_TMPDIR=/nonexistent/tmux",
+	"ZMX_SESSION=deploy",
 	"HTTPS_PROXY=http://127.0.0.1:9",
 	"http_proxy=http://127.0.0.1:9",
 	"ALL_PROXY=socks5://127.0.0.1:9",

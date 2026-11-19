@@ -15,8 +15,9 @@ import (
 // and its page's part of the day, as storedPart has it. A release that
 // stores a session otherwise, or tells a story, or tallies a page, otherwise
 // of what's stored, writes another, and a digest of another version doesn't
-// stand: its sessions are read whole from their lines.
-const DigestVersion = 3
+// stand: its sessions are read whole from their lines. Version 3 named no
+// terminal session.
+const DigestVersion = 4
 
 // storedSession is a session the store holds as a day's digest stores it,
 // sealed at the start of the day after its own, none of its requests open:
@@ -37,10 +38,10 @@ type storedSession struct {
 }
 
 // storedStory is a story as a session's stored state holds it: whether it
-// has taken in a request, its first and last; what names it; the directory
-// and project it last named; its last request whose answer gave usage, and
-// its last such of its own conversation, each none where none did, as
-// metered says; whether a request of it said its class; each move a request
+// has taken in a request, its first and last; what names it; the directory,
+// project and name it last named, as its sessionPlace has them; its last
+// request whose answer gave usage, and its last such of its own
+// conversation, each none where none did, as metered says; whether a request of it said its class; each move a request
 // of it made; and, of each of its threads, when its last request ended, and
 // how long its writes to the cache last, in nanoseconds. Not its prices, its
 // day, its requests on the day nor their worth.
@@ -52,6 +53,7 @@ type storedStory struct {
 	Latest     storedSighting           `json:"lt,omitzero"`
 	Dir        string                   `json:"d,omitempty"`
 	Project    string                   `json:"pj,omitempty"`
+	Name       string                   `json:"nm,omitempty"`
 	Used       *storedRequest           `json:"u,omitempty"`
 	UsedMain   *storedRequest           `json:"um,omitempty"`
 	Classed    bool                     `json:"c,omitzero"`
@@ -192,7 +194,7 @@ func (st *storedSession) restored(prices ledger.Table, day LedgerDay) (*heldSess
 func (s *story) stored() storedStory {
 	st := storedStory{
 		Begun: s.begun, First: s.first.stored(), Last: s.last.stored(), Main: s.naming.main.stored(), Latest: s.naming.latest.stored(),
-		Dir: s.dir, Project: s.project, Used: storedUsed(&s.used), UsedMain: storedUsed(&s.usedMain), Classed: s.classed,
+		Dir: s.dir, Project: s.project, Name: s.name, Used: storedUsed(&s.used), UsedMain: storedUsed(&s.usedMain), Classed: s.classed,
 		Ends: make(map[string]storedInstant, len(s.ends)), LivesNanos: make(map[string]int64, len(s.lives)),
 	}
 	for i := range s.moves {
@@ -215,7 +217,8 @@ func (st *storedStory) restored(prices ledger.Table, d LedgerDay) *story {
 	s := newStory(prices, d)
 	s.begun, s.first, s.last = st.Begun, st.First.flight(), st.Last.flight()
 	s.naming = naming{main: st.Main.sighting(), latest: st.Latest.sighting()}
-	s.dir, s.project, s.used, s.usedMain, s.classed = st.Dir, st.Project, usedOf(st.Used), usedOf(st.UsedMain), st.Classed
+	s.sessionPlace = sessionPlace{dir: st.Dir, project: st.Project, name: st.Name}
+	s.used, s.usedMain, s.classed = usedOf(st.Used), usedOf(st.UsedMain), st.Classed
 	for i := range st.Moves {
 		m := st.Moves[i].restored()
 		if m.rewrote != nil {

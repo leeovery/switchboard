@@ -4,7 +4,7 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-SESSION  d28c  switchboard                  esc back
+SESSION  d28c  switchboard · router-fix     esc back
 
 ↑ asking  on side ▲ since 14:31
 moved from work: its cap                      2h 39m

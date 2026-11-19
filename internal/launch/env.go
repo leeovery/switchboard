@@ -338,6 +338,15 @@ func (e environ) workingIn(dir, project string) environ {
 	return e.withHeader(router.DirHeader, router.EncodeDir(dir)).withHeader(router.ProjectHeader, router.EncodeDir(project))
 }
 
+// named returns the environment with Claude Code's custom headers telling
+// the router the name of the terminal session it was started in, or none for
+// "". A name the environment tells already, such as a session's that this one
+// is started from within, goes: what this launch tells is the only one. Any
+// other header stays.
+func (e environ) named(name string) environ {
+	return e.withHeader(router.NameHeader, router.EncodeDir(name))
+}
+
 // inPool returns the environment with Claude Code's custom headers naming to
 // the router the pool with the given id, or none for "". A pool the
 // environment names already, such as a session's that this one is started

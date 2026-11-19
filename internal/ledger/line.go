@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -31,6 +32,9 @@ const (
 	// line keeps whole every path a session starts in, while a header
 	// claiming a longer one can't run a line past lineMax.
 	pathMost = 1024
+	// nameMost is how many bytes of a session's name a line holds, cut at
+	// the end of a character, as many as an account's label holds characters.
+	nameMost = 100
 	// ListMost is how many of a list's entries a line holds, or kinds of a
 	// count's: what reads a list for a line need keep no more.
 	ListMost = 32
@@ -56,12 +60,16 @@ type Line struct {
 	Request string `json:"request"`
 	Kind    string `json:"kind"`
 	// Session is the id of the session the request belongs to, Dir the
-	// directory run started claude in, and Project the project that's in,
-	// each as run tells the router, and Model the model it asked for. A line
-	// from before run told a project gives none.
+	// directory run started claude in, Project the project that's in, and
+	// Name the name of the terminal session run started it in, each as run
+	// tells the router, and Model the model it asked for. A line from before
+	// run told a project gives none, and one from before it told a name, or
+	// of a session started outside every terminal session it reads, gives no
+	// name.
 	Session string `json:"session,omitempty"`
 	Dir     string `json:"dir,omitempty"`
 	Project string `json:"project,omitempty"`
+	Name    string `json:"name,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Pool is the id of the pool the request was routed in, as it was at the
 	// time, as an account's pool can change and the config keeps no history
@@ -320,7 +328,7 @@ func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
 	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
-	w.Dir, w.Project, w.Pool = LineDir(l.Dir), LineProject(l.Project), cut(l.Pool)
+	w.Dir, w.Project, w.Name, w.Pool = LineDir(l.Dir), LineProject(l.Project), LineName(l.Name), cut(l.Pool)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = cutAll(l.Tried, func(t Tried) Tried { return Tried{Account: cut(t.Account), Why: cut(t.Why)} })
 	w.Betas = cutAll(l.Betas, cut)
@@ -399,6 +407,15 @@ func LineProject(project string) string {
 		return ""
 	}
 	return project
+}
+
+// LineName is the name of a session's terminal session as a line gives it,
+// text from outside switchboard: cleaned, as prose.Clean cleans it, once
+// anything shaped like a token in it is hidden, and cut to nameMost bytes at
+// the end of a character, the spaces before the cut let go. run tells the
+// router a name so too, and the router's sessions give one so.
+func LineName(name string) string {
+	return strings.TrimSpace(prose.TruncateBytes(prose.Clean(redact.Text(name)), nameMost))
 }
 
 // cutAll returns the first ListMost of list, each as each cuts it, as a list

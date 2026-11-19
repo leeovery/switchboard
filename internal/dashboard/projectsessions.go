@@ -112,7 +112,7 @@ func (w sessionWords) widest(p listPart, sessions []views.PeriodSession, of func
 	cells := ansi.StringWidth(col.head())
 	for _, s := range sessions {
 		if of(s) {
-			cells = max(cells, w.says(col, s.ListedSession).width())
+			cells = max(cells, w.says(col, s).width())
 		}
 	}
 	return cells

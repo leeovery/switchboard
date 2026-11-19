@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "body": 5,
+  "body": 6,
   "day": "2026-10-08",
   "from": 1791417600000000000,
   "to": 1791504000000000000,
@@ -9,7 +9,7 @@
   "rests_on": {
     "2026-10-07": 5
   },
-  "rows_size": 3424,
+  "rows_size": 3440,
   "rows": 258,
   "side": [
     {
@@ -123,6 +123,7 @@
       "id": "o",
       "dir": "/code/site/web",
       "project": "/code/site",
+      "name": "review",
       "lines": 3,
       "last": 1791471600000000000,
       "first_request": 1791460800000000000,
@@ -211,8 +212,8 @@
   ],
   "chunks": [
     {
-      "length": 3139,
-      "crc": 3732966351,
+      "length": 3155,
+      "crc": 412899837,
       "count": 256,
       "meta": {
         "f": {
@@ -248,7 +249,7 @@
       }
     },
     {
-      "offset": 3139,
+      "offset": 3155,
       "length": 285,
       "crc": 4283239832,
       "count": 2,

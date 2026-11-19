@@ -38,6 +38,11 @@ type ListedSession struct {
 	// to the project it was made for, or status.TemporaryFolders; "" where
 	// neither names one.
 	Project string `json:"project,omitempty"`
+	// Name is the name of the terminal session it was started in, as run
+	// read it, from where Dir comes from: "" where none names one, as of a
+	// session started outside every terminal session run reads, or before run
+	// told one. ShownName names it by it.
+	Name string `json:"name,omitempty"`
 	// Account and Model name it, following its main thread: the model of its
 	// latest main request, and the account that model goes to now, as the
 	// router lists it and the request stream has moved it since, else the
@@ -301,13 +306,15 @@ func newLister(running []status.Session, unlisted bool, s Stream, projects statu
 }
 
 // listed returns the session with the given id as the List has it, its story
-// s telling of its requests: in the directory and project place gives; ended
+// s telling of its requests: in the directory and project, and named by
+// the terminal session, place gives; ended
 // at its last request; named as names has it; running, where the router lists
 // it, as run has it; doing as activity has it; and come to its account as
 // cameBy has it.
 func (by lister) listed(id string, s *story) ListedSession {
 	listed := ListedSession{Session: id, Requests: s.requests, Worth: s.worth}
-	listed.Dir, listed.Project = by.place(id, s)
+	p := by.place(id, s)
+	listed.Dir, listed.Project, listed.Name = p.dir, p.project, p.name
 	if s.begun {
 		listed.Started, listed.Ended = s.first.arrived(), s.last.arrived()
 	}
@@ -326,10 +333,10 @@ func (by lister) dir(id string, s *story) string {
 	return listedDir(by.routed[id], s.dir)
 }
 
-// place is the directory the session with the given id runs in, and its
-// project, its story s telling of its lines, as listedPlace has them.
-func (by lister) place(id string, s *story) (dir, project string) {
-	return listedPlace(by.routed[id], s.dir, s.project, by.projects)
+// place is where the session with the given id runs, its story s telling of
+// its lines, as listedPlace has it.
+func (by lister) place(id string, s *story) sessionPlace {
+	return listedPlace(by.routed[id], s.sessionPlace, by.projects)
 }
 
 // listedDir is the directory a session runs in as the List names it: as the
@@ -340,15 +347,16 @@ func listedDir(routed status.Session, lines string) string {
 	return cmp.Or(routedDir(routed), lines)
 }
 
-// listedPlace is the directory a session runs in, as listedDir has it, and
-// its project, from the same place, as projects reads them together: of the
-// router's listing where it names a directory, else as its lines last named
-// them.
-func listedPlace(routed status.Session, dir, project string, projects status.Projects) (string, string) {
+// listedPlace is where a session runs: the directory, as listedDir has it,
+// and its project and name, from the same place, the project as projects
+// reads it with the directory: of the router's listing where it names a
+// directory, else as its lines last named them.
+func listedPlace(routed status.Session, lines sessionPlace, projects status.Projects) sessionPlace {
 	if a, ok := routedAt(routed); ok {
-		dir, project = a.Dir, a.Project
+		lines = sessionPlace{dir: a.Dir, project: a.Project, name: a.SessionName}
 	}
-	return dir, projects.Of(project, dir)
+	lines.project = projects.Of(lines.project, lines.dir)
+	return lines
 }
 
 // routedDir is the directory the session s runs in as the router lists it:

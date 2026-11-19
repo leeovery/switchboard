@@ -1,7 +1,7 @@
 {
   "digest": {
     "version": 3,
-    "body": 3,
+    "body": 4,
     "day": "2026-10-08",
     "from": 1791417600000000000,
     "to": 1791504000000000000,
@@ -61,6 +61,7 @@
             },
             "d": "/code/site/web",
             "pj": "/code/site",
+            "nm": "review",
             "u": {
               "r": "o4",
               "a": {
@@ -73,6 +74,7 @@
               },
               "d": "/code/site/web",
               "pj": "/code/site",
+              "nm": "review",
               "m": "claude-haiku-4-5",
               "ac": "work",
               "rs": "sticky",
@@ -1443,6 +1445,7 @@
                 },
                 "d": "/code/site/web",
                 "pj": "/code/site",
+                "nm": "review",
                 "u": {
                   "r": "o4",
                   "a": {
@@ -1455,6 +1458,7 @@
                   },
                   "d": "/code/site/web",
                   "pj": "/code/site",
+                  "nm": "review",
                   "m": "claude-haiku-4-5",
                   "ac": "work",
                   "rs": "sticky",
@@ -1954,6 +1958,7 @@
             },
             "d": "/code/app",
             "pj": "/code/app",
+            "nm": "deploy",
             "u": {
               "r": "r6",
               "a": {

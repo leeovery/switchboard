@@ -247,6 +247,11 @@ type Assignment struct {
 	// router from before it said.
 	Dir     string `json:"dir,omitempty"`
 	Project string `json:"project,omitempty"`
+	// SessionName is the name of the terminal session the session's last request of
+	// the model to name a directory, a project or a name was started in, as
+	// the request ledger gives it: "" where it named none, and from a router
+	// from before it said.
+	SessionName string `json:"name,omitempty"`
 	// InFlight is what a request of the model in flight is doing: Answering
 	// while an answer streams to one, else Asking while one waits for its
 	// answer's first byte, and "" while none is in flight.

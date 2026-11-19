@@ -172,6 +172,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		LedgerKeep: framesKeep,
 		Pool:       f.pool,
 		Scrolling:  swipe.Natural,
+		NerdFont:   f.nerdFont,
 	}
 	if f.pool.Turns() {
 		cfg.Turn = turnNowhere
