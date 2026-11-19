@@ -101,7 +101,9 @@ type AccountDay struct {
 	// Pool is the id of the pool all the day's work was in, left out where
 	// its requests named none, as every request did before pools, and where
 	// its work was in more than one pool, as of an account moved partway
-	// through the day.
+	// through the day. Of a day of no work, it's the pool the account was in
+	// as the day was summarised, as IdlePools records it and IdlePool reads
+	// it, left out where none was recorded.
 	Pool string `json:"pool,omitempty"`
 	// Work is the account's work that day, in every pool together.
 	Work

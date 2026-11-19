@@ -821,6 +821,49 @@ func TestWhatFollowsADayTakenInFailsTheImport(t *testing.T) {
 	}
 }
 
+// A lock held across a day's take holds it from before the take, while
+// nothing of the day is taken in yet, until what follows is done.
+func TestALockHeldAcrossADaysTakeIsHeldFromBeforeItUntilWhatFollowsIsDone(t *testing.T) {
+	f := readingsHistory(t.TempDir())
+	w := testWriter(f, at(start), 1)
+	stop := running(t, w)
+	defer stop()
+	date := DateOf(start)
+	s := stage(t, date, gzipOf(t, linesOf(`{"n":1}`)))
+	held := &recordedLock{took: func() int {
+		plain, _ := os.ReadFile(f.path(plainFile(date)))
+		return len(plain)
+	}}
+
+	if _, err := w.ImportHolding(t.Context(), date, s.path, held, func(Imported) error {
+		if !held.locked {
+			t.Error("as what follows ran, the lock wasn't held")
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("ImportHolding() = %v", err)
+	}
+	if held.locked || held.taken != 0 {
+		t.Errorf("once done, the lock is held %v, and it was taken with %d bytes of the day in; want it let go, taken before any", held.locked, held.taken)
+	}
+}
+
+// recordedLock is a lock that records whether it's held, and, as it's taken,
+// what took gives.
+type recordedLock struct {
+	locked bool
+	taken  int
+	took   func() int
+}
+
+func (l *recordedLock) Lock() {
+	l.locked, l.taken = true, l.took()
+}
+
+func (l *recordedLock) Unlock() {
+	l.locked = false
+}
+
 func TestWhatFollowsADayIsntDoneWhereTheDayCantBeTakenIn(t *testing.T) {
 	f := readingsHistory(t.TempDir())
 	w := testWriter(f, at(start), 1)

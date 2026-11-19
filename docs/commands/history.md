@@ -184,6 +184,8 @@ the pool now.
 - An account moved to another pool keeps its work in the pool it left. There, the totals give it
   a column of its own, named with where it is now, such as `work (now in Acme)`, and the JSON
   lists it under `moved`.
+- The pool an account left also keeps the days the account spent there sending no requests, such
+  as a day at its cap.
 
 ## Good to know
 

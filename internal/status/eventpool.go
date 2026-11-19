@@ -47,6 +47,14 @@ func AccountIn(account, pool string, poolOf func(account string) (string, bool))
 	return !placed || config.SamePool(in, pool)
 }
 
+// AccountPlacedIn reports whether poolOf, as AccountIn has it, places the
+// account with the given id in the pool with the id given: never where it
+// places it nowhere, which AccountIn has in every pool.
+func AccountPlacedIn(account, pool string, poolOf func(account string) (string, bool)) bool {
+	in, placed := poolOf(account)
+	return placed && config.SamePool(in, pool)
+}
+
 // KindNamesItsPool reports whether an event of the kind given names the pool
 // it's of, as the router files it: a session's start or move, by the pool
 // its request was routed in, and a pin set or cleared, by the pool whose pin

@@ -1124,7 +1124,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 - **Request lines record their pool:** `pool`, its id. It's recorded at the time of the request,
   because an account's pool can change and the config keeps no history of it.
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
-  partway through a day: summary version 7 (see The request ledger).
+  partway through a day: summary version 7 (see The request ledger). An account's day of no work
+  names the pool the router had the account in as it first summarised the day (see below).
 - **Events:** the events of a session's work name its pool: `started` and `moved`, the pool the
   session's request was routed within, and `pin` and `auto`, the pool whose pin was set or cleared,
   or the session's, of its own pin. What befalls an account, a limit, a cap, a refusal or a hold,
@@ -1241,9 +1242,11 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   2 or 1, has its lines, the events that name their pool and its summaries given this Mac's first
   pool as `import` takes them in. So each Mac gives the days from before pools its own first pool, and a request line or
   an event alike but for its pool is one as an import merges a day, the line held standing: a
-  folder taken in before its Mac moved and again after never doubles a day. A summary is never
-  merged, copied in only where this Mac knows nothing of the day, so one under another pool never
-  adds to what's held.
+  folder taken in before its Mac moved and again after never doubles a day. A summary's counts are
+  never merged, copied in only where this Mac knows nothing of the day, so one under another pool
+  never adds to what's held; only its days of no work that name a pool are carried, into whichever
+  summary the day keeps, for the accounts it holds no day of or a day of no work naming none, as
+  below.
 
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
@@ -1253,15 +1256,57 @@ show:
 
 - in the pool it's in now, on every day, as they're the account's;
 - in a pool it left, on the days it worked there, as the past stands;
-- and not on the days it did no work in a pool it left, as a day's summary keeps no pool for an
-  account that sent nothing (recording one is in the Backlog).
+- and in a pool it left, on the days it did no work at all, where the day's summary names that pool,
+  the pool the router had the account in as it first summarised the day.
 
-So an account moved out keeps its work in the pool it left, and is named there by its label, as a
-removed account is shown, with where it is now in place of when it was removed: in text.faint on
-the screens that draw a removed account so, and in the verbs' text as `work (now in Acme)`
-(`status.MovedOf`, read through the names of every view and verb). `history`'s totals give it a
-column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
-Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
+So the pool an account left keeps its days spent capped there, and the pool it joined keeps them
+too, in the account's weeks. An account none places now, whose windows show in every pool, shows
+an idle day naming a pool in that pool alone. The router places an idle account by its pool table,
+the owner that routes by the pools (`ledger.IdlePools`, given `poolTable.in`, as `poolTable.of`
+names a request's pool), as the pools stand as it summarises the day: none where no pool holds the
+account, as once it's removed, or before pools. A pool's read shows such a day by the pool's read,
+`views.PoolRead`, by the pool the day names, as `keeps` has it of a request's, or by the pool the
+account is in now. Its limits:
+
+- **Fixed when first summarised.** An account's idle day takes its pool only the first time its
+  day is summarised, or from an import, and keeps it for good: a day summarised again, as a line
+  comes to be filed under it or a new summary version summarises every kept day again, places no
+  account, keeping the pools its summary before named, so an account that summary holds no day
+  of, as one whose readings couldn't be read then, names none; and two ids of one account merged
+  into one keep the pool either day named, where neither worked.
+- **A move on the day, or before the router first summarises it,** files the day under the new
+  pool: as an account moved because it's capped, during the day itself, or moved while the router
+  was stopped, or after midnight in the hour before the router summarises the day.
+- **No backfill, no version.** The days summarised before it name none, and keep none, so they go
+  by the pool the account is in now. No summary version marks it, as a version would summarise every
+  kept day again.
+- **An older release drops it.** An older release passes over an idle day's `pool` as it reads a
+  day, and one that summarises a day again drops it, as on a downgrade, or in a handover's overlap,
+  as the release going summarises a day the new one wrote.
+- **Readers name none.** A reader summarising a day as it reads it, as today's, names no pool for an
+  idle day, the pool the account is in now being its pool then; it never writes the summary, so it
+  never becomes a summary before a router's.
+- **An import's summary knows both Macs' pools.** Whichever summary a day keeps, an import carries
+  into it the other's days of no work that name a pool, for the accounts it holds no day of, and
+  the pool alone into its days of no work that name none (see Export and import). A day this Mac
+  holds lines of, but hasn't summarised yet, carries nothing: its first summary places by this
+  Mac's pools. A carried day's `minutes_at_cap`
+  is the other Mac's reckoning, by that Mac's reserves.
+- **Renamed as work is.** An import gives an idle day's pool another Mac's pool's id here as it
+  gives a worked day's, or keeps it apart under its own id, read with `--pool` and that id alone,
+  so an account removed there or moved, then imported, keeps its idle days where they were. A day
+  from before pools, its work in none given the first pool, gives an idle day naming none no pool,
+  as which pool its account was in was never recorded. An older release importing a folder this
+  one exported leaves its idle days' pools as the other Mac named them, unrenamed.
+- **A summary that doesn't read** as its day's, summarised again from its day's lines, as a
+  summary first made, places its idle accounts afresh, in the pools they're in then.
+
+So an account moved out keeps its work in the pool it left, and the days it spent there idle, and
+is named there by its label, as a removed account is shown, with where it is now in place of when
+it was removed: in text.faint on the screens that draw a removed account so, and in the verbs' text
+as `work (now in Acme)` (`status.MovedOf`, read through the names of every view and verb).
+`history`'s totals give it a column of its own there, and its JSON lists it under `moved`, with its
+pool's id and label. Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 
 ### Reading a pool
 
@@ -9603,8 +9648,11 @@ from the first day a router that has it runs, so nothing before then is in it.
     its windows, its `highest`, `rise`, `resets`, `limits`, minutes and `read_before`, stay the
     account's, once, whatever pool it's in.
     - `pool`: the id of the pool all the account's work that day was in, left out where its lines
-      named none, as every line did before pools, where its work was in more than one pool, and
-      where it did no work.
+      named none, as every line did before pools, and where its work was in more than one pool. Of
+      a day it did no work, the id of the pool the router had it in as it first summarised the
+      day, kept for good; left out where none held it, and in a day summarised before idle days
+      named theirs, which came after version 7 with no version of its own: see Pools' What's
+      recorded for the rule, and its limits.
     - `pools`: where its work was in more than one pool, each pool's, in the order of their ids,
       that of the lines that named none first, its `pool` left out: its `models`, `sessions`,
       `session_ids`, `moved_on` and `moved_off`, counted of the pool's lines alone as the account's
@@ -10476,15 +10524,23 @@ no Mac's folder fails, saying so, and so does one whose every folder was passed 
   readings alone, as it does once the readings history covers a day (see The request ledger), and
   the folder's counts some: the Mac then knows nothing of the day's requests, and the folder's
   summary knows more. One that counts none gives way to none, so an import repeated copies none
-  again. The day's lines and its summary
-  are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
-  import cut short, the look sees the day's lines as the take left them. The readings history's
-  writer isn't held off: its summarising before a prune, on its first round as the router starts,
-  which may come after the router first answers, and on its first of each day, may summarise the
-  day from the lines just taken in, between the take and the look, and the folder's summary then
-  gives way to that one, which loses no request. Else the Mac's own stands, and the round
-  summarises again each day whose lines changed, as its files' sizes tell it, building its digest,
-  parts, head and rows again too (see The request ledger).
+  again. The day's lines and its summary are taken in as one, on the ledger's writer, so whatever
+  it ran before, a round, a stop or an import cut short, the look sees the day's lines as the take
+  left them. The take holds the ledger's summarising from before the day's lines until its summary
+  is decided, as a rename of a day does. So the readings history's summarising before a prune, on
+  its first round as the router starts, which may come after the router first answers, and on its
+  first of each day, comes before the take or after the summary, never between them. The ledger's
+  own rounds run on its writer, as the take does, so never wait on it. Else the Mac's own stands,
+  and the round summarises again each day whose lines changed, as its files' sizes tell it,
+  building its digest, parts, head and rows again too (see The request ledger). Either way the
+  summary the day keeps knows every pool of a day of no work either Mac recorded: the folder's days
+  of no work that name a pool are carried into the Mac's own, and the Mac's into the folder's where
+  that's copied in (`ledger`'s `carriedIdle`). An account the summary kept holds no day of takes
+  the day whole, as the other summary writes it; one whose day of no work names no pool takes the
+  pool alone; a worked day, or one naming a pool, stands. Every other field is kept as written. Of
+  an account neither recorded one for, the day names none. A staged summary that can neither be
+  copied in nor carried from, as on a day this Mac holds lines of but no summary that reads, is
+  left unread.
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
@@ -12958,5 +13014,4 @@ was dropped binds a later choice, the design proper says so.
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
-| An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |

@@ -24,6 +24,21 @@ func FirstPool(first func() string) Option {
 	return func(o *options) { o.firstPool = first }
 }
 
+// IdlePools has the ledger record, as it first summarises a day, the pool
+// each account that did no work that day is in then, as poolOf places it, in
+// the account's day's Pool, as IdlePool reads it: none where poolOf reports
+// false, as of an account no pool holds, or gives "", as before pools. It's
+// fixed then: a day summarised again keeps the pools its summary before
+// named, and places no account, so a day summarised before idle days named
+// theirs keeps none, and neither a late line nor a later summary version
+// stamps a day with the pool an account is in when it comes. Only the
+// router's ledger is given it: a follower or a reader summarises a day as it
+// reads it, never writing it, when the pool each account is in now, which a
+// read goes by where a day names none, is the pool it's in then.
+func IdlePools(poolOf func(account string) (string, bool)) Option {
+	return func(o *options) { o.idlePools = poolOf }
+}
+
 // Grounds are what a reader of the ledger summarises its days by, as the
 // config gives them: the caps, and the id of the first pool, as FirstPool
 // has it. A reader made on the same grounds summarises alike, so one in use
@@ -40,13 +55,14 @@ func (g Grounds) Same(h Grounds) bool {
 }
 
 // fitted returns made, a day summarised afresh, and held, its summary
-// before, where there's one, as made is to know held: each account's day
-// fitted as fittedAccount fits it, so its pools add up to its whole once
-// made knows held; then, where the ledger knows the first pool, as
-// FirstPool says, each's work in no pool, made's and held's, the first
+// before, where there's one, as made is to know held: made's accounts' days
+// of no work placed as idlePlaced places them, where there's no held; each
+// account's day fitted as fittedAccount fits it, so its pools add up to its
+// whole once made knows held; then, where the ledger knows the first pool,
+// as FirstPool says, each's work in no pool, made's and held's, the first
 // pool's, as unpooledIn gives it.
 func (d days) fitted(made Summary, held *Summary) (Summary, *Summary) {
-	made.Accounts = slices.Clone(made.Accounts)
+	made.Accounts = d.idlePlaced(slices.Clone(made.Accounts), held)
 	first, asked := d.firstOf(made, held)
 	var fit *Summary
 	if held != nil {
@@ -74,6 +90,26 @@ func (d days) fitted(made Summary, held *Summary) (Summary, *Summary) {
 	return made, fit
 }
 
+// idlePlaced returns accounts, the accounts' days of a day summarised afresh,
+// each of no work in the pool the ledger's idlePools places its account in,
+// as IdlePools says, where it places it in one: every one as it is where the
+// ledger has no idlePools, or where held, the day's summary before, is
+// given, as the day was first summarised then, and its pools fixed.
+func (d days) idlePlaced(accounts []AccountDay, held *Summary) []AccountDay {
+	if d.idlePools == nil || held != nil {
+		return accounts
+	}
+	for i, a := range accounts {
+		if a.Account == "" || !a.Idle() {
+			continue
+		}
+		if pool, ok := d.idlePools(a.Account); ok {
+			accounts[i].Pool = pool
+		}
+	}
+	return accounts
+}
+
 // firstOf returns the first pool, as FirstPool has the ledger know it,
 // where made or held, where it's given, has work in no pool, reporting that
 // it asked: else "", unasked.
@@ -93,10 +129,11 @@ func (d days) firstOf(made Summary, held *Summary) (string, bool) {
 //     were given the first pool by the move to pools, the first pool not
 //     known, as firstKnown says: where made counts no less, as covers says,
 //     its lines hold every one held's did, so held is split as made is,
-//     made's pools standing, knowing held's whole. Once the first pool is
-//     known, held's work in none is the first pool's, so the last case fits
-//     it: held split as made is would hide a loss in another pool behind
-//     what was filed in the first since;
+//     made's pools standing, knowing held's whole, a day of no work in both
+//     keeping the pool held names, as IdlePools fixes it. Once the first
+//     pool is known, held's work in none is the first pool's, so the last
+//     case fits it: held split as made is would hide a loss in another pool
+//     behind what was filed in the first since;
 //   - else, held unsplit, some of its lines lost since: which pool they were
 //     in can't be told, so made's work is in held's one pool, as all of
 //     held's is;
@@ -108,7 +145,7 @@ func fittedAccount(made, held AccountDay, unsplit, firstKnown bool) (AccountDay,
 	renamed := !firstKnown && held.worksIn("") && !made.worksIn("")
 	switch {
 	case (unsplit || renamed) && made.covers(held.Work):
-		held.Pool, held.Pools = made.Pool, made.Pools
+		held = held.pooled(made.poolDays())
 	case unsplit:
 		pool := held.Pool
 		if held.Pools != nil {
@@ -175,9 +212,13 @@ func (a AccountDay) unpooledIn(pool string) (AccountDay, bool) {
 
 // repooled returns the account's day with each pool's work in the pool pool
 // gives its id, work in no pool by "", merged with any work there, as
-// mergedPool merges it, so two pools given one become one; and reports
-// whether pool gave any another.
+// mergedPool merges it, so two pools given one become one, and a day of no
+// work in the one pool gives the pool it names, as idleRepooled has it; and
+// reports whether pool gave any another.
 func (a AccountDay) repooled(pool func(id string) string) (AccountDay, bool) {
+	if a.Idle() {
+		return a.idleRepooled(pool)
+	}
 	days := slices.Clone(a.poolDays())
 	changed := false
 	for i, d := range days {
@@ -189,6 +230,31 @@ func (a AccountDay) repooled(pool func(id string) string) (AccountDay, bool) {
 		return a, false
 	}
 	return a.pooled(mergedBy(days, PoolDay.key, mergedPool, strings.Compare)), true
+}
+
+// idleRepooled returns the account's day of no work in the pool pool gives
+// the id of the one it names, as IdlePool reads it, and reports whether that
+// changed it: one naming none still names none, as which pool its account
+// was in that day was never recorded.
+func (a AccountDay) idleRepooled(pool func(id string) string) (AccountDay, bool) {
+	was := a.IdlePool()
+	if was == "" {
+		return a, false
+	}
+	a.Pool = pool(was)
+	return a, a.Pool != was
+}
+
+// IdlePool is the id of the pool the account of a day of no work was in as
+// the day was summarised, as IdlePools records it: "" of a day with work,
+// whose pools are its work's, and of one that names none, as one summarised
+// before idle days were given their pools, or by a ledger not given
+// IdlePools, which the pool the account is in now goes for.
+func (a AccountDay) IdlePool() string {
+	if !a.Idle() {
+		return ""
+	}
+	return a.Pool
 }
 
 // RecordingPool is pools, the pools some lines recorded, each once, in the
@@ -347,7 +413,7 @@ func (s Summary) InPool(pool, first string) Summary {
 // InPool returns the account's day in the pool with the given id alone: its
 // work there, none where it did none there, and its windows as they are, an
 // account's windows being its own, whatever pool it's in. Which accounts'
-// windows a pool shows is its reader's to say, by the pool each is in now.
+// windows a pool shows is its reader's to say, as views' PoolRead does.
 // first is the id of the first pool, once the move to pools is done, "" till
 // then: work in no pool left in a summary is the first's, as FirstPool says,
 // and "" gives none; before, "" gives the work of the requests that named
@@ -415,15 +481,17 @@ func (p PoolDay) key() string {
 
 // pooled returns the account's day with its work by pool as pools gives it,
 // in the order of their ids: named by its one pool, where there's one, or
-// listed, where there are more. Its work in every pool together is its own.
+// listed, where there are more; a day of no work, pools none, naming the
+// pool its Pool names, as IdlePool reads it. Its work in every pool together
+// is its own.
 func (a AccountDay) pooled(pools []PoolDay) AccountDay {
-	a.Pool, a.Pools = "", nil
+	a.Pools = nil
 	switch len(pools) {
 	case 0:
 	case 1:
 		a.Pool = pools[0].Pool
 	default:
-		a.Pools = pools
+		a.Pool, a.Pools = "", pools
 	}
 	return a
 }

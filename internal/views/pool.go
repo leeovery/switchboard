@@ -211,18 +211,42 @@ func (p PoolRead) summaries(read []ledger.Summary) []ledger.Summary {
 
 // summary is the day s in the pool read alone: its work in the pool alone,
 // as ledger.Summary's InPool gives it; and of its accounts, those that
-// worked in the pool that day, or are the pool's, as holds has it, for their
-// windows. NoPool's holds none of its accounts.
+// worked in the pool that day, or whose windows it shows that day, as
+// showsIdle has it. NoPool's holds none of its accounts.
 func (p PoolRead) summary(s ledger.Summary) ledger.Summary {
 	if p.none {
 		s.Accounts = nil
 		return s
 	}
+	whole := s.Accounts
 	s = s.InPool(p.ID, p.First)
 	s.Accounts = slices.DeleteFunc(s.Accounts, func(a ledger.AccountDay) bool {
-		return a.Idle() && !p.holds(a.Account)
+		return a.Idle() && !p.showsIdle(accountDayOf(whole, a.Account))
 	})
 	return s
+}
+
+// showsIdle reports whether the read shows the windows of an account's day,
+// one of no work in the pool read, an account's windows being its own: in
+// the pool the account is in now, as holds has it; and, of a day of no work
+// at all that names the pool its account was in as it was summarised, as
+// ledger.AccountDay's IdlePool reads it, in that pool too, as keeps has it
+// of a request's, but in no other where none places the account now, as
+// status.AccountPlacedIn has it.
+func (p PoolRead) showsIdle(day ledger.AccountDay) bool {
+	if pool := day.IdlePool(); pool != "" {
+		return p.keeps(pool) || status.AccountPlacedIn(day.Account, p.ID, p.PoolOf)
+	}
+	return p.holds(day.Account)
+}
+
+// accountDayOf returns the day of the account with the given id among days,
+// one of no work naming no pool where there's none.
+func accountDayOf(days []ledger.AccountDay, account string) ledger.AccountDay {
+	if i := slices.IndexFunc(days, func(a ledger.AccountDay) bool { return a.Account == account }); i >= 0 {
+		return days[i]
+	}
+	return ledger.AccountDay{Account: account}
 }
 
 // poolDays reads a pool's days, as PoolRead's Days has them.

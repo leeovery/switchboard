@@ -5,10 +5,12 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -90,9 +92,9 @@ func holding(l *Ledger, day StagedDay) (lines, summary bool) {
 
 // inRound starts taking day in as a round holds l's summaries, as the
 // readings history's summarising of the days before its prune does, and
-// returns once the day's lines are in, with what Import fails with once it
-// returns, what cuts it short, and what ends the round, as the test's end
-// does too.
+// returns once l's writer has taken the take up, waiting on the round, with
+// what Import fails with once it returns, what cuts it short, and what ends
+// the round, as the test's end does too.
 func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, cancel, endRound func()) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -100,45 +102,54 @@ func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, can
 	l.summarising.Lock()
 	endRound = sync.OnceFunc(l.summarising.Unlock)
 	t.Cleanup(endRound)
+	importing := importsUnderWay(l)
 	answered := make(chan error, 1)
 	go func() {
 		_, err := l.Import(ctx, day)
 		answered <- err
 	}()
-	linesTakenIn(t, l, day)
+	takenUp(t, importing)
 	return answered, cancel, endRound
 }
 
-// linesTakenIn returns once l holds the day's lines, failing the test where
-// it doesn't within a few seconds.
-func linesTakenIn(t *testing.T, l *Ledger, day StagedDay) {
+// importsUnderWay has l tell of an import taking its summaries, on its
+// writer's goroutine, before it waits for them, and returns what's closed
+// once one does. It's to be called before the import is asked for.
+func importsUnderWay(l *Ledger) <-chan struct{} {
+	importing := make(chan struct{})
+	l.importing = sync.OnceFunc(func() { close(importing) })
+	return importing
+}
+
+// takenUp returns once an import is under way, as importing, from
+// importsUnderWay, tells, failing the test where it isn't within a few
+// seconds.
+func takenUp(t *testing.T, importing <-chan struct{}) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for lines, _ := holding(l, day); !lines; lines, _ = holding(l, day) {
-		if time.Now().After(deadline) {
-			t.Fatal("gave up waiting for the day's lines to be taken in")
-		}
-		time.Sleep(5 * time.Millisecond)
+	select {
+	case <-importing:
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for the ledger's writer to take the day's take up")
 	}
 }
 
-func TestADaysSummaryIsCopiedInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
+func TestADaysLinesAndSummaryAreTakenInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
 	logstest.Capture(t)
 	l := runningLedger(t)
 	day := staged(t)
 	imported, _, endRound := inRound(t, l, day)
 
-	// A copy that didn't wait on the round would be done well within this.
+	// A take that didn't wait on the round would be done well within this.
 	time.Sleep(50 * time.Millisecond)
-	if _, summary := holding(l, day); summary {
-		t.Error("the day's summary was copied in as a round held the summaries, want it copied once the round is done")
+	if lines, summary := holding(l, day); lines || summary {
+		t.Errorf("as a round held the summaries, the day's lines were taken in %v, its summary %v; want neither till the round is done", lines, summary)
 	}
 	endRound()
 	if err := <-imported; err != nil {
 		t.Fatalf("Import() = %v", err)
 	}
-	if _, summary := holding(l, day); !summary {
-		t.Error("once the round was done and the day taken in, the ledger holds no summary of it, want the one staged")
+	if lines, summary := holding(l, day); !lines || !summary {
+		t.Errorf("once the round was done and the day taken in, the ledger holds its lines %v, its summary %v; want both", lines, summary)
 	}
 }
 
@@ -160,7 +171,11 @@ func (h *listingHeld) Dates() ([]string, error) {
 	return nil, nil
 }
 
-func TestADaySummarisedFromItsLinesBetweenTheirTakeAndTheLookAtItsSummaryKeepsThatSummary(t *testing.T) {
+// The readings history's round, summarising before its prune, holds the
+// summaries before the day's lines are taken in, so the take waits for it:
+// the round never summarises the day between its take and the look at its
+// summary, and the day's lines and the summary staged are taken in after.
+func TestADayIsTakenInWholeOnceTheReadingsHistorysRoundIsDone(t *testing.T) {
 	logstest.Capture(t)
 	history := &listingHeld{held: make(chan struct{}), let: make(chan struct{})}
 	l := runningLedgerOf(t, history)
@@ -171,10 +186,9 @@ func TestADaySummarisedFromItsLinesBetweenTheirTakeAndTheLookAtItsSummaryKeepsTh
 	if err != nil {
 		t.Fatal(err)
 	}
-	// An import doesn't hold the readings history's writer off: its round,
-	// summarising before its prune, as on its first round as the router
-	// starts and on its first of each day, holds the summaries as the day's
-	// lines are taken in, then finds them.
+	// The round, summarising before its prune, as on its first round as the
+	// router starts and on its first of each day, holds the summaries as the
+	// day is to be taken in.
 	history.holding.Store(true)
 	rounded := make(chan struct{})
 	go func() {
@@ -190,20 +204,24 @@ func TestADaySummarisedFromItsLinesBetweenTheirTakeAndTheLookAtItsSummaryKeepsTh
 		imported ImportedDay
 		err      error
 	}
+	importing := importsUnderWay(l)
 	answered := make(chan answer, 1)
 	go func() {
 		imported, err := l.Import(t.Context(), day)
 		answered <- answer{imported, err}
 	}()
-	linesTakenIn(t, l, day)
+	takenUp(t, importing)
+	if lines, _ := holding(l, day); lines {
+		t.Error("the day's lines were taken in as the round held the summaries, want them taken in once it's done")
+	}
 	letGo()
 	<-rounded
 
-	if got := <-answered; got.err != nil || got.imported.Summary {
-		t.Errorf("Import() = %+v, %v; want no summary copied in: the round's, of the day's lines just taken in, loses no request", got.imported, got.err)
+	if got := <-answered; got.err != nil || !got.imported.Summary {
+		t.Errorf("Import() = %+v, %v; want the summary staged copied in, the day's lines taken in after the round", got.imported, got.err)
 	}
-	if held, err := l.days.held(day.Date); err != nil || held.Lines != 1 || string(held.written) == string(stagedSummary) {
-		t.Errorf("once imported, the ledger's summary of the day holds %q (%v); want the round's, of its line, standing against the one staged, %q", held.written, err, stagedSummary)
+	if held, err := l.days.held(day.Date); err != nil || string(held.written) != string(stagedSummary) {
+		t.Errorf("once imported, the ledger's summary of the day holds %q (%v); want the one staged, %q", held.written, err, stagedSummary)
 	}
 }
 
@@ -276,6 +294,20 @@ func TestTheLedgerHoldsNoLineOfADayAsItsTakeOrElseItsFilesTell(t *testing.T) {
 				t.Errorf("holdsNoLine(%s) = %v, %v, want %v", date, got, err, tt.want)
 			}
 		})
+	}
+}
+
+// A day whose lines an import merged, of which the ledger holds no summary,
+// can neither have the summary staged copied in nor carried from: so it's
+// left unread, and one that can't be read fails nothing.
+func TestASummaryStagedThatCanBeNeitherCopiedNorCarriedFromIsLeftUnread(t *testing.T) {
+	logger := logs.For("router")
+	d := days{files: Files(t.TempDir(), logger), logger: logger}
+	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
+	day := StagedDay{Date: date, Summary: filepath.Join(t.TempDir(), "gone.json")}
+
+	if copied, err := d.copyOver(day, dayfile.Imported{Taken: dayfile.Merged, Lines: 1}); err != nil || copied {
+		t.Errorf("copyOver() = %v, %v; want nothing copied, and no failure", copied, err)
 	}
 }
 
@@ -420,5 +452,69 @@ func TestADayACompressStoppedPartwayLeftSummarisesEachLineOnceImported(t *testin
 	l.SummariseEnded(importedOn)
 	if summary, err := l.days.held(date); err != nil || summary.Lines != 3 {
 		t.Errorf("summarised before its next compress, the day's summary counts %d lines (%v), want its 3, each once", summary.Lines, err)
+	}
+}
+
+// A summary given another's days of no work takes in each that names a pool:
+// whole, of an account it holds no day of, in the order of their ids; or its
+// pool alone, into a day of no work naming none. A worked day, or one naming
+// a pool, stands. Every other field, and every account's day it held, those
+// a later release added among them, is kept as written, byte for byte; where
+// it takes none, it's itself.
+func TestDaysOfNoWorkCarriedIntoASummaryKeepEveryFieldAsWritten(t *testing.T) {
+	const (
+		head    = `{"version":7,"day":"2026-10-05","lines":1,"later":{"kept":true},"accounts":`
+		idleOf  = `{"account":"%s","pool":"%s","sessions":0,"moved_on":0,"moved_off":0}`
+		noPool  = `{"account":"side","sessions":0,"moved_on":0,"moved_off":0,"later":1}`
+		worked  = `{"account":"work","models":[{"model":"m","upstream":1,"sessions":1}],"sessions":1,"moved_on":0,"moved_off":0}`
+		spaced  = `{"account":"side", "pool":"l3ft", "sessions":0,"moved_on":0,"moved_off":0, "later":1}`
+		another = `{"account":"x9x9","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":2}`
+	)
+	idle := func(account, pool string) string { return fmt.Sprintf(idleOf, account, pool) }
+	summary := func(accounts ...string) string { return head + "[" + strings.Join(accounts, ",") + "]}" }
+	tests := []struct {
+		name, into, from, want string
+	}{
+		{
+			name: "an account it holds no day of, whole",
+			into: summary(spaced, worked),
+			from: summary(idle("side", "c1nt"), `{"account":"spare","sessions":0,"moved_on":0,"moved_off":0}`, another, idle("x9x9", "q7mt")),
+			want: summary(spaced, worked, another),
+		},
+		{
+			name: "a pool alone, into a day of no work naming none",
+			into: summary(noPool, worked),
+			from: summary(idle("side", "c1nt"), idle("work", "c1nt")),
+			want: summary(`{"account":"side","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":1}`, worked),
+		},
+		{
+			name: "none, against days naming none and a worked day",
+			into: summary(spaced, worked),
+			from: summary(noPool, idle("work", "c1nt")),
+			want: summary(spaced, worked),
+		},
+		{
+			name: "into the accounts written last, as Go reads them",
+			into: `{"accounts":[],"accounts":[` + noPool + `]}`,
+			from: summary(idle("side", "c1nt")),
+			want: `{"accounts":[],"accounts":[{"account":"side","pool":"c1nt","sessions":0,"moved_on":0,"moved_off":0,"later":1}]}`,
+		},
+		{
+			name: "into a summary of no accounts",
+			into: `{"version":7,"day":"2026-10-05","lines":0}`,
+			from: summary(another),
+			want: `{"version":7,"day":"2026-10-05","lines":0,"accounts":[` + another + `]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, took, err := carriedIdle([]byte(tt.into), []byte(tt.from))
+			if wantTook := tt.want != tt.into; err != nil || took != wantTook || string(got) != tt.want {
+				t.Errorf("carriedIdle() = %s, %v, %v; want %s, %v", got, took, err, tt.want, wantTook)
+			}
+			if again, took, err := carriedIdle(got, []byte(tt.from)); err != nil || took || string(again) != string(got) {
+				t.Errorf("carriedIdle() again = %s, %v, %v; want the summary as it was, nothing taken", again, took, err)
+			}
+		})
 	}
 }
