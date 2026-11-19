@@ -1124,7 +1124,8 @@ the file last kept, as by a config edited while it was down, or of one it keeps 
 move as it takes the pools up; a table of pools it can't tell records none. A restart replays each
 reading of the readings history into the day rate of the pool its account was in then, one from
 before its first entry into that entry's, and judges each pool's room at each moment by the
-accounts in it then. A pool since removed takes in nothing, and the one pool of a config from
+accounts in it then. An account's recent rates are forgotten at its first reading after a move
+between pools, as live, so a restart soon after a move brings none of the old pool's demand. A pool since removed takes in nothing, and the one pool of a config from
 before pools is the first pool's, as live.
 
 ### What's recorded
