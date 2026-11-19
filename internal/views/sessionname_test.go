@@ -200,16 +200,27 @@ func TestRowsNamedByIDsAlikeShowAsMuchOfThemAsTellsThemApart(t *testing.T) {
 }
 
 // A page asked to open, its lines still read, names its project and the
-// session as the router lists them, as the page will once they're read, so
-// its heading holds its shape; one the router doesn't list, nothing.
+// session as the router lists them, the project as the Projects given read
+// it, as the page will once they're read, so its heading holds its shape:
+// none of temporary folders, and a scratchpad's of the directory its slug
+// names; one the router doesn't list, nothing.
 func TestAPageAskedToOpenIsNamedAsTheRouterListsItsSession(t *testing.T) {
 	worktree := "~/Code/api/.claude/worktrees/fix-login"
+	pad := "/scratch/tmp/claude-501/-Users-you-Code-api/" + scratchID(1000) + "/scratchpad"
 	tests := []struct {
 		name        string
 		running     []status.Session
 		wantProject string
 		want        views.ShownName
 	}{
+		{
+			name: "of temporary folders, no project", want: views.ShownName{Name: "deploy"},
+			running: []status.Session{{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: "work", Dir: "/tmp/build", Project: "/tmp/build", SessionName: "deploy", LastSeen: now}}}},
+		},
+		{
+			name: "in a scratchpad, the project its slug names", wantProject: "api", want: views.ShownName{Name: "deploy"},
+			running: []status.Session{{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: "work", Dir: pad, Project: pad, SessionName: "deploy", LastSeen: now}}}},
+		},
 		{
 			name: "its terminal session's", wantProject: "api", want: views.ShownName{Name: "deploy"},
 			running: []status.Session{{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: "work", Dir: worktree, Project: "~/Code/api", SessionName: "deploy", LastSeen: now}}}},
@@ -222,7 +233,7 @@ func TestAPageAskedToOpenIsNamedAsTheRouterListsItsSession(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			page := views.AskedPage(paged, tt.running)
+			page := views.AskedPage(paged, tt.running, scratchMachine())
 			if page.ProjectName != tt.wantProject || page.Shown != tt.want {
 				t.Errorf("the page names its project %q and it %+v, want %q and %+v", page.ProjectName, page.Shown, tt.wantProject, tt.want)
 			}

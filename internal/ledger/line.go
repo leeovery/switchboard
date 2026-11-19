@@ -410,12 +410,14 @@ func LineProject(project string) string {
 }
 
 // LineName is the name of a session's terminal session as a line gives it,
-// text from outside switchboard: cleaned, as prose.Clean cleans it, once
-// anything shaped like a token in it is hidden, and cut to nameMost bytes at
-// the end of a character, the spaces before the cut let go. run tells the
-// router a name so too, and the router's sessions give one so.
+// text from outside switchboard: cleaned, as prose.Clean cleans it, then
+// anything shaped like a token in it hidden, and cut to nameMost bytes at the
+// end of a character, the spaces before the cut let go. It hides tokens once
+// cleaned, as cleaning drops characters that don't show, and so would join a
+// token they split. run tells the router a name so too, and the router's
+// sessions give one so.
 func LineName(name string) string {
-	return strings.TrimSpace(prose.TruncateBytes(prose.Clean(redact.Text(name)), nameMost))
+	return strings.TrimSpace(prose.TruncateBytes(redact.Text(prose.Clean(name)), nameMost))
 }
 
 // cutAll returns the first ListMost of list, each as each cuts it, as a list

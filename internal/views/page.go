@@ -279,13 +279,14 @@ func onPage(string) ledger.Rest { return ledger.RestOnPage }
 // AskedPage is the page of the session with the given id as it's drawn
 // asked to open, while its lines are read: its id, and its directory,
 // project and name as the router lists them, of the sessions running given,
-// as listedPlace has them of a session it lists, named as namedAs names a
-// page, so its heading holds its shape as its lines are read; none where it
-// doesn't list it; nothing else is known till its lines are.
-func AskedPage(id string, running []status.Session) SessionPage {
+// as listedPlace has them of a session it lists, the project as projects
+// reads it, named as namedAs names a page, so its heading holds its shape as
+// its lines are read; none where it doesn't list it; nothing else is known
+// till its lines are.
+func AskedPage(id string, running []status.Session, projects status.Projects) SessionPage {
 	page := SessionPage{Session: id}
 	if s := Routed(running, id); s != nil {
-		place := listedPlace(*s, sessionPlace{}, status.Projects{})
+		place := listedPlace(*s, sessionPlace{}, projects)
 		page.Dir = place.dir
 		page.namedAs(ListedSession{Session: id, Dir: place.dir, Project: place.project, Name: place.name})
 	}

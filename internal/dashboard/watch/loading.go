@@ -107,6 +107,6 @@ func (m Model) pageLoading(msg pageLoadingMsg) Model {
 	if msg.asked != m.opening || m.arrived >= msg.asked {
 		return m
 	}
-	m.session = &sessionShown{id: msg.id, shown: dashboard.SessionShown{Page: views.AskedPage(msg.id, m.sessions), Home: m.cfg.Home, Loading: true}}
+	m.session = &sessionShown{id: msg.id, shown: dashboard.SessionShown{Page: views.AskedPage(msg.id, m.sessions, m.cfg.Projects), Home: m.cfg.Home, Loading: true}}
 	return m
 }

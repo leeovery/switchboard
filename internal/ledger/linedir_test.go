@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 )
 
@@ -83,6 +84,7 @@ func TestASessionsNameIsGivenAsALineGivesItCleanedAndCut(t *testing.T) {
 		{name: "longer, cut at the end of a character", given: strings.Repeat("☃", nameMost), want: strings.Repeat("☃", nameMost/len("☃"))},
 		{name: "cut after a space, the space let go", given: strings.Repeat("a", nameMost-1) + " b", want: strings.Repeat("a", nameMost-1)},
 		{name: "a token hidden", given: "sk-ant-oat01-fake_name-token-shaped", want: redact.Placeholder},
+		{name: "a token split by a control character hidden up to it", given: "sk-ant-oat01-fake\x07_name", want: redact.Placeholder + " _name"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,5 +96,21 @@ func TestASessionsNameIsGivenAsALineGivesItCleanedAndCut(t *testing.T) {
 				t.Errorf("LineName(%q) = %q, want it as it is, as a line given it gives it again", got, again)
 			}
 		})
+	}
+}
+
+// TestASessionsNameHoldsNoTokenACharacterThatDoesntShowSplits holds LineName
+// to hiding a token split by a zero-width space, which prose.Clean drops, so
+// joining the token again: a name it gives holds none, nor does it once it's
+// cleaned again to show.
+func TestASessionsNameHoldsNoTokenACharacterThatDoesntShowSplits(t *testing.T) {
+	for _, given := range []string{
+		"sk-ant-\u200boat01-fake_name-token-shaped",
+		"sk-ant-oat01-fake\u200b_name-token-shaped",
+	} {
+		got := ledger.LineName(given)
+		if redact.HoldsToken(got) || redact.HoldsToken(prose.Clean(got)) {
+			t.Errorf("LineName(%q) = %q, want no token in it, nor in it cleaned again", given, got)
+		}
 	}
 }

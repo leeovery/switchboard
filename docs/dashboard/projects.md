@@ -65,8 +65,9 @@ counts those out of view: `▲ 3 more sessions · ▼ 12 more sessions`. On a sh
 shows only if two sessions still fit above it.
 
 Each session shows its [session name](sessions.md) alone, such as `router-fix`, because the project
-heads the page. Two sessions of one name each add their id, dimmed, as the List does. A session
-with no name shows the first 4 characters of its id.
+heads the page. The session name is the terminal session's name, else the worktree's name, else
+the id. Two sessions of one name each add their id, dimmed, as the List does. The id shows as much
+as tells the two apart, at least 4 characters.
 
 Only the part where `↑` and `↓` act, the list or the sessions, lights its chosen row. The other
 keeps its chosen row bold, marked `▸`.
