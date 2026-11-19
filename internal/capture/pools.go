@@ -10,11 +10,13 @@ import (
 
 // The pools of the pools' frames: the first, Default, the auto world's;
 // Acme, a client's, fenced to ~/Code/acme, its three accounts the auto
-// world's labelled Acme 1, Acme 2 and Acme 3; and Acme with none.
+// world's labelled Acme 1, Acme 2 and Acme 3; and Acme with none. Each
+// takes the hue its id gives it among them, as the config's pools do.
 var (
-	defaultPool = status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 2}
-	acmePool    = status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Accounts: 3, Pools: 2}
-	emptyPool   = status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Pools: 2}
+	poolIDs     = []string{"b2n8", "q7mt"}
+	defaultPool = status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 2, Turn: status.PoolTurn(poolIDs, "b2n8")}
+	acmePool    = status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Accounts: 3, Pools: 2, Turn: status.PoolTurn(poolIDs, "q7mt")}
+	emptyPool   = status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Pools: 2, Turn: status.PoolTurn(poolIDs, "q7mt")}
 )
 
 // acmeLabels are the labels Acme gives the auto world's accounts, by their

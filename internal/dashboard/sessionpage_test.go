@@ -369,29 +369,29 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			},
 		},
 		{
-			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 30,
+			name: "99 wide: a phone's heading, under its own chrome, its now rows wide as they fit", shown: moved(), width: 99, height: 31,
 			want: map[int]string{
-				5: "SESSION  d28c  switchboard", 7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap      started 12:02 · 2h 40m", 8: "opus-5-5 → side   haiku-4-5 → side",
-				21: "TURNS    ", 23: "  #  started  took   requests     read  written     out     worth  on",
+				6: "SESSION  d28c  switchboard", 8: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap      started 12:02 · 2h 40m", 9: "opus-5-5 → side   haiku-4-5 → side",
+				22: "TURNS    ", 24: "  #  started  took   requests     read  written     out     worth  on",
 			},
 		},
 		{
-			name: "96 wide: the now rows wide where their leasts fit, started as how it has run alone", shown: moved(), width: 96, height: 30,
+			name: "96 wide: the now rows wide where their leasts fit, started as how it has run alone", shown: moved(), width: 96, height: 31,
 			want: map[int]string{
-				7: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                   2h 40m",
-				8: "opus-5-5 → side   haiku-4-5 → side",
+				8: "↑ asking   on side ▲ since 14:31, moved from work: work reached its cap                   2h 40m",
+				9: "opus-5-5 → side   haiku-4-5 → side",
 			},
 		},
 		{
-			name: "95 wide: the now rows short, as their leasts don't fit", shown: moved(), width: 95, height: 30,
-			want: map[int]string{7: "↑ asking  on side ▲ since 14:31", 8: "moved from work: its cap"},
+			name: "95 wide: the now rows short, as their leasts don't fit", shown: moved(), width: 95, height: 31,
+			want: map[int]string{8: "↑ asking  on side ▲ since 14:31", 9: "moved from work: its cap"},
 		},
 		{
-			name: "52 wide: a phone's, its turns their figures, worth and on", shown: moved(), width: 52, height: 32,
+			name: "52 wide: a phone's, its turns their figures, worth and on", shown: moved(), width: 52, height: 33,
 			want: map[int]string{
-				6: "SESSION  d28c  switchboard                  esc back", 8: "↑ asking  on side ▲ since 14:31",
-				24: "  #  started  took     req     worth  on", 25: " 13  14:40    3m…        6     $0.79  side",
-				30: "▼ 8 more turns   ·   j/k to scroll",
+				7: "SESSION  d28c  switchboard                  esc back", 9: "↑ asking  on side ▲ since 14:31",
+				25: "  #  started  took     req     worth  on", 26: " 13  14:40    3m…        6     $0.79  side",
+				31: "▼ 8 more turns   ·   j/k to scroll",
 			},
 		},
 		{
@@ -419,11 +419,11 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 			want: map[int]string{4: "SESSION   d28c", 5: "TURNS    ", 7: " 13  14:40", 8: "▼ 12 more turns"},
 		},
 		{
-			name: "52×12: a phone's least, its now rows given way", shown: moved(), width: 52, height: 12,
-			want: map[int]string{6: "SESSION  d28c", 7: "TURNS    ", 9: " 13  14:40", 10: "▼ 12 more turns"},
+			name: "52×13: a phone's least, its now rows given way", shown: moved(), width: 52, height: 13,
+			want: map[int]string{7: "SESSION  d28c", 8: "TURNS    ", 10: " 13  14:40", 11: "▼ 12 more turns"},
 		},
 		{name: "160×9: the chrome alone", shown: moved(), width: 160, height: 9, blank: [2]int{3, 7}},
-		{name: "52×11: a phone's chrome alone", shown: moved(), width: 52, height: 11, blank: [2]int{5, 9}},
+		{name: "52×12: a phone's chrome alone", shown: moved(), width: 52, height: 12, blank: [2]int{6, 10}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -583,7 +583,7 @@ func TestTheTurnChosenIsLit(t *testing.T) {
 	}{
 		{name: "wide, the newest", width: 160, height: 37, chosen: 25, lit: 148},
 		{name: "wide, one under it", width: 160, height: 37, chosen: 27, lit: 148},
-		{name: "a phone", width: 52, height: 32, chosen: 25, lit: 52},
+		{name: "a phone", width: 52, height: 33, chosen: 26, lit: 52},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -918,12 +918,12 @@ func TestTheShortNowRowsSayAPinsMoveShort(t *testing.T) {
 // Once it's over, the short rows of now say it ended, then where it ran, short,
 // and how long it ran.
 func TestAnEndedSessionsShortNowRows(t *testing.T) {
-	rows := pageText(pageFrame(t, ended(), 52, 32))
-	if rows[8] != "ended yesterday 18:47" {
-		t.Errorf("row 9 reads %q, want it ended", rows[8])
+	rows := pageText(pageFrame(t, ended(), 52, 33))
+	if rows[9] != "ended yesterday 18:47" {
+		t.Errorf("row 10 reads %q, want it ended", rows[9])
 	}
-	if !strings.HasPrefix(rows[9], "ran on work, then side from") || !strings.HasSuffix(rows[9], "ran 5h 27m") {
-		t.Errorf("row 10 reads %q, want where it ran, short, and how long it ran", rows[9])
+	if !strings.HasPrefix(rows[10], "ran on work, then side from") || !strings.HasSuffix(rows[10], "ran 5h 27m") {
+		t.Errorf("row 11 reads %q, want where it ran, short, and how long it ran", rows[10])
 	}
 }
 

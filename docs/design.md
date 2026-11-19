@@ -1551,7 +1551,9 @@ pool's id and label. Accounts' Tokens draws one, kept as `accounts-tokens-moved-
   read fails with `watch.ErrPoolsTold` and the pool shown is asked for again, as at a change to the
   config, starting afresh on the pool the verbs act on.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
-  at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
+  at every size, cut short before the tabs where it's long. The label sits on a colour of the
+  pool's own, worked out from its id, so the pool shown is told at a glance (the owner's call, 19
+  November 2026), as The title row below has it. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).
 - **A pool with no accounts** draws a page that says so on every tab, Projects among them, its
   status line `● healthy · no accounts`, with the restart the router has due, which takes up any the
@@ -3807,8 +3809,9 @@ order the view's section gives.
   family padded to 8 cells in Detail's SESSIONS, and its selection, 45 cells from a cell before
   the row; and the Log card's tree's names padded to 13.
 
-On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
-heading row 5, the view starting at row 7, or at row 8 where a period takes row 6 of its own; and
+On a phone, under 100 columns, the tabs take row 2 of their own, under a blank row, the status line
+row 4 and the heading row 6, the view starting at row 8, or at row 9 where a period takes row 7 of
+its own; and
 where the tabs take more rows than one, every row after them as many rows lower. **The
 breathing room,** the blank row under the heading row and the row over the key line, never goes as
 rows run short: the view gives up its rows instead, and scrolls within those it keeps where it must.
@@ -3836,6 +3839,19 @@ where none of those fits, and never says less as the width grows.
 
 - **The badge,** ` SWITCHBOARD ` with a space each side, in bold `canvas` on `accent.primary`, at
   column 0.
+- **The pool's label,** once there's a second pool, a cell after the badge, with a space each
+  side, in bold `canvas` on the pool's colour: `accent.primary` with its hue turned round OKLCH's
+  wheel, its lightness and chroma kept, the chroma eased only as far as sRGB needs
+  (`theme.Turned`), so the badge's dark text reads on it as on the badge, in every theme's terms.
+  The turn (`status.PoolTurn`) lies 75 to 285 degrees from the badge's hue, so a pool's colour
+  always reads against the badge. It's the one the pool's id hashes to (FNV-1a), unless that's
+  within 50 degrees of a pool's before it in the config's order, when it takes the nearest turn
+  that isn't, or, where none is, the one farthest from them. So a pool's colour follows from its
+  id, the same on every Mac, holds as pools are added after it, and stands 50 degrees apart from
+  the others' for three pools always and for four mostly; more pools each still get their own,
+  as close as the band leaves them. Accounts keep their colours by place, as Trends' POOL draws
+  them (the owner's call, 19 November 2026). The tabs follow two cells after the label, as they
+  follow the badge without one.
 - **The tabs,** from two cells after it, a cell apart: ` Overview `, ` Accounts `, ` Projects `,
   ` Sessions `, ` Runway `, ` Trends `, ` Log `. The one shown is bold `text.primary` on
   `bg.selection`; the rest are `text.subtle`. No hint follows them: the tabs are clickable and the
@@ -3848,12 +3864,13 @@ where none of those fits, and never says less as the width grows.
   `14:42:07`, in bold `text.secondary`, ticking each second. Under a card it ticks on, drawn as it
   is with no card open, not faded with the page, which stands still behind the card, so a card left
   open never reads as a dashboard that's stopped (the owner's call, 17 October 2026).
-- **On a phone,** the clock stays on row 0, and the tabs take row 1 from column 0 with no space
+- **On a phone,** the clock stays on row 0, row 1 is blank, so the tabs never crowd the badge (the
+  owner's call, 19 November 2026), and the tabs take row 2 from column 0 with no space
   between them: the seven fill 61 columns exactly. Where they don't fit one row,
   they take the fewest rows they fit on, each name whole, each row from column 0, shared as evenly
   as their order allows, the widest row as narrow as it can be, so a tab moves between rows only as
-  the count of rows changes: under 61, two, ` Overview `, ` Accounts `, ` Projects ` on row 1, 30
-  columns, and ` Sessions `, ` Runway `, ` Trends `, ` Log ` on row 2, 31; under 31, three,
+  the count of rows changes: under 61, two, ` Overview `, ` Accounts `, ` Projects ` on row 2, 30
+  columns, and ` Sessions `, ` Runway `, ` Trends `, ` Log ` on row 3, 31; under 31, three,
   ` Overview ` ` Accounts ` 20 columns, ` Projects ` ` Sessions ` 20 and ` Runway ` ` Trends ` ` Log `
   21; and so on, a row more each time the widest no longer fits, down to a tab a row, under whose
   widest name, 10 columns, the rows cut at the edge, as every part narrower than its least is. Each
@@ -3899,7 +3916,7 @@ On a phone, one space either side of each `·`, and `new → ` for `new sessions
 long leaves out the sessions, then where new sessions go; the state and the mode always show, the
 router's states shortened to `■ no router since 14:40` and `○ probed` (settled in the plan).
 
-**The heading row** (row 4; a phone's row 5) is the tab's own, under the status line, on every tab
+**The heading row** (row 4; a phone's row 6) is the tab's own, under the status line, on every tab
 but the Overview and Trends, whose sections head themselves (see The Overview, and Trends); a
 session's page has its own heading there, ending in `esc back` (see A session's page). From column
 0:
@@ -4486,7 +4503,7 @@ it was before the keys were swept (`0 auto 1-3 pin  m move`), and frames 2 and 3
 **Size never decides what shows.** Every section is a toggle, at every size, and the toggles are
 remembered; size decides how much room each section shown gets. The page is one screen that never
 scrolls: when rows run short, sections fold to their headings, and only USAGE scrolls, within
-itself, when the accounts are many. Its sections, from row 4 (a phone's row 5), in an order that
+itself, when the accounts are many. Its sections, from row 4 (a phone's row 6), in an order that
 never changes, a section hidden taking no room:
 
 | Section | Key | Shown at first | What it is |
@@ -4911,7 +4928,7 @@ remembered").
 | SESSIONS | A session and `+N more`; every one where that's no fewer | A row a session, two where ROUTING takes two an account | Its sessions and 2, from one session and a row, a session at a time |
 | COMING UP and LATELY | 3 lines; folded, its short form in rows left blank, as step 6 below has it: its heading and its first 2 lines, with no blank row between | 12 | Its lines and 2; short, 3 |
 
-Rows 0 to 3 (0 to 4 on a phone) hold the title row and the status line, and the last two the blank
+Rows 0 to 3 (0 to 5 on a phone) hold the title row and the status line, and the last two the blank
 row and the key line. The planner works in units, the sections that share rows: a section alone,
 USAGE with what sits beside it, or COMING UP and LATELY side by side. Each arrangement it tries is
 laid down the rows by flex (`overview.go`, `layUnits`): each unit a part of the rows it takes, its
@@ -6996,7 +7013,7 @@ holds:
 - **The title row** draws no `tab ⇥` (see The page); the frames at 160 and 173 do.
 
 **Its sections,** every one a toggle, at every size, remembered, as the Overview's are: size decides
-how much room each section shown gets, never whether it shows. From row 4 (a phone's row 5, a row lower
+how much room each section shown gets, never whether it shows. From row 4 (a phone's row 6, a row lower
 for each row more its tabs take), in an order that never changes, a section hidden taking no room:
 
 | Section | Key | Shown at first | What it is |

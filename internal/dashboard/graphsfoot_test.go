@@ -116,18 +116,18 @@ func TestGraphsLegendIsV01sFlowedWholeTheReserveOnlyWhereThereIsOne(t *testing.T
 // line, while WEEK shows; the rest of the rows over it blank.
 func TestGraphsLegendIsTheViewsLastRowsWhileWeekShows(t *testing.T) {
 	tests := []struct {
-		name   string
-		width  int
-		shown  GraphsSections
-		legend []string
+		name          string
+		width, height int
+		shown         GraphsSections
+		legend        []string
 	}{
-		{name: "at first, wide", width: 160, legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve"}},
-		{name: "at first, at 52", width: 52, legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out", "⠠ ⠠ reserve"}},
-		{name: "WEEK among others", width: 160, shown: GraphsSectionsNamed([]string{"week", "glance"}), legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve"}},
-		{name: "no WEEK", width: 160, shown: GraphsSectionsNamed([]string{"pool", "glance"})},
+		{name: "at first, wide", width: 160, height: 80, legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve"}},
+		{name: "at first, at 52", width: 52, height: 81, legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out", "⠠ ⠠ reserve"}},
+		{name: "WEEK among others", width: 160, height: 80, shown: GraphsSectionsNamed([]string{"week", "glance"}), legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve"}},
+		{name: "no WEEK", width: 160, height: 80, shown: GraphsSectionsNamed([]string{"pool", "glance"})},
 	}
 	for _, tt := range tests {
-		f := graphsFrame(tt.width, 80, tt.shown)
+		f := graphsFrame(tt.width, tt.height, tt.shown)
 		f.Graphs.Accounts[0].Reserve = 0.05
 		text := textOf(f.Draw(threeRouted(), now))
 		foot := f.Height - underView

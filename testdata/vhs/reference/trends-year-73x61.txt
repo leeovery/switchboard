@@ -1,9 +1,9 @@
  SWITCHBOARD                                          Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-YEAR  ───────────────────────────────────────────────────────────────── y
 
         Mar     Apr       May     Jun     Jul       Aug     Sep     Oct
 M   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
@@ -57,5 +57,5 @@ MODELS BY DAY   every account, weighed at API prices, on one scale ──── 
 
 less                more   ·· days to come
 ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
-▲ 69 more above
+▲ 70 more above
 tab views   ? keys and toggles   q quit

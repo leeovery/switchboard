@@ -299,8 +299,8 @@ func TestRunwaysPartsLieOnTheRowsItsStepGivesThem(t *testing.T) {
 			shape: runwayShape{legend: 1, columns: 2}, want: rows{9, 3, 18, 20, 51, 22, 4},
 		},
 		{
-			name: "the phone frame's three", shown: RunwayShown{Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 52, height: 33,
-			shape: runwayShape{legend: 2, columns: 1}, want: rows{11, 3, 20, 22, 30, 24, 3},
+			name: "the phone frame's three", shown: RunwayShown{Lanes: lanesOf(3), Coming: thingsComing(3)}, width: 52, height: 34,
+			shape: runwayShape{legend: 2, columns: 1}, want: rows{12, 3, 21, 23, 31, 25, 3},
 		},
 	}
 	for _, tt := range tests {
@@ -368,7 +368,7 @@ func TestRunwaysLanesScrollAnAccountAtATimeAndSayWhatsOutOfView(t *testing.T) {
 		{name: "ten at 29, scrolled to the last", width: 160, rows: 29, scroll: 2, first: 2, says: "▲ 2 more accounts"},
 		{name: "ten at 29, scrolled past it", width: 160, rows: 29, scroll: 5, first: 2, says: "▲ 2 more accounts"},
 		{name: "ten at 26, scrolled by two", width: 160, rows: 26, scroll: 2, first: 2, says: "▲ 2 more accounts · ▼ 1 more account"},
-		{name: "ten at 26 on 58 columns, the counts alone", width: 58, rows: 26, scroll: 2, first: 2, says: "▲ 2 more · ▼ 2 more"},
+		{name: "ten at 27 on 58 columns, the counts alone", width: 58, rows: 27, scroll: 2, first: 2, says: "▲ 2 more · ▼ 2 more"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -500,30 +500,30 @@ func TestRunwaysPoolsFootHoldsUnderTheLanesShownAtF(t *testing.T) {
 
 // On a phone, Runway takes the first step of its compaction whose parts fit,
 // as it does at every width, its legend of two: three accounts with three
-// lines of COMING UP, as the phone's frame, a row at a time from 37 to 15:
-// three rows each to 32; (a) to 29; (b) to 27; (c) at 26; (d), the legend
-// given way to 24, and COMING UP too to 21; (e) at 20; then their lanes
-// scrolling, two in view to 18 and one to 16; and none under it; and ten,
-// nine in view at 32, its lanes scrolling an account at a time. No lane is
+// lines of COMING UP, as the phone's frame, a row at a time from 38 to 16:
+// three rows each to 33; (a) to 30; (b) to 28; (c) at 27; (d), the legend
+// given way to 25, and COMING UP too to 22; (e) at 21; then their lanes
+// scrolling, two in view to 19 and one to 17; and none under it; and ten,
+// nine in view at 33, its lanes scrolling an account at a time. No lane is
 // ever out of view while the legend or COMING UP shows.
 func TestOnAPhoneRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	three := map[int]runwayFitted{
-		37: fittedWhole(runwayRoomy, 3), 36: fittedWhole(runwayRoomy, 3), 35: fittedWhole(runwayRoomy, 3), 34: fittedWhole(runwayRoomy, 3),
-		33: fittedWhole(runwayRoomy, 3), 32: fittedWhole(runwayRoomy, 3),
-		31: fittedWhole(runwayTwoRows, 3), 30: fittedWhole(runwayTwoRows, 3), 29: fittedWhole(runwayTwoRows, 3),
-		28: fittedWhole(runwayNoGaps, 3), 27: fittedWhole(runwayNoGaps, 3),
-		26: fittedWhole(runwayComingCut, 3),
-		25: fittedNoLegend(3), 24: fittedNoLegend(3), 23: fittedBare(runwayComingCut, 3), 22: fittedBare(runwayComingCut, 3), 21: fittedBare(runwayComingCut, 3),
-		20: fittedClosed(3),
-		19: fittedBare(runwayScrolled, 2), 18: fittedBare(runwayScrolled, 2), 17: fittedBare(runwayScrolled, 1), 16: fittedBare(runwayScrolled, 1),
-		15: {},
+		38: fittedWhole(runwayRoomy, 3), 37: fittedWhole(runwayRoomy, 3), 36: fittedWhole(runwayRoomy, 3), 35: fittedWhole(runwayRoomy, 3),
+		34: fittedWhole(runwayRoomy, 3), 33: fittedWhole(runwayRoomy, 3),
+		32: fittedWhole(runwayTwoRows, 3), 31: fittedWhole(runwayTwoRows, 3), 30: fittedWhole(runwayTwoRows, 3),
+		29: fittedWhole(runwayNoGaps, 3), 28: fittedWhole(runwayNoGaps, 3),
+		27: fittedWhole(runwayComingCut, 3),
+		26: fittedNoLegend(3), 25: fittedNoLegend(3), 24: fittedBare(runwayComingCut, 3), 23: fittedBare(runwayComingCut, 3), 22: fittedBare(runwayComingCut, 3),
+		21: fittedClosed(3),
+		20: fittedBare(runwayScrolled, 2), 19: fittedBare(runwayScrolled, 2), 18: fittedBare(runwayScrolled, 1), 17: fittedBare(runwayScrolled, 1),
+		16: {},
 	}
 	type fitting struct {
 		accounts, rows int
 		want           runwayFitted
 	}
-	tests := []fitting{{accounts: 10, rows: 32, want: fittedBare(runwayScrolled, 9)}}
-	for rows := 37; rows >= 15; rows-- {
+	tests := []fitting{{accounts: 10, rows: 33, want: fittedBare(runwayScrolled, 9)}}
+	for rows := 38; rows >= 16; rows-- {
 		tests = append(tests, fitting{accounts: 3, rows: rows, want: three[rows]})
 	}
 	taller := fittedWhole(runwayRoomy, 3)

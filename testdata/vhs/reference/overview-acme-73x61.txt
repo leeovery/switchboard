@@ -1,4 +1,5 @@
  SWITCHBOARD   Acme                                   Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ Acme 3
@@ -47,7 +48,6 @@ COMING UP  ───────────────────────
 ~Fri       Acme 3's week runs out at its pace                    in 1d 1h
 ~Sat       Acme 2's week runs out at its pace                   in 1d 15h
 Sun 02:00  Acme 2's week resets                                 in 2d 11h
-Sun 21:00  Acme 1's week resets                                  in 3d 6h
 
 LATELY  ─────────────────────────────────────────────────────────────── l
 

@@ -416,22 +416,22 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheWeek(t *testing.T) {
 	phone := live
 	phone.Timeline = views.LiveTimeline(routedAt, RunwayShown{}.Columns(52))
 	tests := []struct {
-		name       string
-		doc        status.Document
-		shown      RunwayShown
-		width, row int
-		want       string
+		name               string
+		doc                status.Document
+		shown              RunwayShown
+		width, height, row int
+		want               string
 	}{
-		{name: "live", doc: doc, shown: live, width: 160, row: 20, want: "  week 1.2 of 3 left"},
-		{name: "pinned to two", doc: pinned, shown: live, width: 160, row: 20, want: "  week 0.6 of 2 left · pinned"},
-		{name: "this week stepped back to", doc: doc, shown: today, width: 160, row: 20, want: "  week 1.2 of 3 left"},
-		{name: "a week gone stepped back to", doc: doc, shown: gone, width: 160, row: 20, want: ""},
-		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 22, want: "  week 1.2 of 3 left"},
-		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 22, want: "  week 0.6 of 2 left · pinned"},
+		{name: "live", doc: doc, shown: live, width: 160, height: 37, row: 20, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two", doc: pinned, shown: live, width: 160, height: 37, row: 20, want: "  week 0.6 of 2 left · pinned"},
+		{name: "this week stepped back to", doc: doc, shown: today, width: 160, height: 37, row: 20, want: "  week 1.2 of 3 left"},
+		{name: "a week gone stepped back to", doc: doc, shown: gone, width: 160, height: 37, row: 20, want: ""},
+		{name: "on a phone", doc: doc, shown: phone, width: 52, height: 38, row: 23, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, height: 38, row: 23, want: "  week 0.6 of 2 left · pinned"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
+			f := Frame{Width: tt.width, Height: tt.height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
 			c := runwayDrawn(f, tt.doc)
 			if got := rowOf(c, tt.row); got != tt.want {
 				t.Errorf("the pool's room's row reads %q, want %q", got, tt.want)

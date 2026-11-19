@@ -179,7 +179,7 @@ var knownBreaks = []known{
 	// rows' end, on the Overview and Detail.
 	{
 		byDesign: "LATELY's directories, as the Log cuts them", cuts: logDirCuts(), rule: cutWithRoom,
-		sizes: []string{"73x61", "173x53"}, fixtures: []string{"long-names-overview"},
+		sizes: []string{"73x61", "73x36", "173x53"}, fixtures: []string{"long-names-overview"},
 	},
 	{
 		byDesign: "Detail's LATELY's directories, as the Log cuts them", cuts: logDirCuts(), rule: cutWithRoom,
@@ -201,41 +201,22 @@ var knownBreaks = []known{
 	// row it brings: by account at 138x30, as the auto world's and the mixed
 	// one's, whose blocks are as tall, 2 rows, where ROUTING unfolded takes 6
 	// more, COMING UP and LATELY 5, and their short form, side by side under
-	// ROUTING's folded heading, 3; and of a model's own week some accounts
-	// have used, stacked under the 5-hour, its unused account left out, 2
-	// rows at 73x36, every other section folded, where COMING UP's short
-	// form, stacked over LATELY, takes 4 more, the blank rows before and
-	// after it among them, and LATELY's 3.
+	// ROUTING's folded heading, 3; and by account with a model's own week at
+	// 73x36, every other section folded, 2 rows, where ROUTING takes 6 more
+	// and COMING UP's short form, stacked over LATELY, 4.
 	{
 		byDesign: "2 rows under USAGE by account, short of every folded section's least and the short form side by side", rule: foldWithRowsSpare,
 		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160", "overview-mixed-by-account-160"},
 	},
 	{
-		byDesign: "2 rows under a used model's week stacked, short of every folded section's least and either short form", rule: foldWithRowsSpare,
-		sizes: []string{"73x36"},
-		fixtures: []string{
-			"overview-fable-160", "overview-fable-phone-52", "overview-fable-73x61", "overview-fable-108x44", "overview-fable-116x44",
-			"overview-model-nearing-160",
-		},
-	},
-	// What's left at the foot at 73x36, every other section folded, where
-	// USAGE takes the least far step that fits whole, as it keeps its key
-	// only where it shows: six accounts stacked, their blank rows and their
-	// headings' given way, 2 rows, where those take 3 more, LATELY 5, and
-	// COMING UP's short form 4 and LATELY's 3, as above.
-	{
-		byDesign: "the rows under USAGE whole, short of its step before, every folded section's least and either short form", rule: foldWithRowsSpare,
-		sizes: []string{"73x36"}, fixtures: []string{"overview-six-accounts-160"},
+		byDesign: "2 rows under USAGE by account with a model's week, short of every folded section's least and either short form", rule: foldWithRowsSpare,
+		sizes: []string{"73x36"}, fixtures: []string{"overview-fable-by-account-160"},
 	},
 	// Projects' list never hangs its form on the chosen project's data, so it
 	// keeps its rows whatever the project's sessions leave blank at the foot.
 	{
 		byDesign: "the project list at its third, or at 5 rows while the sections stay, whatever the chosen project's sessions leave at the foot",
-		rule:     foldWithRowsSpare, sizes: []string{"73x36"}, fixtures: []string{"long-names-projects", "long-names-project-sessions"},
-	},
-	{
-		byDesign: "the project list at its third, or at 5 rows while the sections stay, whatever the chosen project's sessions leave at the foot",
-		rule:     foldWithRowsSpare, sizes: []string{"73x61", "73x36", "138x30", "173x53", "109x53"}, fixtures: []string{"projects-many-114x40"},
+		rule:     foldWithRowsSpare, sizes: []string{"73x61", "138x30", "173x53", "109x53"}, fixtures: []string{"projects-many-114x40"},
 	},
 }
 
@@ -453,9 +434,14 @@ func (d fluidFrame) view() []string {
 	return d.rows[d.chrome+1 : d.size.Height-1]
 }
 
-// body are the view's rows under its heading.
+// body are the view's rows under its heading, none where the view has no
+// rows, as at the fewest the chrome leaves it.
 func (d fluidFrame) body() []string {
-	return d.view()[1:]
+	view := d.view()
+	if len(view) == 0 {
+		return nil
+	}
+	return view[1:]
 }
 
 // fluidBreak is a rule a view breaks, and what shows it does.

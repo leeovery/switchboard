@@ -13,8 +13,12 @@ import (
 )
 
 // titleGap is the blank cells the title row sets its parts apart by: after
-// the badge and, at the fewest, before the clock.
+// the badge, or the pool's, and, at the fewest, before the clock.
 const titleGap = 2
+
+// poolGap is the blank cell between the badge and the pool's, so the two
+// read as a pair.
+const poolGap = 1
 
 // pill is the dashboard's name, set on its own surface.
 var pill = line{{" SWITCHBOARD ", ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary}, bold: true}}}
@@ -48,19 +52,15 @@ func fixedPiece(words line, turn int) titlePiece {
 	return titlePiece{words: words, part: flex.Part{Least: words.width(), Natural: words.width(), Leaves: turn}}
 }
 
-// poolTabsAfter is the blank cells between the pool's name and the first
-// tab, so the tab's word stands as far from it as from the badge.
-const poolTabsAfter = titleGap + 1
-
 // title draws the title row, on the rows titleRows says it takes: the
 // dashboard's name, from the first column; the pool shown's, after it, as
 // poolName has it; the tabs, the one shown picked out; and ending at the
 // last column, the clock, at the frame's Clock where it's set, else at now.
 // Where the row is short, the clock's date and then its time give way. On a
-// phone, the tabs take rows of their own.
+// phone, the tabs take rows of their own, a blank row above them.
 func (f Frame) title(c *canvas, now time.Time) {
 	c.line(0, 0, pill)
-	c.line(pill.width()+titleGap, 0, f.poolName())
+	c.line(pill.width()+poolGap, 0, f.poolName())
 	end := f.tabs(c)
 	if !f.Clock.IsZero() {
 		now = f.Clock
@@ -117,67 +117,82 @@ type tabAt struct {
 	x, y int
 }
 
+// phoneTabsY is the row a phone's tabs start on: under the clock's, a
+// blank row between, so the tabs never crowd the badge.
+const phoneTabsY = 2
+
 // tabsAt are the tabs where they're drawn: from where tabsFrom has them, a
-// cell apart. On a phone, they take the rows under the clock's that tabRows
+// cell apart. On a phone, they take the rows from phoneTabsY that tabRows
 // splits them over instead, each from its first column, touching.
 func (f Frame) tabsAt() []tabAt {
 	if f.phone() {
-		return f.tabsAlong(0, 1, 0, tabRows(f.tabWidths(), f.Width))
+		return f.tabsAlong(0, phoneTabsY, 0, tabRows(f.tabWidths(), f.Width))
 	}
 	return f.tabsAlong(f.tabsFrom(), 0, 1, []int{len(Views())})
 }
 
 // tabsFrom is the column the tabs start at along the title row, off a
-// phone: titleGap cells after the badge, or poolTabsAfter after the pool's
-// name, where it names one.
+// phone: titleGap cells after the title row's lead, as leadEnd has it.
 func (f Frame) tabsFrom() int {
-	if f.poolNameCells() == 0 {
-		return pill.width() + titleGap
-	}
-	return f.leadEnd() + poolTabsAfter
+	return f.leadEnd() + titleGap
 }
 
-// poolName is the pool shown as the title row names it after the badge,
-// titleGap cells after it, as setup's name stands there: its label, once
-// there's a second pool, as the pool's Named has it, cut short to
-// poolNameRoom; nil where it's named nowhere.
+// poolPad is the cells of space either side of the pool's label, as the
+// badge has around its name.
+const poolPad = 1
+
+// poolName is the pool shown as the title row names it, poolGap cells after
+// the badge: its label, once there's a second pool, as the pool's Named has
+// it, cut short to poolNameRoom, a space either side, in bold canvas on its
+// pool's hue, as poolInk has it; nil where it's named nowhere.
 func (f Frame) poolName() line {
 	named := f.Pool.Named()
 	if named == "" {
 		return nil
 	}
-	return line{{prose.Clean(named), titleInk}}.fit(f.poolNameRoom())
+	in := poolInk(f.Pool.Turn)
+	label := line{{prose.Clean(named), in}}.fit(f.poolNameRoom())
+	return slices.Concat(line{{" ", in}}, label, line{{" ", in}})
 }
 
-// poolNameCells is the cells poolName takes, 0 where it names none, worked
-// out without drawing it, of a copy of the label: the tabs are placed by it
-// wherever a page is laid out, as a session's page's scroll is at every
-// key, and the label itself passed to prose.Clean, which keeps what it's
-// given, would have the frame's contents escape to the heap at each.
+// poolInk is the pool's label's ink: as the badge's, bold canvas on
+// accent.primary, but on accent.primary turned round the wheel by the
+// degrees given, as status.PoolTurn gives them of a pool, as light as the
+// badge's, so the label reads on it as the badge's name does.
+func poolInk(turn float64) ink {
+	return ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary, turn: turn}, bold: true}
+}
+
+// poolNameCells is the cells poolName takes, its spaces with it, 0 where it
+// names none, worked out without drawing it, of a copy of the label: the
+// tabs are placed by it wherever a page is laid out, as a session's page's
+// scroll is at every key, and the label itself passed to prose.Clean, which
+// keeps what it's given, would have the frame's contents escape to the heap
+// at each.
 func (f Frame) poolNameCells() int {
 	named := f.Pool.Named()
 	if named == "" {
 		return 0
 	}
-	return min(ansi.StringWidth(prose.Clean(strings.Clone(named))), f.poolNameRoom())
+	return min(ansi.StringWidth(prose.Clean(strings.Clone(named))), f.poolNameRoom()) + 2*poolPad
 }
 
-// poolNameRoom is the most cells the pool's name takes: what leaves room
-// for the tabs on the title row, or on a phone, whose tabs take rows of
-// their own, the row after the badge; a cell at the least.
+// poolNameRoom is the most cells the pool's label takes, its spaces aside:
+// what leaves room for the tabs on the title row, or on a phone, whose tabs
+// take rows of their own, the row after the badge; a cell at the least.
 func (f Frame) poolNameRoom() int {
-	room := f.Width - pill.width() - titleGap
+	room := f.Width - pill.width() - poolGap - 2*poolPad
 	if !f.phone() {
-		room -= poolTabsAfter + f.tabsWidth()
+		room -= titleGap + f.tabsWidth()
 	}
 	return max(room, 1)
 }
 
 // leadEnd is the column after the title row's lead: the badge, and the
-// pool's name, where it names one.
+// pool's, where it names one.
 func (f Frame) leadEnd() int {
 	if cells := f.poolNameCells(); cells > 0 {
-		return pill.width() + titleGap + cells
+		return pill.width() + poolGap + cells
 	}
 	return pill.width()
 }

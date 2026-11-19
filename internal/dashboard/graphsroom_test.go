@@ -25,7 +25,7 @@ func placedAt(l graphsLaid) []int {
 
 // The design's worked sizes, with WEEK shown, three accounts two cards a row
 // where two fit: at 160 by 37, the words have rows of their own and the
-// charts 8 rows; at 108 by 44, 12; on a phone of 73 by 61, a card a row, 11;
+// charts 8 rows; at 108 by 44, 12; on a phone of 73 by 62, a card a row, 11;
 // and with four accounts on that phone, 7.
 func TestGraphsLaysTheDesignsWorkedSizesOut(t *testing.T) {
 	tests := []struct {
@@ -40,8 +40,8 @@ func TestGraphsLaysTheDesignsWorkedSizesOut(t *testing.T) {
 	}{
 		{name: "160 by 37", width: 160, height: 37, accounts: []string{"work", "personal", "side"}, apart: true, chart: 8, at: []int{0}, poolLine: 28, rows: 29, room: 30},
 		{name: "108 by 44", width: 108, height: 44, accounts: []string{"work", "personal", "side"}, apart: true, chart: 12, at: []int{0}, poolLine: 36, rows: 37, room: 37},
-		{name: "a phone of 73 by 61", width: 73, height: 61, accounts: []string{"work", "personal", "side"}, apart: true, chart: 11, at: []int{0}, poolLine: 50, rows: 51, room: 53},
-		{name: "four accounts on that phone", width: 73, height: 61, accounts: []string{"work", "personal", "side", "team"}, apart: true, chart: 7, at: []int{0}, poolLine: 50, rows: 51, room: 53},
+		{name: "a phone of 73 by 62", width: 73, height: 62, accounts: []string{"work", "personal", "side"}, apart: true, chart: 11, at: []int{0}, poolLine: 50, rows: 51, room: 53},
+		{name: "four accounts on that phone", width: 73, height: 62, accounts: []string{"work", "personal", "side", "team"}, apart: true, chart: 7, at: []int{0}, poolLine: 50, rows: 51, room: 53},
 	}
 	for _, tt := range tests {
 		f := graphsFrame(tt.width, tt.height, GraphsSections{})

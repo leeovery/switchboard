@@ -317,7 +317,7 @@ func TestTrendsScrollsToEachSectionOverTheLegend(t *testing.T) {
 		{name: "scrolled to POOL", width: 173, height: 53, to: GraphsPool, top: "POOL ", state: "▲ 20 more above · ▼ 26 more below"},
 		{name: "scrolled to YEAR, past the page's foot", width: 173, height: 53, to: GraphsYear, top: "", state: "▲ 46 more above"},
 		{name: "scrolled to YEAR at 108", width: 108, height: 44, to: GraphsYear, top: "YEAR ", state: "▲ 59 more above · ▼ 14 more below"},
-		{name: "scrolled to BY MONTH on a phone, past the page's foot", width: 73, height: 61, to: GraphsMonths, top: "", state: "▲ 69 more above"},
+		{name: "scrolled to BY MONTH on a phone, past the page's foot", width: 73, height: 62, to: GraphsMonths, top: "", state: "▲ 69 more above"},
 	}
 	for _, tt := range tests {
 		f := trendsFrame(t, tt.width, tt.height, everyTrend...)

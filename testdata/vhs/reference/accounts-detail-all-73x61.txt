@@ -1,4 +1,5 @@
  SWITCHBOARD                                          Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
@@ -56,6 +57,5 @@ LATELY
 09:40      ▲ docs started on work, the best
 09:12      ▲ infra started on work, the best
 08:47      ◇ side primed: its 5-hour window started
-08:31      ▲ website started on side, the best
-▼ 9 more below · j/k
+▼ 10 more below · j/k
 tab views   [ ] view   ? keys   q quit

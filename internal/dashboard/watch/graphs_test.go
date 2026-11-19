@@ -200,18 +200,18 @@ func TestGraphsHelpListsItsTogglesThenTheSharedKeys(t *testing.T) {
 }
 
 // Where Graphs' sections don't fit, as WEEK's, POOL's and GLANCE's of two
-// accounts on a phone of 73 by 40, j and k scroll the page a row, PgDn and
+// accounts on a phone of 73 by 41, j and k scroll the page a row, PgDn and
 // PgUp a page, and a turn of the wheel over it three rows, no further than
 // shows its last row; the row over the key line says what's out of view.
 func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	h.model.view, h.model.cfg.Accounts = dashboard.Graphs, config.Accounts{{ID: "work"}, {ID: "personal"}}
 	h.model.graphs = dashboard.GraphsSectionsNamed([]string{"week", "pool", "glance"})
-	h.update(tea.WindowSizeMsg{Width: 73, Height: 40})
+	h.update(tea.WindowSizeMsg{Width: 73, Height: 41})
 	h.start()
 	s := h.model.scrolling()
 	if s.Most != 12 {
-		t.Fatalf("Graphs scrolls %+v at 73x40, want 12 rows", s)
+		t.Fatalf("Graphs scrolls %+v at 73x41, want 12 rows", s)
 	}
 	steps := []struct {
 		name   string
@@ -225,7 +225,7 @@ func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
 		{name: "j at the last row, nowhere", scroll: func() { h.keyed("j") }, want: 12},
 		{name: "PgUp, a page", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp}) }, want: 0},
 		{name: "a turn of the wheel down, three rows", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 20) }, want: 3},
-		{name: "a turn of the wheel over the legend, nowhere", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 37) }, want: 3},
+		{name: "a turn of the wheel over the legend, nowhere", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 38) }, want: 3},
 		{name: "a turn up", scroll: func() { h.wheel(tea.MouseWheelUp, 10, 20) }, want: 0},
 	}
 	for _, step := range steps {
@@ -235,8 +235,8 @@ func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
 		}
 	}
 	h.keyed("j")
-	if lines := strings.Split(h.view(), "\n"); strings.TrimSpace(lines[38]) != "▲ 1 more above · ▼ 12 more below" {
-		t.Errorf("scrolled a row, the row over the key line reads %q, want ▲ 1 more above · ▼ 12 more below", lines[38])
+	if lines := strings.Split(h.view(), "\n"); strings.TrimSpace(lines[39]) != "▲ 1 more above · ▼ 12 more below" {
+		t.Errorf("scrolled a row, the row over the key line reads %q, want ▲ 1 more above · ▼ 12 more below", lines[39])
 	}
 }
 

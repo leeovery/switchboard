@@ -1,4 +1,5 @@
  SWITCHBOARD                     Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects
  Sessions  Runway  Trends  Log
 
@@ -26,8 +27,7 @@ SESSIONS   Switchboard  List
   ended yesterday  ─────────────────────────────────
 ▸ switc… dashboard   side      ended 18:46       595
   switc… settings    personal  ended 16:45       201
-  infra  d29e        side      ended 16:27       410
 this week  27 sessions · 5,410 requests
 $635.00 at API prices
-  ▼ 10 more sessions
+  ▼ 11 more sessions
 ↑↓ session   [ ] view   < > period   ? keys   q quit

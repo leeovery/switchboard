@@ -597,7 +597,7 @@ func TestTheFindOnACrampedTerminalDrawsItsLine(t *testing.T) {
 }
 
 // / opens no find where its line has no row, under the status line, as on a
-// terminal 4 rows tall, or 5 on a phone: there it works not, and isn't
+// terminal 4 rows tall, or 6 on a phone: there it works not, and isn't
 // listed. A row taller, it opens.
 func TestSlashOpensNoFindWhereItsLineHasNoRow(t *testing.T) {
 	for _, tt := range []struct {
@@ -607,8 +607,8 @@ func TestSlashOpensNoFindWhereItsLineHasNoRow(t *testing.T) {
 	}{
 		{name: "wide, 4 rows", width: 150, height: 4},
 		{name: "wide, 5 rows", width: 150, height: 5, opens: true},
-		{name: "a phone, 6 rows", width: 52, height: 6},
-		{name: "a phone, 7 rows", width: 52, height: 7, opens: true},
+		{name: "a phone, 7 rows", width: 52, height: 7},
+		{name: "a phone, 8 rows", width: 52, height: 8, opens: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			state := t.TempDir()

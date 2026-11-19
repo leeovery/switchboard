@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // acme is pool Acme shown, fenced, with three accounts, beside Default.
@@ -39,6 +40,7 @@ func TestTheTitleRowNamesThePoolShownOnceThereIsASecond(t *testing.T) {
 		}},
 		{name: "on a phone, as overview-acme-73x61 draws it", width: 73, pool: acme, want: []string{
 			" SWITCHBOARD   Acme" + blanks(34) + "Mon 28 Sep  13:12:00",
+			"",
 			" Overview  Accounts  Projects  Sessions  Runway  Trends  Log",
 		}},
 		{name: "at the narrowest width off a phone, a long label cut to leave the tabs whole", width: 100, pool: status.ShownPool{ID: "q7mt", Label: "Acme Corporation Research", Accounts: 1, Pools: 2}, want: []string{
@@ -57,14 +59,25 @@ func TestTheTitleRowNamesThePoolShownOnceThereIsASecond(t *testing.T) {
 	}
 }
 
-// The pool's name is drawn as setup's is, bold text.primary, and a click on
-// a tab lands where the tab is drawn, moved along after it.
-func TestThePoolsNameIsSetupsInkAndTheTabsTargetsFollowIt(t *testing.T) {
-	f := Frame{Width: 160, Height: 5, View: Overview, Pool: acme}
+// The pool's label is drawn on its pool's hue, a space either side, as the
+// badge is on its own, and a click on a tab lands where the tab is drawn,
+// moved along after it.
+func TestThePoolsLabelIsOnItsHueAndTheTabsTargetsFollowIt(t *testing.T) {
+	pool := acme
+	pool.Turn = 120
+	f := Frame{Width: 160, Height: 5, View: Overview, Pool: pool}
 	c := newCanvas(f.Width, f.Height)
 	f.title(c, now)
-	if got := c.at(15, 0).ink; got != titleInk {
-		t.Errorf("the pool's name is in %+v, want %+v, as setup's", got, titleInk)
+	want := ink{token: theme.Canvas, on: hue{token: theme.AccentPrimary, turn: 120}, bold: true}
+	for _, x := range []int{14, 15, 18, 19} {
+		if got := c.at(x, 0).ink; got != want {
+			t.Errorf("column %d, of the pool's label or a space beside it, is in %+v, want %+v", x, got, want)
+		}
+	}
+	for _, x := range []int{13, 20} {
+		if got := c.at(x, 0).ink.on; got != (hue{}) {
+			t.Errorf("column %d, beside the pool's label, is on %+v, want the canvas", x, got)
+		}
 	}
 	row := c.rows(Look{})[0]
 	for _, target := range f.tabTargets() {
