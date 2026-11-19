@@ -180,6 +180,22 @@ func usageWindows(keys []string, name func(key string) string) []shownWindow {
 // use, with its cap's mark and even pace's, and faded where it's stale.
 func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
 	w, _ := a.Window(key)
+	return windowGauge(a, key, w, now)
+}
+
+// recordedGauge is account a's window with the given key as a record of
+// weeks reads it, as Accounts' Compare does: as accountGauge has it, but a
+// model's own window the account hasn't used, which a view listing windows
+// as they stand goes without, is a known 0%, filled to it.
+func recordedGauge(a status.AccountNow, key string, now time.Time) gauge {
+	w, _ := a.Window(key)
+	w.Unused = false
+	return windowGauge(a, key, w, now)
+}
+
+// windowGauge is account a's window with the given key, standing as w, at
+// now, as accountGauge has it.
+func windowGauge(a status.AccountNow, key string, w status.WindowNow, now time.Time) gauge {
 	bar := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
 	if drawsEmpty(w) {
 		bar = usageBar{empty: true}

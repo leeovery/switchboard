@@ -4245,6 +4245,8 @@ last token's line where it has any, with no blank line after it, as a shell's pr
     week and the 5-hour alone, so a model's own goes there as the rows run short. The status
     document keeps every window, used or not, as do the records Trends draws, the Log, Accounts'
     records (limits hit, past weeks) and every JSON; routing and scoring never read which show.
+    Accounts' Compare is such a record: its WEEK USED reads a model's week an account hasn't used
+    as the known 0% it is (`recordedGauge`), a dash only for one not read or not had.
   - One owner: the moment's `Listed` lists the windows a view lists, those every model shares that
     some account has or may have, then each model's own some account has used, or a limit holds as
     its own (`WindowNow.HeldAsOwn`, as the outlook's `holds` has it) or a cap reached in it holds,
