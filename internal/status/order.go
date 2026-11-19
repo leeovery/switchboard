@@ -92,33 +92,34 @@ func lackedByEvery(lacks iter.Seq[[]string], key string) bool {
 // at Now, as shows says, so it shows as the 5-hour does, only where some
 // account has it to show. In the order CompareWindows has.
 func (m Moment) Listed() []string {
-	return m.listed(AccountNow.shows)
+	return m.listed(WindowNow.shows)
 }
 
-// shows reports whether the account's model window w shows where windows
-// are listed as they stand: the account has used it, as used says, or what
-// holds it names it, as a limit may still once it has reset to 0%, or its
-// cap, reached in it. A limit naming no window holds every window alike, so
-// says nothing of any one's use, and brings none up alone.
-func (a AccountNow) shows(w WindowNow) bool {
-	return w.used() || w.Capped || w.Held && slices.Contains(a.Hold.Windows, w.Key)
+// shows reports whether a model's own window shows where windows are listed
+// as they stand: its account has used it, as used says, or a limit holds it
+// as its own, as HeldAsOwn says, as one may still once it has reset to 0%,
+// or its cap was reached in it. A limit naming no window holds every window
+// alike, so says nothing of any one's use, and brings none up alone.
+func (w WindowNow) shows() bool {
+	// A cap reached in it means it's used; Capped says so for intent.
+	return w.used() || w.HeldAsOwn || w.Capped
 }
 
 // Reported are the keys of every window Listed may list at the moment: as it
 // has them, but each model's own that any account reports, used or not, for
 // a layout to hold still as their use comes and goes.
 func (m Moment) Reported() []string {
-	return m.listed(func(AccountNow, WindowNow) bool { return true })
+	return m.listed(func(WindowNow) bool { return true })
 }
 
 // listed are the keys of the windows every model shares that some account
 // has or may have, as SharedWindows has them, then of each model's own where
 // models picks some account's, in the order CompareWindows has.
-func (m Moment) listed(models func(AccountNow, WindowNow) bool) []string {
+func (m Moment) listed(models func(WindowNow) bool) []string {
 	keys := m.SharedWindows()
 	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
-			if !w.Shared && models(a, w) {
+			if !w.Shared && models(w) {
 				keys = append(keys, w.Key)
 			}
 		}

@@ -138,9 +138,10 @@ doesn't have it. The Fable section also leaves out an account that hasn't used i
 | If | `usage` |
 |---|---|
 | No account has a window | Leaves the window out. |
-| No account has used the Fable week | Leaves the Fable week out. |
-| A limit holds an account's Fable week | Shows the Fable week, even at 0%. |
-| An account's last read failed | Keeps its Fable row as last read, if the Fable week shows. |
+| No account has used the Fable week, and no limit names it | Leaves the Fable week out. |
+| A limit names an account's Fable week | Shows the Fable week, even at 0%. |
+| The Fable week shows, and any limit holds an account | That account's Fable row reads `limit · back Sun`. |
+| The Fable week shows, and an account's last read failed | That account's Fable row shows as last read. |
 | An account isn't read yet | Keeps its rows, because it may have any window. |
 
 ### A token near the end of its year

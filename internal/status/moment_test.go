@@ -192,6 +192,8 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		if want.Held {
 			want.Back, want.Since = want.At, got.Since
 		}
+		hold, limited := a.Held(now, policy)
+		want.HeldAsOwn = limited && slices.Contains(hold.Windows, w.Key)
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
 		want.RunsOut, want.Out = want.Kind == status.WindowRunsOut, out

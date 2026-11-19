@@ -283,6 +283,10 @@ type WindowNow struct {
 	// a bar's projection fills to: all of it where it runs out at its limit;
 	// nil where nothing says, and while it's held or not started.
 	Projected *float64
+	// HeldAsOwn is set where a limit holds it as its own, as standing's
+	// holds says: one the router's limit names, or one read spent; not where
+	// a limit naming no window holds it, as it holds every window alike.
+	HeldAsOwn bool
 	// Unused is set where it's a model's own window, as Fable's week, that
 	// its account is known not to have used: read fresh with a usable
 	// token, neither stale nor held by a limit or its cap, as heldOrStale
@@ -740,6 +744,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
 	wn.RunsOutAhead = wn.Unheld == WindowRunsOut
+	wn.HeldAsOwn = s.stood.holds(key)
 	wn.Unused = !wn.Shared && !wn.heldOrStale() && !wn.used()
 	return wn
 }

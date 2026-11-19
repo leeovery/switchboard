@@ -1582,7 +1582,9 @@ func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 }
 
 // checkGaugeAgrees checks that the gauge g USAGE draws of account a's window
-// w, as it stands at now, says what w says.
+// w, as it stands at now, says what w says: its bar empty, nothing on it,
+// where the account has no usable token, nothing is read of the window, or
+// it goes without it.
 func checkGaugeAgrees(t *testing.T, a status.AccountNow, w status.WindowNow, g gauge, now time.Time) {
 	t.Helper()
 	full := g.words.full.plain()
@@ -1599,7 +1601,7 @@ func checkGaugeAgrees(t *testing.T, a status.AccountNow, w status.WindowNow, g g
 		t.Errorf("%s's %s runs out %t, want %t", a.ID, w.Key, g.runsOut, w.RunsOut)
 	}
 	want := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
-	if drawsEmpty(w) {
+	if w.Kind == status.WindowTokenless || w.Kind == status.WindowUnread || w.Without() {
 		want = usageBar{empty: true}
 	}
 	if got := g.bar; got.empty != want.empty || got.stale != want.stale || got.used != want.used || got.capAt != want.capAt || paceAt(got.pace) != paceAt(want.pace) {
