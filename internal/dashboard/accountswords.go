@@ -90,10 +90,10 @@ func boldAs(given, k ink) ink {
 // out"; of every account's, every move, "4 moves"; a dash where none moved.
 func movedParts(t views.AccountTotals, k ink) []part {
 	if t.All {
-		if t.MovedOn == 0 {
+		if t.Moves() == 0 {
 			return noneOf(noFigure.text, k)
 		}
-		return countedParts(t.MovedOn, "move", k)
+		return countedParts(t.Moves(), "move", k)
 	}
 	var moved []part
 	for _, way := range []struct {
@@ -116,15 +116,12 @@ func movedParts(t views.AccountTotals, k ink) []part {
 
 // movedForms say the sessions moved onto an account and off it over the
 // period in its forms: as movedParts says them, "2 in · 1 out", or of every
-// account's "4 moves"; then how many moves, "3", the in and out summed, or
-// every account's moves, in the ink given, as limitsCount says the limits.
-// Where none moved, its one form.
+// account's "4 moves"; then how many moves, "3", as views.AccountTotals.Moves
+// counts them, in the ink given, as limitsCount says the limits. Where none
+// moved, its one form.
 func movedForms(t views.AccountTotals, k ink) partForms {
 	full := movedParts(t, k)
-	moves := t.MovedOn
-	if !t.All {
-		moves += t.MovedOff
-	}
+	moves := t.Moves()
 	if moves == 0 {
 		return partForms{full}
 	}

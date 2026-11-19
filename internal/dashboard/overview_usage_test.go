@@ -864,8 +864,10 @@ func TestAcrossAResetBetweenReadsUSAGEAndROUTINGCountTheSamePool(t *testing.T) {
 			t.Errorf("at %s, USAGE reads\n%s\nwant its Σ row to count the pool's 2 accounts", at.Format(time.Kitchen), strings.Join(body, "\n"))
 		}
 		var routing []string
-		for _, r := range f.routingTableOf(doc, at).pool {
-			routing = append(routing, r.id)
+		for _, a := range f.Moment(doc, at).Accounts {
+			if a.InPool {
+				routing = append(routing, a.ID)
+			}
 		}
 		if !slices.Equal(routing, want) {
 			t.Errorf("at %s, ROUTING's pool block counts %q, want %q", at.Format(time.Kitchen), routing, want)

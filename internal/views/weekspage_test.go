@@ -76,22 +76,25 @@ func TestWeeksPageIsTheEightWeeksToThisOneEachAccountsPeakInEach(t *testing.T) {
 	}
 }
 
+// peaksAtCap are a row's peaks marked at their cap, of the weeks its peak is
+// known in.
+func peaksAtCap(row views.WeeksRow) []bool {
+	var at []bool
+	for _, p := range row.Peaks {
+		if p.Share != nil {
+			at = append(at, p.AtCap)
+		}
+	}
+	return at
+}
+
 // A week's peak is marked at its cap where it hit its limit as Weeks counts
 // one: work keeps 5% back, so its cap is 95%; side keeps none, so its 99.6%,
-// said 100%, is short of its limit. Every account's is at its cap where each
-// known one's is.
+// said 100%, is short of its limit. Every account's first week is at its cap
+// through work's alone.
 func TestWeeksPageMarksEachPeakAtItsAccountsCap(t *testing.T) {
 	days := peaking(map[string][]float64{"work": {0.96, 0.94, 1}, "side": {0.996, 1, 1}})
 	page := weeksPageOf(days, config.Accounts{{ID: "work", Reserve: 0.05}, {ID: "side"}})
-	atCaps := func(row views.WeeksRow) []bool {
-		var at []bool
-		for _, p := range row.Peaks {
-			if p.Share != nil {
-				at = append(at, p.AtCap)
-			}
-		}
-		return at
-	}
 	tests := []struct {
 		name string
 		row  views.WeeksRow
@@ -99,15 +102,32 @@ func TestWeeksPageMarksEachPeakAtItsAccountsCap(t *testing.T) {
 	}{
 		{name: "work", row: page.Accounts[0], want: []bool{true, false, true}},
 		{name: "side", row: page.Accounts[1], want: []bool{false, true, true}},
-		{name: "all accounts", row: page.All, want: []bool{false, false, true}},
+		{name: "all accounts", row: page.All, want: []bool{true, true, true}},
 	}
 	for _, tt := range tests {
-		if got := atCaps(tt.row); !slices.Equal(got, tt.want) {
+		if got := peaksAtCap(tt.row); !slices.Equal(got, tt.want) {
 			t.Errorf("%s's peaks at its cap are %v, want %v", tt.name, got, tt.want)
 		}
 	}
 	if work := page.Accounts[0]; work.Limits != 2 {
 		t.Errorf("work hit its limit in %d weeks, want the 2 its peaks are marked at its cap in", work.Limits)
+	}
+}
+
+// Every account's week is marked at its cap where any account's peak is, a
+// week short as Capacity counts one: an account whose peak isn't known
+// marks nothing.
+func TestWeeksPageMarksEveryAccountsWeekAtItsCapWhereAnyAccountsIs(t *testing.T) {
+	days := peaking(map[string][]float64{
+		"work":  {0.5, 1, 0.5, 1},
+		"side":  {0.5, 0.5, 0.5, 1},
+		"spare": {0.5, 0.5, 1},
+	})
+	page := weeksPageOf(days, config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "spare"}})
+	// Spare's peak isn't known in the first week; then one of three is at
+	// its cap, then none, then every one.
+	if got, want := peaksAtCap(page.All), []bool{false, true, false, true}; !slices.Equal(got, want) {
+		t.Errorf("every account's peaks at their cap are %v, want %v: of spare unknown, one of three, none, every one", got, want)
 	}
 }
 

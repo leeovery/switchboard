@@ -4784,7 +4784,8 @@ remembered").
   account's, and beside them its accounts' states counted, `2 open · 1 at cap`, each count in its
   state's colour (`open` in `text.secondary`, `pressure` and `at cap` in `accent.attention`, `limit`
   and `refused` in `state.destructive`) with ` · ` in `text.faint`; its accounts' sessions summed,
-  `6 sessions`; and their requests a minute summed, as a trace and a rate, `16/min`.
+  `6 sessions`, as `views.PoolSessions` sums them; and their requests a minute summed, as a trace
+  and a rate, `16/min`, both of the pool's trace, `views.Traces.Pool`, their requests together.
 - **The key line** follows the last block, from the name column.
 - **Under 150 columns,** USAGE draws as `usage --by account` does at that width, but its names
   from the page's column (see The page), and ROUTING stays a section of its own under it
@@ -5059,8 +5060,11 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   once, by `views`' `weeksOver`, never again for Compare.
   - **Its reach:** the weeks that begin in the period, this one last, never fewer than eight:
     eight at today, this week and 30 days, and 12 at 12 weeks. At 12 months, a column a month, the
-    13 months the period touches, each its fullest week of those beginning in it; a month no week
-    has begun in yet, as on the 1st, is empty, so the months stand over WORTH's.
+    13 months the period touches, each as full as its fullest week of those beginning in it; a
+    month no week has begun in yet, as on the 1st, is empty, so the months stand over WORTH's. A
+    month is at its cap where any of its weeks is. Its `…` is its fullest week's, but where
+    another of its weeks is at its cap, the month isn't open, so it's drawn marked, though this
+    week so far is fuller.
   - **Its columns,** 5 rows tall at a full week, drawn up the ramp in
     `viz.ramp`, this week's dimmer, its top cell in eighths. They're laid across the column less a
     cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
@@ -5118,16 +5122,16 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
     words give way, never a figure. The shortest are turned Compare's words, one owner of each.
     `sessions moved` says how many moves, the in and out summed, `21`, and for `all accounts` its
-    moves, `5`, in the column's ink, as `all accounts` says its count of limits, wide or turned,
-    where the full doesn't fit a cell short of the next column. `limits hit` names its windows short,
-    `week ×1 · 5h ×2`, then says how many, `3`, in the column's ink, as `all accounts` says its
-    count; turned Compare's `hit` takes the same forms but the full, the fullest its column holds,
-    so three windows read `4` there. `left at its last reset` drops the day, `0%`; `plan` drops the
-    plan's name, `$200/mo`, and for `all accounts` its plans, to `$400/mo · 2/3` where some aren't
-    known, then `$400/mo`; `extra usage` drops what it means, `on`, and for `all accounts`
-    `on all`, `off`; `against its price` drops its price, `4.0×`, and for `all accounts` where
-    some plans aren't known, every form keeps how many are, its words shorter, then `4.4× · 2/3`,
-    as its ratio is of those alone. The rest have one form.
+    moves, `5`, as `views.AccountTotals.Moves` counts them, in the column's ink, as `all accounts`
+    says its count of limits, wide or turned, where the full doesn't fit a cell short of the next
+    column. `limits hit` names its windows short, `week ×1 · 5h ×2`, then says how many, `3`, in the
+    column's ink, as `all accounts` says its count; turned Compare's `hit` takes the same forms but
+    the full, the fullest its column holds, so three windows read `4` there. `left at its last
+    reset` drops the day, `0%`; `plan` drops the plan's name, `$200/mo`, and for `all accounts` its
+    plans, to `$400/mo · 2/3` where some aren't known, then `$400/mo`; `extra usage` drops what it
+    means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
+    `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are, its
+    words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
@@ -5296,6 +5300,13 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   follows the layout alone.
 - **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
   and as its table in the stack, or in the wide form where not a week of bands fits across.
+  `all accounts`' peak of a week is at its cap where any account's peak is. So its marks agree
+  with its `short on 3 of 14`, the weeks the capacity verdict counts short, in all but two kinds of
+  week. This week is never drawn marked. A past week that isn't whole is marked but never counted.
+  A whole week is marked where one account reached its cap while another's peak isn't known. The
+  verdict can't judge that week. The owner chose this rule on 18 November 2026. The old rule
+  marked a week where every account's peak was at its cap, and left the marks and the count
+  disagreeing. `views.WeekPeak.AtCap` holds it.
   - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
     account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
     WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest
@@ -12934,4 +12945,3 @@ was dropped binds a later choice, the design proper says so.
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
-| Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |

@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // TraceSpan is how far back a trace goes: the last 30 minutes.
@@ -223,6 +224,20 @@ func (t Trace) Cells(n int, now time.Time) []float64 {
 // Rate is the trace's requests of the last minute to now.
 func (t Trace) Rate(now time.Time) int {
 	return t.perMinute(now)
+}
+
+// Pool is the trace of the pool's accounts of the moment m: their requests
+// together, in the order they were sent, so its cells and its rate are
+// theirs added up.
+func (t Traces) Pool(m status.Moment) Trace {
+	var sent []time.Time
+	for _, a := range m.Accounts {
+		if a.InPool {
+			sent = append(sent, t.Accounts[a.ID].Sent...)
+		}
+	}
+	slices.SortFunc(sent, time.Time.Compare)
+	return Trace{Sent: sent}
 }
 
 // perMinute is how many of the trace's requests were sent in the minute to

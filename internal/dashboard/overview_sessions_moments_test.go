@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -88,15 +89,13 @@ func checkROUTINGCountsSESSIONS(t *testing.T, f Frame, doc status.Document, now 
 // At each moment the views have to tell what a session is doing at, a move
 // while it runs among them, the routing card counts as many sessions running
 // on each account as ROUTING draws there: one count, of the router's listing
-// as the request stream has moved and seen it since.
+// as the request stream has moved and seen it since, or with none listed, the
+// document's.
 func TestTheRoutingCardCountsTheSessionsROUTINGDrawsAtEachHardMoment(t *testing.T) {
 	moved := false
 	for _, hm := range viewstest.SessionMoments() {
 		moved = moved || len(hm.Stream.Moves) > 0
 		t.Run(hm.Name, func(t *testing.T) {
-			if hm.Sessions == nil {
-				t.Skip("no router lists the sessions: ROUTING counts the document's")
-			}
 			f := frameOf(160, 40)
 			f.Sessions, f.Stream = hm.Sessions, hm.Stream
 			drawn := f.Numbers(hm.Doc, hm.Now)
@@ -110,5 +109,31 @@ func TestTheRoutingCardCountsTheSessionsROUTINGDrawsAtEachHardMoment(t *testing.
 	}
 	if !moved {
 		t.Fatal("no moment moves a session as it runs, want one, for the card to count it where it went")
+	}
+}
+
+// Where the dashboard holds no listing, the routing card counts each
+// account's sessions as the document does, as ROUTING draws them; where it
+// holds a listing of none, none.
+func TestTheRoutingCardCountsTheDocumentsSessionsWhereNoneAreListed(t *testing.T) {
+	hm := viewstest.SessionMoments()[0]
+	doc := hm.Doc
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i := range doc.Accounts {
+		doc.Accounts[i].Sessions = i + 2
+	}
+	f := frameOf(160, 40)
+	drawn := f.Numbers(doc, hm.Now)
+	m := f.Moment(doc, hm.Now)
+	for i, row := range RoutingRows(m, nil, hm.Stream)[1:] {
+		counted := drawn[Number{Kind: NumberSessions, Account: row.Account}]
+		if want := sessionsSpan(i + 2).text; row.Running != i+2 || counted != want {
+			t.Errorf("%s: the card counts %d sessions and ROUTING draws %q, want the document's %d", row.Account, row.Running, counted, i+2)
+		}
+	}
+	for _, row := range RoutingRows(m, []status.Session{}, hm.Stream)[1:] {
+		if row.Running != 0 {
+			t.Errorf("%s: the card counts %d sessions of a listing of none, want 0", row.Account, row.Running)
+		}
 	}
 }

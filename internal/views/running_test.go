@@ -525,3 +525,38 @@ func TestTheStreamsMovesPutTheSessionsWhereTheyWent(t *testing.T) {
 		t.Error("the router's listing was changed")
 	}
 }
+
+// pooledMoment is a moment of work and side in the pool, the router having
+// sent them 2 and 3 sessions in the last hour, and spare left out of it,
+// having been sent 4.
+var pooledMoment = status.Moment{Accounts: []status.AccountNow{
+	{ID: "work", InPool: true, Sessions: 2},
+	{ID: "side", InPool: true, Sessions: 3},
+	{ID: "spare", OutOfPool: true, Sessions: 4},
+}}
+
+// An account's sessions are those running on it where the router listed
+// any, else those the moment says it sent it; the pool's are its accounts'
+// together, those out of it left out.
+func TestThePoolsSessionsAreItsAccountsCountedAsEachIs(t *testing.T) {
+	tests := []struct {
+		name    string
+		running map[string]int
+		work    int
+		pool    int
+	}{
+		{name: "no listing held", work: 2, pool: 5},
+		{name: "the router listed some", running: map[string]int{"work": 1, "spare": 6}, work: 1, pool: 1},
+		{name: "the router listed none", running: map[string]int{}, work: 0, pool: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := views.SessionsOn(pooledMoment.Accounts[0], tt.running); got != tt.work {
+				t.Errorf("work's sessions are %d, want %d", got, tt.work)
+			}
+			if got := views.PoolSessions(pooledMoment, tt.running); got != tt.pool {
+				t.Errorf("the pool's sessions are %d, want %d", got, tt.pool)
+			}
+		})
+	}
+}

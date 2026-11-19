@@ -75,6 +75,16 @@ func (t AccountTotals) AtCapOrLimit() (int, bool) {
 	return *t.MinutesAtCap + *t.MinutesAtLimit, true
 }
 
+// Moves is how many sessions were moved over the period: of an account,
+// those moved onto it and off it, together; of every account's, every move,
+// each counted once, as onto the account it went to.
+func (t AccountTotals) Moves() int {
+	if t.All {
+		return t.MovedOn
+	}
+	return t.MovedOn + t.MovedOff
+}
+
 // limitCount is how many limits were reached, by window, as AccountTotals'
 // Limits holds them, every window's together.
 func limitCount(limits map[string]int) int {
