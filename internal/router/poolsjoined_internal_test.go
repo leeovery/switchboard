@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"encoding/json"
 	"maps"
 	"path/filepath"
@@ -421,7 +422,16 @@ func TestARestartTakesUpTheRatesARouterRunningOnWouldHave(t *testing.T) {
 			steps: []liveStep{{50 * time.Minute, movesTo("side", acmePool)}, {50 * time.Minute, reads("side", 0.45)}},
 			end:   70 * time.Minute,
 		},
+		{
+			name:  "two accounts' moves, the earlier one's account read between them",
+			steps: []liveStep{{30 * time.Minute, movesTo("side", acmePool)}, {50 * time.Minute, movesTo("extra", defaultPool)}},
+			end:   55 * time.Minute,
+		},
 	}
+	// Each case starts again this many times: the record's accounts are
+	// walked in map order, so a start that took up their moves out of order
+	// could pass by chance.
+	const restarts = 20
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "state.json")
@@ -433,6 +443,7 @@ func TestARestartTakesUpTheRatesARouterRunningOnWouldHave(t *testing.T) {
 			steps := append([]liveStep{
 				{0, reads("work", 0.5)}, {0, reads("personal", 0.5)}, {0, reads("side", 0.4)}, {40 * time.Minute, reads("side", 0.44)},
 			}, tt.steps...)
+			slices.SortStableFunc(steps, func(a, b liveStep) int { return cmp.Compare(a.after, b.after) })
 			for _, step := range steps {
 				clock.now = start.Add(step.after)
 				step.do(live)
@@ -443,13 +454,18 @@ func TestARestartTakesUpTheRatesARouterRunningOnWouldHave(t *testing.T) {
 				tt.down(live)
 			}
 
-			restarted := seededOn(t, clock.now, followed(live), testPools, path, heard...)
-			if got, want := fastRates(restarted, clock.now), fastRates(live, clock.now); !sameFastRates(got, want) {
-				t.Errorf("after the restart, the fast rates are %v, want %v, as the router running on has them", got, want)
-			}
-			for _, pool := range []string{defaultPool, acmePool} {
-				if got, want := demandIn(restarted, pool), demandIn(live, pool); !sameDemand(got, want) {
-					t.Errorf("after the restart, pool %s's demand is %+v, want %+v, as the router running on has it", pool, got, want)
+			for range restarts {
+				restarted := seededOn(t, clock.now, followed(live), testPools, path, heard...)
+				if got, want := fastRates(restarted, clock.now), fastRates(live, clock.now); !sameFastRates(got, want) {
+					t.Errorf("after the restart, the fast rates are %v, want %v, as the router running on has them", got, want)
+				}
+				for _, pool := range []string{defaultPool, acmePool} {
+					if got, want := demandIn(restarted, pool), demandIn(live, pool); !sameDemand(got, want) {
+						t.Errorf("after the restart, pool %s's demand is %+v, want %+v, as the router running on has it", pool, got, want)
+					}
+				}
+				if t.Failed() {
+					return
 				}
 			}
 		})

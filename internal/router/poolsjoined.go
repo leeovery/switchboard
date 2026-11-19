@@ -9,10 +9,9 @@ import (
 )
 
 // joinedKept is how many of the pools an account joined its record keeps,
-// the latest: enough for every move the days of the readings history seed
-// takes up can hold. It's a count, not a time, as those days are the two
-// newest with a file, which a quiet day or a router stopped for days can
-// leave of any age.
+// the latest, which hold its last three moves. It's a count, not a time, as
+// the days of the readings history seed takes up are the two newest with a
+// file, which a quiet day or a router stopped for days can leave of any age.
 const joinedKept = 4
 
 // poolJoined is a pool an account joined, by the pool's id, "" being the one
