@@ -4909,7 +4909,7 @@ remembered").
 | USAGE | The compact matrix; short of it, its steps as it gives way: its accounts a row apart, `a + 8` in the matrix; its headings' blank rows gone, `a + 6`; its key gone, `a + 4` | The big bars, by window wherever its windows sit side by side, or there's one; by account, its least | Compact: `2a + 7` for `a` accounts and the pool, 7 for one account |
 | ROUTING | A row an account | Two rows of trace an account, a blank row between | `a + 3`; `3a + 2` |
 | SESSIONS | A session and `+N more`; every one where that's no fewer | A row a session, two where ROUTING takes two an account | Its sessions and 2, from one session and a row, a session at a time |
-| COMING UP and LATELY | 3 lines | 12 | Its lines and 2 |
+| COMING UP and LATELY | 3 lines; short of it, its short form, folded's one step up: its heading and its first 2 lines, with no blank row between | 12 | Its lines and 2; short, 3 |
 
 Rows 0 to 3 (0 to 4 on a phone) hold the title row and the status line, and the last two the blank
 row and the key line. The planner works in units, the sections that share rows: a section alone,
@@ -4934,6 +4934,25 @@ below, not flex's even share:
    them; on a phone, LATELY or COMING UP opens where it stays folded with them. Where every
    section open stays open with them, they stay. A section left folded never fits at its least
    with every other at its own, USAGE's accounts a row apart.
+   **COMING UP and LATELY take back their short form where their least doesn't fit** (the owner's
+   call, 19 November 2026): their heading and their first 2 lines, in 3 rows, where the rows a
+   fold leaves hold them. Folded, they'd leave those rows blank over the key line, where the next
+   two things could show: as at 108 × 44 and 116 × 44 with a model's own week in USAGE, where
+   both folded over 2 blank rows, each short of the 4 more its least takes. The short form is a
+   rung between folded and the least, taken in this step alone, where folded would be: so it
+   shows nowhere the least fits, never stands in for a least to let another section open, and
+   where even its 3 rows aren't there, the section folds as ever. Like the least, it outranks
+   USAGE's blank rows between its accounts, which give way for it as for a section that would
+   fold. Side by side, LATELY takes its short form beside COMING UP's, in the same 3 rows: the two
+   are one unit, folding and opening together, and a live view's form never hangs on its data,
+   so LATELY's 2 lines fill as they come, as at its least, or say why it has none. Stacked,
+   COMING UP takes the fullest of its least, its short form or folded that fits first, then
+   LATELY of what's left, as the least does: so COMING UP's short form comes first, and LATELY
+   opens only in rows left, or alone where COMING UP's would bring a blank row back. Its lines are
+   its least's first 2, worded and laid out as the full list's; its heading keeps its key and,
+   where it holds more than those 2, the folded heading's `…`, in `text.subtle`, three cells after
+   its name. A section in its short form never fits at its least, nor one folded in its short
+   form, with every other at its own.
 4. **Every other section folded,** where USAGE still doesn't fit, it takes, in the rows left to
    it, the step that shows the most accounts, scrolled to its top: as it is; its accounts a row
    apart; then the blank rows under its heading and its windows' headings gone too; then its key
@@ -4953,10 +4972,10 @@ below, not flex's even share:
 5. **Rows to spare go out even while a section is folded,** to the units that aren't. Each session
    more SESSIONS shows, its row or two, USAGE's big bars and ROUTING's two rows of trace are forms,
    with first claim in that order, each taken whole where it fits; COMING UP and LATELY take what
-   the forms leave, a line at a time to 12. A folded unit never grows: what can't unfold leaves
-   rows the others use.
-   **Each form switches once down the height:** within one arrangement, the same sections folded
-   and USAGE's blank rows between its accounts back, a form is taken at the first height where it
+   the forms leave, a line at a time to 12. A folded unit never grows, nor COMING UP and LATELY
+   in their short form: what can't unfold leaves rows the others use.
+   **Each form switches once down the height:** within one arrangement, the same sections folded,
+   the same in their short form, and USAGE's blank rows between its accounts back, a form is taken at the first height where it
    fits beside the forms already on, and every taller height keeps it: a row more never turns a
    form off. So COMING UP and LATELY give up lines only at a height where a form comes in and takes
    its rows, once a form; and at 160 columns, three accounts and the sections shown at first,
@@ -4987,6 +5006,9 @@ ones:
 - `COMING UP   16:30  personal's 5-hour resets  …` and `LATELY   14:41  ▲ api started on side  …`,
   side by side, each its first row as drawn, then `  …` in `text.subtle`;
 - `ROUTING   auto   no room at 33 rows`.
+
+COMING UP and LATELY in their short form head their 2 lines `COMING UP   … ──── c`, the `…`
+only where they hold more than those 2.
 
 **Everything hidden,** row 4 says how to bring it back: `every section is hidden:` in `text.faint`,
 then the toggles as the key line words them (settled in the plan).

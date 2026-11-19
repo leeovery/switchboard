@@ -200,6 +200,9 @@ which sections show. It decides only how much room each one gets:
   two. They close up only if that keeps a section open.
 - **Sections fold in this order:** SESSIONS, then COMING UP and LATELY, then ROUTING.
 - **A folded section opens again** wherever it fits, the last folded first.
+- **COMING UP and LATELY open short** if their heading and two lines fit, but not three lines.
+  Opened short, a section shows its first two lines straight under its heading. Side by side, both
+  open short together.
 - **Spare rows** grow the open sections, up to their full size. SESSIONS takes them first, a whole
   session at a time.
 

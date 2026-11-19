@@ -183,11 +183,12 @@ func planOf(f Frame, sections []section, top, rows int) []planned {
 
 // sized is a section of the kind given that takes least rows to most, its
 // body drawing nothing: one that lists lines, holding a line each row of its
-// most but its heading's.
+// most but its heading's, with its short form.
 func sized(s Section, least, most int) section {
 	sized := section{Section: s, least: least, most: most, readIn: readIn(s), draw: func(*canvas, bounds) {}}
 	if s.lists() {
 		sized.lines = func() int { return most - sectionHead }
+		return listsShort(sized)
 	}
 	return sized
 }
@@ -245,8 +246,8 @@ var (
 // blank row between each two accounts in each window, its headings' blank
 // rows, and its key; ROUTING a + 3 to 3a + 2, and on a phone 3a + 1; SESSIONS from a session and how many
 // more to a row a session, two on a phone, as sessionsRows has it; and
-// COMING UP and LATELY a row a line, from 3 to 12; each with its heading's
-// two rows.
+// COMING UP and LATELY a row a line, from 3 to 12, or two in their short
+// form; each with its heading's two rows, or one in their short form.
 func (w planWorld) sections(width int, by By, shown Sections) []section {
 	a, k := w.accounts, w.windows
 	usage := sized(SectionUsage, 2*a+7, 2+k*(2*a+5))
@@ -265,7 +266,7 @@ func (w planWorld) sections(width int, by By, shown Sections) []section {
 		sessions = sessionsSized(w.running, 2)
 	}
 	lines := func(s Section, n int) section {
-		return section{Section: s, least: 2 + 3, lines: func() int { return n }, readIn: readIn(s), draw: func(*canvas, bounds) {}}
+		return listsShort(section{Section: s, least: 2 + 3, lines: func() int { return n }, readIn: readIn(s), draw: func(*canvas, bounds) {}})
 	}
 	all := []section{usage, routing, sessions, lines(SectionComing, w.coming), lines(SectionLately, w.lately)}
 	return slices.DeleteFunc(all, func(s section) bool { return !shown.Has(s.Section) })
@@ -373,6 +374,18 @@ func folds(laid []planned) []Section {
 	return folded
 }
 
+// shortened are the sections of those laid out in their short form: COMING
+// UP and LATELY open, their lines straight under their heading.
+func shortened(laid []planned) []Section {
+	var short []Section
+	for _, p := range laid {
+		if p.lists() && !p.fold && p.body.y == p.head.y+1 {
+			short = append(short, p.Section)
+		}
+	}
+	return short
+}
+
 // rowsGiven are the rows each section of those laid out takes, its
 // heading's among them, by its kind: its heading's alone where it folds.
 func rowsGiven(laid []planned) map[Section]int {
@@ -394,21 +407,28 @@ func shortOfRows() []section {
 }
 
 func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAGEScrollsLast(t *testing.T) {
+	lists := []Section{SectionComing, SectionLately}
 	tests := []struct {
-		rows  int
-		folds []Section
-		usage int
+		rows         int
+		folds, short []Section
+		usage        int
 	}{
 		{rows: 35, usage: 13},
 		{rows: 34, folds: []Section{SectionSessions}, usage: 13},
 		{rows: 28, folds: []Section{SectionSessions}, usage: 13},
-		// SESSIONS, then COMING UP and LATELY fold; neither fits again.
-		{rows: 27, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
+		// SESSIONS, then COMING UP and LATELY fold; they take back their
+		// short form where their least doesn't fit, then neither fits again.
+		{rows: 27, folds: []Section{SectionSessions}, short: lists, usage: 13},
+		{rows: 26, folds: []Section{SectionSessions}, short: lists, usage: 13},
+		{rows: 25, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
 		{rows: 23, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
 		// ROUTING folds too; it doesn't fit again, but COMING UP and LATELY,
-		// folded before it, do, where SESSIONS doesn't.
+		// folded before it, do, where SESSIONS doesn't: at their least, then
+		// in their short form.
 		{rows: 22, folds: []Section{SectionRouting, SectionSessions}, usage: 13},
-		{rows: 21, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 13},
+		{rows: 21, folds: []Section{SectionRouting, SectionSessions}, short: lists, usage: 13},
+		{rows: 20, folds: []Section{SectionRouting, SectionSessions}, short: lists, usage: 13},
+		{rows: 19, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 13},
 		{rows: 17, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 13},
 		{rows: 16, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: 12},
 		{rows: 6, folds: []Section{SectionRouting, SectionSessions, SectionComing, SectionLately}, usage: sectionHead},
@@ -417,6 +437,9 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 		laid := planOf(frameOf(160, 50), shortOfRows(), 0, tt.rows)
 		if got := folds(laid); !slices.Equal(got, tt.folds) {
 			t.Errorf("in %d rows, %v fold, want %v", tt.rows, got, tt.folds)
+		}
+		if got := shortened(laid); !slices.Equal(got, tt.short) {
+			t.Errorf("in %d rows, %v take their short form, want %v", tt.rows, got, tt.short)
 		}
 		if got := rowsGiven(laid)[SectionUsage]; got != tt.usage {
 			t.Errorf("in %d rows, USAGE takes %d, want %d", tt.rows, got, tt.usage)
@@ -472,13 +495,18 @@ func TestRowsToSpareGrowTheSectionsNotFoldedWhileOthersAreAndNeverOneFolded(t *t
 			want: map[Section]int{SectionUsage: 13, SectionRouting: 11, SectionSessions: 1, SectionComing: 6, SectionLately: 6},
 		},
 		{
+			name: "SESSIONS folded, COMING UP and LATELY in their short form, which never grows, nor ROUTING, short of its two rows of trace",
+			rows: 27, last: 26,
+			want: map[Section]int{SectionUsage: 13, SectionRouting: 6, SectionSessions: 1, SectionComing: 3, SectionLately: 3},
+		},
+		{
 			name: "SESSIONS, COMING UP and LATELY folded, none of them growing, nor ROUTING, short of its two rows of trace",
-			rows: 27, last: 23,
+			rows: 25, last: 23,
 			want: map[Section]int{SectionUsage: 13, SectionRouting: 6, SectionSessions: 1, SectionComing: 1, SectionLately: 1},
 		},
 		{
 			name: "every section but USAGE folded, which grows to no step that fits",
-			rows: 21, last: 17,
+			rows: 19, last: 17,
 			want: map[Section]int{SectionUsage: 13, SectionRouting: 1, SectionSessions: 1, SectionComing: 1, SectionLately: 1},
 		},
 	}
@@ -596,9 +624,15 @@ func TestOnAPhoneCOMINGUPAndLATELYEachGrowALineAtATimeInTurnAndCOMINGUPUnfoldsAl
 		{rows: 11, coming: 5, lately: 5},
 		{rows: 14, coming: 7, lately: 6},
 		{rows: 30, coming: 9, lately: 14},
-		{rows: 10, coming: 8, lately: 1, latelyFold: true},
+		// LATELY in its short form, the row left over going on to COMING UP.
+		{rows: 10, coming: 6, lately: 3},
+		{rows: 9, coming: 5, lately: 3},
+		{rows: 8, coming: 6, lately: 1, latelyFold: true},
 		{rows: 7, coming: 5, lately: 1, latelyFold: true},
-		{rows: 6, coming: 1, lately: 1, comingFold: true, latelyFold: true},
+		// COMING UP in its short form first, which never grows.
+		{rows: 6, coming: 3, lately: 1, latelyFold: true},
+		{rows: 5, coming: 3, lately: 1, latelyFold: true},
+		{rows: 4, coming: 1, lately: 1, comingFold: true, latelyFold: true},
 	}
 	for _, tt := range tests {
 		laid := planOf(frameOf(52, 40), sections, 0, tt.rows)

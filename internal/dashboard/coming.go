@@ -38,6 +38,30 @@ func comingLeast(name int) int {
 	return len(projected) + prose.RunOutWidth() + len(afterTime) + name + len(primed) + comingTail
 }
 
+// shortLines are the lines COMING UP and LATELY show in their short form.
+const shortLines = 2
+
+// listsShort is s, COMING UP or LATELY, with its short form, the one step it
+// has short of its least, as its leaner and leaned have it: the rung between
+// folded and its least, which the rows a fold leaves may hold where its
+// least doesn't fit. It takes its heading, with no blank row under it, and
+// its first shortLines lines, drawn as at its least, in as many rows and
+// its heading's; its heading saying, where it holds more lines than those,
+// that it has more, as its folded heading does.
+func listsShort(s section) section {
+	short := s
+	short.heads = 1
+	short.description = oneForm(func() line {
+		if s.lines() <= shortLines {
+			return nil
+		}
+		return line{moreMark}
+	})
+	s.leaner = []int{short.heads + shortLines}
+	s.leaned = func(giving) section { return short }
+	return s
+}
+
 // linesRows is how many rows COMING UP or LATELY takes with lines to show:
 // its heading and the blank row under it, and its lines, leastLines at the
 // least, and mostLines at the most.
@@ -47,10 +71,11 @@ func linesRows(lines int) int {
 
 // comingSection is the Overview's COMING UP of doc at now: what happens
 // next, soonest first, as many of its things as it has, leastLines of them at
-// its least; folded, its first, as it's drawn, but for its countdown.
+// its least, shortLines in its short form; folded, its first, as it's drawn,
+// but for its countdown.
 func (f Frame) comingSection(doc status.Document, now time.Time) section {
 	things := f.upcoming(doc, now)
-	return section{
+	return listsShort(section{
 		Section: SectionComing, least: linesRows(0), lines: func() int { return len(things) },
 		readIn: comingLeast(labelsLeast(widestLabel(f.Moment(doc, now)))),
 		draw: func(c *canvas, body bounds) {
@@ -62,7 +87,7 @@ func (f Frame) comingSection(doc status.Document, now time.Time) section {
 			}
 			return things[0].said(now, 0)
 		}),
-	}
+	})
 }
 
 // happening is something coming up: when, the account it befalls, named in

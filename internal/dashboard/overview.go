@@ -135,13 +135,15 @@ type section struct {
 	least, most int
 	between     []int
 	// leaner are the rows it takes short of its least, a step at a time, as
-	// USAGE's block gives way to rows short, as it never folds.
+	// USAGE's block gives way to rows short, as it never folds, and as
+	// COMING UP and LATELY take their short form before they fold.
 	leaner []int
 	// accounts is how many accounts it shows at the step given, in rows
 	// rows, its heading's among them, scrolled to its top: nil where it
 	// shows none.
 	accounts func(given giving, rows int) int
-	// leaned is the section given way as far as the step given.
+	// leaned is the section given way as far as the step given: USAGE's
+	// block, or COMING UP's and LATELY's short form.
 	leaned func(given giving) section
 	// heads are the rows its heading takes over its body, its own among
 	// them, as USAGE's gives way its blank row: 0 for sectionHead.
@@ -331,7 +333,9 @@ func (u unit) ledBy(sections ...Section) bool {
 
 // giveWay has the unit give way where rows run short: USAGE, which never
 // folds, its blank rows between accounts, the first step short of its least
-// its leaner has, where it has one; any other, folded to its headings.
+// its leaner has, where it has one; any other, folded to its headings, its
+// steps short of its least, as COMING UP's short form, left for unfold to
+// take back.
 func (u *unit) giveWay() {
 	if !u.ledBy(SectionUsage) {
 		u.fold = true
@@ -395,8 +399,8 @@ func (s section) keyShows(given giving, rows int) bool {
 	return s.rowsAt(given) <= rows
 }
 
-// gaveWay reports whether the unit has given way: folded, or led by USAGE,
-// its block given way.
+// gaveWay reports whether the unit has given way: folded, or a step short of
+// its least, as USAGE's block given way or COMING UP's short form.
 func (u unit) gaveWay() bool {
 	return u.fold || u.lean > givenNone
 }
@@ -407,8 +411,38 @@ func (u *unit) regain() {
 	u.leanTo(givenNone)
 }
 
+// takingBack are the forms the unit, given way, takes back, the fullest
+// first, as unfold tries them: its least; for one that folds, each step its
+// section has short of its least, as COMING UP's and LATELY's short form;
+// and given way, as giveWay has it. USAGE's steps past its first are
+// squeeze's, not unfold's.
+func (u unit) takingBack() []unit {
+	least := u
+	least.regain()
+	tries := []unit{least}
+	if !u.ledBy(SectionUsage) {
+		for given := givenNone + 1; int(given) <= len(u.sections[0].leaner); given++ {
+			step := least
+			step.leanTo(given)
+			tries = append(tries, step)
+		}
+	}
+	given := least
+	given.giveWay()
+	return append(tries, given)
+}
+
+// arrangedAlike reports whether two allotments of a unit are of one
+// arrangement: folded alike, and one that folds a step as far short of its
+// least, as COMING UP's short form is. USAGE's steps are its blank rows
+// given way, which an arrangement holds through, not its own.
+func arrangedAlike(u, o unit) bool {
+	return u.fold == o.fold && (u.ledBy(SectionUsage) || u.lean == o.lean)
+}
+
 // formed are the unit's sections in the form it has them: USAGE as far as
-// its block has given way, as leaned has it.
+// its block has given way, and COMING UP and LATELY in their short form, as
+// leaned has it.
 func (u unit) formed() []section {
 	formed := slices.Clone(u.sections)
 	for i, s := range formed {
@@ -538,8 +572,9 @@ func arrange(units []unit, room int) {
 
 // blankRowsWait reports whether USAGE's blank rows between its accounts,
 // given way in the units as arranged in room rows, come back a few rows
-// taller before a section unfolds or folds: arranged afresh of fresh, the
-// units unlaid, at each taller height in turn, until either.
+// taller before the arrangement changes, as arrangedAlike tells, a section
+// unfolding or folding: arranged afresh of fresh, the units unlaid, at each
+// taller height in turn, until either.
 func blankRowsWait(fresh, arranged []unit, room int) bool {
 	if !blankRowsGivenWay(arranged) {
 		return false
@@ -547,7 +582,7 @@ func blankRowsWait(fresh, arranged []unit, room int) bool {
 	for taller := room + 1; ; taller++ {
 		units := slices.Clone(fresh)
 		arrange(units, taller)
-		if !slices.EqualFunc(units, arranged, func(u, a unit) bool { return u.fold == a.fold }) {
+		if !slices.EqualFunc(units, arranged, arrangedAlike) {
 			return false
 		}
 		if !blankRowsGivenWay(units) {
@@ -557,9 +592,9 @@ func blankRowsWait(fresh, arranged []unit, room int) bool {
 }
 
 // blankRowsGivenWay reports whether USAGE's blank rows between its accounts
-// are given way among the units, USAGE open.
+// are given way among the units.
 func blankRowsGivenWay(units []unit) bool {
-	return slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() })
+	return slices.ContainsFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) && u.gaveWay() })
 }
 
 // fold has the units give way, as giveWay has them, a group of foldOrder's
@@ -581,19 +616,22 @@ func fold(units []unit, room int) [][]Section {
 	return folded
 }
 
-// unfold has each of the units that gave way take it back, as regain has it,
-// where it then keeps it in room rows at its least, as keeps has it: the
-// group that gave way last first, and within a group, unit by unit, in the
-// page's order, so where LATELY is under COMING UP, COMING UP unfolds alone
-// where LATELY can't; and USAGE's blank rows between its accounts last, so
-// they stay given way only where a section open would fold for them.
+// unfold has each of the units that gave way take back the fullest of the
+// forms takingBack has that it then keeps in room rows, as keeps has it: its
+// least, else its short form where it has one, else none. The group that
+// gave way last goes first, and within a group, unit by unit, in the page's
+// order, so where LATELY is under COMING UP, COMING UP unfolds alone where
+// LATELY can't; and USAGE's blank rows between its accounts last, so they
+// stay given way only where a section open would fold for them.
 func unfold(units []unit, room int, folded [][]Section) {
 	for _, group := range slices.Backward(folded) {
 		for i := range units {
-			if units[i].gaveWay() && units[i].ledBy(group...) {
-				units[i].regain()
-				if !keeps(units, i, room) {
-					units[i].giveWay()
+			if !units[i].gaveWay() || !units[i].ledBy(group...) {
+				continue
+			}
+			for _, tried := range units[i].takingBack() {
+				if units[i] = tried; keeps(units, i, room) {
+					break
 				}
 			}
 		}
@@ -636,7 +674,7 @@ func squeeze(units []unit, over int) {
 // Held, as where USAGE's blank rows between its accounts are given way and
 // come back before a section unfolds, no form is on: the rows that bring
 // them back, a few rows taller, would turn it off. A unit folded never
-// grows.
+// grows, nor COMING UP and LATELY in their short form.
 func grow(units []unit, spare int, held bool) {
 	used := 0
 	if !held {
@@ -652,7 +690,7 @@ func grow(units []unit, spare int, held bool) {
 	}
 	var lists []*unit
 	for i := range units {
-		if !units[i].fold && units[i].ledBy(SectionComing, SectionLately) {
+		if !units[i].gaveWay() && units[i].ledBy(SectionComing, SectionLately) {
 			lists = append(lists, &units[i])
 		}
 	}
@@ -796,8 +834,9 @@ type shape struct {
 	least, most int
 }
 
-// allotment is the rows a layout gives a section, whether it folds, and for
-// USAGE, how far its block gives way.
+// allotment is the rows a layout gives a section, whether it folds, and how
+// far it gives way short of its least: USAGE's block, or COMING UP's and
+// LATELY's short form.
 type allotment struct {
 	rows int
 	fold bool
@@ -1005,7 +1044,7 @@ func (f Frame) says(p planned, cells int) line {
 	}
 	switch {
 	case p.lists() && p.lines() > 1:
-		more := line{{"  " + prose.Ellipsis, dimInk}}
+		more := line{{"  " + moreMark.text, moreMark.ink}}
 		return slices.Concat(saying(p.folded, cells-more.width()), more)
 	case p.lists():
 		return saying(p.folded, cells)
@@ -1017,6 +1056,10 @@ func (f Frame) says(p planned, cells int) line {
 	}
 	return slices.Concat(holds, line{spaces(headingGap)}, noRoom)
 }
+
+// moreMark is what a heading of a section that lists lines says where the
+// section holds more than it shows, in text.subtle: an ellipsis.
+var moreMark = span{prose.Ellipsis, dimInk}
 
 // noRoom says a folded heading has no room for what it heads at the frame's
 // height, in text.subtle: "no room at 24 rows".

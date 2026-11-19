@@ -195,34 +195,14 @@ var knownBreaks = []known{
 		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
 	},
 	// What's left at the foot where USAGE takes the rows it must, the foot's
-	// blank row among them, short of every folded section's least: of six
-	// accounts at 73x61, stacked, ROUTING open under it; by account at 138x30,
-	// as the auto world's and the mixed one's, whose blocks are as tall,
-	// 2 rows, where ROUTING unfolded takes 6 more and COMING UP and LATELY 5,
-	// a blank row before each among them, and the blank rows between its
-	// accounts give way only 2; and of ten accounts side by side, their blank
-	// rows given way, 3 rows: at 138x30, where ROUTING takes 13 more and COMING
-	// UP and LATELY 5, its headings' blank rows and its key giving way only
-	// where no section is open; and at 108x44, ROUTING open, where COMING UP
-	// and LATELY take 5; and of a model's own week some accounts have used,
-	// stacked under the 5-hour, its unused account left out, 3 rows: at
-	// 73x36, every other section folded; and at 108x44, ROUTING open, where
-	// COMING UP and LATELY take 5.
+	// blank row among them, short of every folded section's least and of
+	// COMING UP's short form: of a model's own week some accounts have used,
+	// stacked under the 5-hour, its unused account left out, 3 rows at 73x36,
+	// every other section folded, where COMING UP's short form, stacked over
+	// LATELY, takes 4 more, the blank rows before and after it among them.
 	{
-		byDesign: "2 rows under ROUTING, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"73x61"}, fixtures: []string{"overview-six-running-173x53"},
-	},
-	{
-		byDesign: "2 rows under USAGE by account, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160", "overview-mixed-by-account-160"},
-	},
-	{
-		byDesign: "3 rows under USAGE's ten accounts side by side, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"138x30", "108x44"}, fixtures: []string{"overview-ten-accounts-160"},
-	},
-	{
-		byDesign: "3 rows under a used model's week stacked, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes:    []string{"73x36", "108x44"},
+		byDesign: "3 rows under a used model's week stacked, short of every folded section's least and COMING UP's short form", rule: foldWithRowsSpare,
+		sizes:    []string{"73x36"},
 		fixtures: []string{"overview-fable-160", "overview-fable-phone-52", "overview-fable-73x61", "overview-fable-108x44", "overview-model-nearing-160"},
 	},
 	// What's left at the foot at 73x36, every other section folded, where

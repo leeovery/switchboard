@@ -69,13 +69,14 @@ func eventMark(kind string, well bool) span {
 
 // latelySection is the Overview's LATELY of doc at now: what's happened,
 // newest first, as many of its sentences as it has, leastLines of them at its
-// least, or a line saying why it has none; folded, its first, as it's drawn.
+// least, shortLines in its short form, or a line saying why it has none;
+// folded, its first, as it's drawn.
 // Its sentences are told only as its draw, its fold, or a layout made
 // afresh asks for them, as latelyTelling tells them.
 func (f Frame) latelySection(doc status.Document, now time.Time) section {
 	m := f.Moment(doc, now)
 	told := latelyTelling(m, f.sessionDirs())
-	return section{
+	return listsShort(section{
 		Section: SectionLately, least: linesRows(0), readIn: latelyLeast(labelsLeast(widestLabel(m))),
 		lines: func() int { return len(told(mostLines)) },
 		draw: func(c *canvas, body bounds) {
@@ -88,7 +89,7 @@ func (f Frame) latelySection(doc status.Document, now time.Time) section {
 			}
 			return first[0]
 		},
-	}
+	})
 }
 
 // latelyTelling tells LATELY's sentences of the moment m in n lines,
