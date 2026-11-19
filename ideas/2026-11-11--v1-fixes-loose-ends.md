@@ -66,3 +66,9 @@ ordinary use, and each fails safe.
   unsynced meanwhile.
 - **A failed write-back exports no pools.** A config whose router write-back failed exports with
   no pools, so its pools import as `empty`, kept apart and not lost.
+- **A token split by a character that doesn't show.** Redaction matches `sk-ant-` followed by
+  token characters, so a token split by a control character (a `ZMX_SESSION` value, a label written
+  into the config) keeps its tail, in either order of cleaning and redacting: the tail reads as an
+  ordinary word. A path holding a token split by a zero-width character is redacted before shown
+  text drops that character, so a cleaned path can show it whole. Both need the token typed into a
+  name or a folder by hand; redaction that sees through such characters would close both.
