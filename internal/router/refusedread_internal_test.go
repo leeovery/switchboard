@@ -635,9 +635,10 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 			kept := tt.kept
 			kept.ReadAt, kept.Windows, kept.Probed, kept.Misses = start, []quota.Window{weekUsed(0.5)}, probed, 1
 			putState(t, path, savedState{
-				Version:  stateVersion,
-				Tokens:   map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
-				Readings: map[string]savedReading{"work": kept},
+				Version:     stateVersion,
+				Tokens:      map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+				Readings:    map[string]savedReading{"work": kept},
+				PoolsJoined: keptInNoPool(t),
 			})
 			f := newTestFile(at(start.Add(3*time.Hour)), resolve(workReserved(), testTokens.Read, unrecorded))
 			read, err := KeptHoldsIn(filepath.Dir(path), f.refusalIn)
