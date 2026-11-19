@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-11-19
+
+✨ Added
+- COMING UP and LATELY show a two-line short form on the Overview when space is left over — they no longer stay folded to a single heading line while rows sit blank.
+
+🔧 Changed
+- Per-account usage bars on the accounts detail view now stretch to fill the row — the percentage and words sit at the row's end.
+- The session column in the project sessions list and the sessions list sizes to its widest name — the other columns end at the frame's edge instead of leaving a gap.
+
 ## [1.0.2] - 2026-11-19
 
 💥 Breaking
