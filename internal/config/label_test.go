@@ -88,6 +88,7 @@ func TestALabelsRefusalsSayWhyAlone(t *testing.T) {
 		{name: "not UTF-8", label: "a\xffb", why: "isn't UTF-8 text, as a config's text must be"},
 		{name: "too long", label: strings.Repeat("s", 101), why: "is 101 characters: must be at most 100"},
 		{name: "shaped like a token", label: tokenShaped, why: "looks like a token, which a label mustn't, as it shows wherever the account does"},
+		{name: "shaped like a token once cleaned", label: "sk\u200b" + strings.TrimPrefix(tokenShaped, "sk"), why: "looks like a token, which a label mustn't, as it shows wherever the account does"},
 		{name: "a prepended mark", label: "\u0600work", why: joinsTheNext},
 	}
 	for _, tt := range tests {

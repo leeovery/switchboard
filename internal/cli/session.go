@@ -69,7 +69,7 @@ func (a *app) lookUpSession(ctx context.Context, client *router.Client, names st
 // listing them, in the order they came, a line each, as lines name them.
 func several(given string, lines []string) error {
 	var b strings.Builder
-	fmt.Fprintf(&b, "session %s could be any of these, so give more of its id:", prose.Clean(redact.Text(given)))
+	fmt.Fprintf(&b, "session %s could be any of these, so give more of its id:", redact.Text(prose.Clean(given)))
 	for _, line := range lines {
 		fmt.Fprintf(&b, "\n  %s", line)
 	}

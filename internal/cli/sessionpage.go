@@ -66,7 +66,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 		Now:      now,
 	})
 	if !ok {
-		return fmt.Errorf("no session %s in the ledger, or among the router's sessions%s", prose.Clean(redact.Text(given)), inNamed(pool.named))
+		return fmt.Errorf("no session %s in the ledger, or among the router's sessions%s", redact.Text(prose.Clean(given)), inNamed(pool.named))
 	}
 	page = page.Named(pool.names(a.standing(ctx, cfg), readers.removed))
 	if asJSON {

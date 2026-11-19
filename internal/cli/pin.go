@@ -165,7 +165,7 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 // more than one, as poolsStanding counts them and poolNamed names it: "" where
 // there's one or none.
 func (a *app) inPool(ctx context.Context, m status.Moment) string {
-	return inPoolNamed(a.poolsStanding(ctx), m.PoolLabel)
+	return inPoolNamed(a.poolsStanding(ctx), m.PoolLabel, m.PoolID)
 }
 
 // pinSession pins the session given, by as much of its id as is unique, in

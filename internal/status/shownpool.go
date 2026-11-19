@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 )
 
 // ShownPool is the pool a dashboard shows, as the config stood as it was
@@ -74,13 +75,14 @@ func NamesThePool(pools int) bool {
 }
 
 // Named is the pool's label, as a screen names the pool it shows once
-// there's a second, as NamesThePool has it: "" where there's one or none, or
-// no pool is shown.
+// there's a second, as NamesThePool has it, else its id where nothing of
+// the label shows, as prose.LabelOr has it: "" where there's one or none,
+// or no pool is shown.
 func (p ShownPool) Named() string {
 	if p.ID == "" || !p.Turns() {
 		return ""
 	}
-	return p.Label
+	return prose.LabelOr(p.Label, p.ID)
 }
 
 // Turns reports whether there's another pool to turn to, as the key line

@@ -649,6 +649,13 @@ func TestTheRoutersNotificationsNameThePoolOnceThereIsASecond(t *testing.T) {
 			defaultLead: "Default · ",
 		},
 		{
+			name:        "two pools, Acme's label showing nothing, named by its id",
+			accounts:    []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}},
+			pools:       config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "\u200e", Dirs: []string{"/work/acme"}}},
+			lead:        "q7mt · ",
+			defaultLead: "Default · ",
+		},
+		{
 			name:     "one pool",
 			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "q7mt"}},
 			pools:    config.Pools{{ID: "q7mt", Label: "Acme"}},

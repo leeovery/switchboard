@@ -386,13 +386,14 @@ func shows(r rune) bool {
 		!unicode.IsSpace(r) && !unicode.IsMark(r) && r != blankBraille
 }
 
-// checkLabel keeps anything that looks like a token out of a label, and keeps
-// a label to mostLabelCharacters, the label of an account or a pool, of the
-// kind given, which name names. It never quotes the label, which could be
-// anything.
+// checkLabel keeps anything that looks like a token out of a label, as it's
+// written and as it's shown, cleaned, as a token split by a character drawn
+// as nothing is joined again once that's dropped; and keeps a label to
+// mostLabelCharacters, the label of an account or a pool, of the kind given,
+// which name names. It never quotes the label, which could be anything.
 func checkLabel(kind, name, label string) error {
 	switch length := utf8.RuneCountInString(label); {
-	case redact.HoldsToken(label):
+	case redact.HoldsToken(label) || redact.HoldsToken(prose.Clean(label)):
 		return wrongLabel(name, "looks like a token, which a label mustn't, as it shows wherever the "+kind+" does")
 	case length > mostLabelCharacters:
 		return wrongLabel(name, fmt.Sprintf("is %d characters: must be at most %d", length, mostLabelCharacters))

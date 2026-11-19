@@ -318,7 +318,7 @@ func configuredPool(cfg *config.Config, id string) (config.Pool, error) {
 		return p, nil
 	}
 	if p, ok := cfg.Pools.Labelled("", id); ok {
-		return config.Pool{}, fmt.Errorf("%w: %s is a label: give its id, %s", config.PoolNotConfigured(id), prose.Clean(redact.Text(id)), prose.Clean(p.ID))
+		return config.Pool{}, fmt.Errorf("%w: %s is a label: give its id, %s", config.PoolNotConfigured(id), redact.Text(prose.Clean(id)), prose.Clean(p.ID))
 	}
 	return config.Pool{}, config.PoolNotConfigured(id)
 }
