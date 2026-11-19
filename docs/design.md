@@ -6368,8 +6368,9 @@ over the week. The frames are in the Paper file *Switchboard · Sessions and Run
 beside COMING UP, and `runway-108x44` and `runway-73x61`, LATELY under it; with the account column
 collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`; and of
 accounts without a 5-hour window, `runway-ultra-160`, every account on a verified Ultra plan, and
-`runway-mixed-160`, side alone keeping its 5-hour. Columns and rows are at 160 by 37 unless they
-say otherwise.
+`runway-mixed-160`, side alone keeping its 5-hour; and of an account added today,
+`runway-added-160` and `runway-added-73x61`. Columns and rows are at 160 by 37 unless they say
+otherwise.
 
 **The heading row,** row 4: `RUNWAY` in `text.muted`, and a rule of `─` in `border` from two cells
 after it to the frame's last column, as Sessions' runs, with nothing at its right (the owner's call,
@@ -6458,6 +6459,40 @@ request ledger).
   13 October 2026), or, where the API refused the read, ROUTING's words, `subscription lapsed: its
   subscription needs renewing`. An account whose token is refused has the windows' use under its
   name faded as stale (the owner's call, 13 October 2026).
+
+**An account new in the view** has its stretch before its first reading drawn, so its lane isn't
+left blank (the owner's call, 18 November 2026). A lane carries each reading forward to the next,
+so only an account not read yet is blank, and blank alone can't tell an account not added yet
+from one the router can't read. An account is new where its first reading falls inside the view
+and the readings history reaches back before the view, another account read before then. The time
+is the account's first reading, and the fact is views' (`views.LaneNew`), Trends' week cards
+holding it too, though only Runway draws it.
+
+```
+spare         ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈████████████████████████████████████████████████████━━━━━━
+  week 12%    new since 09:44                                                     out ~Sat
+```
+
+- **The rule:** `┈` in `text.faint` on the lane's row, in every column before the first column
+  read, the same without colour. The dots fade as the lane does, stale or out of the pool, but
+  aren't dimmed as the past, being faint already.
+- **The words:** `new since 09:44` in `text.muted` on the row under it, as the lane's other quiet
+  words are, since `text.faint` is hard to read on a phone. They start from the lanes' first
+  column, or collapsed, two cells after the use, the time as an event's is said, `new since Tue
+  09:44` on another day. They end by the stretch's last column, and two cells before the lane's
+  other words, which keep their place: `new` where the whole doesn't fit, and nothing where `new`
+  doesn't.
+- **The legend** keys `┈` and ` new` wherever a lane draws dots (see The legend), as the words
+  rarely fit under a phone's narrow stretch.
+- **Not new:** on a fresh install, where every account's readings start inside the view; an
+  account read before the view; and one removed and added again whose history is restored, as
+  its first reading is old. A gap in an account's readings, such as a restart or a missed probe,
+  draws its last reading carried on, as before.
+- **Within the readings judged:** "first" is first among the readings the view is judged by, about
+  two weeks of them live, and the week before a week stepped back to. An account added again after
+  about two weeks or more away is drawn as new (accepted, 18 November 2026).
+- **Why not a colour:** every colour in a lane is a state of the account's room, and blue is the
+  marks'. Dotted against the solid `━`, it stays apart without colour, and the words carry why.
 
 **The account column collapsed.** `a` collapses the labels to each account's use, to give the
 lanes more room, at every width, and `a` again expands them; expanded is the default, and the
@@ -6557,8 +6592,9 @@ blank row; with two, on the row after its words.
 call, 21 October 2026), keys only what the view draws, four spaces apart: `█` and ` room`; `█` in
 `accent.attention` and ` room, but it runs out at its pace`; `━` in `accent.attention` and
 ` at its cap`; `━` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
-`▂` in `state.destructive` and ` the pool at its limit`; and `│` and ` its week resets`; each
-glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's length
+`▂` in `state.destructive` and ` the pool at its limit`; `│` and ` its week resets`; and where a
+lane is new in the view, `┈` in `text.faint` and ` new`; each glyph in its colour, its words in
+`text.muted`. Four spaces on, in `text.subtle`, a column's length
 and what's dimmed: `a column ≈ 69 minutes · the past dimmed` at 160; stepped back to a week gone,
 `a column ≈ 69 minutes · under each name, the week's highest`. A column's length is in whole
 minutes where it's whole, else after `≈`, to a tenth of a minute under 20 minutes and to the minute
@@ -6584,15 +6620,18 @@ legend (the owner's call, 12 November 2026):
 - **Stacked** else, where one column holds LATELY's least and those rows hold COMING UP's every
   line in the columns it takes alone, a blank row, LATELY's heading and two lines: LATELY then
   runs down to the blank row over the legend, from column 0. Where COMING UP takes one column,
-  both share one width: what their lines need to read whole, never under 72, or the frame's width
-  where that's narrower, nor over the frame's width, so the frames' accounts keep 72 and a long
-  name widens both rather than being cut with room beside it (the owner's call, 12 November
-  2026). Where it takes two, from 148 columns, it keeps them, and LATELY spans the frame under
-  them. LATELY is the first to give way as rows run short.
+  both take the frame's full width, as the Overview's stacked sections do (the owner's call, 18
+  November 2026). It replaces his call of 12 November, a width of what their lines need, never
+  under 72, which left half an iPad's screen empty at 116 columns. Where COMING UP takes two
+  columns, from 148, it keeps them, and LATELY spans the frame under them. LATELY is the first to
+  give way as rows run short.
 - **COMING UP alone** else, as before LATELY: two columns, four cells apart, where both fit at the
   lines' natural width, 72, so from 148 columns, each taking half of what's left after the gap, the
-  odd cell the second's, the lines running in time order down the first, then across; else one, at
-  its natural, or the frame's width where that's narrower (the owner's call, 21 October 2026).
+  odd cell the second's, the lines running in time order down the first, then across (the owner's
+  call, 21 October 2026). Else one, across the frame's full width, as the stacked lists are (the
+  owner's call, 18 November 2026). It replaces his call of 21 October, one column at its natural
+  72: on a short frame, where LATELY gives way, that brought back the iPad's half-empty screen,
+  and the width jumped as the height changed.
 
 LATELY's least is 46: a time at its widest, a week back's, 12; two blanks; a name at its least,
 8; its shortest words, ` open again`, 11; and how long ago at its widest, `23h 59m ago`, 11, two
@@ -6686,7 +6725,7 @@ at every width:
 - the words are placed and cut by the rule above, as `capped 14:31  ·  back 17:10`;
 - the rows, COMING UP, LATELY and the legend as at every width: the legend on as many lines as it
   takes, the keyed glyphs, then `a column ≈ 265 minutes · the past dimmed`; COMING UP and LATELY
-  stacked, the frame's width where that's under their natural;
+  stacked, across the frame;
 - the heading keeps its rule to the last column.
 
 **Keys.** Where a reference's key row differs from these, these hold:
@@ -6725,7 +6764,8 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
   config gives now, as the readings keep none, and lifts alike. A column with no reading of its
   account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
-  14 October 2026).
+  14 October 2026), but before the first reading of an account new in the view, which is dotted
+  (see An account new in the view, above).
 - **When a limit, a cap or a refusal began:** the router's `limit`, `cap` and `refused` events'
   `at`; where no event tells it, the first reading that shows it; a hold whose start neither tells
   runs from before the timeline (the owner's call, 14 October 2026). A limit or a cap one window

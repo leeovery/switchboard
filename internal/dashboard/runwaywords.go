@@ -49,19 +49,47 @@ func (r RunwayShown) view() laneView {
 
 // runwayWords draws the words under each lane, as laid out, on the row under
 // it, from the lanes' first column, as wordsUnder places them, none before
-// wordsFrom: cued while its account newly stands so, as wordsCue has it.
+// wordsFrom: cued while its account newly stands so, as wordsCue has it; and
+// before them, uncued, what's said of the stretch before its account was
+// first read, as newSaid has it.
 func (f Frame) runwayWords(c *canvas, laid runwayLaid) {
 	v := f.Runway.view()
 	for _, ln := range laid.lanes {
-		words := v.wordsUnder(ln, laid.m.Now, f.wordsFrom(ln))
+		from := f.wordsFrom(ln)
+		words := v.wordsUnder(ln, laid.m.Now, from)
 		for _, w := range words {
 			c.line(laid.x+w.x, ln.row+1, w.said)
+		}
+		if said, ok := newSaid(ln, laid.m.Now, from, words); ok {
+			c.line(laid.x+said.x, ln.row+1, said.said)
 		}
 		if fade, ok := f.wordsCue(ln, v.timeline.NowColumn()); ok && len(words) > 0 {
 			first, last := words[0], words[len(words)-1]
 			cue(c, f.Look, laid.x+first.x, ln.row+1, last.x+last.said.width()-first.x, fade)
 		}
 	}
+}
+
+// newSaid is what's said under the lane ln, at now, of the stretch before
+// its account was first read, where it's new in the view: from the column
+// from, counted from the lanes' first, "new since 14:44" in text.muted, as
+// the lane's other quiet words are, its time as prose.Dated says it; or "new", where that doesn't fit before the
+// stretch's end, nor phraseGap before the first of the words placed under
+// it; else nothing, reporting false, as the words keep their place.
+func newSaid(ln laidLane, now time.Time, from int, words []placed) (placed, bool) {
+	if ln.New.Columns == 0 {
+		return placed{}, false
+	}
+	end := ln.New.Columns
+	if len(words) > 0 {
+		end = min(end, words[0].x-phraseGap)
+	}
+	parts := []line{{{newMeans, mutedInk}}, {{" since " + prose.Dated(now, ln.New.Since), mutedInk}}}
+	said := wholeParts(parts, end-from)
+	if said == nil {
+		return placed{}, false
+	}
+	return placed{x: from, said: said}, true
 }
 
 // wordsFrom is the first column, counted from the lanes' first, that the

@@ -81,7 +81,8 @@ func wrapped(apart span, width int, parts []line) []line {
 // each cell, marked as laneMark marks it, then what it means, muted, as
 // cellsMean says it, and after a limit's, where the pool's lane draws one,
 // its own, as poolLimitMark marks it; then, where a lane marks one, │ in
-// text.subtle and the week's resets, as " its week resets".
+// text.subtle and the week's resets, as " its week resets"; and where a lane
+// is new in the view, its dots, as laneNewMark marks them, and " new".
 func (f Frame) legendKeys() []line {
 	drawn := f.Runway.Lanes.Drawn
 	var keys []line
@@ -97,6 +98,9 @@ func (f Frame) legendKeys() []line {
 	}
 	if drawn.Resets {
 		keys = append(keys, line{{resetCell, dimInk}, {" its " + runwayWeek + " resets", mutedInk}})
+	}
+	if drawn.New {
+		keys = append(keys, line{f.Look.laneNewMark(), {" " + newMeans, mutedInk}})
 	}
 	return keys
 }

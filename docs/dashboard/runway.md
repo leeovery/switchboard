@@ -23,6 +23,7 @@ the foot says how long a column lasts, such as `a column ≈ 69 minutes`.
 | `━` | It's at its cap. |
 | `━` in red | It's at its limit. |
 | `│` | Its week resets. |
+| `┈` | The account wasn't added yet. |
 
 - The past is dimmed.
 - Under each name is how much of its week the account has used, such as `week 34%`.
@@ -33,6 +34,28 @@ Until the router has a day of your sessions, for example on a new install, it as
 each account stays where it is. A run-out may then show earlier than it will come. If the
 screen has room, Runway says so under its heading: `run-outs firm up once switchboard has a day of
 your sessions`.
+
+## New accounts: a dotted lane
+
+If you add an account, the lane is dotted up to the account's first reading:
+
+```
+spare         ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈█████████████████████
+  week 12%    new since 09:44
+```
+
+- `┈` marks the time before the router first read the account.
+- `new since 09:44` under the dots says when that was. A day other than today shows its weekday,
+  such as `new since Tue 09:44`.
+- If the dots are too short for the words, the words say only `new`. If the dots are shorter
+  still, the words say nothing. The legend keys `┈ new` either way.
+- The words never cover the other words under the lane.
+
+A blank lane means the router hasn't read the account yet. Lanes are dotted only if the router
+read at least one other account before the lanes start. So on a new install, no lane is dotted.
+
+If you remove an account and add it back within about two weeks, its old readings still count,
+and the lane isn't dotted. After longer away, the lane is dotted again.
 
 ## Words under a lane
 
@@ -127,8 +150,8 @@ COMING UP and LATELY take the room the screen gives them:
 |---|---|
 | is 159 columns or wider, with rows for all of COMING UP in one column | LATELY sits at the left and COMING UP at the right, each down to the legend. |
 | is 148 columns or wider | COMING UP takes two columns under the lanes, and LATELY runs across the screen under them. |
-| is narrower | COMING UP and LATELY share one column, as wide as their lines need to read whole, from 72 columns up to the width of the screen. |
-| is too short or too narrow for LATELY | COMING UP shows alone. |
+| is narrower | COMING UP and LATELY stack, each across the whole width of the screen. |
+| is too short or too narrow for LATELY | COMING UP shows alone, across the whole width of the screen, or in two columns from 148 columns. |
 
 LATELY shows under COMING UP only if its heading and two lines fit. It takes only the rows that
 the lanes and COMING UP leave empty, so it never squeezes them.
