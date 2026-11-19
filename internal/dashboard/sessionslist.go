@@ -138,14 +138,15 @@ type listColumn struct {
 // what's past the leasts goes to the session first, then on, in the row's
 // order. In the second, the session grows past its natural to its project
 // and name whole, as sessionWhole has them, before routing takes what's
-// left, so no name is cut where the row has room; where routing's left, the
-// session takes what's left itself, so the columns after it end at the
-// row's end.
+// left, so no name is cut where the row has room; where routing's left, on
+// is raised to its whole first, and the session takes what's left past its
+// natural itself, so the columns after it end at the row's end.
 func listColumnsOf(width int, n listNaturals) []listColumn {
 	room := width - listFrom
 	n.on = max(n.on, ansi.StringWidth(listPartFacts[listOn].head))
 	parts := listParts(n)
 	decided, _ := flex.Lay(room, parts...)
+	routingLeft := decided[listRouting].Left
 	var shown []listPart
 	var kept []flex.Part
 	for p, span := range decided {
@@ -156,11 +157,14 @@ func listColumnsOf(width int, n listNaturals) []listColumn {
 		switch listPart(p) {
 		case listOn:
 			// What on gave up in the first pass, to keep worth or started, it
-			// never takes back, so it never narrows as the frame widens.
-			part.Natural = span.Size
+			// takes back only where routing has left, as the session would
+			// take it otherwise.
+			if !routingLeft {
+				part.Natural = span.Size
+			}
 		case listSession:
 			part.Grows, part.Most = true, max(part.Natural, sessionWhole(n))
-			if decided[listRouting].Left {
+			if routingLeft {
 				part.Most = 0
 			}
 		}

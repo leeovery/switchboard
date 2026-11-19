@@ -540,30 +540,39 @@ func TestSessionsColumnsGiveWayInTheirOrder(t *testing.T) {
 	}
 }
 
-// SESSIONS fills the width at every width from the phone's: the session's
-// column takes every cell past the others' naturals, so the last column ends
-// at the frame's edge; and wherever every column shows, each other keeps its
-// width, as at 220, flush to the right (the owner's call, 19 November 2026).
+// SESSIONS fills the width at every width from the phone's, of short
+// account names and long: the session's column takes every cell past the
+// others' naturals, so the last column ends at the frame's edge; it grows
+// past its whole only beside on whole; and wherever every column shows, each
+// other keeps its width, as at 220, flush to the right (the owner's call, 19
+// November 2026).
 func TestSessionsFillsTheWidthItsSessionColumnTakingTheSpare(t *testing.T) {
 	page := chosenPage(chosenSessions())
-	words := sessionWords{m: frameOf(173, 53).Moment(framedDoc(nil, nil), routedAt), now: routedAt}
-	widest := map[listPart]int{}
-	for _, c := range projectSessionsOf(words, &page, SessionsMeasured{}, 220).columns {
-		widest[c.part] = c.width
-	}
-	for width := 52; width <= 220; width++ {
-		columns := projectSessionsOf(words, &page, SessionsMeasured{}, width).columns
-		if last := columns[len(columns)-1]; last.x+last.width != width {
-			t.Errorf("at %d SESSIONS' last column ends at %d, want the frame's edge: %+v", width, last.x+last.width, columns)
-		}
-		if len(columns) < len(projectColumns) {
-			continue
-		}
-		for _, c := range columns[1:] {
-			if c.width != widest[c.part] {
-				t.Errorf("at %d SESSIONS' %s is %d cells, want %d, as at 220", width, c.head(), c.width, widest[c.part])
+	for name, doc := range map[string]status.Document{"short names": framedDoc(nil, nil), "long names": longListDoc()} {
+		t.Run(name, func(t *testing.T) {
+			words := sessionWords{m: frameOf(173, 53).Moment(doc, routedAt), now: routedAt}
+			widest := map[listPart]int{}
+			for _, c := range projectSessionsOf(words, &page, SessionsMeasured{}, 220).columns {
+				widest[c.part] = c.width
 			}
-		}
+			for width := 52; width <= 220; width++ {
+				columns := projectSessionsOf(words, &page, SessionsMeasured{}, width).columns
+				if last := columns[len(columns)-1]; last.x+last.width != width {
+					t.Errorf("at %d SESSIONS' last column ends at %d, want the frame's edge: %+v", width, last.x+last.width, columns)
+				}
+				if columns[0].width > listSessionWhole && columns[1].width != widest[listOn] {
+					t.Errorf("at %d SESSIONS' session is %d cells beside on cut to %d, want on whole, %d, first", width, columns[0].width, columns[1].width, widest[listOn])
+				}
+				if len(columns) < len(projectColumns) {
+					continue
+				}
+				for _, c := range columns[1:] {
+					if c.width != widest[c.part] {
+						t.Errorf("at %d SESSIONS' %s is %d cells, want %d, as at 220", width, c.head(), c.width, widest[c.part])
+					}
+				}
+			}
+		})
 	}
 }
 
