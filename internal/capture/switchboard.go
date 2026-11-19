@@ -14,11 +14,19 @@ import (
 // router listing the sessions as sceneSessions has them, and its request
 // stream telling of their requests in flight on side as sceneStream does.
 func (a accountWorlds) scene() accountWorld {
-	return a.kept("scene", func() accountWorld {
-		w := a.auto()
-		w.routed, w.stream = sceneSessions, sceneStream(a.now, "side")
-		return w
-	})
+	return a.kept("scene", func() accountWorld { return a.sceneOf(a.auto()) })
+}
+
+// sceneFable is the scene over the Fable world: work's and side's Fable
+// weeks used, personal's not.
+func (a accountWorlds) sceneFable() accountWorld {
+	return a.kept("sceneFable", func() accountWorld { return a.sceneOf(a.fable()) })
+}
+
+// sceneOf is the world w as the scene draws it.
+func (a accountWorlds) sceneOf(w accountWorld) accountWorld {
+	w.routed, w.stream = sceneSessions, sceneStream(a.now, "side")
+	return w
 }
 
 // sceneSessions are the sessions the router lists at now, Thursday's

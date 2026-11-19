@@ -12,11 +12,19 @@ import (
 // on personal, an answer streaming to it, in 9c2e's place, so it lists six
 // sessions, as the status line counts them.
 func (a accountWorlds) resumed() accountWorld {
-	return a.kept("resumed", func() accountWorld {
-		w := a.auto()
-		w.routed, w.lines = routedResumed, resumedLines
-		return w
-	})
+	return a.kept("resumed", func() accountWorld { return resumedOf(a.auto()) })
+}
+
+// resumedFable is resumed over the Fable world: f41a on personal, which
+// hasn't used its Fable week, where work and side have.
+func (a accountWorlds) resumedFable() accountWorld {
+	return a.kept("resumedFable", func() accountWorld { return resumedOf(a.fable()) })
+}
+
+// resumedOf is the world w as resumed draws it.
+func resumedOf(w accountWorld) accountWorld {
+	w.routed, w.lines = routedResumed, resumedLines
+	return w
 }
 
 // resumedLines are the sessions' world's lines, and f41a's, oldest first.

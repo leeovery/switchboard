@@ -22,13 +22,5 @@ WEEK
 ────────────────────────────────────────────────────
  Σ pool            ┃        49%  1.5 of 3 left
 
-FABLE
-
- work          ▌    ┃    ╎  12%  25%/day · Sun
-
- side       ▲ ▌    ┃         4%  25%/day · Mon
-────────────────────────────────────────────────────
- Σ pool       ▋      ┃       5%  2.8 of 3 left
-
 ┃ even pace: where you would be now, used evenly
 ╎ cap: work at 95%

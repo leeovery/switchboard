@@ -4,15 +4,15 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
 
-              WEEK                                             5-HOUR                                           FABLE
+              WEEK                                                                      5-HOUR
 
-work               ▊   ┃      ╎  34%  out ~Sat                          ┃      ╎  95%  at cap · back 17:10               ┃      ╎  12%  25%/day till Sun 21:00
+work                        ▎       ┃                 ╎   34%  out ~Sat                                      ┃                 ▉╎   95%  at cap · back 17:10
                                         ╭─ ROUTING · NEW SESSIONS ────────────────────────────────────────────────────╮
-personal    ◆            ┃       66%  ou│                                                                             │e use
+personal    ◆                           │                                                                             │             39%  34%/h till 16:30
                                         │  Pick the accounts new sessions go to.                                      │
-side        ▲         ┃    ▎     78%  ou│                                                                             │ ┃           4%  25%/day till Mon 10:00
+side        ▲                    ┃      │                                                                             │             13%  21%/h till 18:50
 ────────────────────────────────────────│  □ auto      the router chooses                                             │─────────────────────────────────────────
-Σ pool                 ┃▏        59%  1.│  □ work      closed    week 34%   5-hour 95%         at its cap till 17:10  │  ┃          5%  2.8 of 3 left
+Σ pool                               ┃▉ │  □ work      closed    week 34%   5-hour 95%         at its cap till 17:10  │             49%  1.5 of 3 left
                                         │  ■ personal  open      week 66%   5-hour 39%                     2 running  │
               ┃ even pace: where you wou│  ■ side      open      week 78%   5-hour 13%                     4 running  │here
                                         │                                                                             │

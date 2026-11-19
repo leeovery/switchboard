@@ -4,15 +4,15 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
 
-              WEEK                                             5-HOUR                                           FABLE
+              WEEK                                                                      5-HOUR
 
-work               ▊   ┃      ╎  34%  token refused                     ┃      ╎  82%  token refused                     ┃      ╎  12%  token refused
+work                        ▎       ┃                 ╎   34%  token refused                                 ┃            ▌     ╎   82%  token refused
 
-personal    ◆            ┃       65%  subscription lapsed           ▎     ┃       31%  subscription lapsed      no Fable use
+personal    ◆                            ┃                65%  subscription lapsed                                 ┃                31%  subscription lapsed
 
-side        ▲         ┃    ▎     78%  out ~Fri 00:04             ▎┃               13%  21%/h till 18:50         ▋       ┃           4%  25%/day till Mon 10:00
+side        ▲                    ┃            ▊           78%  out ~Fri 00:04                ▌ ┃                                    13%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool                 ┃   ▎     78%  0.2 of 3 left              ▎    ┃           13%  0.9 of 3 left            ▋        ┃          4%  1.0 of 3 left
+Σ pool                               ┃        ▊           78%  0.2 of 3 left                 ▌            ┃                         13%  0.9 of 3 left
 
               ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 

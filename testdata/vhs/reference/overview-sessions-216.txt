@@ -24,14 +24,6 @@ WEEK
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Σ pool                                                                                   ┃       ▎                                                                                         49%  1.5 of 3 left
 
-FABLE
-
- work                             ▋                                                                       ┃                                                                      ╎          12%  25%/day till Sun 21:00
-
- side       ▲       ▉                                                                        ┃                                                                                               4%  25%/day till Mon 10:00
-────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- Σ pool                ▏                                                                                    ┃                                                                                5%  2.8 of 3 left
-
               ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── r
@@ -66,5 +58,13 @@ Sun 02:00  personal's week resets                                               
 Sun 21:00  work's week resets                                                            in 3d 6h             12:47  ▲ docs started on personal
 Mon 10:00  side's week resets                                                           in 3d 19h             12:10  ◇ work primed: its 5-hour window started
                                                                                                               12:02  ▲ switchboard started on work
+                                                                                                              11:55  ▲ website started on personal
+                                                                                                              11:30  ◇ personal primed: its 5-hour window started
+                                                                                                              10:02  ▲ mobile started on personal
+
+
+
+
+
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

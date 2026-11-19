@@ -348,6 +348,17 @@ type level struct {
 type todayOf struct {
 	worlds accountWorlds
 	read   readingsOf
+	// fabled keeps the accounts' use of their Fable weeks this week, as the
+	// Fable worlds have it; unset, every account reads its Fable week at 0%,
+	// reported but unused, as the owner's accounts read now.
+	fabled bool
+}
+
+// withFable has the world keep its accounts' use of their Fable weeks this
+// week, as fabled says.
+func (t *todayOf) withFable() *todayOf {
+	t.fabled = true
+	return t
 }
 
 // at is a time of today.
@@ -389,9 +400,17 @@ func (t *todayOf) week(id string, fable float64, to ...level) {
 }
 
 // history is the world's readings history: the year's to today, of the
-// accounts given, and today's.
+// accounts given, and today's; but each account's Fable week still running
+// read at 0% alone, as its week opened, unless the world keeps its use, as
+// fabled says.
 func (t *todayOf) history(accounts config.Accounts) history {
-	return slices.Concat(t.worlds.past, t.read.history()).of(accounts.IDs())
+	h := slices.Concat(t.worlds.past, t.read.history()).of(accounts.IDs())
+	if t.fabled {
+		return h
+	}
+	return slices.DeleteFunc(h, func(r readings.Reading) bool {
+		return r.Key == modelKey && r.ResetsAt.After(t.worlds.now) && r.Utilization > 0
+	})
 }
 
 // today begins taking in today's readings of a world's accounts.
@@ -430,7 +449,8 @@ func (t *todayOf) personal(after ...level) {
 	t.week("personal", 0, level{t.at(13, 32, 41), .65}, level{t.at(14, 20, 0), .66})
 }
 
-// sidesFable is how much of side's Fable week the auto world has used.
+// sidesFable is how much of side's Fable week the Fable world has used:
+// the auto world reads it at 0%, as history has it.
 const sidesFable = .04
 
 // side takes in side's readings today as the auto world has them: its
@@ -477,6 +497,13 @@ func (a accountWorlds) auto() accountWorld {
 	return a.kept("auto", func() accountWorld { return a.autoOf(a.today().three(true)) })
 }
 
+// fable is the auto world with its accounts' use of their Fable weeks this
+// week kept: work's and side's, personal's none, so the views show a FABLE
+// section with personal going without it.
+func (a accountWorlds) fable() accountWorld {
+	return a.kept("fable", func() accountWorld { return a.autoOf(a.today().withFable().three(true)) })
+}
+
 // autoOf is the auto world, its readings today as t took them in.
 func (a accountWorlds) autoOf(t *todayOf) accountWorld {
 	accounts := firstAccounts(3)
@@ -496,12 +523,12 @@ func (a accountWorlds) learning() accountWorld {
 	})
 }
 
-// fableNearing is the auto world with side's Fable week read at 88% at
+// fableNearing is the Fable world with side's Fable week read at 88% at
 // 14:40, running out before it resets at its pace since it started: nearing
 // its limit.
 func (a accountWorlds) fableNearing() accountWorld {
 	return a.kept("fableNearing", func() accountWorld {
-		t := a.today()
+		t := a.today().withFable()
 		t.work()
 		t.personal()
 		t.side(.88)
@@ -691,8 +718,8 @@ func (a accountWorlds) many(n int) accountWorld {
 // one is work alone, where new sessions go, under pressure: its 5-hour
 // window, primed at 12:10, read at 44% at 14:10:30 and at 58% at 14:41, a
 // rate that has it reach its cap at about 16:05, before it resets at 17:10;
-// its week at 34%; and nothing used of its Fable week this week. Five
-// sessions are on it.
+// its week at 34%; and nothing used of its Fable week this week, as every
+// world has it but the Fable worlds. Five sessions are on it.
 func (a accountWorlds) one() accountWorld {
 	return a.kept("one", func() accountWorld {
 		accounts := firstAccounts(1)
@@ -700,11 +727,7 @@ func (a accountWorlds) one() accountWorld {
 		t.session("work", t.at(7, 5, 0), true, level{t.at(11, 35, 0), .62})
 		t.session("work", t.at(12, 10, 0), true, level{t.at(14, 10, 30), .44}, level{t.at(14, 41, 0), .58})
 		t.week("work", 0, level{t.at(14, 40, 0), .34})
-		week, _, _, _ := a.year.soFar("work")
-		h := slices.DeleteFunc(t.history(accounts), func(r readings.Reading) bool {
-			return r.Key == modelKey && r.ResetsAt.Equal(week.resets.UTC()) && r.Utilization > 0
-		})
-		return accountWorld{accounts: accounts, history: h, sessions: map[string]int{"work": 5}}
+		return accountWorld{accounts: accounts, history: t.history(accounts), sessions: map[string]int{"work": 5}}
 	})
 }
 

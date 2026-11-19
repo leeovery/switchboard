@@ -1,13 +1,13 @@
  SWITCHBOARD   Thu 1 Oct  14:42                                                                               ● healthy  ·  6 sessions  ·  new sessions → ▲ side
 
-              WEEK                                                                      FABLE
+              WEEK
 
-work                        ▎       ┃                 ╎   34%  out ~Sat                                       ┃                 ╎   12%  25%/day till Sun 21:00
+work                                        ▋                 ┃                                     ╎     34%  out ~Sat
 
-personal    ◆                            ┃                66%  out ~Sat                 no Fable use
+personal    ◆                                                           ┃▍                                66%  out ~Sat
 
-side        ▲                    ┃            ▊           78%  out ~Fri                  ▋                 ┃                         4%  25%/day till Mon 10:00
+side        ▲                                          ┃                            ▎                     78%  out ~Fri
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool                               ┃▉                   59%  1.2 of 3 left              ▎                    ┃                     5%  2.8 of 3 left
+Σ pool                                                         ┃   ▍                                      59%  1.2 of 3 left
 
               ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%

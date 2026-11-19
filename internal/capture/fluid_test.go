@@ -143,7 +143,11 @@ var knownBreaks = []known{
 	},
 	{
 		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
-		sizes: []string{"108x24", "108x44", "109x53"}, fixtures: []string{"sessions-moved-160", "sessions-pinned-160"},
+		sizes: []string{"108x44", "109x53"}, fixtures: []string{"sessions-moved-160", "sessions-pinned-160"},
+	},
+	{
+		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
+		sizes: []string{"108x24"}, fixtures: []string{"sessions-pinned-160"},
 	},
 	// The Log's sessions' directories, as views.SessionDirName cuts them, with
 	// room at every size they show at with room; and the Requests' on, its
@@ -203,36 +207,43 @@ var knownBreaks = []known{
 		sizes: []string{"138x30", "173x53"}, fixtures: []string{"long-names-projects", "long-names-project-sessions"},
 	},
 	// What's left at the foot where USAGE takes the rows it must, the foot's
-	// blank row among them, short of every folded section's least, now that
-	// a model's own week some account has used adds a section to USAGE (the
-	// owner's call, 18 November 2026): of three accounts, 3 rows, ROUTING
-	// folded at 73x36, and COMING UP and LATELY, 5 rows and a blank before
-	// them, at 108x44, but in the mixed worlds, at 73x36 alone; of six
-	// running at 108x44, 4 rows, ROUTING folded; and of ten accounts, 3 rows
-	// side by side at 138x30 and 109x53, and 5 stacked at 73x61, ROUTING
-	// folded, its ten accounts far past them.
+	// blank row among them, short of every folded section's least: of six
+	// accounts at 73x61, stacked, ROUTING open under it; by account at 138x30,
+	// as the auto world's and the mixed one's, whose blocks are as tall,
+	// 2 rows, where ROUTING unfolded takes 6 more and COMING UP and LATELY 5,
+	// a blank row before each among them, and the blank rows between its
+	// accounts give way only 2; and of ten accounts side by side, their blank
+	// rows given way, 3 rows: at 138x30, where ROUTING takes 13 more and COMING
+	// UP and LATELY 5, its headings' blank rows and its key giving way only
+	// where no section is open; and at 108x44, ROUTING open, where COMING UP
+	// and LATELY take 5; and of a model's own week some accounts have used,
+	// stacked under the 5-hour, its unused account left out, 3 rows: at
+	// 73x36, every other section folded; and at 108x44, ROUTING open, where
+	// COMING UP and LATELY take 5.
 	{
-		byDesign: "3 rows under USAGE with a used model week, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"73x36", "108x44"},
-		fixtures: []string{
-			"overview-108x44", "overview-138x15", "overview-73x61", "overview-acme-160", "overview-acme-73x61",
-			"overview-bad-hour-160", "overview-default-160", "overview-default-216", "overview-default-pool-160",
-			"overview-lapsed-160", "overview-lapsed-73x61", "overview-model-nearing-160", "overview-phone-52",
-			"overview-pinned-160", "page-help-scrolled", "page-not-answering", "page-routing", "page-routing-160x16",
-			"page-routing-phone", "routing-auto-160", "routing-limit-160", "routing-move-160", "routing-two-160",
-		},
+		byDesign: "2 rows under ROUTING, short of every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"73x61"}, fixtures: []string{"overview-six-running-173x53"},
 	},
 	{
-		byDesign: "3 rows under USAGE with a used model week, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"73x36"}, fixtures: []string{"overview-mixed-73x61", "routing-mixed-160"},
+		byDesign: "2 rows under USAGE by account, short of every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160", "overview-mixed-by-account-160"},
 	},
 	{
-		byDesign: "4 rows under USAGE's six accounts with a used model week, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"108x44"}, fixtures: []string{"overview-six-running-173x53"},
+		byDesign: "3 rows under USAGE's ten accounts side by side, short of every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"138x30", "108x44"}, fixtures: []string{"overview-ten-accounts-160"},
 	},
 	{
-		byDesign: "the rows under USAGE's ten accounts with a used model week, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"138x30", "109x53", "73x61"}, fixtures: []string{"overview-ten-accounts-160"},
+		byDesign: "3 rows under a used model's week stacked, short of every folded section's least", rule: foldWithRowsSpare,
+		sizes:    []string{"73x36", "108x44"},
+		fixtures: []string{"overview-fable-160", "overview-fable-73x61", "overview-fable-108x44", "overview-model-nearing-160"},
+	},
+	// What's left at the foot at 73x36, every other section folded, where
+	// USAGE takes the least far step that fits whole, as it keeps its key
+	// only where it shows: six accounts stacked, their blank rows and their
+	// headings' given way, 2 rows, where those take 3 more and LATELY 5.
+	{
+		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
+		sizes: []string{"73x36"}, fixtures: []string{"overview-six-accounts-160"},
 	},
 	// Projects' list never hangs its form on the chosen project's data, so it
 	// keeps its rows whatever the project's sessions leave blank at the foot.
