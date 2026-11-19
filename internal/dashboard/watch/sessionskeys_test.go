@@ -185,9 +185,6 @@ func TestSessionsHelpListsItsKeysAsTheKeyLineWordsThem(t *testing.T) {
 				want = append(want, dashboard.Key{Key: "< >", Does: "period", State: "this week"})
 			}
 			want = append(want, dashboard.Key{Key: "↑↓", Does: "session"}, dashboard.Key{Key: "enter", Does: "its page", Off: true})
-			if shown == dashboard.SessionsSwitchboard {
-				want = append(want, dashboard.Key{Key: "w", Does: "models", Hidden: true})
-			}
 			want = append(want, dashboard.Key{Key: "p", Does: "pin"}, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, dashboard.Quit)
 			if got := helpOver(h.model); !slices.Equal(got, want) {
 				t.Errorf("help lists\n%+v\nwant\n%+v", got, want)

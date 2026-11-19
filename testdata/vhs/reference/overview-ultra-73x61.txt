@@ -15,6 +15,14 @@ WEEK
 ─────────────────────────────────────────────────────────────────────────
  Σ pool                       ┃▎             59%  1.2 of 3 left
 
+FABLE
+
+ work            ▌           ┃            ╎  12%  25%/day till Sun 21:00
+
+ side       ▲  ▏           ┃                  4%  25%/day till Mon 10:00
+─────────────────────────────────────────────────────────────────────────
+ Σ pool        ▌              ┃               5%  2.8 of 3 left
+
 ┃ even pace: where you would be now, used evenly
 ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
@@ -49,13 +57,5 @@ LATELY  ────────────────────────
 11:55  ▲ website started on personal
 10:02  ▲ mobile started on personal
 09:40  ▲ docs started on work
-09:12  ▲ infra started on work
-08:31  ▲ website started on side
-07:58  ▲ api started on work
-
-
-
-
-
 
 tab views   ? keys and toggles   q quit

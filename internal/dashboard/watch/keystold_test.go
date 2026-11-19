@@ -23,9 +23,9 @@ func keysTold(keys []dashboard.Key) []string {
 func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 	want := map[string][]string{
 		"every page": {"tab views", "p pin", "P pool", "t themes", "R refresh", "? help", "q quit", "j k scroll", "PgUp PgDn page", "wheel scroll"},
-		"Overview":   {"u usage", "r routing", "s sessions", "c coming up", "l lately", "w models", "b by", "↑↓ scroll"},
+		"Overview":   {"u usage", "r routing", "s sessions", "c coming up", "l lately", "b by", "↑↓ scroll"},
 		"Accounts": {
-			"[ ] view", "< > period", "v split", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",
+			"[ ] view", "< > period", "v split", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus",
 		},
 		"Projects": {"↑↓ project", "→ its sessions", "↑↓ session", "← projects", "enter its page", "< > period"},
 		"Runway":   {"←→ week", "a collapse"},
@@ -34,7 +34,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 			"[ ] view", "↑↓ request", "↑↓ event", "enter open", "s its session", "end follow", "esc follow", "f what it shows", "/ find",
 			"esc clear the filter",
 		},
-		"a session's page": {"esc back", "esc close", "↑↓ turn", "↑↓ request", "enter its requests", "enter open", "w models"},
+		"a session's page": {"esc back", "esc close", "↑↓ turn", "↑↓ request", "enter its requests", "enter open"},
 	}
 	pages := EveryPagesKeys()
 	var named []string

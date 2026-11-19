@@ -1,10 +1,10 @@
  SWITCHBOARD   Thu 1 Oct  14:42                                       ● healthy  ·  6 sessions  ·  new sessions → ▲ side
 
-              WEEK                                5-HOUR                              FABLE WEEK
+              WEEK                                5-HOUR                              FABLE
 
-work              ▏ ┃    ╎  34%  out ~Sat               ┃    ╎  95%  back 17:10        ▌    ┃    ╎  12%  25%/day · Sun
+work              ▏ ┃    ╎  34%  out ~Sat               ┃    ╎  95%  cap · 17:10       ▌    ┃    ╎  12%  25%/day · Sun
 
-personal    ◆        ▉┃     66%  out ~Sat             ▋   ┃     39%  34%/h · 16:30            ┃      0%  40%/day · Sun
+personal    ◆        ▉┃     66%  out ~Sat             ▋   ┃     39%  34%/h · 16:30    no Fable use
 
 side        ▲      ┃   ▍    78%  out ~Fri          ▌┃           13%  21%/h · 18:50    ▌    ┃         4%  25%/day · Mon
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

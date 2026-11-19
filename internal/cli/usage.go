@@ -53,8 +53,9 @@ time, or by account, each account's windows together, over the config's
 [usage] by; by window where neither says. --5h, --week, and a flag for each
 model's own window, named for its model, as --fable is for Fable's week,
 print the windows given alone, in the order of care: the week, the
-5-hour, then each model's own. One that no account reports fails, naming
-those there are.
+5-hour, then each model's own. Each model's own window prints only where
+some account has used it, as the 5-hour prints only where some account has
+one. A window the printout wouldn't print fails, naming those it would.
 
 On a terminal, usage prints the windows. Anywhere else, as in a pipe or an
 agent's shell, it prints the status document as JSON in their place, as
@@ -214,11 +215,11 @@ func addWindowFlags(cmd *cobra.Command) windowFlags {
 
 // keys returns the keys of the windows given, in the flags' order: none
 // where none is, which prints every window. It fails for a window the
-// printout of the moment m wouldn't show, as its Listed has them, each
-// model's own among them, naming those it would by their flags.
+// printout of the moment m wouldn't show, as its Listed has them, naming
+// those it would by their flags.
 func (ws windowFlags) keys(m status.Moment) ([]string, error) {
 	reported := make(map[string]bool)
-	for _, key := range m.Listed(true) {
+	for _, key := range m.Listed() {
 		reported[key] = true
 	}
 	var keys []string
@@ -234,8 +235,9 @@ func (ws windowFlags) keys(m status.Moment) ([]string, error) {
 	return keys, nil
 }
 
-// unreported is the error of the window flag f, for a window no account
-// reports, naming the flags of those reported.
+// unreported is the error of the window flag f, for a window the printout
+// wouldn't show, as no account has it, or none has used a model's own,
+// naming the flags of those it would.
 func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error {
 	var there []string
 	for _, w := range ws {
@@ -243,7 +245,7 @@ func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error 
 			there = append(there, "--"+w.name)
 		}
 	}
-	return fmt.Errorf("no account reports %s: give %s", f.what, strings.Join(there, " or "))
+	return fmt.Errorf("no account has %s to show: give %s", f.what, strings.Join(there, " or "))
 }
 
 // IsTerminal reports whether out is a terminal: Deps.Terminal, for the

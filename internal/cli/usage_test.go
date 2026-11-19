@@ -182,7 +182,10 @@ func TestUsagePrintsTheWindowsGivenLaidOutAsAsked(t *testing.T) {
 	}
 }
 
-func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
+// A window the printout wouldn't show is refused: one no account reports,
+// and a model's own no account has used, as the printout shows it only where
+// some account has.
+func TestUsageRefusesAWindowNoAccountHasToShowNamingThoseThereAre(t *testing.T) {
 	tests := []struct {
 		name     string
 		upstream func(*testing.T) string
@@ -191,15 +194,19 @@ func TestUsageRefusesAWindowNoAccountReportsNamingThoseThereAre(t *testing.T) {
 	}{
 		{
 			name: "a model's window", upstream: sharedWindowsAPI, args: []string{"--fable"},
-			want: "no account reports the Fable week: give --week or --5h",
+			want: "no account has the Fable week to show: give --week or --5h",
 		},
 		{
 			name: "a model's window, among others reported", upstream: sharedWindowsAPI, args: []string{"--5h", "--fable", "--week"},
-			want: "no account reports the Fable week: give --week or --5h",
+			want: "no account has the Fable week to show: give --week or --5h",
+		},
+		{
+			name: "a model's window no account has used", upstream: unusedModelAPI, args: []string{"--fable"},
+			want: "no account has the Fable week to show: give --week or --5h",
 		},
 		{
 			name: "a model's window, where no account is read", upstream: refusingAPI, args: []string{"--fable", "--5h"},
-			want: "no account reports the Fable week: give --week or --5h",
+			want: "no account has the Fable week to show: give --week or --5h",
 		},
 	}
 	for _, tt := range tests {
@@ -226,7 +233,7 @@ func TestUsageRefusesThe5HourWindowWhereEveryAccountIsUltra(t *testing.T) {
 	for _, form := range prettyForms() {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, ultraDeps(t), "usage", "--5h")
-			if want := (result{stderr: "Error: no account reports the 5-hour window: give --week\n", code: 1}); got != want {
+			if want := (result{stderr: "Error: no account has the 5-hour window to show: give --week\n", code: 1}); got != want {
 				t.Errorf("switchboard usage --5h %s, %s, every account Ultra, = %+v, want %+v", strings.Join(form.args, " "), form.name, got, want)
 			}
 		})
@@ -301,6 +308,14 @@ func reportingAPI(t *testing.T, keys ...string) string {
 	return answeringAPI(t, []string{"test-token-work"}, keys...)
 }
 
+// unusedModelAPI serves a probe of the work account, of any model, with the
+// week and the 5-hour each a fifth used, and Fable's week unused. It
+// returns the API's URL.
+func unusedModelAPI(t *testing.T) string {
+	t.Helper()
+	return usedAPI(t, []string{"test-token-work"}, map[string]string{"5h": "0.2", "7d": "0.2", "7d_oi": "0"})
+}
+
 // ultraAPI serves a probe of every account statusDeps configures, its
 // personal token written too, with the week alone, as every verified Ultra
 // account's answers have it. It returns the API's URL.
@@ -314,14 +329,26 @@ func ultraAPI(t *testing.T) string {
 // anything else. It returns the API's URL.
 func answeringAPI(t *testing.T, tokens []string, keys ...string) string {
 	t.Helper()
+	used := make(map[string]string, len(keys))
+	for _, key := range keys {
+		used[key] = "0.2"
+	}
+	return usedAPI(t, tokens, used)
+}
+
+// usedAPI serves a probe on any of the tokens given, of any model, with the
+// windows used alone, each used as it says, and rejects anything else. It
+// returns the API's URL.
+func usedAPI(t *testing.T, tokens []string, used map[string]string) string {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !slices.Contains(tokens, strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")) {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = io.WriteString(w, `{"type":"error","error":{"type":"authentication_error","message":"Invalid bearer token"}}`)
 			return
 		}
-		for _, key := range keys {
-			w.Header().Set("anthropic-ratelimit-unified-"+key+"-utilization", "0.2")
+		for key, share := range used {
+			w.Header().Set("anthropic-ratelimit-unified-"+key+"-utilization", share)
 			w.Header().Set("anthropic-ratelimit-unified-"+key+"-reset", "1790974800")
 		}
 		_, _ = io.WriteString(w, `{"type":"message"}`)

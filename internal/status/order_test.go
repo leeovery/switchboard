@@ -79,82 +79,123 @@ func TestTheMomentListsItsWindowsInTheOrderOfCare(t *testing.T) {
 			if got := m.SharedWindows(); !slices.Equal(got, tt.want) {
 				t.Errorf("SharedWindows() = %q, want %q", got, tt.want)
 			}
-			if got := m.Listed(true); !slices.Equal(got, tt.listed) {
-				t.Errorf("Listed(true) = %q, want %q", got, tt.listed)
+			if got := m.Listed(); !slices.Equal(got, tt.listed) {
+				t.Errorf("Listed() = %q, want %q", got, tt.listed)
+			}
+			if got := m.Reported(); !slices.Equal(got, tt.listed) {
+				t.Errorf("Reported() = %q, want %q", got, tt.listed)
 			}
 		})
 	}
 }
 
-// Each model's own window is listed where models are asked for, and else
-// only while it nears or reaches its limit on some account: held at it, at
-// the account's cap, running out, or nearing where it runs out. Those every
+// Each model's own window is listed as the 5-hour is, only where some
+// account has it to show: where some account has used it, some of it used
+// as it stands now, however near or far its limit. An account that hasn't
+// goes without it, as an account without a 5-hour window does; one with no
+// usable token, or nothing read, may have used it, so keeps it. Reported
+// lists every model's window any account reports, used or not. Those every
 // model shares are listed always.
-func TestAModelsWindowIsListedWhereAskedForOrNearingItsLimit(t *testing.T) {
-	limitedOn := func(key string) func(*status.Account) {
-		return func(a *status.Account) {
-			a.Limit = status.Limit{ID: 1, Windows: []string{key}, Until: built.Add(time.Hour)}
-		}
-	}
-	sideWith := func(w quota.Window, change func(*status.Account)) status.Document {
-		side := readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.5, 3*day), w)
+func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
+	work := func(fable float64, change func(*status.Account)) status.Account {
+		a := readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.3, 3*day), windowIn("7d_oi", fable, 3*day))
 		if change != nil {
-			side = with(side, change)
+			a = with(a, change)
 		}
-		return routerDocOf(readAt("work", windowIn("5h", 0.4, 2*time.Hour), windowIn("7d", 0.3, 3*day), windowIn("7d_oi", 0.2, 3*day)), side)
+		return a
 	}
-	shared := []string{"7d", "5h"}
+	side := func(w quota.Window) status.Account {
+		return readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.5, 3*day), w)
+	}
+	reserveAll := func(a *status.Account) { a.Reserve = 0.9999 }
+	lapsed := windowIn("7d_oi", 0.3, -time.Hour)
 	tests := []struct {
-		name string
-		doc  status.Document
-		// stands is how side's model window stands, checked so the case
-		// lists it, or doesn't, for the reason it names.
-		stands func(status.WindowNow) bool
-		hidden []string
+		name   string
+		doc    status.Document
+		listed []string
+		// without are the ids of the accounts that go without the model's
+		// window, as its Without says.
+		without []string
 	}{
-		{name: "quiet on every account: hidden", doc: sideWith(windowIn("7d_oi", 0.3, 3*day), nil), stands: quiet, hidden: shared},
-		{name: "a new model's, quiet: hidden as any model's is", doc: sideWith(windowIn("7d_om", 0.3, 3*day), nil), stands: quiet, hidden: shared},
 		{
-			name: "held at its limit", doc: sideWith(windowIn("7d_oi", 0.3, 3*day), limitedOn("7d_oi")),
-			stands: func(w status.WindowNow) bool { return w.Held }, hidden: []string{"7d", "5h", "7d_oi"},
+			name: "every account at 0%, a 99.99% reserve putting the floor at 0.01%: not listed", listed: []string{"7d", "5h"},
+			doc:     routerDocOf(work(0, reserveAll), with(side(windowIn("7d_oi", 0, 3*day)), reserveAll)),
+			without: []string{"work", "side"},
 		},
 		{
-			name: "at the account's cap", doc: sideWith(windowIn("7d_oi", 0.92, 3*day), reserving),
-			stands: func(w status.WindowNow) bool { return w.Capped && !w.Held }, hidden: []string{"7d", "5h", "7d_oi"},
+			name: "one account at 3%: listed, the other without it", listed: []string{"7d", "5h", "7d_oi"},
+			doc:     routerDocOf(work(0, nil), side(windowIn("7d_oi", 0.03, 3*day))),
+			without: []string{"work"},
 		},
 		{
-			name: "running out", doc: sideWith(windowIn("7d_oi", 0.5, 6*day), nil),
-			stands: func(w status.WindowNow) bool { return w.RunsOut && !w.Capped }, hidden: []string{"7d", "5h", "7d_oi"},
+			name: "a new model's, used: listed as any model's is", listed: []string{"7d", "5h", "7d_om"},
+			doc:     routerDocOf(work(0, nil), side(windowIn("7d_om", 0.03, 3*day))),
+			without: []string{"work"},
 		},
 		{
-			name: "nearing where it runs out", doc: sideWith(windowIn("7d_oi", 0.8, day), nil),
-			stands: func(w status.WindowNow) bool { return w.Nearing && !w.RunsOut && !w.Capped }, hidden: []string{"7d", "5h", "7d_oi"},
+			name: "used, but reset since it was read: not listed", listed: []string{"7d", "5h"},
+			doc:     routerDocOf(work(0, nil), side(lapsed)),
+			without: []string{"work", "side"},
 		},
 		{
-			name: "a new model's, nearing", doc: sideWith(windowIn("7d_om", 0.8, day), nil),
-			stands: func(w status.WindowNow) bool { return w.Nearing && !w.RunsOut }, hidden: []string{"7d", "5h", "7d_om"},
+			name: "used by every account: listed, none without it", listed: []string{"7d", "5h", "7d_oi"},
+			doc: routerDocOf(work(0.2, nil), side(windowIn("7d_oi", 0.5, 3*day))),
+		},
+		{
+			name: "at 0% beside an account with no usable token, which may have used it: not listed, that one keeping it", listed: []string{"7d", "5h"},
+			doc:     routerDocOf(work(0, func(a *status.Account) { a.TokenSet = false }), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"side"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.doc.At(built.Add(time.Minute), policy)
-			side, _ := m.Account("side")
-			model := side.Windows[2]
-			if model.Shared || !tt.stands(model) {
-				t.Fatalf("side's %s stands as %+v, not as the case says", model.Key, model)
+			if got := m.Listed(); !slices.Equal(got, tt.listed) {
+				t.Errorf("Listed() = %q, want %q", got, tt.listed)
 			}
-			if got := m.Listed(false); !slices.Equal(got, tt.hidden) {
-				t.Errorf("Listed(false) = %q, want %q", got, tt.hidden)
+			reported := []string{"7d", "5h"}
+			var without []string
+			for _, a := range m.Accounts {
+				w := a.Windows[2]
+				if w.Shared {
+					t.Fatalf("%s's %s is shared, want a model's own", a.ID, w.Key)
+				}
+				if w.Without() {
+					without = append(without, a.ID)
+				}
+				reported = append(reported, w.Key)
 			}
-			every := slices.Compact(slices.SortedFunc(slices.Values([]string{"7d", "5h", "7d_oi", model.Key}), m.CompareWindows))
-			if got := m.Listed(true); !slices.Equal(got, every) {
-				t.Errorf("Listed(true) = %q, want %q", got, every)
+			if !slices.Equal(without, tt.without) {
+				t.Errorf("the accounts without their model's window are %q, want %q", without, tt.without)
+			}
+			if got, want := m.Reported(), slices.Compact(slices.SortedFunc(slices.Values(reported), m.CompareWindows)); !slices.Equal(got, want) {
+				t.Errorf("Reported() = %q, want %q", got, want)
 			}
 		})
 	}
 }
 
-// quiet reports whether the window neither nears nor reaches its limit.
-func quiet(w status.WindowNow) bool {
-	return !w.Held && !w.Capped && !w.RunsOut && !w.Nearing
+// An account lacking a window every model shares goes without it, and an
+// account with it, at 0% or not, doesn't: unused, a window every model
+// shares still shows, as the 5-hour's rule asks only whether the account has
+// it.
+func TestAWindowEveryModelSharesGoesWithoutOnlyWhereItsAccountLacksIt(t *testing.T) {
+	m := routerDocOf(
+		readAt("work", windowIn("7d", 0, 3*day)),
+		readAt("side", windowIn("5h", 0, 4*time.Hour), windowIn("7d", 0.5, 3*day)),
+	).At(built.Add(time.Minute), policy)
+	for _, tt := range []struct {
+		id, key string
+		without bool
+	}{
+		{id: "work", key: "5h", without: true},
+		{id: "work", key: "7d"},
+		{id: "side", key: "5h"},
+		{id: "side", key: "7d"},
+	} {
+		a, _ := m.Account(tt.id)
+		if w, _ := a.Window(tt.key); w.Without() != tt.without {
+			t.Errorf("%s's %s goes without it: %v, want %v", tt.id, tt.key, w.Without(), tt.without)
+		}
+	}
 }

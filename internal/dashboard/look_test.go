@@ -86,7 +86,7 @@ func onTheBoard() (dashboard.SessionsShown, dashboard.Traffic) {
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
-			Width: width, Height: height, View: dashboard.Overview, Policy: claude, Models: true,
+			Width: width, Height: height, View: dashboard.Overview, Policy: claude,
 			KeyLine: dashboard.KeyLine{Groups: [][]dashboard.Key{{{Key: "q", Does: "quit"}}}},
 		}
 	}

@@ -90,7 +90,7 @@ func probed(accounts ...status.Account) status.Document {
 // line listing tab, ? and q.
 func frameOf(width, height int) Frame {
 	return Frame{
-		Width: width, Height: height, View: Overview, Policy: claudeLike, Models: true,
+		Width: width, Height: height, View: Overview, Policy: claudeLike,
 		KeyLine: KeyLine{Groups: [][]Key{{{Key: "tab", Does: "views"}}, {{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}}}, Lead: 3},
 	}
 }

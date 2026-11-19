@@ -188,7 +188,7 @@ func aloneDoc() status.Document {
 func detailFrame(look Look, configured config.Accounts, chosen, selected string, page *views.AccountsPage, sessions []status.Session) Frame {
 	_, _, stream := overviewWorld()
 	return Frame{
-		Width: 160, Height: wholeRows, Look: look, View: Accounts, Policy: claudeLike, Models: true, Sessions: sessions, Stream: stream,
+		Width: 160, Height: wholeRows, Look: look, View: Accounts, Policy: claudeLike, Sessions: sessions, Stream: stream,
 		Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: chosen, Selected: selected, InSessions: selected != "", Page: page},
 	}
 }

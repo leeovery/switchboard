@@ -5,20 +5,28 @@
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────── u   ROUTING   auto ──────────────────────────────────── r
 
 work          Week                                 ┃                    ╎   34%  out ~Sun                  ● open
-                                                                                                           0 sessions
-              5-hour    no limit                                                                           ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+
+              5-hour    no limit                                                                           0 sessions
+
+              Fable wk                             ┃                    ╎   12%  25%/day till Sun 21:00    ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
 personal    ◆ Week                                      ┃                   66%  out ~Sat                  ● open
-                                                                                                           2 sessions
-              5-hour    no limit                                                                           ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
+
+              5-hour    no limit                                                                           2 sessions
+
+              Fable wk  no use                                                                             ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
 
 side        ▲ Week                             ┃                            78%  out ~Fri                  ● open · new sessions come here
-                                                                                                           4 sessions
-              5-hour          ▌  ┃                                          13%  21%/h till 18:50          ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▇     ▇ ▆▅▄▄▅▅▆  11/min
+
+              5-hour          ▌  ┃                                          13%  21%/h till 18:50          4 sessions
+
+              Fable wk                         ┃                             4%  25%/day till Mon 10:00    ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▇     ▇ ▆▅▄▄▅▅▆  11/min
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool        Week                                 ┃ ▋                      59%  1.2 of 3 left             3 open
+
                                                                                                            6 sessions
-                                                                                                           ▄▆▇▆▃▃▃▃▂▂▄▆▇▇▅▄▃▃▂▂▂▂▂▁▂▂▄         ▇ ▆▅▄▅▇▆▇  14/min
+
+              Fable wk    ▋                        ┃                         5%  2.8 of 3 left             ▄▆▇▆▃▃▃▃▂▂▄▆▇▇▅▄▃▃▂▂▂▂▂▁▂▂▄         ▇ ▆▅▄▅▇▆▇  14/min
 
               ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
@@ -30,13 +38,5 @@ COMING UP  ───────────────────────
 Sun 02:00  personal's week resets                              in 2d 11h          13:50  ◇ side primed: its 5-hour window started
 ~Sun       work's week reaches its cap                         in 2d 21h          13:22  ▸ infra moved personal → work: personal came under pressure
 Sun 21:00  work's week resets                                   in 3d 6h          12:47  ▲ docs started on personal
-Mon 10:00  side's week resets                                  in 3d 19h          12:02  ▲ switchboard started on work
-                                                                                  11:55  ▲ website started on personal
-                                                                                  10:02  ▲ mobile started on personal
-                                                                                  09:40  ▲ docs started on work
-                                                                                  09:12  ▲ infra started on work
-                                                                                  08:47  ◇ side primed: its 5-hour window started
-
-
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: account     p pin  ? help  q quit

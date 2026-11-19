@@ -4,29 +4,29 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
 
-              WEEK                                                                      5-HOUR
+              WEEK                                             5-HOUR                                           FABLE
 
-work                        ▎       ┃                 ╎   34%  out ~Sun                                      ┃                 ▉╎   95%  at cap · back 17:10
+work               ▊   ┃      ╎  34%  out ~Sun                          ┃      ╎  95%  at cap · back 17:10               ┃      ╎  12%  25%/day till Sun 21:00
 
-personal    ◆                            ┃                66%  out ~Sat                                 ▍          ┃                39%  34%/h till 16:30
+personal    ◆            ┃       66%  out ~Sat                       ▋    ┃       39%  34%/h till 16:30         no Fable use
 
-side        ▲                    ┃            ▊           78%  out ~Fri                      ▌ ┃                                    13%  21%/h till 18:50
+side        ▲         ┃    ▎     78%  out ~Fri                   ▎┃               13%  21%/h till 18:50         ▋       ┃           4%  25%/day till Mon 10:00
 
-client                           ▊  ┃                     47%  out ~Sun                                  ┃   ▉                      52%  16%/h till 17:40
+client                 ┃         47%  out ~Sun                        ┃▉          52%  16%/h till 17:40          ▍       ┃          8%  27%/day till Sun 23:00
 
-spare           ▏         ┃                                5%  out ~Tue                  ┃                                           4%  20%/h till 19:35
+spare         ▉    ┃              5%  out ~Tue                 ┃                   4%  20%/h till 19:35         no Fable use
 
-lab                               ┃   ▍                   58%  out ~Sat                                        ┃     ▉              71%  out ~16:05
+lab                   ┃▉         58%  out ~Sat                          ┃  ▏      71%  out ~16:05                  ▋    ┃          21%  21%/day till Mon 08:00
 
-team                                      ┃     ▉         83%  out ~Sat                                                    ┃       100%  limit · back 15:30
+team                     ┃  ▏    83%  out ~Sat                               ┃   100%  limit · back 15:30            ▏     ┃       30%  30%/day till Sat 22:00
 
-extra                 ┃                                   12%  out ~Wed                          ▎     ┃                            22%  24%/h till 17:55
+extra            ┃               12%  out ~Wed                    ▊  ┃            22%  24%/h till 17:55         no Fable use
 
-ops                       ▏     ┃                         29%  out ~Mon                   ▌ ┃                                        6%  21%/h till 19:10
+ops               ▉  ┃           29%  out ~Mon                   ┃                 6%  21%/h till 19:10         ▍      ┃            2%  25%/day till Mon 14:00
 
-studio                         ▎        ┃                 41%  22%/day till Sun 06:00                ▉              ┃               33%  41%/h till 16:20
+studio                   ┃       41%  22%/day till Sun 06:00        ▋     ┃       33%  41%/h till 16:20          ▊         ┃       10%  34%/day till Sun 06:00
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool                            ┃                       45%  5.4 of 10 left                             ┃                         43%  5.6 of 10 left
+Σ pool               ▊┃          45%  5.4 of 10 left                  ┃           43%  5.6 of 10 left            ▌      ┃           9%  9.1 of 10 left
 
               ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 

@@ -121,7 +121,6 @@ The next dashboard opens with them. It remembers:
 - the theme, or the pair;
 - the tab shown;
 - the sections shown on the Overview, and its `b` grouping;
-- whether `w` shows each model's own window;
 - the period, one dial for the whole dashboard;
 - the view on Accounts, and the split on Tokens;
 - the view on Sessions;

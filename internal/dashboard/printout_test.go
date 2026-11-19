@@ -309,7 +309,7 @@ func TestThePrintoutsTokenLineNamesItsAccountAsItsRowDoes(t *testing.T) {
 func TestThePrintoutsTokenLinesAreInkedAsDetailsAre(t *testing.T) {
 	m := trio(nearlyUp...).At(printNow, printPolicy)
 	c := growing(160)
-	Printout{Width: 160}.tokens(c, m, newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m))), 0)
+	Printout{Width: 160}.tokens(c, m, newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(), labelsOf(m))), 0)
 	for _, tt := range []struct {
 		name string
 		inks tokenInks

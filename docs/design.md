@@ -3796,13 +3796,11 @@ Overview).
 
 - `t`, the theme picker, and `R`, refresh, work on every page and are never on the key line: `?`
   lists them.
-- `w`, each model's own window shown or hidden, works wherever windows are listed as they stand:
-  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. Trends, which draws
-  the windows every model shares, as Runway does, takes `w` for its WEEK (see Trends). It's never
-  on the key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
-  hidden. It's set once and remembered, so it doesn't earn the 10 cells it would cost every other
-  key: on the Overview's line, they'd have it fall to a phone's below 117 columns, where it fits
-  whole from 107 (the owner's call, 17 October 2026).
+- `w` is Trends' alone, for its WEEK (see Trends). The views that list windows as they stand, the
+  Overview, Accounts' Detail, Sessions' Switchboard and a session's page, took it to show each
+  model's own window, hidden at first; they show one now wherever an account has used it, as the
+  5-hour shows (see The Overview), so they take no key for it, and neither `?` nor the
+  keys-and-toggles card lists one (the owner's call, 18 November 2026).
 - `[ ]`'s word is `view` everywhere; `enter`'s word says what it does on the page, as `enter its
   page` or `enter open`.
 - A key that can't act now is drawn in `text.faint`, its key not bold, as `p pin` is while the
@@ -3879,13 +3877,15 @@ too. The accepted misses, which get the list's wheel backwards, include:
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
 shown, which the dashboard opens on; the Overview's sections shown and its `b`; Trends'
-sections shown; `w`; the dashboard's period, which the entity tabs share; Accounts' view and its
+sections shown; the dashboard's period, which the entity tabs share; Accounts' view and its
 Tokens' `v` split; Sessions' view; Runway's `a`; and the Log's columns.
 A file from before History went as a tab, which kept History as the tab shown, opens Trends with
 YEAR shown too, where History's Year went, the rest of Trends' sections as kept, and keeps Trends
 and its sections so as it opens, as `y` keeps them; History's Tokens' split, which it kept as
 `history.tokens.split`, reads as Accounts' Tokens' where the file keeps none, and the next write
-keeps it there and drops what History kept.
+keeps it there and drops what History kept. A file that keeps whether `w` showed each model's own
+window, as `models`, as builds before 18 November 2026 kept it, reads cleanly, the key passed over,
+and the next write drops it.
 A file from before the Overview's GRAPHS was removed (see The Overview), which may keep GRAPHS
 among the sections shown and its chart under `graphs`, reads without them, and the next write drops
 them. A page's sections kept, where every name is of none of its sections, as a later build's or one
@@ -3912,9 +3912,10 @@ Overview's USAGE draws the same block (see The Overview).
 - **The windows:** `--5h`, `--week`, and one flag for each model's own window switchboard knows,
   named for its model (`--fable`), each print the header, that window alone in either layout, and
   the key line. Given together, they print the windows given, in the order of care (see below). A
-  flag for a window no account reports fails, naming the windows there are (settled in the plan), as
-  `--5h` does where every account is on a verified Ultra plan: `no account reports the 5-hour
-  window: give --week`.
+  flag for a window the printout wouldn't print fails, naming the windows it would (settled in the
+  plan): one no account has, as `--5h` where every account is on a verified Ultra plan, `no account
+  has the 5-hour window to show: give --week`, and a model's own no account has used (see Which
+  windows show, below).
 - **The layout:** `--by window` or `--by account`. `[usage] by` in the config sets the default for
   `usage` and the dashboard alike, `window` unless set (see Config); the flag beats it.
 - **Where it reads,** as `status` does: the router's status document while the router answers,
@@ -3935,8 +3936,8 @@ and the windows shown, never what's read of them, but for the windows an account
 | By account, the name beside its first bar | Wherever its row's parts fit at their leasts beside the name column; else on a line of its own |
 | The key line | One line from the name column wherever it fits there at its widest, its gaps at their least; else two |
 
-A model's window status lists, as it lists one while it nears its limit, is a window shown, so where
-it makes three, the arrangement follows: from 86 columns to 121, two windows sit side by side, but
+A model's own window, listed where some account has used it, is a window shown, so where it makes
+three, the arrangement follows: from 86 columns to 121, two windows sit side by side, but
 three stack.
 
 **A row's parts,** in every layout, laid out as the dashboard's flex lays a row: the name column;
@@ -3979,8 +3980,11 @@ name column, that's from 86 columns for two windows and 122 for three; a printou
 a matrix of one.
 
 - **Headings,** in `text.subtle`, not bold: `WEEK`, `5-HOUR`, then each model's own window as its
-  model's name in capitals and ` WEEK`, as `FABLE WEEK`; each over its group's first column, with a
-  blank line under them.
+  model's name in capitals alone, as `FABLE`; each over its group's first column, with a blank line
+  under them. A model's only window of its own is a week, as Anthropic reports no model's own
+  5-hour, so the name says which (the owner's call, 18 November 2026). Sentences keep `Fable week`
+  and labels `Fable wk`, as in `reached its Fable week limit`, where the week says what resets.
+  `status.Headed` names a heading, beside `status.Short`'s labels.
 - **A row an account,** in the config's order, with a blank line under each, then the pool, last,
   under its rule. The account's name is at column 0.
 - **Each window is a group** at column `n + i·g`, where `n` is the name column and `g` is the
@@ -4087,10 +4091,11 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | Its subscription has ended: its last read was answered 403, the message saying OAuth authentication is currently not allowed for its organization, in any case, which is how an ended subscription is answered; the last reading, faded (below) | `subscription lapsed` | `lapsed` | `state.destructive` |
   | Its token is refused: the router saw it refused, or its last read was answered 401; the last reading, faded (below) | `token refused` | `refused` | `state.destructive` |
   | Its last read failed otherwise, a 403 with another message among them: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
-  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `back 15:54`, `back 12 Nov` a week on | `state.destructive` |
-  | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `back 17:10`, `back 12 Nov` a week on | `accent.attention` |
+  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `limit · back Sun`, `limit · back 12 Nov` a week on; narrower, `limit · Sun`, then `back Sun` | `state.destructive` |
+  | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `cap · back Mon`, `cap · back 12 Nov` a week on; narrower, `cap · Mon`, then `back Mon` | `accent.attention` |
   | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
+  | A model's own window the account hasn't used (below) | `no Fable use` | `no use` | `text.subtle` |
   | A 5-hour window not started (settled in the plan) | `not started` | `not started` | `text.muted` |
   | The reset is less than an hour away for the 5-hour window, or a day for a week (settled in the plan) | `34% till 16:30` | `34% · 16:30` | as the allowance |
   | Otherwise, the allowance | `19%/day till Sun 21:00`, `34%/h till 16:30` | `19%/day · Sun`, `34%/h · 16:30` | the rate and the time in `text.muted`; ` till ` and ` · ` in `text.subtle` |
@@ -4098,10 +4103,16 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   A time reads `16:30` for today and `Sun 21:00` for another day; the short form keeps a time today,
   and only the weekday for another day, but a run-out's or `back`'s more than a day ahead on
   today's weekday, which alone would read as today, gives its date instead, `out ~12 Nov`,
-  `back 12 Nov`. An allowance's reset keeps its day alone, `19%/day · Thu`: its 14 cells can't
-  hold a date beside the rate, and a rate a day can't be read as running out today. `back` is when
-  room returns: when a limit lifts, or the router's refusal of the token ends where that's later,
-  or the capped window resets. While the account's read is refused, nothing says when room returns,
+  `cap · back 12 Nov`. A window held back keeps what holds it short, `cap · back Mon` and
+  `limit · back Sun`: on the owner's iPad, a cell short of the full form, a capped account read
+  `back Mon`, which left the ink alone to tell a cap from a limit (the owner's call, 18 November
+  2026). The short form of a limit, and of a time today, `cap · back 17:10`, runs past the 14
+  cells the short words are laid in, as the Switchboard's lines and Detail on a phone lay them, so
+  where it doesn't fit it narrows, keeping the state before the word `back`: `cap · Mon`, then
+  `back Mon`, as `usageWords`' narrower forms have them. An allowance's reset keeps its day alone,
+  `19%/day · Thu`: its 14 cells can't hold a date beside the rate, and a rate a day can't be read
+  as running out today. `back` is when room returns: when a limit lifts, or the router's refusal of
+  the token ends where that's later, or the capped window resets. While the account's read is refused, nothing says when room returns,
   as no time lifts that hold (see Requests that need special handling): a window a limit holds
   reads `limit` alone, its short form `limit` too. Red is for Claude's own limit; a
   cap is movable, so it's amber. A stale reading says why where the API refused it, an ended
@@ -4199,22 +4210,40 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   Stacked, a window's section leaves the account out. `status`'s text lists it under the account as
   `5-hour  no 5-hour window`, and the status document leaves it out of the account's `windows`, as
   any window not read (see The status document).
-- **Every window shows, used or not, but each model's own on `w`:** the windows every model shares
-  show on every account that may have them, as nothing read before any is. Each model's own window,
-  as Fable's week, any window the policy doesn't share, so a new model's falls under it with no
-  change, shows on `w`, remembered in the preferences and hidden at first (the owner's call, 17
-  October 2026). It shows then on every account, at 0% as at 40%, as probes read every model
-  family's window before any use; an account that hasn't reported it shows it as nothing read.
-  Hidden, one shows all the same for as long as it nears its limit on any account: held at it, at
-  the account's cap, running out, or nearing where it runs out, within 10 points, as the moment
-  judges each window (`WindowNow`'s `Held`, `Capped`, `RunsOut` and `Nearing`). The toggle is for
-  the live views alone, display and nothing else: USAGE by window and by account, the Switchboard's
-  lines, a session's page and Accounts' Detail, its figures of now. Runway's `<` `>` step between
-  the week and the 5-hour alone, where an account has one, and the routing card shows those two, so
-  neither has a model's window to hide. `usage`'s printout keeps every window, as do the
-  records Trends draws, the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring
-  never read it. The moment's `Listed(models)` owns which windows a live view lists, with `w`'s
-  state; the views guard holds drawing packages from asking the policy which windows are shared.
+- **Which windows show:** the windows every model shares show on every account that may have
+  them, as nothing read before any is. **A model's own week shows as the 5-hour does** (the
+  owner's call, 18 November 2026, replacing that of 17 October): any window the policy doesn't
+  share, as Fable's, so a new model's falls under it with no change.
+  - An account that has used it, its reading above 0 as it stands now, shows it: its bar,
+    percentage and words. It's live: as an account's resets to 0, its bar goes, and the window
+    goes once no account has use left in it; the first use on any account brings it back.
+  - An account that hasn't goes without it, as an account without a 5-hour window does: stacked,
+    its section leaves the account out; side by side, in the matrix and by account, its words alone
+    from where its bar would start, `no Fable use`, or `no use` where the words are short or its
+    label beside them names the window, in `text.subtle`. An account unread, or without a usable
+    token, may have used it, so keeps its row.
+  - Where no account has used it, it isn't drawn at all, as the 5-hour isn't where no account has
+    one.
+  - The 17 October call hid each model's own window behind `w`, and showed one anyway while it
+    neared its limit on any account, within 10 points of the account's floor. That asked about
+    nearness, never use, and Anthropic reports a Fable week on every account, at 0% where it's
+    unused: a 99.99% reserve, which puts the floor at 0.01%, had every unused Fable week near, and
+    showed FABLE WEEK on every account.
+  - It holds wherever windows are listed as they stand: USAGE by window and by account, Accounts'
+    Detail, the Switchboard's lines, a session's page and `usage`'s printout. Runway's `<` `>` step
+    between the week and the 5-hour alone, where an account has one, and the routing card shows
+    those two. The Switchboard's lines side by side, at its step 3 and in a phone's lanes, show the
+    week and the 5-hour alone, so a model's own goes there as the rows run short. The status
+    document keeps every window, used or not, as do the records Trends draws, the Log, Accounts'
+    records (limits hit, past weeks) and every JSON; routing and scoring never read which show.
+  - One owner: the moment's `Listed` lists the windows a view lists, those every model shares that
+    some account has or may have, then each model's own some account has used, and `Reported`
+    every model's own any account reports, for a layout to hold still as use comes and goes. Of an
+    account's window, `WindowNow.Unused` says it's a model's own the account hasn't used, and
+    `WindowNow.Without` takes it with `WindowNone`, a window the account doesn't have: every view
+    leaves an account out, or words it so, by `Without`. `WindowNow.Nearing` is still judged, but
+    no view reads it. The views guard holds drawing packages from asking the policy which windows
+    are shared.
 - **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
   17 October 2026). In general, the windows every model shares, the policy's, longest first; then
   each model's own, as any window the policy doesn't share is, a new model's among them, in
@@ -4315,8 +4344,8 @@ header would. By window:
   and `w − n − 30` cells wide: 62 at 108 columns with the sample's 16-cell name column, 114 at 160,
   170 at 216. Room chooses which, as "Room", below, says. The matrix's bars follow `usage`'s rule:
   15 cells for two windows at 108 columns, 30 at 138, 16 for three at 160.
-- **One window,** as where no account has a 5-hour window (see `usage`, the printout) and `w` hides
-  each model's own, has big bars no taller than its matrix, so USAGE draws them wherever they fit,
+- **One window,** as where no account has a 5-hour window (see `usage`, the printout) and none has
+  used a model's own, has big bars no taller than its matrix, so USAGE draws them wherever they fit,
   at each step it gives way, each step measuring its own, as Paper's `phone-all-ultra` draws them
   (signed off 1 November 2026); two windows or more keep the matrix at each step it gives way to.
 - **Where they don't,** as on a phone, `usage`'s stacked layout at that width: at 73 columns its
@@ -5729,11 +5758,11 @@ where the parts lay it, as Narrower and wider says.
     `■ limit reached · back 16:30`, `■ refused (401) · its token needs renewing` or `○ not read yet`
     (see The Overview); and ending at the last column, `● pinned` or `✕ out of the pool` (see
     Pinned, below);
-  - a row a window, `Week`, `5-hour`, then each model's own week on `w`, `Fable wk`, a blank row
-    between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
+  - a row a window, `Week`, `5-hour`, then each model's own week where some account has used it,
+    `Fable wk`, a blank row between: its label at 87 in `text.subtle`, its bar at 98, 32 cells, a cell, its percentage in 4
     cells at 131, two cells, and its words, 22 cells, at 137. A window the account doesn't have (see
-    `usage`, the printout) shows `no limit` in `text.subtle` from where its bar would start, its
-    label naming the window, wherever the lines draw it, side by side or in a lane, its bar and
+    `usage`, the printout) shows `no limit` in `text.subtle` from where its bar would start, and a
+    model's own it hasn't used `no use`, its label naming the window, wherever the lines draw it, side by side or in a lane, its bar and
     percentage in each step's.
 
   The lines start on row 6, each 3 blank rows after the one before where the view's rows hold them
@@ -5939,7 +5968,8 @@ October 2026).
     `● at its cap · 17:10`, `● open · next`, `■ limit reached · 15:54`; and ending at the last
     column, `● pinned` or `✕ out of the pool`;
   - its windows, stacked where rows allow, as the board's lines stack them at its step 1: `Week`, a
-    blank row, `5-hour`, and each model's own week on `w`, a row each, a blank row between. A
+    blank row, `5-hour`, and each model's own week where some account has used it, a row each, a
+    blank row between. A
     window's row is the board's, its label a cell in, its bar, its percentage and its words laid by
     the lines' parts, as the board lays them, but running to the last column, as the board's leave
     a cell at the edge. So from 73 columns the bars stand at their natural, 32, and the words take
@@ -5949,7 +5979,11 @@ October 2026).
   - else its week and its 5-hour alone, as the board's step 3 draws a line's, side by side on the
     row under its name: `Week` at column 1, its bar from 8, a cell and its percentage; three cells
     on, `5-hour`, its bar 7 cells after it, a cell and its percentage, ending at the last column;
-    each bar `⌊(width − 28) ÷ 2⌋` cells, 12 at 52;
+    each bar `⌊(width − 28) ÷ 2⌋` cells, 12 at 52. A model's own week, listed where some account
+    has used it, isn't among them: a known trait, it shows in stacked lanes only (the owner's call,
+    18 November 2026). `dashboard.BesideKeys` owns the windows drawn side by side, and the scroll
+    sweep reads a lane's windows by it, so it never asks a page of side-by-side lanes to reach a
+    model's week the stacked lanes draw;
   - a blank row, then its sessions, a row each, their parts laid by the board's rule from column 2,
     alike in every lane so their columns align, what's spare at the row's end: the id, bold
     `text.primary` while the session works, else `text.muted`; a space and the directory, 6 to 24
@@ -5983,12 +6017,13 @@ October 2026).
      (`pageDown` and `pageUp`, in `scrolling.go`).
 
   The step hangs on the rows, the accounts configured, the calls, and the windows the moment lists,
-  as the board's lines count them: among them a model's own week while it nears its limit, is held
-  at it, or is capped, with `w` off, two rows more an account stacked, which can tip the lanes to
-  side by side, where only `Week` and `5-hour` show, as on the board's step 3. As a call comes or
-  goes, the form changes only where a step's rows stop fitting or start to. With three accounts,
-  three windows and six calls at 73 columns, the windows stack from 41 rows of terminal, go side by
-  side from 29, take the least gaps from 25, and scroll under that.
+  as the board's lines count them: among them a model's own week while some account has used it,
+  two rows more an account stacked, which can tip the lanes to side by side, where only `Week` and
+  `5-hour` show, as on the board's step 3: so a used model week shows in stacked lanes only, a
+  known trait (above). As a call comes or goes, the form changes only where a step's rows stop
+  fitting or start to. With three accounts, three windows and six calls at 73 columns, the windows
+  stack from 41 rows of terminal, go side by side from 29, take the least gaps from 25, and scroll
+  under that.
 - **No cords, no travel:** the state words carry the motion, bold while the session works.
 - **The heading:** `SESSIONS` in `text.muted`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).
@@ -6664,8 +6699,8 @@ burn-up, the burn rate, the week by day, sessions over the day, the model mix an
 plan, are drawn on round 1's page in Paper, not taken up. The keys were left to the design by the
 owner (25 October 2026): `w` week, `o` pool, `g` glance, `h` hours; round 4's frames chose `y`
 year, `m` months and `d` models for the three History had. The window drawn is the week
-every model shares, as on Runway: a model's own week has no card, and `w` is WEEK's here, where on
-the pages that list windows as they stand it shows the models' own (see Keys). The watch builds the
+every model shares, as on Runway: a model's own week has no card, and `w` is WEEK's, the one page
+that takes it (see Keys). The watch builds the
 lanes of Runway's week view alone for Trends, while WEEK or GLANCE shows. A preferences file that
 keeps `5-hour` among Trends' sections, as one kept before it went, has it passed over, as any name
 of none of its sections is; where it keeps no other, as where WEEK was hidden, Trends opens on the
@@ -7820,10 +7855,11 @@ yielding from 99 (155), and `resumed`, today or the day before, from 133 (165).
   (settled in the plan). At the right, while it runs, ending at the last column: the account in
   `text.secondary` and ` now  ` in `text.subtle`, then each of its windows, three spaces apart, its
   name in `text.muted` and its use bold in its level's colour (see `usage`, the printout): `side now
-  week 78%   5-hour 13%   fable week 4%`, in the order of care. Every window shows, used or not,
-  each model's own on `w` (see The Overview). A window the account doesn't have (see `usage`, the
-  printout) says so in place of its name and use, in `text.subtle`:
-  `personal now week 66%   no 5-hour limit`.
+  week 78%   5-hour 13%   fable week 4%`, in the order of care. The windows every model shares
+  show, used or not, and each model's own where some account has used it (see The Overview). A
+  window the account doesn't have (see `usage`, the printout), or a model's own it hasn't used,
+  says so in place of its name and use, in `text.subtle`:
+  `personal now week 66%   no 5-hour limit   no Fable use`.
 - **Account names are white** wherever named: bold `text.primary` where it runs (`on side`) and on
   an account's own row, `text.secondary` everywhere else, the story's labels and a turn's `on` among
   them, so a name reads as an account and not a word.
@@ -8436,9 +8472,8 @@ alone act, and `esc` closes it; so do the theme picker's while it's open, as The
 
 **Keys that mean one thing on one page and another elsewhere** are kept apart by the page: `r` and
 `s` hide sections on the Overview, where `R` refreshes on every page, and `s` opens a session's page
-on the Log; `g` shows GLANCE on Trends, and Requests from an event's details on the Log; `w` shows
-each model's own window where windows are listed as they stand, and WEEK on Trends; and `f` opens
-the Log's panel.
+on the Log; `g` shows GLANCE on Trends, and Requests from an event's details on the Log; and `f`
+opens the Log's panel.
 
 ### What moves
 

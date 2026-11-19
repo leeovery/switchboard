@@ -1614,13 +1614,14 @@ func TestProjection(t *testing.T) {
 
 func TestWindowLabelsInWords(t *testing.T) {
 	tests := []struct {
-		label, prose, short string
+		label, prose, short, headed string
 	}{
-		{label: "Session", prose: "session", short: "Session"},
-		{label: "Week", prose: "week", short: "Week"},
-		{label: "Fable week", prose: "Fable week", short: "Fable wk"},
-		{label: "Opus\x1b[2J  week", prose: "Opus [2J week", short: "Opus [2J wk"},
-		{label: "", prose: "", short: ""},
+		{label: "Session", prose: "session", short: "Session", headed: "Session"},
+		{label: "Week", prose: "week", short: "Week", headed: "Week"},
+		{label: "5-hour", prose: "5-hour", short: "5-hour", headed: "5-hour"},
+		{label: "Fable week", prose: "Fable week", short: "Fable wk", headed: "Fable"},
+		{label: "Opus\x1b[2J  week", prose: "Opus [2J week", short: "Opus [2J wk", headed: "Opus [2J"},
+		{label: "", prose: "", short: "", headed: ""},
 	}
 	for _, tt := range tests {
 		if got := status.InProse(tt.label); got != tt.prose {
@@ -1628,6 +1629,9 @@ func TestWindowLabelsInWords(t *testing.T) {
 		}
 		if got := status.Short(tt.label); got != tt.short {
 			t.Errorf("Short(%q) = %q, want %q", tt.label, got, tt.short)
+		}
+		if got := status.Headed(tt.label); got != tt.headed {
+			t.Errorf("Headed(%q) = %q, want %q", tt.label, got, tt.headed)
 		}
 	}
 }

@@ -336,8 +336,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // pages are the pages the watch draws over the worlds. The Overview's frames
 // and the routing card's over it, each named after its frame, at its size,
 // over its world, with the keys that reach it: on auto, pinned and in the bad
-// hour; by account; each model's own window shown, with w; side's Fable week
-// nearing its limit, shown with them hidden; USAGE alone; SESSIONS shown
+// hour; by account; side's Fable week near its limit; USAGE alone; SESSIONS shown
 // too, the rest folded; six accounts and ten; at 216 columns, with SESSIONS,
 // and everything shown; on a phone; over the worlds of verified Ultra
 // accounts, all three's and the mixed one's, on a phone and on an iPad, the
@@ -423,7 +422,6 @@ var pages = []page{
 	{name: "overview-lapsed-160", size: wide(37), world: accountWorlds.lapsed},
 	{name: "overview-lapsed-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.lapsed},
 	{name: "overview-by-account-160", size: wide(42), world: accountWorlds.auto, keys: keysOf("b")},
-	{name: "overview-models-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("w")},
 	{name: "overview-model-nearing-160", size: wide(37), world: accountWorlds.fableNearing},
 	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
 	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("s")},

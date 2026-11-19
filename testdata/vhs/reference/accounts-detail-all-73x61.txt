@@ -13,6 +13,8 @@ Week                      ┃                59%  1.2 of 3 left
 
 5-hour                 ┃▋                  49%  1.5 of 3 left
 
+Fable wk  ▊               ┃                 5%  2.8 of 3 left
+
 THIS WEEK
 requests  5,410           worth     $635
 limits    4               extra use off
@@ -55,7 +57,5 @@ LATELY
 10:02      ▲ mobile started on personal, the best
 09:40      ▲ docs started on work, the best
 09:12      ▲ infra started on work, the best
-08:47      ◇ side primed: its 5-hour window started
-08:31      ▲ website started on side, the best
-▼ 9 more below · j/k
+▼ 11 more below · j/k
 tab views   [ ] view   ? keys   q quit

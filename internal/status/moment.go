@@ -292,6 +292,11 @@ type WindowNow struct {
 	// to: some of it used as it stands at Now, or its heading has some used
 	// by its reset.
 	InUse bool
+	// Unused is set where it's a model's own window, as Fable's week, that
+	// its account, read with a usable token, hasn't used: none of it used as
+	// it stands at Now, as used says, as once it resets. A view listing
+	// windows as they stand leaves the account out of it, as Without says.
+	Unused bool
 	// Read is the window as it was read.
 	Read AsRead
 }
@@ -748,7 +753,22 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	wn.RunsOutAhead = wn.Unheld == WindowRunsOut
 	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.floor(a)-near-score.Tolerance
 	wn.InUse = inUse(w.stands, w.out.Projection)
+	wn.Unused = !wn.Shared && !wn.used()
 	return wn
+}
+
+// used reports whether its account has used the window at Now: some of it
+// used as it stands.
+func (w WindowNow) used() bool {
+	return w.Used > 0
+}
+
+// Without reports whether a view listing windows as they stand leaves the
+// window's account out of it, or says only that it's without it, as the
+// 5-hour of an account without one: one every model shares that the account
+// lacks, as WindowNone, or a model's own it hasn't used, as Unused.
+func (w WindowNow) Without() bool {
+	return w.Kind == WindowNone || w.Unused
 }
 
 // projected is the share of a window of the given kind, heading as p says,

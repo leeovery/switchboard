@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/status"
@@ -177,7 +178,7 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
 			for _, at := range sweptSizes(f, full[name], pagingGrid(log)) {
-				atWidth(t, at.width, func(t *testing.T) { pagesThroughAt(t, m, name, at, &walked) })
+				atWidth(t, at.width, func(t *testing.T) { pagesThroughAt(t, m, f, at, &walked) })
 			}
 		})
 	}
@@ -188,13 +189,14 @@ func ofTheLog(name string) bool {
 	return strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-")
 }
 
-// pagesThroughAt holds m, the fixture of the name given, paged at the width
-// given and each of its heights, to the scroll sweep's rules, but where
-// walked has a view drawn alike paged already.
-func pagesThroughAt(t *testing.T, m watch.Model, name string, at swept, walked *sync.Map) {
+// pagesThroughAt holds m, the fixture f's view, paged at the width given and
+// each of its heights, to the scroll sweep's rules, but where walked has a
+// view drawn alike paged already.
+func pagesThroughAt(t *testing.T, m watch.Model, f Fixture, at swept, walked *sync.Map) {
 	t.Helper()
+	name := f.Name
 	log, width := ofTheLog(name), at.width
-	reached, tall := reachOf(name, width), plainRows(m, width, tallest)
+	reached, tall := reachOf(f, width), plainRows(m, width, tallest)
 	for _, height := range at.heights {
 		top := pagedTop(m, width, height)
 		if _, seen := walked.LoadOrStore(sweptAs(name, top, tall), true); seen {
@@ -601,11 +603,12 @@ func saysMore(rows []string, mark string) bool {
 // its key line, or where the page doesn't show that, to the next section's
 // heading; Accounts' views, but for Detail's list and Tokens' footnote, as
 // beforeFootnote cuts it; a phone's Switchboard in lanes, from the row under
-// the view's heading to the foot, which gives way where they scroll.
+// the view's heading to the foot, which gives way where they scroll, its
+// windows those every step draws, as besideLabels has them.
 // Elsewhere it's nil: the rest of the views fold and drop what they show by
 // the room they have, as the design lays them out.
-func reachOf(name string, width int) func(rows []string) []string {
-	chrome := chromeOf(width)
+func reachOf(f Fixture, width int) func(rows []string) []string {
+	name, chrome := f.Name, chromeOf(width)
 	switch {
 	case strings.HasPrefix(name, "overview-") && width < 150:
 		return func(rows []string) []string {
@@ -638,7 +641,7 @@ func reachOf(name string, width int) func(rows []string) []string {
 			if to := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
 				view = view[:to]
 			}
-			return lanesRead(shownRows(view))
+			return lanesRead(shownRows(view), besideLabels(f))
 		}
 	}
 	return nil
@@ -657,8 +660,10 @@ var (
 // account's name row and each session's as drawn; and as the lanes stack
 // their windows a row each where rows are free, and side by side where
 // they're short, each window a windows' row shows as its account's number,
-// its label and its percentage.
-func lanesRead(rows []string) []string {
+// its label and its percentage, of those whose labels beside gives, the
+// windows the lanes draw side by side: a model's own week shows where they
+// stack alone, by design, so no page of them need reach it.
+func lanesRead(rows, beside []string) []string {
 	var read []string
 	account := ""
 	for _, r := range rows {
@@ -673,7 +678,7 @@ func lanesRead(rows []string) []string {
 		fields := strings.Fields(r)
 		label := fields[0]
 		for i, f := range fields[1:] {
-			if shownPercent.MatchString(f) {
+			if shownPercent.MatchString(f) && slices.Contains(beside, label) {
 				read = append(read, account+" "+label+" "+f)
 				if i+2 < len(fields) {
 					label = fields[i+2]
@@ -682,6 +687,19 @@ func lanesRead(rows []string) []string {
 		}
 	}
 	return read
+}
+
+// besideLabels are the labels the fixture f's lanes read their windows side
+// by side by, the first word of each, as a windows' row splits them: of the
+// windows dashboard.BesideKeys has them draw, named as the dashboard names
+// them.
+func besideLabels(f Fixture) []string {
+	doc := f.router.doc
+	var labels []string
+	for _, key := range dashboard.BesideKeys(doc.At(doc.GeneratedAt, claude.Policy())) {
+		labels = append(labels, strings.Fields(status.Short(status.NameOfKey(key)))[0])
+	}
+	return labels
 }
 
 // sideBySide reports whether USAGE's rows given draw its windows side by

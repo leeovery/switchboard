@@ -112,10 +112,11 @@ type usageRow struct {
 // all set, all accounts' window, which is never the pool's, by its key; its
 // bar; its words, and whether they say it runs out; and, while the Overview
 // cues its words, how far their cue has faded, nil where they aren't cued.
-// With none set, its account, or the pool, has no such window: it draws its
+// With none set, its account goes without the window, having no such window
+// or no use of a model's own, or the pool has no such window: it draws its
 // words alone, where its bar would start, and the pool's has none. Labelled
 // says the window's name labels it already, beside it, so those words say
-// "no limit" without naming the window again.
+// "no limit" or "no use" without naming the window again.
 type gauge struct {
 	of       Ref
 	all      bool
@@ -155,6 +156,13 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 	return b
 }
 
+// heading is the window's heading, its name as status.Headed has it, in
+// capitals: "WEEK", "5-HOUR", and a model's own week by its model alone,
+// "FABLE".
+func (w shownWindow) heading() string {
+	return strings.ToUpper(status.Headed(w.name))
+}
+
 // usageWindows are the windows with the keys given, in their order, each
 // named as name names it, cleaned.
 func usageWindows(keys []string, name func(key string) string) []shownWindow {
@@ -167,9 +175,9 @@ func usageWindows(keys []string, name func(key string) string) []shownWindow {
 
 // accountGauge is account a's window with the given key, as it stands at
 // now, as its row draws it: empty, and nothing on it, where the account has
-// no usable token, nothing is read of the window, or it has no such window,
-// which draws its words alone; else filled to its use, with its cap's mark
-// and even pace's, and faded where it's stale.
+// no usable token, nothing is read of the window, or it goes without it, as
+// the window's Without says, which draws its words alone; else filled to its
+// use, with its cap's mark and even pace's, and faded where it's stale.
 func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
 	w, _ := a.Window(key)
 	bar := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
@@ -177,7 +185,7 @@ func accountGauge(a status.AccountNow, key string, now time.Time) gauge {
 		bar = usageBar{empty: true}
 	}
 	return gauge{
-		of: Ref{Account: a.ID, Window: key}, none: w.Kind == status.WindowNone, bar: bar,
+		of: Ref{Account: a.ID, Window: key}, none: w.Without(), bar: bar,
 		words: wordsOf(w, now), runsOut: w.RunsOut,
 	}
 }
@@ -642,7 +650,7 @@ func (b usageBlock) matrix(c *canvas, l laid) {
 	row := b.cells()
 	bar, group := row.bar, row.bar+afterBar+row.words+groupGap
 	for i, w := range b.windows {
-		c.line(b.names+i*group, l.kept[0].at, line{{strings.ToUpper(w.name), dimInk}})
+		c.line(b.names+i*group, l.kept[0].at, line{{w.heading(), dimInk}})
 	}
 	b.drawEach(c, l.placed, func(r usageRow, y int) {
 		c.line(b.nameAt(), y, b.name(r))
@@ -689,7 +697,7 @@ func (b usageBlock) stackedLaid(y int) laid {
 func (b usageBlock) stacked(c *canvas, l laid) {
 	bar, placed := b.bar(), l.placed
 	for i, w := range b.windows {
-		c.line(0, l.kept[i].at, line{{strings.ToUpper(w.name), headingInk}})
+		c.line(0, l.kept[i].at, line{{w.heading(), headingInk}})
 		section := b.having(i)
 		section.drawEach(c, placed[:len(section.rows)], func(r usageRow, y int) {
 			c.line(b.nameAt(), y, b.name(r))
@@ -700,9 +708,10 @@ func (b usageBlock) stacked(c *canvas, l laid) {
 }
 
 // having is the block with only the rows that have its window i: none of an
-// account without it, and none of the pool where it lacks it, as poolRow has
-// it, so the pool's row and its rule go once fewer than two accounts have it.
-// An account unread, or without a usable token, may have it, so keeps its row.
+// account that goes without it, and none of the pool where it lacks it, as
+// poolRow has it, so the pool's row and its rule go once fewer than two
+// accounts have it. An account unread, or without a usable token, may have
+// it, so keeps its row.
 func (b usageBlock) having(i int) usageBlock {
 	b.rows = slices.DeleteFunc(slices.Clone(b.rows), func(r usageRow) bool { return r.gauges[i].none })
 	return b
@@ -866,7 +875,7 @@ func (b usageBlock) gauge(c *canvas, g gauge, x, y, bar, end int) {
 func (b usageBlock) wordsIn(g gauge, room int) line {
 	switch {
 	case g.none && g.labelled:
-		return g.words.short.fitWhole(room)
+		return g.words.shortIn(room)
 	case b.laid:
 		return g.led(g.words.fitted(room))
 	}

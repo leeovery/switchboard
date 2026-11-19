@@ -44,7 +44,7 @@ switchboard usage [--5h] [--week] [--<model>] \
 | Flag | Default | What it does |
 |---|---|---|
 | `--5h`, `--week` | every window | Prints only that window, with the header and the key line. Given together, they print in this order: the week, the 5-hour window, then the week of each model. |
-| `--<model>` | | Prints the week of one model, such as `--fable` for the Fable week. There's a flag for each model with a window of its own. |
+| `--<model>` | | Prints the week of one model, such as `--fable` for the Fable week. There's a flag for each model with a window of its own. It works only if an account has used that week. |
 | `--by window\|account` | `window` | Lays the windows out one window at a time, comparing accounts, or one account at a time. Overrides `by` in `[usage]` in the config. |
 | `--pool <id>` | the pool the verbs act on | Prints the accounts of that pool. See [Commands](../commands.md). |
 | `--probe` | | Probes every account, even while the router runs. |
@@ -52,9 +52,10 @@ switchboard usage [--5h] [--week] [--<model>] \
 | `--json` | off a terminal | Prints the status document as JSON, even on a terminal. The window flags and `--by` don't change the JSON. |
 | `--pretty` | on a terminal | Prints the bars, even off a terminal. |
 
-A flag for a window that no account has fails, and names the windows there are. For example,
-`--5h` fails if every account is on a verified Ultra plan. An Ultra account not yet verified keeps
-its 5-hour window, and `--5h` works.
+A flag for a window that `usage` wouldn't print fails, and names the windows it would. For
+example, `--5h` fails if every account is on a verified Ultra plan. An Ultra account not yet
+verified keeps its 5-hour window, and `--5h` works. In the same way, `--fable` fails if no account
+has used the Fable week.
 
 Off a terminal, `--pretty` draws the bars with no colour unless `CLICOLOR_FORCE` asks for it. They're
 as wide as `COLUMNS` says, or else 80 columns.
@@ -87,6 +88,7 @@ router has taken it up.
 | `limit · back 15:54` | Claude's limit holds the window. |
 | `limit` | Claude's limit holds the window, and Anthropic refused the account's last read, so no time brings the account back. Only a clean read does. |
 | `at cap · back 17:10` | The window has reached the cap, so the router holds the account back. |
+| `no Fable use` | The account hasn't used the Fable week. It shows in place of the bar, or as `no use` where room is short. |
 | `out ~16:05` | The window runs out before it resets. Within a day, the time shows. |
 | `out ~Sat` | It runs out more than a day ahead, so the day shows only, because a forecast days out can miss by a day. |
 | `out ~Thu 12 Nov` | It runs out on the same weekday as today, a week on, so the date shows. |
@@ -126,12 +128,18 @@ pinned ones while the pool's pin holds. It shows if there's more than one accoun
 
 ### Which windows show
 
-Every window shows, used or not. The Fable week shows on every account, at 0% as at 40%.
+The week and the 5-hour window show for every account that has them, used or not. The Fable
+week shows only if an account has used it.
 
 `usage` learns which windows an account has from the API's answers, never from its plan. A
 verified Ultra account reports no 5-hour window. Stacked, a window leaves out an account that
-doesn't have it. A window no account has doesn't show at all. An account not read yet may have
-any window, so it keeps its rows.
+doesn't have it. The Fable section also leaves out an account that hasn't used it.
+
+| If | `usage` |
+|---|---|
+| No account has a window | Leaves the window out. |
+| No account has used the Fable week | Leaves the Fable week out. |
+| An account isn't read yet | Keeps its rows, because it may have any window. |
 
 ### A token near the end of its year
 
@@ -172,12 +180,13 @@ them. Once there's a second pool, the text names the pool it read, such as `pool
 - **The header** takes one line only if every part fits in full, from 84 columns for a healthy
   router with short names. So one line never says less than two would.
 - **The second key line** names the cap, if a bar draws one.
-- **Short words** include `back 15:54` and `19%/day · Thu`.
+- **Short words** include `cap · back Mon`, `limit · back Sun` and `19%/day · Thu`. Where those
+  don't fit, a cap or a limit narrows to `cap · Mon`, then `back Mon`.
 
 As the terminal narrows, the bars shorten to 12 cells first, then the words go short.
 
 In short words, a time on another day shows the day only. A run-out or `back` on the same weekday as
-today, a week on, shows the date instead, such as `out ~12 Nov` or `back 12 Nov`. An allowance
+today, a week on, shows the date instead, such as `out ~12 Nov` or `cap · back 12 Nov`. An allowance
 keeps its day, because a date doesn't fit beside the rate.
 
 The name column never moves as `▲` moves between accounts.

@@ -84,29 +84,35 @@ func lackedByEvery(lacks iter.Seq[[]string], key string) bool {
 }
 
 // Listed are the keys of the windows the owner reads listed at the moment
-// where none is asked for, as USAGE, the Switchboard's lines and usage's
-// printout list them: those every model shares that some account has or may
-// have, as SharedWindows has them, so every account keeps its rows before
-// any is read; then each model's own any account reports, as any window the
-// policy doesn't share is: with models, every one, as usage's printout lists
-// them, and the live views while w shows them; without, only one nearing or
-// at its limit on some account, as nearsLimit has it, for as long as that
-// holds. In the order CompareWindows has.
-func (m Moment) Listed(models bool) []string {
+// where none is asked for, as USAGE, the Switchboard's lines, a session's
+// page, Accounts' Detail and usage's printout list them: those every model
+// shares that some account has or may have, as SharedWindows has them, so
+// every account keeps its rows before any is read; then each model's own,
+// as any window the policy doesn't share is, that some account has used at
+// Now, as used says, so it shows as the 5-hour does, only where some account
+// has it to show. In the order CompareWindows has.
+func (m Moment) Listed() []string {
+	return m.listed(WindowNow.used)
+}
+
+// Reported are the keys of every window Listed may list at the moment: as it
+// has them, but each model's own that any account reports, used or not, for
+// a layout to hold still as their use comes and goes.
+func (m Moment) Reported() []string {
+	return m.listed(func(WindowNow) bool { return true })
+}
+
+// listed are the keys of the windows every model shares that some account
+// has or may have, as SharedWindows has them, then of each model's own where
+// models picks some account's, in the order CompareWindows has.
+func (m Moment) listed(models func(WindowNow) bool) []string {
 	keys := m.SharedWindows()
 	for _, a := range m.Accounts {
 		for _, w := range a.Windows {
-			if models || w.nearsLimit() {
+			if !w.Shared && models(w) {
 				keys = append(keys, w.Key)
 			}
 		}
 	}
 	return slices.Compact(slices.SortedFunc(slices.Values(keys), m.CompareWindows))
-}
-
-// nearsLimit reports whether the window nears or reaches its limit at Now:
-// held at it, at its account's cap, running out, or nearing where it runs
-// out.
-func (w WindowNow) nearsLimit() bool {
-	return w.Held || w.Capped || w.RunsOut || w.Nearing
 }

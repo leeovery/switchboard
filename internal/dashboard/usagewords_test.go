@@ -33,11 +33,11 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{name: "stale since six days back", state: stale(status.StaleFailed, on(1, 9, 5).AddDate(0, 0, -6)), full: "not read since Fri 09:05", short: "read Fri", ink: dimInk},
 		{name: "stale since this day last week, by its date", state: stale(status.StaleFailed, on(1, 9, 5).AddDate(0, 0, -7)), full: "not read since 24 Sep 09:05", short: "read 24 Sep", ink: dimInk},
 		{name: "stale since 9 days back, by its date", state: stale(status.StaleFailed, on(1, 14, 20).AddDate(0, 0, -9)), full: "not read since 22 Sep 14:20", short: "read 22 Sep", ink: dimInk},
-		{name: "at Claude's limit", state: state(status.WindowLimited, on(1, 15, 54)), full: "limit · back 15:54", short: "back 15:54", ink: errorInk},
+		{name: "at Claude's limit", state: state(status.WindowLimited, on(1, 15, 54)), full: "limit · back 15:54", short: "limit · back 15:54", ink: errorInk},
 		{name: "at Claude's limit, back none knows when", state: state(status.WindowLimited, time.Time{}), full: "limit", short: "limit", ink: errorInk},
-		{name: "at its cap, back tomorrow", state: state(status.WindowCapped, on(2, 2, 0)), full: "at cap · back Fri 02:00", short: "back Fri", ink: warningInk},
-		{name: "at its cap, back a week on, on today's weekday, dated short", state: state(status.WindowCapped, on(8, 2, 0)), full: "at cap · back Thu 02:00", short: "back 8 Oct", ink: warningInk},
-		{name: "at Claude's limit, back a week on, on today's weekday, dated short", state: state(status.WindowLimited, on(8, 2, 0)), full: "limit · back Thu 02:00", short: "back 8 Oct", ink: errorInk},
+		{name: "at its cap, back tomorrow", state: state(status.WindowCapped, on(2, 2, 0)), full: "at cap · back Fri 02:00", short: "cap · back Fri", ink: warningInk},
+		{name: "at its cap, back a week on, on today's weekday, dated short", state: state(status.WindowCapped, on(8, 2, 0)), full: "at cap · back Thu 02:00", short: "cap · back 8 Oct", ink: warningInk},
+		{name: "at Claude's limit, back a week on, on today's weekday, dated short", state: state(status.WindowLimited, on(8, 2, 0)), full: "limit · back Thu 02:00", short: "limit · back 8 Oct", ink: errorInk},
 		{name: "running out today", state: state(status.WindowRunsOut, on(1, 16, 5)), full: "out ~16:05", short: "out ~16:05", ink: warningInk},
 		{name: "running out tomorrow, within a day", state: state(status.WindowRunsOut, on(2, 6, 0)), full: "out ~Fri 06:00", short: "out ~Fri", ink: warningInk},
 		{name: "running out more than a day ahead, its day alone", state: state(status.WindowRunsOut, on(3, 6, 0)), full: "out ~Sat", short: "out ~Sat", ink: warningInk},
@@ -45,6 +45,11 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{name: "not started", state: state(status.WindowNotStarted, time.Time{}), full: "not started", short: "not started", ink: mutedInk},
 		{name: "no 5-hour window", state: lacking("5-hour"), full: "no 5-hour limit", short: "no limit", ink: dimInk},
 		{name: "no week, its name as a sentence has it", state: lacking("Week"), full: "no week limit", short: "no limit", ink: dimInk},
+		{name: "a model's own week unused", state: status.WindowNow{Name: "Fable week", Kind: status.WindowOpen, Unused: true}, full: "no Fable use", short: "no use", ink: dimInk},
+		{
+			name: "a model's own week unused, whatever else its kind says", state: status.WindowNow{Name: "Fable week", Kind: status.WindowLimited, At: on(1, 15, 54), Unused: true},
+			full: "no Fable use", short: "no use", ink: dimInk,
+		},
 		{
 			name: "the allowance an hour", state: state(status.WindowOpen, on(1, 16, 30)), allowance: quota.Allowance{Share: 0.339, Per: quota.PerHour},
 			full: "34%/h till 16:30", short: "34%/h · 16:30", ink: mutedInk,
@@ -88,6 +93,47 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 // lacking is a window named as given that its account has no such limit of.
 func lacking(name string) status.WindowNow {
 	return status.WindowNow{Name: name, Kind: status.WindowNone}
+}
+
+// A window held back keeps what holds it short, at its cap or at a limit,
+// so the words say why where the ink alone would: short, "cap · back Mon";
+// narrower, where that doesn't fit, "cap · Mon"; narrower still, "back Mon";
+// and in fewer cells, the narrowest cut short.
+func TestAHeldWindowsShortWordsKeepWhatHoldsItAsTheyNarrow(t *testing.T) {
+	capped := wordsOf(status.WindowNow{Kind: status.WindowCapped, At: on(5, 20, 0)}, printNow)
+	limited := wordsOf(status.WindowNow{Kind: status.WindowLimited, At: on(4, 1, 0)}, printNow)
+	tests := []struct {
+		name  string
+		words usageWords
+		room  int
+		want  string
+		ink   ink
+	}{
+		{name: "at its cap, in full", words: capped, room: 23, want: "at cap · back Mon 20:00", ink: warningInk},
+		{name: "at its cap, short in the block's short cells", words: capped, room: shortCells, want: "cap · back Mon", ink: warningInk},
+		{name: "at its cap, a cell short of that", words: capped, room: shortCells - 1, want: "cap · Mon", ink: warningInk},
+		{name: "at its cap, a cell short of that too", words: capped, room: 8, want: "back Mon", ink: warningInk},
+		{name: "at its cap, cut short", words: capped, room: 6, want: "back…", ink: warningInk},
+		{name: "at a limit, short", words: limited, room: 16, want: "limit · back Sun", ink: errorInk},
+		{name: "at a limit, in the block's short cells", words: limited, room: shortCells, want: "limit · Sun", ink: errorInk},
+		{name: "at a limit, narrowest", words: limited, room: 10, want: "back Sun", ink: errorInk},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.words.fitted(tt.room)
+			if got.plain() != tt.want {
+				t.Errorf("in %d cells, the words read %q, want %q", tt.room, got.plain(), tt.want)
+			}
+			if short := tt.words.pick(fullWords-1, tt.room); tt.room < 23 && short.plain() != tt.want {
+				t.Errorf("under 70 columns, in %d cells, the words read %q, want %q", tt.room, short.plain(), tt.want)
+			}
+			for _, s := range got {
+				if s.ink != tt.ink {
+					t.Errorf("%q is drawn in %+v, want %+v", s.text, s.ink, tt.ink)
+				}
+			}
+		})
+	}
 }
 
 func TestWordsAreInFullFrom70ColumnsWhereTheyFitTheirRoom(t *testing.T) {
@@ -190,7 +236,11 @@ func TestFaintWordsAreAllInTextFaintInFullAndShort(t *testing.T) {
 		wordsOf(status.WindowNow{Kind: status.WindowTokenless}, printNow),
 	} {
 		faint := w.faint()
-		for _, form := range []struct{ was, is line }{{w.full, faint.full}, {w.short, faint.short}} {
+		forms := []struct{ was, is line }{{w.full, faint.full}, {w.short, faint.short}}
+		for i := range w.narrower {
+			forms = append(forms, struct{ was, is line }{w.narrower[i], faint.narrower[i]})
+		}
+		for _, form := range forms {
 			if form.is.plain() != form.was.plain() {
 				t.Errorf("faint, the words read %q, want %q, as they were", form.is.plain(), form.was.plain())
 			}

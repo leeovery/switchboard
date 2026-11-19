@@ -95,12 +95,12 @@ func (p Printout) tokens(c *canvas, m status.Moment, block usageBlock, y int) {
 }
 
 // windows are the keys of the windows the printout of m prints: its Windows,
-// else every one m lists, each model's own among them.
+// else those m lists, as its Listed has them.
 func (p Printout) windows(m status.Moment) []string {
 	if len(p.Windows) > 0 {
 		return p.Windows
 	}
-	return m.Listed(true)
+	return m.Listed()
 }
 
 // namer names m's windows by their keys as the printout names them: as its

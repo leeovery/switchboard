@@ -8,13 +8,17 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 9c2e website                  idle 9m                       ●━━━━━━━━━━━━━━━━━┓  ┃  ○  Week                 ▉      ┃                34%  out ~Sun
                                                                               ┃  ┃  ○
 d28c switchboard              ↑ asking     ▸ from work      ●━━━━━━━━━━━━━━┓  ┃  ┃  ○  5-hour     no limit
-c61b mobile                   ↓ answering                   ●━━━━━━━━━━━┓  ┃  ┃  ┃
-7f3a api                      idle 1m                       ●━━━━━━━━┓  ┃  ┃  ┃  ┃
+c61b mobile                   ↓ answering                   ●━━━━━━━━━━━┓  ┃  ┃  ┃  ○
+7f3a api                      idle 1m                       ●━━━━━━━━┓  ┃  ┃  ┃  ┃  ○  Fable wk      ▉             ┃                12%  25%/day till Sun 21:00
 db8a infra                    idle 4m      ▸ from work      ●━━━━━┓  ┃  ┃  ┃  ┃  ┃
+                                                                  ┃  ┃  ┃  ┃  ┃  ┃
+                                                                  ┃  ┃  ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃  ┃  ┗━━◉ personal    ◆ ● open
                                                                   ┃  ┃  ┃  ┃  ┗━━━━━◉  Week                            ┃            66%  out ~Sat
                                                                   ┃  ┃  ┃  ┃        ○
                                                                   ┃  ┃  ┃  ┃        ○  5-hour     no limit
+                                                                  ┃  ┃  ┃  ┃        ○
+                                                                  ┃  ┃  ┃  ┃        ○  Fable wk   no use
                                                                   ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃
@@ -22,12 +26,8 @@ db8a infra                    idle 4m      ▸ from work      ●━━━━━
                                                                   ┃  ┃  ┗━━━━━━━━━━━◉  Week                      ┃                  78%  out ~Fri
                                                                   ┃  ┗━━━━━━━━━━━━━━◉
                                                                   ┗━━━━━━━━━━━━━━━━━◉  5-hour         ▏ ┃                           13%  21%/h till 18:50
-
-
-
-
-
-
+                                                                                    ○
+                                                                                    ○  Fable wk    ▎             ┃                   4%  25%/day till Mon 10:00
 
 
 

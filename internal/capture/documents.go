@@ -498,7 +498,7 @@ func (a accountWorlds) learning() accountWorld {
 
 // fableNearing is the auto world with side's Fable week read at 88% at
 // 14:40, running out before it resets at its pace since it started: nearing
-// its limit, the live views list it while they hide each model's own window.
+// its limit.
 func (a accountWorlds) fableNearing() accountWorld {
 	return a.kept("fableNearing", func() accountWorld {
 		t := a.today()

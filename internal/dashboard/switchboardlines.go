@@ -257,12 +257,20 @@ func (d linesDrawn) sideBySide(c *canvas, a status.AccountNow, y int) {
 	windowsBeside(c, d.f.Look, d.x()+1, y, d.barDrawn(), stepThreeLabels, shown, gauges)
 }
 
-// besideWindows are the windows drawn side by side of m, as step 3 and a
-// lane draw them: the first two every model shares, its week and its
-// 5-hour, as m's SharedWindows has them, each named as the frame names it.
+// besideWindows are the windows drawn side by side of m, as BesideKeys has
+// them, each named as the frame names it.
 func (f Frame) besideWindows(m status.Moment) []shownWindow {
-	shown := usageWindows(m.SharedWindows(), f.windowNamer(m))
-	return shown[:min(len(shown), len(stepThreeLabels))]
+	return usageWindows(BesideKeys(m), f.windowNamer(m))
+}
+
+// BesideKeys are the keys of the windows drawn side by side of m, as the
+// Switchboard's step 3 and a phone's lanes draw them: the first two every
+// model shares, its week and its 5-hour, as m's SharedWindows has them. A
+// model's own week, listed where some account has used it, shows only where
+// they stack.
+func BesideKeys(m status.Moment) []string {
+	shared := m.SharedWindows()
+	return shared[:min(len(shared), len(stepThreeLabels))]
 }
 
 // sideBySideCells are the cells windows side by side take besides their bars,

@@ -251,7 +251,7 @@ func sceneTraffic() Traffic {
 // look given, every model's own window shown, as w shows them, the board as
 // given, what travels it as traffic tells.
 func boardFrame(width, height int, look Look, board SessionsShown, traffic Traffic) Frame {
-	return Frame{Width: width, Height: height, Look: look, View: Sessions, Policy: claudeLike, Models: true, SessionsTab: board, Traffic: traffic}
+	return Frame{Width: width, Height: height, Look: look, View: Sessions, Policy: claudeLike, SessionsTab: board, Traffic: traffic}
 }
 
 // sceneFrame is the 14:42:07 scene's Switchboard, width by height, in the

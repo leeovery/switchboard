@@ -16,11 +16,9 @@ WEEK
 
  side       ▲  ▌┃           13%  21%/h till 18:50
 
-FABLE WEEK
+FABLE
 
  work          ▌    ┃    ╎  12%  25%/day · Sun
-
- personal   ◆         ┃      0%  40%/day · Sun
 
  side       ▲ ▌    ┃         4%  25%/day · Mon
 ────────────────────────────────────────────────────
