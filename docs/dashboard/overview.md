@@ -107,8 +107,8 @@ auto`, or only `pinned to personal` if the rest doesn't fit.
 
 ### Pinned accounts
 
-While a pin holds, each account it names says `● pinned` beside its state, if there's room. Room
-is tighter on some rows:
+While a pin is in force, each account it names says `● pinned` beside its state, if there's
+room. Room is tighter on some rows:
 
 | If | ROUTING |
 |---|---|
@@ -154,7 +154,8 @@ theme.
 **LATELY** is what the router has done, newest first. Each event has a mark, for example
 `14:31  ╎ work reached its cap: 3 sessions moved to side`.
 
-- **A move** made by a limit, a cap or a refusal folds into the line of the event that caused it.
+- **A move** made by a limit, a cap, a refusal or a [hold](../glossary.md) folds into the line of
+  the event that caused it.
 - **A session** is named by the folder it runs in, as in `api moved personal → work`. If the folder
   isn't known, the short id names it.
 - **A line that doesn't fit** takes a shorter form, such as `work at its cap: 3 moved to side`.

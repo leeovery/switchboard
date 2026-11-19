@@ -69,7 +69,7 @@ These are the verbs for agents. Off a terminal, such as in Claude's Bash tool, `
 
 | Command | What Claude gets |
 |---|---|
-| `switchboard status` | Every account's windows: use, pace, resets, and what holds the account back. |
+| `switchboard status` | Every account's windows: use, pace, resets, and what keeps the account back. |
 | `switchboard status --session <id>` | The label of the account the session is on. Add `--json` for JSON. |
 | `switchboard status --refresh` | A fresh probe of each account that can take no request, after you reset a limit by hand on claude.ai. |
 | `switchboard sessions [<id>]` | Today's sessions, or one session's page with its turns. |

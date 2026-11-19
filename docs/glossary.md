@@ -15,6 +15,11 @@ started while the router is down goes direct on its pool's primary.
 **Fence.** The folders a pool is tied to. A session belongs to that pool if it starts in one of
 those folders, in a folder beneath one, or in a git worktree of a repository inside one.
 
+**Hold.** The router sends an account nothing because Anthropic refused its last usage read. The
+cause is `subscription lapsed` or `token refused`. A hold lasts until a read of the account comes
+back clean, or the account gets a new token, and no time ends a hold. The Log shows a hold starting
+as a `held` event and ending as `open`.
+
 **Label.** The name you give an account or a pool, shown on every screen. You can change it
 whenever you like.
 
@@ -34,7 +39,7 @@ router's choice. A pin gives way when its account hits a limit.
 
 **Pool.** A set of accounts that sessions are routed across. Every account is in exactly one
 pool, and nothing crosses from one pool to another. The `Σ pool` row, Runway's `Σ pool` lane and
-the POOL chart sum the room of the pool's accounts. While the pool's pin holds, they sum only the
+the POOL chart sum the room of the pool's accounts. While the pool's pin is set, they sum only the
 pinned accounts. See [Pools](pools.md).
 
 **Primary.** The account whose token Claude Code holds in a pool. Each pool has one. The router

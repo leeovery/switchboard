@@ -36,8 +36,8 @@ type EventDetails struct {
 	// Then is `<ACCOUNT>` THEN, of an event naming one account: nil for any
 	// other.
 	Then *AccountThen
-	// Followed is WHAT FOLLOWED, of a limit, a cap or a refusal, and of a
-	// move a line tells of: nil for any other.
+	// Followed is WHAT FOLLOWED, of a limit, a cap, a refusal or a hold, and
+	// of a move a line tells of: nil for any other.
 	Followed *Followed
 }
 
@@ -108,16 +108,18 @@ type AccountThen struct {
 	Sessions int
 }
 
-// Followed is what followed an event: of a limit, a cap or a refusal, the
-// moves it counted, till when new sessions go elsewhere, and what the moves
-// cost together; of a move, what its move came to.
+// Followed is what followed an event: of a limit, a cap, a refusal or a
+// hold, the moves it counted, till when new sessions go elsewhere, and what
+// the moves cost together; of a move, what its move came to.
 type Followed struct {
 	// Moves are the moves the event counted, in the order they came.
 	Moves []FollowedMove
-	// Till is when new sessions go elsewhere till, as the event says: zero
-	// where it doesn't. Family is the model family whose requests alone go
+	// Till says till when new sessions go elsewhere, as the event says, beside
+	// it: of a hold, till it lifted, as status.HeldTill says it, "till 15 Oct
+	// 09:00"; of any other, as status.Till does, "till 23:58"; "" where it
+	// doesn't say. Family is the model family whose requests alone go
 	// elsewhere, of a refusal of its alone: "" for every request.
-	Till   time.Time
+	Till   string
 	Family string
 	// InAll is what the moves cost together, as their rows say each: nil
 	// where no move's cost is known, or their sum passes what
@@ -156,6 +158,12 @@ func (t EventsTable) Details(key EventKey, read LogRead) (EventDetails, bool) {
 	return d.details(), true
 }
 
+// holdsNow reports whether the account with the given id is held now, as
+// the table's heldNow says: false where it says nothing.
+func (t EventsTable) holdsNow(id string) bool {
+	return t.heldNow != nil && t.heldNow(id)
+}
+
 // detailing works out an event's details: the event, told; the table it's
 // of; and the Log's read, which holds the ledger's lines read.
 type detailing struct {
@@ -181,9 +189,9 @@ func (d detailing) details() EventDetails {
 }
 
 // holdsBack reports whether the kind given holds an account back, moving
-// its sessions: a limit, a cap or a refusal.
+// its sessions: a limit, a cap, a refusal or a hold.
 func holdsBack(kind string) bool {
-	return kind == status.EventLimit || kind == status.EventCap || kind == status.EventRefused
+	return kind == status.EventLimit || kind == status.EventCap || kind == status.EventRefused || kind == status.EventHeld
 }
 
 // headline is what happened, as the card's title says it, its session named
@@ -210,6 +218,8 @@ func (d detailing) headline() status.Words {
 			return slices.Concat(who, clause("'s "+prose.Clean(e.Family)+" requests refused"))
 		}
 		return slices.Concat(who, clause("'s token refused"))
+	case status.EventHeld:
+		return slices.Concat(who, clause(" held"))
 	case status.EventForeign:
 		return slices.Concat(who, clause(prose.ForeignTokenAfterName))
 	case status.EventPrimed:
@@ -228,7 +238,7 @@ func (d detailing) headline() status.Words {
 		return clause("new sessions back to the router's choice")
 	case status.EventRestart:
 		if restartHeld(e) != "" {
-			return clause("restart held")
+			return clause("restart put off")
 		}
 		return clause("restart due")
 	case status.EventHealth:
@@ -274,13 +284,28 @@ func (d detailing) happened() []DetailItem {
 		}
 		items.add("family", valued(prose.Clean(e.Family)))
 		items.add("till", d.timeWords(e.Until))
-	case status.EventPrimed, status.EventRoom:
+	case status.EventHeld:
+		items.add("why", valued(holdCause(e)))
+		if e.Status != 0 {
+			items.add("answer", valued(strconv.Itoa(e.Status)))
+		}
+		items.add("held since", d.heldWords(e.Since))
+		switch {
+		case !d.fact.lifted.IsZero():
+			items.add("lifted", d.heldWords(d.fact.lifted))
+		case d.fact.holding && d.table.holdsNow(e.Account):
+			items.add("till", saidWords(holdsTill))
+		}
+	case status.EventPrimed:
 		items.add("window", d.windowsWords())
+	case status.EventRoom:
+		items.add("window", d.windowsWords())
+		items.add("hold", valued(liftedSaid(e)))
 	case status.EventPin, status.EventAuto:
 		items = d.pinned()
 	case status.EventRestart:
 		items.add("why", saidWords(restartWhy(e.Reason)))
-		items.add("held", saidWords(restartHeld(e)))
+		items.add("put off", saidWords(restartHeld(e)))
 	case status.EventHealth:
 		items.add("why", saidWords(prose.Clean(e.Reason)))
 	}
@@ -389,13 +414,34 @@ func (d detailing) capWords() DetailWords {
 	return DetailWords{{Text: prose.Percent(used), Kind: DetailUse, Use: used}, {Text: " of " + its(d.fact.windows, "its window")}}
 }
 
+// followedTill says till when new sessions go elsewhere after the event, as
+// Followed's Till has it: of a hold, till it lifted; of any other, till its
+// until.
+func (d detailing) followedTill() string {
+	if d.event.Kind == status.EventHeld {
+		return status.HeldTill(d.row.At, d.fact.lifted)
+	}
+	return status.Till(d.row.At, d.event.Until)
+}
+
 // timeWords say a time, as prose.Dated says it beside the event: none for
 // zero.
 func (d detailing) timeWords(t time.Time) DetailWords {
+	return d.shownWords(prose.Dated, t)
+}
+
+// heldWords say a time of a hold, as prose.DatedAfar says it beside the
+// event, as a hold can run past a week: none for zero.
+func (d detailing) heldWords(t time.Time) DetailWords {
+	return d.shownWords(prose.DatedAfar, t)
+}
+
+// shownWords say a time as shows shows it beside the event: none for zero.
+func (d detailing) shownWords(shows func(now, t time.Time) string, t time.Time) DetailWords {
 	if t.IsZero() {
 		return nil
 	}
-	return valued(prose.Dated(d.row.At, t))
+	return valued(shows(d.row.At, t))
 }
 
 // knownWords name the request an event was known from: "7f3a's request at
@@ -576,10 +622,11 @@ func (d detailing) resets(windows []WindowThen) time.Time {
 	return slices.MinFunc(windows, func(a, b WindowThen) int { return quota.CompareKeys(a.Key, b.Key) }).Resets
 }
 
-// followed is what followed the event: of a limit, a cap or a refusal, the
-// moves it counted, as their rows say them, in the order they came, till
-// when new sessions go elsewhere, and what the moves cost together; of a
-// move a line tells of, what its move came to; nil for any other.
+// followed is what followed the event: of a limit, a cap, a refusal or a
+// hold, the moves it counted, as their rows say them, in the order they
+// came, till when new sessions go elsewhere, and what the moves cost
+// together; of a move a line tells of, what its move came to; nil for any
+// other.
 func (d detailing) followed() *Followed {
 	switch {
 	case d.event.Kind == status.EventMoved && d.row.Move != nil:
@@ -587,7 +634,7 @@ func (d detailing) followed() *Followed {
 	case !holdsBack(d.event.Kind):
 		return nil
 	}
-	f := &Followed{Till: d.event.Until, Family: prose.Clean(d.event.Family)}
+	f := &Followed{Till: d.followedTill(), Family: prose.Clean(d.event.Family)}
 	var inAll Worth
 	priced := 0
 	for _, e := range d.table.told {

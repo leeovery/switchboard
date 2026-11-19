@@ -1,6 +1,8 @@
 package views
 
 import (
+	"cmp"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -11,9 +13,9 @@ import (
 // say, the Log's and LATELY's alike, over a run of events taken in oldest
 // first, as they're told: when an account a reason passed over under
 // pressure runs out, as its latest pressure event before said; the sessions
-// a limit, a cap or a refusal moved, counted, and where to; and the windows
-// each event began with, and those that joined it since, with when, each
-// named by its key as name names it. Its zero value names a window as
+// a limit, a cap, a refusal or a hold moved, counted, and where to; and the
+// windows each event began with, and those that joined it since, with when,
+// each named by its key as name names it. Its zero value names a window as
 // status.NameOfKey does. eventFacts aren't safe for concurrent use.
 type eventFacts struct {
 	name func(key string) string
@@ -23,6 +25,9 @@ type eventFacts struct {
 	// runsOut is when each account the run's pressure events told of runs
 	// out, by its id, cleaned, as the latest of them to say said it.
 	runsOut map[string]time.Time
+	// holds are the holds paired with their lifts, as holdLifts pairs them:
+	// the zero holdPairs, as for events told one at a time, pairs none.
+	holds holdPairs
 }
 
 // eventFact is what's told of an event beyond its own fields, as eventFacts
@@ -33,9 +38,9 @@ type eventFact struct {
 	// said, where the event came before then: zero where it passed none over,
 	// none of the run's pressure events said, or the run-out had come.
 	runsOut time.Time
-	// moved counts the sessions a limit, a cap or a refusal moved, each
-	// once, and to is the account they went to, where they all went to one:
-	// "" where they went to several, or it moved none.
+	// moved counts the sessions a limit, a cap, a refusal or a hold moved,
+	// each once, and to is the account they went to, where they all went to
+	// one: "" where they went to several, or it moved none.
 	moved int
 	to    string
 	// windows are the windows the event began with, in its order, each as
@@ -46,6 +51,12 @@ type eventFact struct {
 	// joined are the windows that joined the event after it began, in its
 	// order, each named as windows are, with when it joined.
 	joined []joinedWindow
+	// lifted is when a hold lifted, as liftOf has it: zero for any other
+	// event, and a hold not known to have lifted. holding is set of a hold
+	// that is its account's last none tells the lift of, as holdLifts has
+	// it, the one hold of the account that can be holding still.
+	lifted  time.Time
+	holding bool
 	// pool is the label of the pool whose sessions' own pins a pin set or
 	// cleared with force cleared, where there are several pools, as
 	// eventFacts' pool labels it: "" where there are one or none, so it
@@ -60,6 +71,63 @@ type joinedWindow struct {
 	at   time.Time
 }
 
+// told takes in e, the next event of the run, as take does, and returns its
+// facts with when it lifted, where it's a hold, as liftOf has it, and
+// whether it can be holding still.
+func (f *eventFacts) told(e Event) eventFact {
+	fact := f.take(e.Event)
+	fact.lifted = f.liftOf(e)
+	open, ok := f.holds.open[e.Event.Account]
+	fact.holding = e.Event.Kind == status.EventHeld && ok && open == e.Key.same()
+	return fact
+}
+
+// liftOf is when the hold e lifted: its until, where the router ended it in
+// the run it began, within the days an event can change; else when the room
+// again that told its lift came, as holdLifts pairs them; zero for any other
+// event, and a hold not known to have lifted.
+func (f *eventFacts) liftOf(e Event) time.Time {
+	if e.Event.Kind != status.EventHeld {
+		return time.Time{}
+	}
+	return cmp.Or(e.Event.Until, f.holds.lifts[e.Key.same()])
+}
+
+// holdPairs are the holds of a run of events paired with their lifts, as
+// holdLifts pairs them: lifts, when each lifted, by its key; and open, each
+// account's last hold none tells the lift of, by the account's id.
+type holdPairs struct {
+	lifts map[eventKey]time.Time
+	open  map[string]eventKey
+}
+
+// holdLifts pairs each hold of events the router didn't end, as across a
+// restart, or past the days an event can change, with its lift: the first
+// room again of its account after it, by when each happened, that names the
+// cause of a hold lifting, as the router tells a hold's lift. A hold none
+// follows hasn't lifted, as far as events tell, and isn't among the lifts;
+// nor is one a newer hold of its account follows first, which is never
+// open, as the newer one tells the account held since.
+func holdLifts(events []Event) holdPairs {
+	lifts := make(map[eventKey]time.Time)
+	open := make(map[string]eventKey)
+	byTime := slices.SortedFunc(slices.Values(events), func(a, b Event) int {
+		return cmp.Or(a.Event.At.Compare(b.Event.At), a.Key.Run.Compare(b.Key.Run), cmp.Compare(a.Key.ID, b.Key.ID))
+	})
+	for _, e := range byTime {
+		switch held, ok := open[e.Event.Account]; {
+		case e.Event.Kind == status.EventHeld && e.Event.Until.IsZero():
+			open[e.Event.Account] = e.Key.same()
+		case e.Event.Kind == status.EventHeld:
+			delete(open, e.Event.Account)
+		case e.Event.Kind == status.EventRoom && e.Event.Reason != "" && ok:
+			lifts[held] = e.Event.At
+			delete(open, e.Event.Account)
+		}
+	}
+	return holdPairs{lifts: lifts, open: open}
+}
+
 // take takes in e, the next event of the run, and returns its facts.
 func (f *eventFacts) take(e status.Event) eventFact {
 	fact := eventFact{runsOut: f.passedOver(e)}
@@ -71,7 +139,7 @@ func (f *eventFacts) take(e status.Event) eventFact {
 		}
 	}
 	switch e.Kind {
-	case status.EventLimit, status.EventCap, status.EventRefused:
+	case status.EventLimit, status.EventCap, status.EventRefused, status.EventHeld:
 		fact.moved, fact.to = e.Count, e.To
 	case status.EventPressure:
 		f.pressed(e)

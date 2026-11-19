@@ -55,7 +55,7 @@ A session resumed in another pool keeps its account in the first pool, for the p
 running there.
 
 A Claude Sonnet 5.5 session never moves for idling or a compaction, because its thinking works only
-on the account that produced it. A pin of one session holds it through a compaction too.
+on the account that produced it. A pin of one session keeps it there through a compaction too.
 
 ## Moving after a compaction
 
@@ -97,7 +97,7 @@ account, so an account gone quiet reads quiet.
 The table on [Limits and routing](../limits-and-routing.md) gives what the router does with each
 refusal. These are the finer points:
 
-- **A limit holds back only what it counts.** For example, a limit on the Fable week of an account
+- **A limit keeps back only what it counts.** For example, a limit on the Fable week of an account
   leaves the sessions there on other models where they are.
 - **An account comes back early** if a request sent since shows the limit has lifted. That
   happens after you reset a limit by hand on claude.ai.
@@ -122,7 +122,7 @@ its own rates.
   use stays from its own answers. Until it has a day of them, it takes the use to
   stay put, so a run-out leans early, and Runway says so.
 - **Where the rest goes:** where a new session would go at that moment, among the pinned accounts
-  while a pin holds.
+  while a pin is in force.
 - **How accounts compare:** by the size of their plan. A Max week counts as five Pro weeks, and an
   Ultra week as ten. An account without a `plan` counts as the plan most accounts have. If none has
   one, every account counts the same.

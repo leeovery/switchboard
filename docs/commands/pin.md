@@ -53,8 +53,8 @@ choose if they were the only accounts.
 ## Rules every pin follows
 
 - **A new pin replaces the one before it.**
-- **A pin holds while one of its accounts has room.** When none has, the router chooses among every
-  account in the pool, as if nothing were pinned.
+- **A pin stays in force while one of its accounts has room.** When none has, the router chooses
+  among every account in the pool, as if nothing were pinned.
 - **A pin on one session beats the pin on its pool.**
 - **Every pin gives way at a limit.** A pinned session that hits one moves by the usual rules,
   rather than fail.

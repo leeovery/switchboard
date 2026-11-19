@@ -375,7 +375,7 @@ func TestStatusWithAConfigItCantReadShowsTheRoutersDocument(t *testing.T) {
 		{
 			name:  "as text",
 			args:  []string{"status", "--pretty"},
-			shows: func(stdout string) bool { return strings.Contains(stdout, "(upgraded), held: "+refusal) },
+			shows: func(stdout string) bool { return strings.Contains(stdout, "(upgraded), put off: "+refusal) },
 			want:  heldShown,
 		},
 		{

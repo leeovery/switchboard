@@ -169,10 +169,10 @@ func tokenlessRouting(a Account) Routing {
 // renewToken is what's said of an account whose token is refused, after why.
 const renewToken = "its token needs renewing"
 
-// renewing is what's said of an account whose read was refused, as the cause
+// Renewing is what's said of an account whose read was refused, as the cause
 // says why, after why: "its subscription needs renewing" of an ended
 // subscription, and "its token needs renewing" of a refused token.
-func (c StaleCause) renewing() string {
+func (c StaleCause) Renewing() string {
 	if c == StaleLapsed {
 		return "its subscription needs renewing"
 	}
@@ -220,7 +220,7 @@ func refusedReadRouting(cause StaleCause) Routing {
 	if cause == StaleLapsed {
 		kind = RoutingLapsed
 	}
-	return Routing{Kind: kind, Says: says, Clauses: []string{cause.renewing()}, Short: []string{short}}
+	return Routing{Kind: kind, Says: says, Clauses: []string{cause.Renewing()}, Short: []string{short}}
 }
 
 // cappedRouting is how the account stands at its cap at now, as policy says
@@ -308,13 +308,26 @@ func Till(now, t time.Time) string {
 	return clauseAt("till ", now, t)
 }
 
+// HeldTill says until when a hold held, lifting at t, as Till does, but as
+// DatedAfar shows t, as a hold can run past a week: "till 08:24", or "till
+// 28 Sep 15:08"; "" where that's unknown.
+func HeldTill(now, t time.Time) string {
+	return clauseShown("till ", prose.DatedAfar, now, t)
+}
+
 // clauseAt is the words given then t as Dated shows it at now: "" where t is
 // unknown.
 func clauseAt(words string, now, t time.Time) string {
+	return clauseShown(words, prose.Dated, now, t)
+}
+
+// clauseShown is the words given then t as shows shows it at now: "" where t
+// is unknown.
+func clauseShown(words string, shows func(now, t time.Time) string, now, t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return words + prose.Dated(now, t)
+	return words + shows(now, t)
 }
 
 // startsAt says when the lapsed window of the account with the given id

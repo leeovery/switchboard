@@ -145,8 +145,15 @@ const (
 	WhyReserve = "is at its reserve"
 	// WhyReadRefused is an account held back by its last read refused, its
 	// subscription ended or its token refused, as RefusedRead has it, till a
-	// read comes back clean.
+	// read comes back clean, as a router from before said it, naming neither:
+	// WhyHeldBy gives the why that names the cause.
 	WhyReadRefused = "had its read refused"
+	// WhySubscriptionEnded is an account held back by its last read refused
+	// as its subscription ended, as StaleLapsed has it.
+	WhySubscriptionEnded = WhyReadRefused + ", its subscription ended"
+	// WhyReadTokenRefused is an account held back by its last read refused
+	// its token, as StaleRefused has it.
+	WhyReadTokenRefused = WhyReadRefused + ", its token refused"
 	// WhyLimit is an account that answered the request with a limit reached.
 	WhyLimit = "hit its limit"
 	// WhyRefused is an account that refused the request.
@@ -163,6 +170,31 @@ const (
 	// another or out of the config.
 	WhyLeftPool = "left the pool"
 )
+
+// WhyHeldBy is why an account held back by its last read refused can't take
+// a request, as cause says why the API refused it: WhySubscriptionEnded,
+// WhyReadTokenRefused, or WhyReadRefused of a cause neither names.
+func WhyHeldBy(cause StaleCause) string {
+	switch cause {
+	case StaleLapsed:
+		return WhySubscriptionEnded
+	case StaleRefused:
+		return WhyReadTokenRefused
+	}
+	return WhyReadRefused
+}
+
+// heldBy is the cause of a hold of an account's read refused that why gives,
+// as WhyHeldBy says it: zero for any other why, WhyReadRefused among them,
+// which names none.
+func heldBy(why string) StaleCause {
+	for _, cause := range []StaleCause{StaleLapsed, StaleRefused} {
+		if WhyHeldBy(cause) == why {
+			return cause
+		}
+	}
+	return 0
+}
 
 // What a request of an assignment's model in flight is doing, as an
 // Assignment's InFlight gives it.

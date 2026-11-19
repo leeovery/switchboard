@@ -33,7 +33,7 @@ Start with [Reading the JSON](reference/reading-the-json.md): the rules there ho
 | Page | What it holds |
 |---|---|
 | [The status document](reference/status-json.md) | What `status` and `usage` print. |
-| [Accounts in the status document](reference/status-accounts.md) | Each account: its windows, its token, and what holds it back. |
+| [Accounts in the status document](reference/status-accounts.md) | Each account: its windows, its token, and what keeps it back. |
 | [`status --session` JSON](reference/status-session-json.md) | Where one session sends its requests, and why. |
 | [`history` JSON](reference/history-json.md) | The days, the year, the months, and how worth is priced. |
 | [`history` JSON: the account blocks](reference/history-accounts-json.md) | Weeks, tokens, totals, plans and capacity. |

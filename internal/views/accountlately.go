@@ -2,6 +2,7 @@ package views
 
 import (
 	"slices"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -11,10 +12,11 @@ import (
 // LATELY tells them of the account with the given id at m's Now, the newest
 // first, n at most, folded as Lately folds them: told from its side, which
 // they leave unnamed, as "reached its cap: 3 sessions moved to side". Of an
-// account they're the events it befell, the sessions a cap, a limit or a
-// refusal of another moved onto it, and any other move onto it, the pins
-// naming it, and the sessions that started on it. Of every account, id "",
-// they're every account's, each naming its account, as Lately tells them.
+// account they're the events it befell, the sessions a cap, a limit, a
+// refusal or a hold of another moved onto it, and any other move onto it,
+// the pins naming it, and the sessions that started on it. Of every
+// account, id "", they're every account's, each naming its account, as
+// Lately tells them.
 // Restarts, the router's health, and routing given back to it name no
 // account, so neither tells them. Each tells a session that started on the
 // router's best, as its reason says, ", the best", as it started, wherever ▲
@@ -60,7 +62,7 @@ func (s accountSide) tells(e status.Event) bool {
 	switch e.Kind {
 	case status.EventStarted, status.EventPressure, status.EventForeign, status.EventPrimed, status.EventRoom:
 		return e.Account == s.id
-	case status.EventCap, status.EventLimit, status.EventRefused:
+	case status.EventCap, status.EventLimit, status.EventRefused, status.EventHeld:
 		return e.Account == s.id || s.cameFrom(e)
 	case status.EventMoved:
 		return e.To == s.id
@@ -70,7 +72,7 @@ func (s accountSide) tells(e status.Event) bool {
 	return false
 }
 
-// cameFrom reports whether e, a cap, a limit or a refusal of another
+// cameFrom reports whether e, a cap, a limit, a refusal or a hold of another
 // account, moved sessions onto the account, each of them.
 func (s accountSide) cameFrom(e status.Event) bool {
 	return e.Account != s.id && e.To == s.id && e.Count > 0
@@ -101,18 +103,18 @@ func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, 
 		return e.Kind, t.cameHere(e, f)
 	case status.EventPressure:
 		return e.Kind, t.pressedHere(e)
-	case status.EventCap, status.EventLimit, status.EventRefused:
+	case status.EventCap, status.EventLimit, status.EventRefused, status.EventHeld:
 		if s.cameFrom(e) {
-			return status.EventMoved, cameFromHeld(e, f)
+			return status.EventMoved, cameFromHeld(e, f, t.now)
 		}
-		full, _ := befell(e, f)
+		full, _ := befell(e, f, t.now)
 		return e.Kind, heldBack(nil, e, f, full, false)
 	case status.EventPin:
 		return e.Kind, s.pinnedHere(t, e)
 	case status.EventForeign:
 		return e.Kind, Said{Words: clause(prose.ForeignToken)}
 	}
-	full, _ := befell(e, f)
+	full, _ := befell(e, f, t.now)
 	return e.Kind, Said{Words: clause(full)}
 }
 
@@ -137,11 +139,11 @@ func (t latelyTeller) pressedHere(e status.Event) Said {
 	return Said{Words: clause("came under pressure: out "), Object: clause("~" + prose.Befell(t.now, e.Until)), Rest: clause(" at this pace")}
 }
 
-// cameFromHeld tells of the sessions another account's cap, limit or
-// refusal moved onto the account: "3 sessions came from work: work reached
+// cameFromHeld tells of the sessions another account's cap, limit, refusal
+// or hold moved onto the account: "3 sessions came from work: work reached
 // its cap".
-func cameFromHeld(e status.Event, f eventFact) Said {
-	what, _ := befell(e, f)
+func cameFromHeld(e status.Event, f eventFact, now time.Time) Said {
+	what, _ := befell(e, f, now)
 	return Said{Subject: clause(prose.SessionCount(f.moved)), Words: clause(" came from "), Object: account(e.Account),
 		Rest: slices.Concat(clause(": "), account(e.Account), clause(" "+what))}
 }

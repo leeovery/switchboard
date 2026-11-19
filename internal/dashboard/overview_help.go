@@ -93,7 +93,7 @@ func overviewHelp() []helpPart {
 		{
 			heading: SectionLately.heading(),
 			says: []line{
-				said("What the router has done, newest first, as the Log's events tell it. The sessions a limit, a cap or a refusal moved " +
+				said("What the router has done, newest first, as the Log's events tell it. The sessions a limit, a cap, a refusal or a hold moved " +
 					"fold into its line, counted."),
 			},
 			glyphs: latelyGlyphs(),

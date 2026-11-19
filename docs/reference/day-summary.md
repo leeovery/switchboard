@@ -66,7 +66,7 @@ counted.
 
 - **`before`** in a reset is the highest use of the window before the reset.
 - **A limit** is a window turning `rejected`.
-- **`rise`, `resets` and the minutes** are left out if the readings history held no window of the
+- **`rise`, `resets` and the minutes** are left out if the readings history had no window of the
   account, that day or the week before. Then they're unknown, not zero.
 
 ## A model entry

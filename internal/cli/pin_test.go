@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -508,15 +509,18 @@ func (s *serveSetup) status(t *testing.T) status.Document {
 	return doc
 }
 
-// told returns the router's newest event, failing the test when it has told
-// of none.
+// told returns the router's newest event of routing set by hand, a pin or
+// its clearing, failing the test when it has told of none: side's read
+// refused, as the fake API refuses it, puts side on a hold whenever the
+// router's probes read it, told among them.
 func (s *serveSetup) told(t *testing.T) status.Event {
 	t.Helper()
 	events := s.status(t).Events
-	if len(events) == 0 {
-		t.Fatal("the router has told of no event")
+	i := slices.IndexFunc(events, func(e status.Event) bool { return e.Kind == status.EventPin || e.Kind == status.EventAuto })
+	if i < 0 {
+		t.Fatalf("the router has told of no pin among %+v", events)
 	}
-	return events[0]
+	return events[i]
 }
 
 // session returns what the router says of the session with the given id.

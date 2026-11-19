@@ -40,10 +40,10 @@ func (s Said) String() string {
 
 // Lately are the events of the document m is a moment of, as LATELY tells
 // them at its Now, the newest first, n at most: those of the kinds it tells
-// of, the sessions a limit, a cap or a refusal moved folded into its line,
-// counted, a move showing alone only where the line it's folded into isn't
-// among those shown. Each names a session by its directory, as dirs give it,
-// else by its id.
+// of, the sessions a limit, a cap, a refusal or a hold moved folded into its
+// line, counted, a move showing alone only where the line it's folded into
+// isn't among those shown. Each names a session by its directory, as dirs
+// give it, else by its id.
 func Lately(m status.Moment, n int, dirs SessionDirs) []Sentence {
 	return toldFrom(m, given(m), n, overview, dirs)
 }
@@ -108,10 +108,10 @@ func latelyFacts(m status.Moment, events []Event) map[eventKey]eventFact {
 	told := slices.SortedFunc(slices.Values(events), func(a, b Event) int {
 		return cmp.Or(a.Key.Run.Compare(b.Key.Run), cmp.Compare(a.Key.ID, b.Key.ID))
 	})
-	facts := eventFacts{name: m.NameOf}
+	facts := eventFacts{name: m.NameOf, holds: holdLifts(events)}
 	byKey := make(map[eventKey]eventFact, len(told))
 	for _, e := range told {
-		byKey[e.Key.same()] = facts.take(e.Event)
+		byKey[e.Key.same()] = facts.told(e)
 	}
 	return byKey
 }
@@ -154,9 +154,9 @@ func lineOf(e Event) (eventKey, bool) {
 }
 
 // foldedInto is the id of the event whose line a move is folded into, as one
-// of the sessions a limit, a cap or a refusal moved: zero for a move none
-// counts, and for any other event. A router from before forced_by gives a
-// limit's moves their limit's id alone.
+// of the sessions a limit, a cap, a refusal or a hold moved: zero for a move
+// none counts, and for any other event. A router from before forced_by gives
+// a limit's moves their limit's id alone.
 func foldedInto(e status.Event) int {
 	if e.Kind != status.EventMoved {
 		return 0
@@ -180,6 +180,7 @@ var latelyTellers = map[string]func(t latelyTeller, e status.Event, f eventFact)
 	status.EventCap:      latelyTeller.held,
 	status.EventLimit:    latelyTeller.held,
 	status.EventRefused:  latelyTeller.held,
+	status.EventHeld:     latelyTeller.held,
 	status.EventForeign:  latelyTeller.disowned,
 	status.EventPrimed:   latelyTeller.befallen,
 	status.EventRoom:     latelyTeller.befallen,
@@ -245,13 +246,14 @@ func (t latelyTeller) pressured(e status.Event, f eventFact) (Said, Said) {
 	return full, short
 }
 
-// held tells of a cap, a limit or a refusal holding an account back, its
-// name first, then what befell it, as befell says: "work reached its cap",
-// or short, "work at its cap"; "personal reached its 5-hour limit", or
-// "personal at its limit"; "work refused (401)"; and the sessions it moved,
-// as heldBack has them.
-func (latelyTeller) held(e status.Event, f eventFact) (Said, Said) {
-	full, short := befell(e, f)
+// held tells of a cap, a limit, a refusal or a hold holding an account
+// back, its name first, then what befell it, as befell says: "work reached
+// its cap", or short, "work at its cap"; "personal reached its 5-hour
+// limit", or "personal at its limit"; "work refused (401)"; "work held
+// (subscription lapsed)", or "work held"; and the sessions it moved, as
+// heldBack has them.
+func (t latelyTeller) held(e status.Event, f eventFact) (Said, Said) {
+	full, short := befell(e, f, t.now)
 	return heldBack(account(e.Account), e, f, " "+full, false), heldBack(account(e.Account), e, f, " "+short, true)
 }
 
@@ -267,8 +269,8 @@ func (latelyTeller) disowned(e status.Event, _ eventFact) (Said, Said) {
 // first, then what befell it, as befell says: "side primed: its 5-hour
 // window started", or short, "side primed"; "work open again: its 5-hour
 // window reset", or short, "work open again".
-func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
-	full, short := befell(e, f)
+func (t latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
+	full, short := befell(e, f, t.now)
 	return Said{Subject: account(e.Account), Words: clause(" " + full)}, Said{Subject: account(e.Account), Words: clause(" " + short)}
 }
 
@@ -276,11 +278,13 @@ func (latelyTeller) befallen(e status.Event, f eventFact) (Said, Said) {
 // one, in full and short: "reached its cap" and "at its cap"; "reached its
 // 5-hour limit", in the windows it began with, and "at its limit"; the
 // upstream's answer, as status.RefusalAnswer says it, "refused (401)", or of
-// a model family's alone, "refused (403, opus)"; "primed: its 5-hour window
+// a model family's alone, "refused (403, opus)"; "held (subscription
+// lapsed)", and till when, where it has lifted, as holdSaid says it in now's
+// time zone, and "held"; "primed: its 5-hour window
 // started", the windows the prime started, and "primed"; and "open again:
-// its 5-hour window reset", where it names the windows that held it back,
-// and "open again". It's nothing of any other kind.
-func befell(e status.Event, f eventFact) (full, short string) {
+// its 5-hour window reset", or what else lifted, as roomSaid says, and
+// "open again". It's nothing of any other kind.
+func befell(e status.Event, f eventFact, now time.Time) (full, short string) {
 	switch e.Kind {
 	case status.EventCap:
 		return "reached its cap", status.AtCap
@@ -289,13 +293,15 @@ func befell(e status.Event, f eventFact) (full, short string) {
 	case status.EventRefused:
 		answer := status.RefusalAnswer(e.Status, e.Family)
 		return answer, answer
+	case status.EventHeld:
+		return holdSaid(e, f, e.At.In(now.Location())), "held"
 	case status.EventPrimed:
 		return "primed: " + its(f.windows, "its window") + " started", "primed"
 	case status.EventRoom:
-		if len(f.windows) == 0 {
-			return OpenAgain, OpenAgain
+		if said := roomSaid(e, f); said != "" {
+			return OpenAgain + ": " + said, OpenAgain
 		}
-		return OpenAgain + ": " + its(f.windows, "") + " reset", OpenAgain
+		return OpenAgain, OpenAgain
 	}
 	return "", ""
 }
@@ -351,12 +357,12 @@ func (t latelyTeller) facts(f eventFact, from, to string) status.Facts {
 	return status.Facts{From: from, To: to, Until: f.runsOut, Now: t.now}
 }
 
-// heldBack is the line of an account a cap, a limit or a refusal held back,
-// subject naming it, then what befell it, as in " reached its cap", and after
-// that the sessions the event moved, as its facts f count them, where it
-// moved any: in full, as in ": 3 sessions moved to side", the count its
-// object; short, as in ": 3 moved to side"; and where they went to several
-// accounts, "moved to other accounts".
+// heldBack is the line of an account a cap, a limit, a refusal or a hold
+// held back, subject naming it, then what befell it, as in " reached its
+// cap", and after that the sessions the event moved, as its facts f count
+// them, where it moved any: in full, as in ": 3 sessions moved to side", the
+// count its object; short, as in ": 3 moved to side"; and where they went to
+// several accounts, "moved to other accounts".
 func heldBack(subject status.Words, e status.Event, f eventFact, what string, short bool) Said {
 	s := Said{Subject: subject, Words: clause(what)}
 	if f.moved == 0 {

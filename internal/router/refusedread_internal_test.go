@@ -109,7 +109,7 @@ func TestASessionOnAnAccountWhoseReadWasRefusedMovesOff(t *testing.T) {
 			probesEnd(r.state, "work", tt.reads)
 			want := Choice{Account: "work", Reason: reasonSticky}
 			if tt.held != 0 {
-				want = Choice{Account: "side", Reason: "moved: work had its read refused", From: "work"}
+				want = Choice{Account: "side", Reason: "moved: work " + status.WhyHeldBy(tt.held), From: "work"}
 			}
 
 			got := choose(t.Context(), r, Request{Session: "one", Model: opus, Client: "work"})
@@ -127,8 +127,8 @@ func TestAPinToAnAccountWhoseReadWasRefusedYieldsAsToOneWhoseTokenTheRouterRefus
 		want   string
 	}{
 		{name: "the router refused its token", refuse: func(r *Router) { r.state.refuse("work", http.StatusUnauthorized, someRequest, r.state.mark()) }, want: "pin yields: work has no room"},
-		{name: "its subscription ended", refuse: func(r *Router) { failWorksRead(r, errSubscriptionEnded) }, want: "pin yields: work had its read refused"},
-		{name: "its token refused as it was read", refuse: func(r *Router) { failWorksRead(r, errTokenRefused) }, want: "pin yields: work had its read refused"},
+		{name: "its subscription ended", refuse: func(r *Router) { failWorksRead(r, errSubscriptionEnded) }, want: "pin yields: work had its read refused, its subscription ended"},
+		{name: "its token refused as it was read", refuse: func(r *Router) { failWorksRead(r, errTokenRefused) }, want: "pin yields: work had its read refused, its token refused"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -155,8 +155,8 @@ func TestAMoveOffAnAccountWhoseReadWasRefusedSaysSoThoughALimitHoldsItToo(t *tes
 		want  string
 	}{
 		{name: "a limit alone", want: "moved: work has no room"},
-		{name: "a limit, its subscription ended", reads: []error{errSubscriptionEnded}, want: "moved: work had its read refused"},
-		{name: "a limit, its token refused as it was read", reads: []error{errTokenRefused}, want: "moved: work had its read refused"},
+		{name: "a limit, its subscription ended", reads: []error{errSubscriptionEnded}, want: "moved: work had its read refused, its subscription ended"},
+		{name: "a limit, its token refused as it was read", reads: []error{errTokenRefused}, want: "moved: work had its read refused, its token refused"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -587,12 +587,12 @@ func TestARefusedReadLoadsAsTheStateFileKeptIt(t *testing.T) {
 	}{
 		{
 			name: "kept as a value",
-			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.SubscriptionEnded, RefusedSince: began},
+			kept: savedReading{ProbeError: errSubscriptionEnded.Error(), RefusedRead: quota.SubscriptionEnded, RefusedSince: began, HeldTold: true},
 			want: quota.SubscriptionEnded, since: began,
 		},
 		{
 			name: "kept as a value, its error reading otherwise",
-			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: quota.TokenRefused, RefusedSince: began},
+			kept: savedReading{ProbeError: errUnreadable.Error(), RefusedRead: quota.TokenRefused, RefusedSince: began, HeldTold: true},
 			want: quota.TokenRefused, since: began,
 		},
 		{

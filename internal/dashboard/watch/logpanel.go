@@ -6,6 +6,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -72,18 +73,19 @@ func (m Model) appliedLogPanel() (Model, tea.Cmd) {
 	return m.uncover()
 }
 
-// builtLogPanel is m with the Log's panel built at now of what the watch
-// holds, while it's open: its figures, made again only as what they're made
-// of changes, as logBuilt has it; and every account.
-func (m Model) builtLogPanel(now time.Time) Model {
+// builtLogPanel is m with the Log's panel built at the moment mo, the Log's
+// build's, of what the watch holds, while it's open: its figures, made
+// again only as what they're made of changes, as logBuilt has it; and every
+// account.
+func (m Model) builtLogPanel(mo status.Moment) Model {
 	if m.open != logPanelOpen {
 		return m
 	}
-	p := m.log.panel
+	now, p := mo.Now, m.log.panel
 	if basis := m.panelBasis(p, now); !m.log.built.panel.same(basis) {
 		p, m.log.built.panel = m.panelFigures(p, now), &basis
 	}
-	p.Moment = m.moment(now)
+	p.Moment = mo
 	m.log.panel = p
 	return m
 }
@@ -101,7 +103,7 @@ func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPa
 		Projects: m.cfg.Projects, Now: now,
 	}
 	if p.Of == dashboard.LogEvents {
-		p.Events = views.LogEvents(m.logEventSources(p.Shows, now)).Today
+		p.Events = views.LogEvents(m.logEventSources(p.Shows, nil, now)).Today
 		src.Events = p.Events.Sessions
 	} else {
 		p.Lines = m.requestsThrough(p.Filter, now).Count(views.Today(now).Date)

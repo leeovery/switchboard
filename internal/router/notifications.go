@@ -45,11 +45,12 @@ type Notifier interface {
 }
 
 // notifications posts desktop notifications of what befalls the accounts, as
-// settings asks: a limit reached, and the sessions it moved; room again; a
-// window passing its warning; and any other move; and, whatever settings
-// asks, a token's year ending. It hears the router's events without ever
-// holding it up: they queue for run's goroutine, which deals with each, looks
-// at the accounts afresh after each and every lookEvery, and posts.
+// settings asks: a limit reached, and the sessions it moved; a hold starting,
+// as limits are asked for; room again; a window passing its warning; and any
+// other move; and, whatever settings asks, a token's year ending. It hears
+// the router's events without ever holding it up: they queue for run's
+// goroutine, which deals with each, looks at the accounts afresh after each
+// and every lookEvery, and posts.
 type notifications struct {
 	settings config.Notifications
 	notifier Notifier
@@ -94,11 +95,11 @@ func newNotifications(settings config.Notifications, notifier Notifier, state *s
 }
 
 // hear queues an event for run to deal with, of the kinds take deals with: a
-// limit reached, and a move. It never waits: with the queue full, the event
-// is dropped.
+// limit reached, a hold starting, and a move. It never waits: with the queue
+// full, the event is dropped.
 func (n *notifications) hear(e Event) {
 	switch e.(type) {
-	case LimitReached, Moved:
+	case LimitReached, ReadHeld, Moved:
 	default:
 		return
 	}
@@ -195,12 +196,19 @@ func (n *notifications) standings() (standings, time.Time) {
 }
 
 // take deals with an event: a limit reached starts gathering the sessions it
-// moves, and a move is told of on its own unless a limit told of takes it.
+// moves; a hold starting is told of at once, as a limit is, whatever went
+// out just before, its sessions moving as their next requests come, each a
+// move of its own; and a move is told of on its own unless a limit told of
+// takes it.
 func (n *notifications) take(ctx context.Context, e Event, accounts standings) {
 	switch e := e.(type) {
 	case LimitReached:
 		if n.settings.Limits {
 			n.limits.reached(e, time.Now())
+		}
+	case ReadHeld:
+		if n.settings.Limits && !e.Late {
+			n.send(ctx, heldNotice(e, accounts))
 		}
 	case Moved:
 		if n.settings.Limits && n.limits.moved(e, time.Now()) {

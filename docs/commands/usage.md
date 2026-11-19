@@ -1,7 +1,7 @@
 # `switchboard usage`: every account's windows, as they stand
 
 `switchboard usage` prints the windows of every account once, into the scrollback, with the time
-they were read. You can hold it against one printed an hour before.
+they were read. You can compare it with one printed an hour before.
 
 ```bash
 switchboard usage
@@ -64,7 +64,7 @@ as wide as `COLUMNS` says, or else 80 columns.
 From the top, `usage` prints:
 
 1. A header, with when it read and how the router stands, such as
-   `● healthy  ·  6 sessions  ·  new sessions → ▲ side`. While a pin holds, it adds
+   `● healthy  ·  6 sessions  ·  new sessions → ▲ side`. While a pin is in force, it adds
    `pinned to personal`.
 2. A bar for every window of each account.
 3. The `Σ pool` row, last in each window.
@@ -84,9 +84,9 @@ router has taken it up.
 
 | Words | When they show |
 |---|---|
-| `limit · back 15:54` | Claude's limit holds the window. |
-| `limit` | Claude's limit holds the window, and Anthropic refused the account's last read, so no time brings the account back. Only a clean read does. |
-| `at cap · back 17:10` | The window has reached the cap, so the router holds the account back. |
+| `limit · back 15:54` | Claude's limit is in force on the window. |
+| `limit` | Claude's limit is in force on the window, and Anthropic refused the account's last read, so no time brings the account back. Only a clean read does. |
+| `at cap · back 17:10` | The window has reached the cap, so the router keeps the account back. |
 | `out ~16:05` | The window runs out before it resets. Within a day, the time shows. |
 | `out ~Sat` | It runs out more than a day ahead, so the day shows only, because a forecast days out can miss by a day. |
 | `out ~Thu 12 Nov` | It runs out on the same weekday as today, a week on, so the date shows. |
@@ -113,14 +113,14 @@ A week runs out by its forecast, and the 5-hour window by its recent rate. See
 ### The Σ pool row
 
 The `Σ pool` row sums the room of the pool's accounts: every account in the pool, or only the
-pinned ones while the pool's pin holds. It shows if there's more than one account.
+pinned ones while the pool's pin is set. It shows if there's more than one account.
 
 - **Its percentage** is the mean use of those accounts, each as its own row shows it. An account is
   left out if it has no usable token, was never read, has a refused token, or has an ended
   subscription.
 - **Its words** say the room left before the caps, in accounts, such as `1.5 of 3 left`. An account
-  left out of the percentage adds no room. While a pin holds, the words add ` · pinned`.
-- **A window held by fewer than two of the accounts,** but not all of them, has no Σ pool figure.
+  left out of the percentage adds no room. While a pin is in force, the words add ` · pinned`.
+- **A window fewer than two of the accounts have,** but not all of them, has no Σ pool figure.
   Side by side, that part of the row is blank. Stacked, the section has no Σ pool row.
 - **An account that a pin leaves out** has its label and `◆` drawn faintly.
 

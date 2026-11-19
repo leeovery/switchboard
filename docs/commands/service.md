@@ -132,7 +132,7 @@ An answering router refuses, and `restart` says why, in these cases:
 | An export on a schedule is under way | Try again once the export ends. |
 
 - **The config** is judged by the new version after an upgrade, so a config only the new version
-  takes doesn't hold the restart.
+  takes doesn't put off the restart.
 - **The binary** is asked first because a newer version can refuse a config the running one takes.
 - **The binary may be missing** for a moment while an upgrade moves it. `restart` names what changed.
 - **The router copies an upgrade** in beside its own copy, which fails on a full disk.

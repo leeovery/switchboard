@@ -571,6 +571,32 @@ func TestDatedShowsTheDayOnAnyOtherDay(t *testing.T) {
 	}
 }
 
+// DatedAfar shows a time as Dated does within the week either side of now's
+// day, and by its date from a week on, before or after.
+func TestDatedAfarShowsTheDateAWeekOrMoreAway(t *testing.T) {
+	// Thursday 1 October, 14:42, an hour ahead of UTC.
+	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "today", t: now.Add(81 * time.Minute), want: "16:03"},
+		{name: "six days on", t: now.AddDate(0, 0, 6), want: "Wed 14:42"},
+		{name: "a week on", t: now.AddDate(0, 0, 7), want: "8 Oct 14:42"},
+		{name: "six days back", t: now.AddDate(0, 0, -6), want: "Fri 14:42"},
+		{name: "a week back", t: now.AddDate(0, 0, -7), want: "24 Sep 14:42"},
+		{name: "in UTC, a week on in now's time zone", t: time.Date(2026, 10, 7, 23, 30, 0, 0, time.UTC), want: "8 Oct 00:30"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.DatedAfar(now, tt.t); got != tt.want {
+				t.Errorf("DatedAfar() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // No time Past says is wider than PastWidest says it, nor Later than
 // LaterWidest, and the day before's fills PastWidest, from now's day to more
 // than a year back, across a turn of the year; on its start's day, Later is

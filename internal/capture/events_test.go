@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -26,7 +27,7 @@ func toldBetween(from, to time.Time) []toldEvent {
 	telling := views.NewTelling(status.NameOfKey)
 	var told []toldEvent
 	for e := range happened.Between(from, to) {
-		line := telling.Line(e.Event, now)
+		line := telling.Row(events.Held{Line: e}, now)
 		told = append(told, toldEvent{at: e.At.In(now.Location()).Format(time.TimeOnly), kind: line.Kind, account: line.Account.String(), what: line.What.String()})
 	}
 	return told
@@ -197,9 +198,10 @@ func TestEachWorldsDocumentTellsTheNewestOfItsEventsAsItsFramesHaveThem(t *testi
 
 // A world's router numbers its events as it tells them, from 1 as it
 // started, and its document gives the newest it keeps, newest first, none
-// after it was built; each move a cap, a limit or a refusal forced is
-// counted in it, as many as it says it moved, to where it says, a limit's in
-// the limit too; and a limit holding an account is told of, by its identity.
+// after it was built; each move a cap, a limit, a refusal or a hold forced
+// is counted in it, as many as it says it moved, to where it says, a limit's
+// in the limit too; a hold ends where room again tells its lift, and holds on
+// till then; and a limit holding an account is told of, by its identity.
 func TestEachWorldsRouterNumbersAndCountsItsEventsAsTheRouterDoes(t *testing.T) {
 	worlds := worldsNow()
 	tests := []struct {
@@ -214,6 +216,7 @@ func TestEachWorldsRouterNumbersAndCountsItsEventsAsTheRouterDoes(t *testing.T) 
 		{name: "the bad hour", world: worlds.badHour()},
 		{name: "ten accounts, the auto world's events", world: worlds.many(10), untold: []string{"team"}},
 		{name: "work alone, its afternoon told", world: worlds.oneLately()},
+		{name: "lapsed, two holds and a refusal", world: worlds.lapsed()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -232,9 +235,12 @@ func TestEachWorldsRouterNumbersAndCountsItsEventsAsTheRouterDoes(t *testing.T) 
 					t.Errorf("the document, built at %s, tells of %+v", doc.GeneratedAt, e)
 				}
 			}
-			for _, by := range told {
+			for i, by := range told {
 				if forces(by.Kind) {
 					countsItsMoves(t, by, told)
+				}
+				if by.Kind == status.EventHeld {
+					endsAtItsLift(t, by, told[i+1:])
 				}
 			}
 			for _, a := range doc.Accounts {
@@ -249,9 +255,25 @@ func TestEachWorldsRouterNumbersAndCountsItsEventsAsTheRouterDoes(t *testing.T) 
 	}
 }
 
-// countsItsMoves checks the cap, limit or refusal by is counted in by as many
-// moves as it says it moved, each off its account to where it says, a limit's
-// counted in the limit too.
+// endsAtItsLift checks the hold held ends where the first room again of its
+// account after it, told, names its cause lifting, as the router ends it;
+// and holds on where none does.
+func endsAtItsLift(t *testing.T, held status.Event, after []status.Event) {
+	t.Helper()
+	var lifted time.Time
+	if i := slices.IndexFunc(after, func(e status.Event) bool {
+		return e.Kind == status.EventRoom && e.Account == held.Account && e.Reason != ""
+	}); i >= 0 {
+		lifted = after[i].At
+	}
+	if !held.Until.Equal(lifted) {
+		t.Errorf("%+v ends at %v, want %v, where room again tells its lift", held, held.Until, lifted)
+	}
+}
+
+// countsItsMoves checks the cap, limit, refusal or hold by is counted in by
+// as many moves as it says it moved, each off its account to where it says,
+// a limit's counted in the limit too.
 func countsItsMoves(t *testing.T, by status.Event, told []status.Event) {
 	t.Helper()
 	var moved int

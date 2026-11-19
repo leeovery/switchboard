@@ -56,8 +56,8 @@ log=$(switchboard logs router --path)
 grep 'notification failed' "$log"
 ```
 
-A notification can also be held back on purpose. Only one about an account goes out each minute,
-unless it tells of a limit or a token.
+A notification can also be dropped on purpose. Only one about an account goes out each minute,
+unless it tells of a limit, a [hold](../glossary.md) or a token.
 
 ## Related
 

@@ -32,12 +32,13 @@ switchboard events --json | tail -1 \
 | `cap` | A window of an account reached its reserve. |
 | `limit` | An account reached its limit. |
 | `refused` | The upstream refused requests on an account. |
+| `held` | A [hold](../glossary.md) started on an account, because Anthropic refused its usage read. |
 | `foreign` | The token of an account turned out to be another subscription's. |
 | `primed` | A prime started a window of an account. |
-| `room` | An account had room again. |
+| `room` | An account had room again, after a limit, a cap or a hold. |
 | `pin` | Routing was set by hand: a pin of a pool, or of one session. |
 | `auto` | Routing was given back to the router: a pin cleared. |
-| `restart` | A restart fell due, or was held. |
+| `restart` | A restart fell due, or was put off. |
 | `health` | The router turned unhealthy, or healthy again. |
 
 ## Fields every event has
@@ -68,8 +69,8 @@ switchboard events --json | tail -1 \
 - **`account`** on the `pin` of a pool is the first account the pin names. On the `pin` or `auto`
   of one session, it's the account that session pin names. The `auto` of a pool has no `account`,
   only `accounts`.
-- **`to`** on a `limit`, `cap` or `refused` event is where every session it moved went, if they
-  all went to one account.
+- **`to`** on a `limit`, `cap`, `refused` or `held` event is where every session it moved went, if
+  they all went to one account.
 - **`dir` and `project`** are each left out if none was known yet, and on events written before
   switchboard recorded them.
 
@@ -91,38 +92,54 @@ Once the move is done, an event of these kinds without a pool is in the first po
 | Field | Type | Meaning |
 |---|---|---|
 | `reason` | string | Why. See below. |
-| `held` | string | On `restart`, why the binary the router would become refuses to start. That holds the restart. |
+| `held` | string | On `restart` only, why the binary the router would become refuses to start. That puts off the restart. |
 | `windows` | list of strings | The keys of the windows the event is of. |
 | `joined` | object | On `limit` or `cap`, when each window joined it after it began, by key. |
-| `until` | time | When a limit, cap or refusal ends, or a window runs out or resets. |
-| `since` | time | When the rate of a `pressure` event is measured from. |
+| `until` | time | When a limit, cap, refusal or hold ends, or a window runs out or resets. |
+| `since` | time | When the rate of a `pressure` event is measured from. On a `held` event of a hold from before this event existed, when the hold began. |
 
 | Kind | `reason` holds |
 |---|---|
 | `started` and `moved` | Why the session went to its account. See [Routing reasons](reasons.md). |
+| `held` | Why Anthropic refused the read: `subscription lapsed` or `token refused`. |
+| `room` | After a hold, the cause of the hold that lifted. Left out after a limit or a cap. |
 | `restart` | Why the restart is due, in words for a person. |
 | `health` | Why the router turned unhealthy, in words for a person. |
 
 - **`joined`** shows, for example, the 5-hour window joining a cap on Fable's week. A window
-  it leaves out was held from `at`. It's left out if no window joined.
-- **`until`** is brought forward to the lift if a limit or a refusal lifts early.
+  it leaves out was in the limit or cap from `at`. It's left out if no window joined.
+- **`until`** is brought forward to the lift if a limit or a refusal lifts early. A `held` event
+  gets an `until` only if its hold lifts in the same run of the router, within 8 days. The
+  `until` is the time of the `room` event that tells of the lift.
+- **A hold's lift** is the first `room` event of the same account after it, by `at`, with a
+  `reason`. If another `held` event of that account comes first, the first hold has no known
+  lift. Pair them that way, because a hold across a restart, or longer than 8 days, has no
+  `until`. Whether an account is held now is in the status document, never in a missing `until`.
+- **A hold is told once.** Another refused read during the hold adds no event. After a restart, a
+  hold that already has a `held` event gets no new one.
+- **A hold from before this event existed** gets a `held` event once, when the router first starts
+  on a version that tells holds. No notification goes out. The event's `since` is when the hold
+  began. The event's `at` is the same, but no more than 7 days back, so the event files can take
+  it. Such an event has no `status`, because nothing kept the read's answer. If the state file
+  doesn't say when the hold began, the event has no `since`, and its `at` is when the router
+  started.
 
 ## Counts and settings
 
 | Field | Type | Meaning |
 |---|---|---|
-| `count` | number | How many sessions a limit, cap or refusal moved while it held. |
-| `limit` | number | On `limit`, its identity, kept while it holds. On `moved`, the `id` of the limit event that counts this move. |
-| `forced_by` | number | On `moved`, the `id` of the limit, cap or refusal event that counts this move. |
+| `count` | number | How many sessions a limit, cap, refusal or hold moved while it lasted. |
+| `limit` | number | On `limit`, its identity, kept while the limit lasts. On `moved`, the `id` of the limit event that counts this move. |
+| `forced_by` | number | On `moved`, the `id` of the limit, cap, refusal or hold event that counts this move. |
 | `reserve` | number | On `cap`, the reserve of the account. |
-| `status` | number | On `refused`, the HTTP status the API refused with. |
-| `family` | string | On `refused`, if the API refused the request rather than the token, the model family it holds back. |
+| `status` | number | On `refused` and `held`, the HTTP status the API refused with. |
+| `family` | string | On `refused`, if the API refused the request rather than the token, the model family it bars. |
 | `move` | boolean | On `pin`, set if the pin moves the running sessions too. |
 | `force` | boolean | On `pin` and `auto`, set if the pin cleared the pin of every session. |
 | `by` | string | What set or cleared a pin: `cli`, `dashboard` or `router`. |
 
 - **`force`** clears only the session pins in its own pool, if there are pools.
 - **`by` is `router`** on an `auto` event for a pool pin the router dropped as the pools changed.
-  That happens if its accounts left the pool, the pool went, or a later pin holds in that pool.
+  That happens if its accounts left the pool, the pool went, or a later pin replaced it.
 
 How long the files stay is in [Where the files are](files.md).

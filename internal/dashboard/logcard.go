@@ -628,7 +628,7 @@ func eventTree(d views.EventDetails, m status.Moment) [3][]cardSection {
 	if d.Then != nil {
 		tree[1] = []cardSection{thenSection(*d.Then, d.Row.At, m)}
 	}
-	if followed := followedSection(d.Followed, d.Row.At, m); len(followed.items) > 0 {
+	if followed := followedSection(d.Followed, m); len(followed.items) > 0 {
 		tree[2] = []cardSection{followed}
 	}
 	return tree
@@ -669,13 +669,14 @@ func thenSection(t views.AccountThen, at time.Time, m status.Moment) cardSection
 	return s
 }
 
-// followedSection is WHAT FOLLOWED an event at at: of a move, its request,
-// the tokens it cached again and what that cost; of a limit, a cap or a
-// refusal, a row each session it moved, named by its id, the account it
-// went to and what writing its context again was worth, three cells on;
-// till when new sessions go elsewhere, or a family's requests, named by the
-// family; and the moves' sum. No items where nothing followed.
-func followedSection(f *views.Followed, at time.Time, m status.Moment) cardSection {
+// followedSection is WHAT FOLLOWED an event: of a move, its request, the
+// tokens it cached again and what that cost; of a limit, a cap, a refusal or
+// a hold, a row each session it moved, named by its id, the account it went
+// to and what writing its context again was worth, three cells on; till
+// when new sessions go elsewhere, or a family's requests, named by the
+// family, as views words it; and the moves' sum. No items where nothing
+// followed.
+func followedSection(f *views.Followed, m status.Moment) cardSection {
 	s := cardSection{heading: sectionHeading("WHAT FOLLOWED")}
 	if f == nil {
 		return s
@@ -700,12 +701,12 @@ func followedSection(f *views.Followed, at time.Time, m status.Moment) cardSecti
 		}
 		s.items = append(s.items, cardItem{name: status.ShownID(move.Session), value: value, costs: cost != ""})
 	}
-	if !f.Till.IsZero() {
+	if f.Till != "" {
 		name := "new sessions"
 		if f.Family != "" {
 			name = f.Family
 		}
-		s.items = append(s.items, cardItem{name: name, value: valued("go elsewhere till " + prose.Dated(at, f.Till))})
+		s.items = append(s.items, cardItem{name: name, value: valued("go elsewhere " + f.Till)})
 	}
 	if inAll := f.InAllSaid(); inAll != "" {
 		s.items = append(s.items, cardItem{name: "in all", value: line{{inAll, alertInk}, {" to cache them again", mutedInk}}})

@@ -96,9 +96,9 @@ export starts while a restart is due, because the new router exports as it start
 | If | Then |
 |---|---|
 | The config isn't valid at two looks in a row | The change is logged at warn and refused. The router carries on as it was. |
-| The new binary refuses to start, for example a newer version refusing the config | The restart is held, and the router carries on. It says why in its log, its events and `status --json`. |
-| A held restart then sees the config or binary change | The router asks again. |
-| The binary is from before this check | It can't answer. The router restarts into it, unless the running version refuses the config, which holds the restart. |
+| The new binary refuses to start, for example a newer version refusing the config | The restart is put off, and the router carries on. It says why in its log, its events and `status --json`. |
+| A restart put off then sees the config or binary change | The router asks again. |
+| The binary is from before this check | It can't answer. The router restarts into it, unless the running version refuses the config, which puts off the restart. |
 | The upgrade can't be copied in, for example on a full disk | It's logged once at warn. The restart stays due, and the router tries again at the next quiet moment. |
 | The binary isn't there, for example while `brew upgrade` moves the link | The router tries again for a couple of seconds, then exits. launchd starts it again. |
 | The router is told to stop while it waits | It stops then and there. |

@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  23 today   f what it shows
+
+  at        session            event     account          what happened
+  the oldest day kept: the ledger keeps its lines 90 days
+◇ 07:05:12                     primed    work             its 5-hour window started, resets at 12:05
+▲ 07:58:30  2b6d api           started   work
+■ 08:05:00                     held      side             token refused (401), till 08:24
+✓ 08:24:30                     open      side             hold lifted (token refused)
+▲ 08:31:02  a8f1╭─ EVENT · 13:41:00 · personal held ───────────────────────────────────────────────────────────────────────────────────────────╮
+◇ 08:47:00      │                                                                                                                              │
+▲ 09:12:40  e0c4│  WHAT HAPPENED                                     PERSONAL THEN            WHAT FOLLOWED                                    │
+▲ 09:40:05  3d7a│  ├ event        personal held                      └ sessions     0 on it   ├ 41e0         moved to side                     │
+▲ 10:02:18  5b19│  ├ why          subscription lapsed                                         └ 9c2e         moved to side                     │
+◇ 11:30:02      │  ├ answer       403                                                                                                          │
+▲ 11:55:31  9c2e│  └ till         a read comes back clean                                                                                      │
+▲ 12:02:10  d28c│                                                                                                                              │
+◇ 12:10:00      │                                                                          ↑↓ previous/next event   g in Requests   esc close  │
+▲ 12:47:12  41e0╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+▸ 13:22:40  db8a infra         moved     personal → work  personal came under pressure
+■ 13:41:00                     held      personal         subscription lapsed (403): its 2 sessions move to side as their next requests come
+▸ 13:41:12  41e0 docs          moved     personal → side  personal's subscription lapsed
+▸ 13:42:30  9c2e website       moved     personal → side  personal's subscription lapsed
+◇ 13:50:00                     primed    side             its 5-hour window started, resets at 18:50
+■ 14:20:00                     refused   work             its token refused (401), till 14:51: its 2 sessions move to side
+▸ 14:20:00  d28c switchboard   moved     work → side      work refused the request
+▸ 14:20:41  db8a infra         moved     work → side      work refused the request
+▲ 14:41:11  c61b mobile        started   side
+
+
+
+
+‖ paused at 13:41:00   end to follow                                                                                                             23 events today
+tab views   [ ] view    ↑↓ event  enter open  end follow    f what it shows  / find    p pin    ? help  q quit

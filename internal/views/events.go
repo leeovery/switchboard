@@ -3,6 +3,7 @@ package views
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -82,11 +83,11 @@ func restartWhy(reason string) string {
 }
 
 // restartSaid says what befell a restart, the event e, in the Log's words: it
-// fell due, and why, as "due: the config changed"; or it's held, its binary
-// refusing to start, and why it refuses, as "held: invalid config".
+// fell due, and why, as "due: the config changed"; or it's put off, its
+// binary refusing to start, and why it refuses, as "put off: invalid config".
 func restartSaid(e status.Event) string {
 	if held := restartHeld(e); held != "" {
-		return "held: " + held
+		return "put off: " + held
 	}
 	if reason := restartWhy(e.Reason); reason != "" {
 		return "due: " + reason
@@ -139,18 +140,20 @@ func (t *Telling) NamingPools(label func(id string) string) *Telling {
 	return t
 }
 
-// Line is the event e's line, its times in now's time zone, as the Log's
-// Events has it.
-func (t *Telling) Line(e status.Event, now time.Time) EventLine {
-	line, _ := t.tell(e, now)
-	return line
+// pairing has t tell each hold of events with its lift, as holdLifts pairs
+// them, where they're all read before any is told: told one at a time, a
+// hold is known to have lifted only as the router ended it. It returns t.
+func (t *Telling) pairing(events []Event) *Telling {
+	t.facts.holds = holdLifts(events)
+	return t
 }
 
-// tell is the event e's line, as Line has it, and its facts, worked out
-// over the events told before it.
-func (t *Telling) tell(e status.Event, now time.Time) (EventLine, eventFact) {
+// tell is the event e's line, its times in now's time zone, as the Log's
+// Events has it, and its facts, worked out over the events told before it.
+func (t *Telling) tell(read Event, now time.Time) (EventLine, eventFact) {
+	e := read.Event
 	at := e.At.In(now.Location())
-	fact := t.facts.take(e)
+	fact := t.facts.told(read)
 	line := EventLine{Kind: KindWord(e.Kind)}
 	if tell, ok := tellers[e.Kind]; ok {
 		line.Account, line.What = tell(e, fact, at)
@@ -175,6 +178,7 @@ var tellers = map[string]func(e status.Event, f eventFact, at time.Time) (accoun
 	status.EventCap:      loggedCap,
 	status.EventLimit:    loggedLimit,
 	status.EventRefused:  loggedRefusal,
+	status.EventHeld:     loggedHold,
 	status.EventForeign:  loggedForeign,
 	status.EventPrimed:   loggedPrime,
 	status.EventRoom:     loggedRoom,
@@ -247,6 +251,50 @@ func loggedRefusal(e status.Event, f eventFact, at time.Time) (status.Words, sta
 	return account(e.Account), append(clause(what+till(e.Until, at)), moving(f, false)...)
 }
 
+// loggedHold tells of an account held as the API refused its read: why, as
+// the router gives the cause, and the status it answered, "subscription
+// lapsed (403)"; till when, where it has lifted, as its facts say; and the
+// sessions it moved, as their next requests came.
+func loggedHold(e status.Event, f eventFact, at time.Time) (status.Words, status.Words) {
+	what := holdCause(e)
+	if e.Status != 0 {
+		what += " (" + strconv.Itoa(e.Status) + ")"
+	}
+	return account(e.Account), append(clause(what+heldTill(f.lifted, at)), moving(f, true)...)
+}
+
+// holdCause is why the API refused the read that held an account, the hold
+// e or the room again its lift brought, as the router gives the cause,
+// cleaned: "subscription lapsed" or "token refused".
+func holdCause(e status.Event) string {
+	return prose.Clean(e.Reason)
+}
+
+// holdSaid says an account was held, the hold e, and why, as holdCause has
+// it, and till when, where it has lifted, as its facts f say, at at, when it
+// began: "held (subscription lapsed), till 08:24", or "held" where it says
+// neither.
+func holdSaid(e status.Event, f eventFact, at time.Time) string {
+	said := "held"
+	if cause := holdCause(e); cause != "" {
+		said += " (" + cause + ")"
+	}
+	return said + heldTill(f.lifted, at)
+}
+
+// holdsTill is till when a hold holds, as no time lifts it.
+const holdsTill = "a read comes back clean"
+
+// liftedSaid says a hold lifted, as room again e tells it, and why it held,
+// as holdCause has it: "lifted (subscription lapsed)", "" where e names no
+// hold.
+func liftedSaid(e status.Event) string {
+	if cause := holdCause(e); cause != "" {
+		return "lifted (" + cause + ")"
+	}
+	return ""
+}
+
 // loggedForeign tells of an account's token found to be another
 // subscription's: "its token is another subscription's".
 func loggedForeign(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
@@ -263,13 +311,26 @@ func loggedPrime(e status.Event, f eventFact, at time.Time) (status.Words, statu
 	return account(e.Account), clause(what)
 }
 
-// loggedRoom tells of an account with room again: "its 5-hour window
-// reset", or nothing more where it names no window.
+// loggedRoom tells of an account with room again, as roomSaid says: "its
+// 5-hour window reset", "hold lifted (subscription lapsed)", or nothing more
+// where it names neither a window nor a hold.
 func loggedRoom(e status.Event, f eventFact, _ time.Time) (status.Words, status.Words) {
-	if len(f.windows) == 0 {
-		return account(e.Account), nil
+	return account(e.Account), clause(roomSaid(e, f))
+}
+
+// roomSaid says what lifted as an account had room again, the event e: the
+// hold its read refused, as "hold lifted (subscription lapsed)", then the
+// windows that held it back, as "its 5-hour window reset"; "" where it names
+// neither.
+func roomSaid(e status.Event, f eventFact) string {
+	var said []string
+	if lifted := liftedSaid(e); lifted != "" {
+		said = append(said, "hold "+lifted)
 	}
-	return account(e.Account), clause(its(f.windows, "") + " reset")
+	if len(f.windows) > 0 {
+		said = append(said, its(f.windows, "")+" reset")
+	}
+	return strings.Join(said, ", ")
 }
 
 // loggedPin tells of routing set by hand: the global pin's accounts, "new
@@ -320,10 +381,11 @@ func loggedHealth(e status.Event, _ eventFact, _ time.Time) (status.Words, statu
 	return nil, clause("healthy again")
 }
 
-// moving tells of the sessions a limit, a cap or a refusal moved, as its
-// facts count them, after a colon: "its 3 sessions move to side", "its
+// moving tells of the sessions a limit, a cap, a refusal or a hold moved, as
+// its facts count them, after a colon: "its 3 sessions move to side", "its
 // session moves to side", or where they went to several accounts, "its 3
-// sessions move to other accounts"; a cap's, as their next requests come.
+// sessions move to other accounts"; a cap's and a hold's, as their next
+// requests come.
 // It's nothing where it moved none. The count is a figure, which rises in
 // place as its moves count.
 func moving(f eventFact, asTheyCome bool) status.Words {
@@ -360,10 +422,22 @@ func its(names []string, none string) string {
 // till says until when what's told holds, as status.Till says it, as ",
 // till 23:58", shown beside at: nothing where it doesn't say.
 func till(until, at time.Time) string {
-	if said := status.Till(at, until); said != "" {
-		return ", " + said
+	return clauseAfter(status.Till(at, until))
+}
+
+// heldTill says until when a hold held, lifted at lifted, as
+// status.HeldTill says it, as ", till 08:24", or a week or more after at,
+// ", till 28 Sep 15:08": nothing where it doesn't say.
+func heldTill(lifted, at time.Time) string {
+	return clauseAfter(status.HeldTill(at, lifted))
+}
+
+// clauseAfter is the clause said after a comma: nothing where it's "".
+func clauseAfter(said string) string {
+	if said == "" {
+		return ""
 	}
-	return ""
+	return ", " + said
 }
 
 // pinAccounts are the global pin's accounts, as pinnedNames has them, joined

@@ -27,7 +27,7 @@ the foot says how long a column lasts, such as `a column ≈ 69 minutes`.
 - The past is dimmed.
 - Under each name is how much of its week the account has used, such as `week 34%`.
 - Every window that all models share counts, the 5-hour among them. A lane shows no room wherever
-  any of those windows holds the account back.
+  any of those windows keeps the account back.
 
 Until the router has a day of your sessions, for example on a new install, it assumes the use on
 each account stays where it is. A run-out may then show earlier than it will come. If the
@@ -45,7 +45,7 @@ Words under a lane say when a stretch without room starts, and when the account 
 | `out ~16:05` | Forecast to run out at 16:05. |
 | `caps ~15:45` | Forecast to reach its cap at 15:45. |
 | `resets Sun 01:00` | Room comes back as the window resets. |
-| `lifts 19:00` | One hold ends here, and another follows straight on. |
+| `lifts 19:00` | One limit or cap ends here, and another follows straight on. |
 
 - `~` marks a time forecast at the account's pace. How the router forecasts a week is in
   [Routing rules](../reference/routing.md).
@@ -53,7 +53,7 @@ Words under a lane say when a stretch without room starts, and when the account 
   weekday, the time carries the date, such as `out ~Thu 12 Nov`.
 - If a cap or a run-out ends as the window resets, the words say `resets` in place of `back`.
 - A limit always says `back`, whenever it lifts.
-- If one hold runs straight into another, only the last says when the account is back:
+- If one limit or cap runs straight into another, only the last says when the account is back:
   `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`.
 
 ## The `Σ pool` lane
@@ -77,8 +77,8 @@ COMING UP and LATELY sit under the lanes:
 - **COMING UP** lists what happens next, soonest first: resets, an account back from its cap, and
   run-outs. If its lines don't all fit, the last says how many more, such as `▼ 3 more`.
 - **LATELY** lists what happened to each account over the past week, newest first: a cap, a limit,
-  a refused token, pressure, and room again. Each line names the sessions it moved, and ends with
-  how long ago, such as `11m ago`.
+  a refused token, a hold, pressure, and room again. Each line names the sessions it moved, and
+  ends with how long ago, such as `11m ago`.
 
 LATELY reads the whole week from the router's event files once, when Runway first shows. It keeps
 that week as the router restarts. Until it has read the files, it shows the router's newest events.

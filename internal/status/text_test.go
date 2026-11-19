@@ -320,7 +320,7 @@ restart due since Mon 13:12 (upgraded), once no request is in flight (3 now): sw
 
 best next: personal · Personal
 from the router: healthy  ·  no sessions  ·  routing automatically
-restart due since Mon 13:12 (upgraded), held: invalid config
+restart due since Mon 13:12 (upgraded), put off: invalid config
 `,
 		},
 		{
@@ -1226,12 +1226,12 @@ func TestRestart(t *testing.T) {
 		{
 			name:    "the service's router, waiting for an export to end, which service restart can't get past",
 			restart: status.Restart{Reason: "config changed", Since: since, InFlight: 1, Exporting: "/Volumes/Backup/Switchboard"},
-			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can hold it",
+			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup/Switchboard ends: an unanswered macOS prompt can keep it waiting",
 		},
 		{
 			name:    "an export's folder from elsewhere, cleaned",
 			restart: status.Restart{Reason: "config changed", Since: since, Exporting: "/Volumes/Backup\x1b[2J"},
-			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup [2J ends: an unanswered macOS prompt can hold it",
+			want:    "restart due since Mon 13:02 (config changed), once the export into /Volumes/Backup [2J ends: an unanswered macOS prompt can keep it waiting",
 		},
 		{
 			name:    "a router run by hand",
@@ -1251,12 +1251,12 @@ func TestRestart(t *testing.T) {
 		{
 			name:    "held, its binary refusing to start, which neither waiting nor service restart gets past",
 			restart: status.Restart{Reason: "upgraded", Since: since, InFlight: 1, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
-			want:    "restart due since Mon 13:02 (upgraded), held: invalid config /test/config.toml: account work: its label is longer than 100 characters",
+			want:    "restart due since Mon 13:02 (upgraded), put off: invalid config /test/config.toml: account work: its label is longer than 100 characters",
 		},
 		{
 			name:    "held, with an export under way, which the end of gets it no further",
 			restart: status.Restart{Reason: "upgraded", Since: since, Held: "invalid config", Exporting: "/Volumes/Backup/Switchboard"},
-			want:    "restart due since Mon 13:02 (upgraded), held: invalid config",
+			want:    "restart due since Mon 13:02 (upgraded), put off: invalid config",
 		},
 	}
 	for _, tt := range tests {
@@ -1281,7 +1281,7 @@ func TestARestartsLabelSaysWhetherItsDueOrHeldAndWhy(t *testing.T) {
 		want    string
 	}{
 		{name: "due", restart: status.Restart{Reason: "config changed", InFlight: 3}, want: "restart due (config changed)"},
-		{name: "held, its binary refusing to start", restart: status.Restart{Reason: "upgraded", Held: "invalid config"}, want: "restart held (upgraded)"},
+		{name: "held, its binary refusing to start", restart: status.Restart{Reason: "upgraded", Held: "invalid config"}, want: "restart put off (upgraded)"},
 		{name: "held for nothing to be read, as due", restart: status.Restart{Reason: "upgraded", Held: "\x1b"}, want: "restart due (upgraded)"},
 		{name: "a reason from elsewhere, cleaned", restart: status.Restart{Reason: "upgraded\x1b[2J"}, want: "restart due (upgraded [2J)"},
 	}
@@ -1628,6 +1628,23 @@ func TestWindowLabelsInWords(t *testing.T) {
 		}
 		if got := status.Short(tt.label); got != tt.short {
 			t.Errorf("Short(%q) = %q, want %q", tt.label, got, tt.short)
+		}
+	}
+}
+
+// A moment says an account is held while its last read was refused for a
+// cause status knows, and of no account it doesn't give.
+func TestAMomentSaysWhichAccountsAreHeldByTheirReadRefused(t *testing.T) {
+	doc := status.Document{Source: status.SourceRouter, Accounts: []status.Account{
+		{ID: "work", TokenSet: true, RefusedRead: quota.SubscriptionEnded},
+		{ID: "side", TokenSet: true, RefusedRead: quota.TokenRefused},
+		{ID: "personal", TokenSet: true},
+		{ID: "later", TokenSet: true, RefusedRead: quota.ReadRefusal("something_new")},
+	}}
+	m := doc.At(time.Date(2026, 10, 1, 14, 0, 0, 0, time.UTC), score.Policy{})
+	for id, want := range map[string]bool{"work": true, "side": true, "personal": false, "later": false, "gone": false} {
+		if got := m.HeldByRead(id); got != want {
+			t.Errorf("HeldByRead(%q) = %v, want %v", id, got, want)
 		}
 	}
 }

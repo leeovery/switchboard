@@ -4,14 +4,15 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
 
 // Event is news from the router that something outside it may want to act
 // on, such as by notifying the user: SessionStarted, LimitReached,
-// LimitLifted, Moved, Refused, RefusalLifted, ForeignToken, HealthChanged,
-// Primed, RestartDue, RestartHeld, Pinned or Unpinned. Config.Events hears
-// each as it happens.
+// LimitLifted, Moved, Refused, RefusalLifted, ReadHeld, ForeignToken,
+// HealthChanged, Primed, RestartDue, RestartHeld, Pinned or Unpinned.
+// Config.Events hears each as it happens.
 type Event interface {
 	event()
 }
@@ -75,8 +76,12 @@ type Moved struct {
 	Reason  string
 	Held    Hold
 	Limit   int
-	Dir     string
-	Project string
+	// HeldSince is when the refusals of the account's read that hold it
+	// began, of a move its hold forced, as the state has them, which picks
+	// out the hold it counts in: zero for any other move.
+	HeldSince time.Time
+	Dir       string
+	Project   string
 	// Pool is the id of the pool the request was routed within, as the
 	// accounts' view had it: none in a config from before pools.
 	Pool string
@@ -95,6 +100,9 @@ const (
 	// HeldByRefusal is the upstream refusing the account's token, or the
 	// request's model family on it.
 	HeldByRefusal
+	// HeldByRead is the API refusing the account's last read, which holds
+	// it back from every request till a read comes back clean.
+	HeldByRead
 )
 
 // Refused is the upstream refusing the request with the id Request on an
@@ -120,6 +128,24 @@ type RefusalLifted struct {
 	Account string
 	Family  string
 	Request string
+}
+
+// ReadHeld is an account held back from every request as the API refused a
+// probe's read of it, none refused before it since a read came back clean:
+// Refused says why, and Status is the status the API answered with, 0 where
+// its failure didn't say. It's told as the hold starts alone, not as reads
+// are refused again while it holds, nor as a restart finds in the state file
+// a hold told before; its lift is room again, as the accounts are looked at.
+// Late is a hold the state file kept, never told, as a router from before
+// kept it, told once as the router starts, and Since when it began, zero
+// where that's unknown: Status is 0, as nothing kept it. One told late is
+// old news, which no notification posts.
+type ReadHeld struct {
+	Account string
+	Refused quota.ReadRefusal
+	Status  int
+	Late    bool
+	Since   time.Time
 }
 
 // ForeignToken is the token of Account found to be another subscription's,
@@ -202,6 +228,7 @@ func (LimitLifted) event()    {}
 func (Moved) event()          {}
 func (Refused) event()        {}
 func (RefusalLifted) event()  {}
+func (ReadHeld) event()       {}
 func (ForeignToken) event()   {}
 func (HealthChanged) event()  {}
 func (Primed) event()         {}
@@ -261,8 +288,8 @@ func withEach(keys []string, more ...string) []string {
 	return keys
 }
 
-// moves are the sessions a limit, a cap or a refusal has moved, each once,
-// with the accounts they went to, each once, in the order they came.
+// moves are the sessions a limit, a cap, a refusal or a hold has moved, each
+// once, with the accounts they went to, each once, in the order they came.
 type moves struct {
 	sessions, to []string
 }

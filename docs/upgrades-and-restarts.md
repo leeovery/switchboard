@@ -28,7 +28,7 @@ switchboard service restart
   `[export] dir` and new tokens within about 3 seconds. Anything else waits for the restart.
 - A router you started by hand with `serve` only logs that a restart is due.
 - Before it restarts, the router asks the new version whether it can start from your config. If
-  not, it holds the restart and goes on running the old version.
+  not, it puts off the restart and goes on running the old version.
 
 ## The one-off moves
 
@@ -64,24 +64,24 @@ it starts. What ids are is in [`switchboard accounts`](commands/accounts.md).
   seconds, then twice as long each time, up to 5 minutes apart. The move onto pools never waits on
   Anthropic.
 - The new version judges your config, so you can add a key it brings before you upgrade. If the
-  new binary is too old to answer, the running version judges, and can hold the restart.
+  new binary is too old to answer, the running version judges, and can put off the restart.
 - The router reads the two newest days of readings back as it starts. So the recent rates, and the
   week forecast, carry on across a restart.
 - The service runs its own copy of switchboard, at a path that never changes. So what you allow it
   in macOS, such as a folder it writes into, holds through upgrades.
-- An export waiting on a macOS prompt holds a restart until you answer it.
+- An export waiting on a macOS prompt puts off a restart until you answer it.
 
 ## Reference
 
 | Command | What it does |
 |---|---|
 | `switchboard status` | Says a restart is due, and what it waits for. |
-| `switchboard status --json \| jq .restart` | The restart due, and `held` with any refusal. |
+| `switchboard status --json \| jq .restart` | The restart due, and any refusal to start, in its `held` field. |
 | `switchboard status --json \| jq .moving` | The stage of a move, and what it waits on. |
 | `switchboard service restart` | Restarts the router now, unless an export runs. |
 
-How the router restarts in place is in [`switchboard serve`](commands/serve.md). A restart held,
-and a move that waits, are in [Troubleshooting: upgrades](troubleshooting/upgrades.md) and
+How the router restarts in place is in [`switchboard serve`](commands/serve.md). A restart put
+off, and a move that waits, are in [Troubleshooting: upgrades](troubleshooting/upgrades.md) and
 [Troubleshooting: account ids](troubleshooting/account-ids.md).
 
 ## Related

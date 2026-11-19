@@ -410,6 +410,39 @@ func familyRefused() EventMoment {
 	return m
 }
 
+// heldAndLifted is work held at 12:00 as its read was refused its
+// organization's login, its subscription ended: c61b's next request, at
+// 12:10, moves it to side, counted in the hold, which no time lifts; and room
+// again at 13:00 as a read came back clean, naming the cause that lifted.
+func heldAndLifted() EventMoment {
+	run := localOn(7, 8, 0)
+	lapsedOff := status.ReasonMovedOff + work + " " + status.WhySubscriptionEnded
+	c0 := asked("c0", C61B, work, status.ReasonNew, localOn(7, 11, 30))
+	c1 := writing(500_000, movedOff(work, asked("c1", C61B, side, lapsedOff, localOn(7, 12, 10))))
+	held := status.Event{ID: 1, At: localOn(7, 12, 0), Kind: status.EventHeld, Account: work, Reason: "subscription lapsed", Status: 403, Until: localOn(7, 13, 0)}
+	move := counted(movedAfter(2, c1, work, lapsedOff), held)
+	room := status.Event{ID: 3, At: localOn(7, 13, 0), Kind: status.EventRoom, Account: work, Reason: "subscription lapsed"}
+	m := toldAll("an account held as its read was refused, its session moving, and room again as the hold lifts", run, localOn(7, 0, 0), localOn(7, 13, 30),
+		counting(held, 1, side), move, room)
+	m.Lines = []ledger.Line{c0, c1}
+	m.Facts = map[Key]Facts{keyOf(run, held): {Moved: 1, To: side}}
+	m.Moves = map[Key]Move{keyOf(run, move): {Request: "c1", Written: 500_000, Cost: writeCost(500_000)}}
+	m.Details = map[Key]Details{
+		keyOf(run, held): {
+			Headline: "work held",
+			Happened: []string{"event: work held", "why: subscription lapsed", "answer: 403", "lifted: 13:00"},
+			Then:     []string{"account: work", "sessions: 1"},
+			Followed: []string{"c61b: to side $4.00", "new sessions: till 13:00", "in all: $4.00"},
+		},
+		keyOf(run, room): {
+			Headline: "work open again",
+			Happened: []string{"event: work open again", "hold: lifted (subscription lapsed)"},
+			Then:     []string{"account: work", "sessions: 0"},
+		},
+	}
+	return m
+}
+
 // pins is the global pin set to three accounts from the command line, a
 // session's own pin set from the dashboard, and the global pin cleared.
 func pins() EventMoment {

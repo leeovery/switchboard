@@ -153,6 +153,28 @@ func TestTheLogsEventsAreMadeAgainAsAReadersReadJoinsTheStore(t *testing.T) {
 	}
 }
 
+// An account held or let go, its read refused, makes the Log's Events again
+// at the next build, as a hold's card says it holds only while its account
+// is held now.
+func TestTheLogsEventsAreMadeAgainAsAnAccountIsHeldOrLetGo(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, arrived("0a000001", "work", -5*time.Minute))
+	doc := routerDocument(three()...)
+	doc.Events = []status.Event{{ID: 1, At: past(-time.Minute), Kind: status.EventHeld, Account: "work", Reason: "token refused"}}
+	h := routedHarness(t, doc)
+	onTheLog(h, state)
+	h.start()
+	held := slices.Concat([]status.Account{unreadable("work", "Work")}, three()[1:])
+	for _, accounts := range [][]status.Account{held, three()} {
+		made := h.model.log.built.events
+		h.model.doc.Accounts = accounts
+		h.deliver(frameMsg{gen: h.model.frames})
+		if h.model.log.built.events == made {
+			t.Errorf("work's read refused %t, the Log's Events weren't made again, want them made as work's hold stands", accounts[0].RefusedRead != "")
+		}
+	}
+}
+
 // daysHeld are the dates before the one given of every day of the Log's
 // lines v reaches, by any path: of its read's days, and of the days its
 // tables were tabled and drawn of, as views holds each, by its LedgerDay.

@@ -56,7 +56,7 @@ puts `pool_label` after it too.
   session other than through switchboard carries the directory too.
 - **`dir` and `project`** are kept whole up to 1024 bytes, the longest folder path macOS gives. A
   longer `dir` is cut from its start, with `…` for what's cut, and a longer `project` is left out.
-  Lines that v0.9.0 and earlier filed held 200 bytes of each, so a folder in a Claude Code
+  Lines that v0.9.0 and earlier filed kept 200 bytes of each, so a folder in a Claude Code
   scratchpad often shows cut there, with no `project`.
 
 ### The project of a line
@@ -115,7 +115,7 @@ of that worktree counts as `~/Code/api`, even once the worktree is gone.
   session.
 - **A slug that names your home folder** counts as `~`.
 - **A slug that names a repository since removed** counts as `temporary folders`. Only the folder
-  that held the repository is left, and that folder isn't in any repository. A slug of a volume
+  that had the repository is left, and that folder isn't in any repository. A slug of a volume
   that isn't mounted counts the same way.
 - **A slug that names a worktree since removed** counts as the worktree's repository, if the
   worktree was kept inside that repository's folder. That holds for these worktrees:
@@ -222,6 +222,6 @@ Beside those, `shape` holds each of these settings the request gave:
 | `id` | string | The Anthropic id for the answer. |
 | `model` | string | The model that served it. |
 | `stop` | string | Why it stopped. |
-| `blocks` | object | How many blocks of each kind it held. |
+| `blocks` | object | How many blocks of each kind it had. |
 | `tools` | list of strings | The tools it called, by name. |
 | `error` | object | An error, as its `type` and `message`. |

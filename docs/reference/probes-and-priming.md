@@ -31,7 +31,7 @@ router never probes an account whose 5-hour window has lapsed, except in these c
 
 - to prime it;
 - on its rounds, if the window the probe starts resets before the account's next prime;
-- while the account can take no request anyway, for example while a limit holds back its every
+- while the account can take no request anyway, for example while a limit keeps back its every
   request, its week reads spent, or Anthropic refused its last read.
 
 Starting a window costs nothing in the last case, and a probe is how the router sees a limit you
@@ -107,7 +107,7 @@ doesn't answer, the Fable request falls back to the one before.
 | Every account lacks a 5-hour window | `setup` skips its Priming step and says why. |
 | The window is already running, for example after a late night | No prime. The slot shifts for the day. |
 | A prime reads nothing, or doesn't start the window | It's logged as a warning, and sent again 5 minutes later. |
-| A limit or a spent week holds the account back from every request, or the router refused its token | It isn't primed while it stays that way. |
+| A limit or a spent week keeps the account back from every request, or the router refused its token | It isn't primed while it stays that way. |
 | Anthropic refused its last read: its subscription ended, or its token was refused | It's primed as usual, but a failed prime waits as long as the probes do. A prime that reads it brings the account back. |
 | A window resets during your day, in use or not | The router primes it 5 seconds later, so the windows run back to back. |
 | Your day has ended | Priming stops, and the windows lapse overnight. A window a round starts still runs, if it resets before the account's slot. |

@@ -266,7 +266,7 @@ func (m Moment) RoomThen(a AccountNow, read Readings, told []Span, key string, t
 	switch was := stoodAt(a, windows, told, t); {
 	case was.Kind == WasUnread:
 		return 0, false
-	case len(toldAt(told, WasRefused, t)) > 0, a.RefusedRead != 0 && !t.Before(m.Now), was.Kind != WasRoom && key == m.policy.Started:
+	case len(toldAt(told, WasRefused, t)) > 0, a.heldByRead() && !t.Before(m.Now), was.Kind != WasRoom && key == m.policy.Started:
 		return 0, true
 	}
 	w, ok := m.readOf(windows, a, read, key, t)

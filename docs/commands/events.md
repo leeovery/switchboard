@@ -36,9 +36,10 @@ The events cover:
 
 - sessions started and moved;
 - accounts under pressure, at a cap or a limit, refused, primed, and open again;
+- accounts on a [hold](../glossary.md) because Anthropic refused their usage read;
 - accounts found holding another subscription's token;
 - pins set and cleared;
-- restarts falling due, or held;
+- restarts falling due, or put off;
 - the router's health.
 
 They're listed oldest first, under the day each happened on. Each event shows once, as it last
@@ -54,6 +55,16 @@ stood.
 
 In the JSON, an event that changed is printed again, and its last line is how it stands. Each line
 carries its `run` and `id`.
+
+In the text, a hold says when it lifted, even across a restart:
+
+```console
+  09:00        held  work  subscription lapsed (403), till 12:40
+  12:40        open  work  hold lifted (subscription lapsed)
+```
+
+In the JSON, a `held` event stands as the router filed it. Pair each `held` event with its `room`
+event by the rule in the [events reference](../reference/events.md).
 
 ## Events in a pool
 

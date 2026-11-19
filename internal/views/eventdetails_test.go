@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -45,8 +46,8 @@ func detailsSaid(d views.EventDetails) viewstest.Details {
 		for _, m := range f.Moves {
 			said.Followed = append(said.Followed, status.ShownID(m.Session)+": to "+m.To+" "+moveCostSaid(m.Move))
 		}
-		if !f.Till.IsZero() {
-			said.Followed = append(said.Followed, "new sessions: "+strings.TrimSpace(f.Family+" till "+prose.Dated(at, f.Till)))
+		if f.Till != "" {
+			said.Followed = append(said.Followed, "new sessions: "+strings.TrimSpace(f.Family+" "+f.Till))
 		}
 		if inAll := f.InAllSaid(); inAll != "" {
 			said.Followed = append(said.Followed, "in all: "+inAll)
@@ -176,12 +177,20 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			headline: "work's opus requests refused", happened: []string{"answer: 403", "family: opus", "till: 14:00"}},
 		{name: "a refusal of no answer given", event: status.Event{Kind: status.EventRefused, Account: "work", Until: october(7, 14, 0)},
 			headline: "work's token refused", happened: []string{"till: 14:00"}},
+		{name: "a hold, its subscription ended", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403},
+			headline: "work held", happened: []string{"why: subscription lapsed", "answer: 403"}},
+		{name: "a hold of no answer given", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "token refused"},
+			headline: "work held", happened: []string{"why: token refused"}},
+		{name: "a hold lifted", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403, Until: october(7, 14, 0)},
+			headline: "work held", happened: []string{"why: subscription lapsed", "answer: 403", "lifted: 14:00"}},
 		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
 			headline: "work's token is another subscription's"},
 		{name: "a prime", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: october(7, 18, 0)},
 			headline: "side primed", happened: []string{"window: its 5-hour window"}},
 		{name: "room again", event: status.Event{Kind: status.EventRoom, Account: "work", Windows: []string{"5h"}},
 			headline: "work open again", happened: []string{"window: its 5-hour window"}},
+		{name: "room again as a hold lifts", event: status.Event{Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"},
+			headline: "work open again", happened: []string{"hold: lifted (subscription lapsed)"}},
 		{name: "the global pin of three, moving running sessions, with force", event: status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side", "personal"}, Move: true, Force: true, By: "cli"},
 			headline: "pin set by hand", happened: []string{"accounts: work, side, personal", "goes: new and running sessions", "own pins: every session's cleared", "set from: the command line"}},
 		{name: "a session's own pin", event: status.Event{Kind: status.EventPin, Account: "side", Session: older, By: "dashboard"},
@@ -195,7 +204,7 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 		{name: "a restart falling due", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade},
 			headline: "restart due", happened: []string{"why: switchboard upgraded"}},
 		{name: "a restart held, its binary refusing to start", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
-			headline: "restart held", happened: []string{"why: switchboard upgraded", "held: invalid config /test/config.toml: account work: its label is longer than 100 characters"}},
+			headline: "restart put off", happened: []string{"why: switchboard upgraded", "put off: invalid config /test/config.toml: account work: its label is longer than 100 characters"}},
 		{name: "the router unhealthy", event: status.Event{Kind: status.EventHealth, Reason: "most requests failing"},
 			headline: "the router turned unhealthy", happened: []string{"why: most requests failing"}},
 		{name: "the router well again", event: status.Event{Kind: status.EventHealth},
@@ -214,6 +223,88 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			want := append([]string{"event: " + tt.headline}, tt.happened...)
 			if got := itemsSaid(d.Happened); d.Headline.String() != tt.headline || !slices.Equal(got, want) {
 				t.Errorf("the card's headline is %q, its items %q; want %q, %q", d.Headline, got, tt.headline, want)
+			}
+		})
+	}
+}
+
+// A hold's card says when it lifted: as the router ended it, else as the
+// first room again of its account after it that names a hold lifting told
+// it, from whatever run, a newer hold of its account between leaving the
+// older unlifted; and where no event tells its lift, that it holds till a
+// read comes back clean only while the account is held now and it's the
+// account's last hold, and nothing of when otherwise. One told late says
+// when it began. Its times a week or more from its own carry their date,
+// WHAT FOLLOWED's till among them.
+func TestAHoldsCardSaysWhenItLifted(t *testing.T) {
+	at, run, now := october(7, 13, 0), october(7, 8, 0), october(7, 15, 0)
+	before := october(6, 8, 0)
+	held := status.Event{ID: 1, At: at, Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403}
+	ended, endedLate, late, filedHold := held, held, held, held
+	filedHold.At = october(7, 7, 0)
+	ended.Until = october(7, 14, 0)
+	endedLate.Until = october(15, 9, 0)
+	late.Since = at.Add(-10 * 24 * time.Hour)
+	newer := held
+	newer.ID, newer.At = 2, october(7, 13, 10)
+	room := func(account, reason string) status.Event {
+		return status.Event{ID: 3, At: october(7, 13, 30), Kind: status.EventRoom, Account: account, Reason: reason}
+	}
+	tests := []struct {
+		name string
+		// filed are the events of the run before, and live those of the
+		// run now, the hold the card is of its first.
+		filed   []events.Line
+		live    []status.Event
+		key     views.EventKey
+		heldNow bool
+		want    []string
+		// row is what the hold's row says after its cause and status, its
+		// till WHAT FOLLOWED's after its ", ".
+		row string
+	}{
+		{name: "ended by the router", live: []status.Event{ended}, want: []string{"lifted: 14:00"}, row: ", till 14:00"},
+		{name: "ended by the router over a week on", live: []status.Event{endedLate}, want: []string{"lifted: 15 Oct 09:00"}, row: ", till 15 Oct 09:00"},
+		{name: "lifted as room again told, the router never ending it", live: []status.Event{held, room("work", "subscription lapsed")}, want: []string{"lifted: 13:30"}, row: ", till 13:30"},
+		{
+			name: "lifted as room again of a later run told", filed: []events.Line{{Event: filedHold, Run: before}}, live: []status.Event{room("work", "subscription lapsed")},
+			key: views.EventKey{Run: before, ID: 1}, want: []string{"lifted: 13:30"}, row: ", till 13:30",
+		},
+		{name: "a newer hold before room again", live: []status.Event{held, newer, room("work", "subscription lapsed")}},
+		{name: "a newer hold, held now", live: []status.Event{held, newer}, heldNow: true},
+		{name: "the newer hold, held now", live: []status.Event{held, newer}, key: views.EventKey{Run: run, ID: 2}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "room again of another account, held now", live: []status.Event{held, room("side", "token refused")}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "room again naming no hold, held no longer", live: []status.Event{held, room("work", "")}},
+		{name: "never lifted, held now", live: []status.Event{held}, heldNow: true, want: []string{"till: a read comes back clean"}},
+		{name: "never lifted, held no longer", live: []status.Event{held}},
+		{name: "told late, held now", live: []status.Event{late}, heldNow: true, want: []string{"held since: 27 Sep 13:00", "till: a read comes back clean"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var files views.Events
+			if tt.filed != nil {
+				files = filedLines(tt.filed)
+			}
+			read := views.ReadEvents(files, at, at).Look(liveAt(tt.live, now), run)
+			heldNow := func(id string) bool { return tt.heldNow && id == "work" }
+			table := views.LogEvents(views.LogEventSources{From: at, Events: read, HeldNow: heldNow, Now: now})
+			key := tt.key
+			if key.ID == 0 {
+				key = views.EventKey{Run: run, ID: 1}
+			}
+			d, ok := table.Details(key, views.LogRead{})
+			if !ok {
+				t.Fatal("there are no details of the hold")
+			}
+			want := append([]string{"event: work held", "why: subscription lapsed", "answer: 403"}, tt.want...)
+			if got := itemsSaid(d.Happened); !slices.Equal(got, want) {
+				t.Errorf("the card's items are %q, want %q", got, want)
+			}
+			if got, want := d.Row.Line.What.String(), "subscription lapsed (403)"+tt.row; got != want {
+				t.Errorf("the hold's row says %q, want %q", got, want)
+			}
+			if got, want := d.Followed.Till, strings.TrimPrefix(tt.row, ", "); got != want {
+				t.Errorf("WHAT FOLLOWED says new sessions go elsewhere %q, want %q", got, want)
 			}
 		})
 	}

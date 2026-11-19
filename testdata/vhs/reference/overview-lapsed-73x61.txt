@@ -54,8 +54,8 @@ LATELY  ────────────────────────
 14:41  ▲ mobile started on side
 14:20  ■ work refused (401): 2 sessions moved to side
 13:50  ◇ side primed: its 5-hour window started
+13:41  ■ personal held (subscription lapsed): 2 sessions moved to side
 13:22  ▸ infra moved personal → work: personal came under pressure
 12:47  ▲ docs started on personal
-12:10  ◇ work primed: its 5-hour window started
 
 tab views   ? keys and toggles   q quit

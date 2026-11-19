@@ -35,6 +35,7 @@ func TestRunwaysLATELYTellsWhatBefellAnAccountAlone(t *testing.T) {
 		status.Event{At: at(15, 20), Kind: status.EventPressure, Account: "personal", Windows: []string{"7d"}, Until: at(19, 0)},
 		status.Event{At: at(15, 10), Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: status.ReasonNew},
 		status.Event{At: at(15, 0), Kind: status.EventRefused, Account: "work", Status: 401},
+		status.Event{At: at(14, 55), Kind: status.EventHeld, Account: "side", Reason: "token refused", Status: 401},
 		status.Event{At: at(14, 50), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "work", Reason: status.ReasonMovedByPin},
 		status.Event{At: at(14, 40), Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}},
 		status.Event{At: at(14, 30), Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}},
@@ -47,11 +48,12 @@ func TestRunwaysLATELYTellsWhatBefellAnAccountAlone(t *testing.T) {
 		"work open again: its 5-hour window reset",
 		"personal came under pressure: its week runs out ~19:00",
 		"work refused (401)",
+		"side held (token refused)",
 		"side reached its 5-hour limit",
 		"personal reached its cap",
 	}
 	if got := fullOf(runwayLately(doc, now)); !slices.Equal(got, want) {
-		t.Errorf("Runway's LATELY tells %q, want %q: a cap, a limit, a refusal, pressure and room again alone, newest first", got, want)
+		t.Errorf("Runway's LATELY tells %q, want %q: a cap, a limit, a refusal, a hold, pressure and room again alone, newest first", got, want)
 	}
 }
 
@@ -87,13 +89,14 @@ func TestLATELYsWordsSayAWeekBacksTimeByItsDate(t *testing.T) {
 	}
 }
 
-func TestRunwaysLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *testing.T) {
+func TestRunwaysLATELYFoldsTheMovesALimitACapARefusalOrAHoldForcedIntoItsLine(t *testing.T) {
 	tests := []struct {
 		kind, full, short string
 	}{
 		{kind: status.EventCap, full: "work reached its cap: 3 sessions moved to side", short: "work at its cap: 3 moved to side"},
 		{kind: status.EventLimit, full: "work reached its 5-hour limit: 3 sessions moved to side", short: "work at its limit: 3 moved to side"},
 		{kind: status.EventRefused, full: "work refused (401): 3 sessions moved to side", short: "work refused (401): 3 moved to side"},
+		{kind: status.EventHeld, full: "work held: 3 sessions moved to side", short: "work held: 3 moved to side"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.kind, func(t *testing.T) {

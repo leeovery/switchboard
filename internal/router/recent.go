@@ -86,11 +86,11 @@ func newRecent(state *state, sessions *sessions, now func() time.Time) *recent {
 }
 
 // happening is an event kept, as the status document gives it, with what it
-// takes to change it as what it tells of does: for a limit's, a cap's or a
-// refusal's, the sessions it has moved; for a refusal's, the requests refused
-// that it has joined; and for a move, what forced it, while the event it's to
-// be counted in is yet to be told. It's marked from when it's kept, or
-// changes, until it's filed as it then stands.
+// takes to change it as what it tells of does: for a limit's, a cap's, a
+// refusal's or a hold's, the sessions it has moved; for a refusal's, the
+// requests refused that it has joined; and for a move, what forced it, while
+// the event it's to be counted in is yet to be told. It's marked from when
+// it's kept, or changes, until it's filed as it then stands.
 type happening struct {
 	status.Event
 	moves    moves
@@ -151,6 +151,8 @@ func (r *recent) take(e Event, now time.Time) {
 		r.limitLifted(e, now)
 	case RefusalLifted:
 		r.lifted(e, now)
+	case ReadHeld:
+		r.readHeld(e, now)
 	case ForeignToken:
 		r.add(status.Event{Kind: status.EventForeign, Account: e.Account}, now)
 	case HealthChanged:
@@ -305,9 +307,10 @@ func (r *recent) run(ctx context.Context) {
 // look keeps what the accounts, as they stand now, call for since the last
 // look, as news and capping say, judged as the status document judges them,
 // the accounts each pool's pin names spending their reserves; and has the
-// router's health judged now, which tells of a turn as it's judged. The moves
-// heard before it reads the accounts, still waiting for the cap or the
-// refusal that forced them, wait no more, as unawaited says.
+// router's health judged now, which tells of a turn as it's judged; room
+// again after a hold ends the hold's event, as holdLifted says. The moves
+// heard before it reads the accounts, still waiting for the cap, the refusal
+// or the hold that forced them, wait no more, as unawaited says.
 func (r *recent) look() {
 	r.judge()
 	now := r.now()
@@ -319,6 +322,9 @@ func (r *recent) look() {
 	r.change(func() {
 		for _, e := range news {
 			r.add(e, now.UTC())
+			if e.Kind == status.EventRoom && e.Reason != "" {
+				r.holdLifted(e.Account, now.UTC())
+			}
 		}
 		r.capping(accounts, pin, now.UTC())
 		r.unawaited(heard)
@@ -328,9 +334,13 @@ func (r *recent) look() {
 // news returns the events the accounts, as they stand, call for since they
 // were last looked at, and remembers how they stand: each that has come under
 // pressure, as pressed says, and each that has room again, as the
-// notifications judge it, with the windows that held it back. The first look
-// at an account calls for none, as there's nothing yet to compare it with.
+// notifications judge it, with the windows that held it back, and the cause
+// of the hold that did, where one did, a hold its token's change lifted
+// while the router was down among them, as liftsUntold gives them. The first
+// look at an account calls for none, as there's nothing yet to compare it
+// with.
 func (r *recent) news(accounts []status.Account, standings standings) []status.Event {
+	r.short.liftedUntold(r.state.liftsUntold())
 	var news []status.Event
 	for _, a := range accounts {
 		if r.pressed(a) {
@@ -339,8 +349,8 @@ func (r *recent) news(accounts []status.Account, standings standings) []status.E
 		}
 	}
 	for _, s := range standings {
-		if windows, again := r.short.roomAgain(s); again {
-			news = append(news, status.Event{Kind: status.EventRoom, Account: s.ID, Windows: windows})
+		if short, again := r.short.roomAgain(s); again {
+			news = append(news, status.Event{Kind: status.EventRoom, Account: s.ID, Windows: short.windows, Reason: short.cause})
 		}
 	}
 	return news

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -15,6 +16,12 @@ var zone = time.FixedZone("UTC+1", 60*60)
 // at is the time in zone on 7 October 2026 at hour:minute.
 func at(hour, minute int) time.Time {
 	return time.Date(2026, 10, 7, hour, minute, 0, 0, zone)
+}
+
+// rowLine is the line telling tells of e, a line of the router's files, as
+// its Row has it, at now.
+func rowLine(telling *views.Telling, e status.Event, now time.Time) views.EventLine {
+	return telling.Row(events.Held{Event: e}, now).EventLine
 }
 
 // windowNames name the tests' windows, as Claude names its own.
@@ -69,6 +76,12 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 			kind: "refused", account: "work", what: "its token refused (401), till 14:00: its 2 sessions move to side"},
 		{name: "a request refused alone", event: status.Event{Kind: status.EventRefused, Account: "work", Status: 403, Family: "opus", Until: at(14, 0)},
 			kind: "refused", account: "work", what: "its opus requests refused (403), till 14:00"},
+		{name: "a hold, its subscription ended, moving sessions", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "subscription lapsed", Status: 403, Count: 2, To: "side"},
+			kind: "held", account: "work", what: "subscription lapsed (403): its 2 sessions move to side as their next requests come"},
+		{name: "a hold, its token refused", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "token refused", Status: 401},
+			kind: "held", account: "work", what: "token refused (401)"},
+		{name: "a hold giving no answer", event: status.Event{Kind: status.EventHeld, Account: "work", Reason: "token refused"},
+			kind: "held", account: "work", what: "token refused"},
 		{name: "a token another subscription's", event: status.Event{Kind: status.EventForeign, Account: "work"},
 			kind: "foreign", account: "work", what: "its token is another subscription's"},
 		{name: "a prime", event: status.Event{Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: at(12, 5)},
@@ -77,6 +90,10 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 			kind: "open", account: "work", what: "its 5-hour window reset"},
 		{name: "room again, naming no window", event: status.Event{Kind: status.EventRoom, Account: "work"},
 			kind: "open", account: "work"},
+		{name: "room again as a hold lifts", event: status.Event{Kind: status.EventRoom, Account: "work", Reason: "subscription lapsed"},
+			kind: "open", account: "work", what: "hold lifted (subscription lapsed)"},
+		{name: "room again as a hold lifts and a window resets", event: status.Event{Kind: status.EventRoom, Account: "work", Reason: "token refused", Windows: []string{"5h"}},
+			kind: "open", account: "work", what: "hold lifted (token refused), its 5-hour window reset"},
 		{name: "the global pin, from the command line", event: status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, By: "cli"},
 			kind: "pin", account: "work, side", what: "new sessions go there, set from the command line"},
 		{name: "the global pin, moving running sessions", event: status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}, Move: true, By: "dashboard"},
@@ -108,7 +125,7 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 		{name: "a restart for a reason the Log has no words for", event: status.Event{Kind: status.EventRestart, Reason: "the moon\x1b[2Jrose"},
 			kind: "restart", what: "due: the moon [2Jrose"},
 		{name: "a restart held, its binary refusing to start, saying why", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade, Held: "invalid config /test/config.toml:\naccount work: its label is longer than 100 characters"},
-			kind: "restart", what: "held: invalid config /test/config.toml: account work: its label is longer than 100 characters"},
+			kind: "restart", what: "put off: invalid config /test/config.toml: account work: its label is longer than 100 characters"},
 		{name: "a restart held for nothing to be read, as due", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade, Held: "\x1b"},
 			kind: "restart", what: "due: switchboard upgraded"},
 		{name: "the router unhealthy", event: status.Event{Kind: status.EventHealth, Reason: "most requests failing"},
@@ -122,7 +139,7 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.event.At = at(13, 0)
 
-			got := views.NewTelling(windowNames).Line(tt.event, now)
+			got := rowLine(views.NewTelling(windowNames), tt.event, now)
 			if got.Kind != tt.kind || got.Account.String() != tt.account || got.What.String() != tt.what {
 				t.Errorf("an event %+v is told as %q, %q, %q; want %q, %q, %q",
 					tt.event, got.Kind, got.Account.String(), got.What.String(), tt.kind, tt.account, tt.what)
@@ -153,7 +170,7 @@ func TestAForcedPinNamesThePoolWhoseOwnPinsItClearedWhereThereAreSeveral(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := views.NewTelling(windowNames).NamingPools(tt.pools).Line(tt.event, now).What.String(); got != tt.want {
+			if got := rowLine(views.NewTelling(windowNames).NamingPools(tt.pools), tt.event, now).What.String(); got != tt.want {
 				t.Errorf("an event %+v is told as %q, want %q", tt.event, got, tt.want)
 			}
 		})
@@ -163,7 +180,7 @@ func TestAForcedPinNamesThePoolWhoseOwnPinsItClearedWhereThereAreSeveral(t *test
 func TestAnEventsAccountsAreNamedApart(t *testing.T) {
 	e := status.Event{At: at(13, 0), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side"}
 
-	got := views.NewTelling(windowNames).Line(e, at(16, 0))
+	got := rowLine(views.NewTelling(windowNames), e, at(16, 0))
 	if want := (status.Words{{Text: "personal", Kind: status.PartAccount}}); !slices.Equal(got.Account, want) {
 		t.Errorf("a limit's account is %+v, want %+v", got.Account, want)
 	}
@@ -172,7 +189,7 @@ func TestAnEventsAccountsAreNamedApart(t *testing.T) {
 	}
 	move := status.Event{At: at(13, 0), Kind: status.EventMoved, From: "work", To: "side", Reason: status.ReasonMovedByPin}
 	want := status.Words{{Text: "work", Kind: status.PartAccount}, {Text: " → "}, {Text: "side", Kind: status.PartAccount}}
-	if got := views.NewTelling(windowNames).Line(move, at(16, 0)); !slices.Equal(got.Account, want) {
+	if got := rowLine(views.NewTelling(windowNames), move, at(16, 0)); !slices.Equal(got.Account, want) {
 		t.Errorf("a move's account is %+v, want %+v", got.Account, want)
 	}
 }
@@ -182,16 +199,16 @@ func TestAMovePassingOverAnAccountUnderPressureSaysWhenItRunsOut(t *testing.T) {
 	move := status.Event{At: at(14, 0), Kind: status.EventMoved, From: "personal", To: "side", Reason: "new, personal under pressure"}
 	telling := views.NewTelling(windowNames)
 
-	if got, want := telling.Line(move, now).What.String(), "personal came under pressure"; got != want {
+	if got, want := rowLine(telling, move, now).What.String(), "personal came under pressure"; got != want {
 		t.Errorf("before personal's pressure is told, a move passing it over says %q, want %q", got, want)
 	}
-	telling.Line(status.Event{At: at(13, 0), Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(15, 10)}, now)
-	telling.Line(status.Event{At: at(13, 5), Kind: status.EventPressure, Account: "work", Windows: []string{"5h"}, Until: at(17, 0)}, now)
-	if got, want := telling.Line(move, now).What.String(), "personal came under pressure, its 5-hour to run out at 15:10"; got != want {
+	rowLine(telling, status.Event{At: at(13, 0), Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(15, 10)}, now)
+	rowLine(telling, status.Event{At: at(13, 5), Kind: status.EventPressure, Account: "work", Windows: []string{"5h"}, Until: at(17, 0)}, now)
+	if got, want := rowLine(telling, move, now).What.String(), "personal came under pressure, its 5-hour to run out at 15:10"; got != want {
 		t.Errorf("once personal's pressure is told, a move passing it over says %q, want %q", got, want)
 	}
 	move.At = at(15, 10)
-	if got, want := telling.Line(move, now).What.String(), "personal came under pressure"; got != want {
+	if got, want := rowLine(telling, move, now).What.String(), "personal came under pressure"; got != want {
 		t.Errorf("a move passing personal over as its pressure's run-out comes says %q, want %q, the time gone stale", got, want)
 	}
 }
@@ -203,12 +220,12 @@ func TestATellingsZeroValueNamesAWindowAsNameOfKeyDoes(t *testing.T) {
 		"Five\x1bh": "its Five h to run out at 15:10", "Fiveh": "its fiveh to run out at 15:10",
 	} {
 		pressure := status.Event{At: at(13, 0), Kind: status.EventPressure, Account: "personal", Windows: []string{key}, Until: at(15, 10)}
-		if got := telling.Line(pressure, at(16, 0)).What.String(); got != want {
+		if got := rowLine(&telling, pressure, at(16, 0)).What.String(); got != want {
 			t.Errorf("a zero Telling tells a pressure event of window %q as %q, want %q, as status.NameOfKey names it, put as a sentence has it", key, got, want)
 		}
 	}
 	move := status.Event{At: at(14, 0), Kind: status.EventMoved, From: "personal", To: "side", Reason: "new, personal under pressure"}
-	if got, want := telling.Line(move, at(16, 0)).What.String(), "personal came under pressure, its 5-hour to run out at 15:10"; got != want {
+	if got, want := rowLine(&telling, move, at(16, 0)).What.String(), "personal came under pressure, its 5-hour to run out at 15:10"; got != want {
 		t.Errorf("a zero Telling tells a move passing personal over as %q, want %q", got, want)
 	}
 }
@@ -236,16 +253,16 @@ func TestATimeOnAnotherDayThanItsEventsIsToldWithItsWeekdayAsDatedSaysIt(t *test
 		t.Run(tt.name, func(t *testing.T) {
 			tt.event.At = at(22, 30)
 
-			if got := views.NewTelling(windowNames).Line(tt.event, now).What.String(); got != tt.what {
+			if got := rowLine(views.NewTelling(windowNames), tt.event, now).What.String(); got != tt.what {
 				t.Errorf("an event at 22:30 is told as %q, want %q", got, tt.what)
 			}
 		})
 	}
 
 	telling := views.NewTelling(windowNames)
-	telling.Line(status.Event{At: at(22, 20), Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: nextDay(1, 10)}, now)
+	rowLine(telling, status.Event{At: at(22, 20), Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: nextDay(1, 10)}, now)
 	move := status.Event{At: at(22, 40), Kind: status.EventMoved, From: "personal", To: "side", Reason: "new, personal under pressure"}
-	if got, want := telling.Line(move, now).What.String(), "personal came under pressure, its 5-hour to run out at Thu 01:10"; got != want {
+	if got, want := rowLine(telling, move, now).What.String(), "personal came under pressure, its 5-hour to run out at Thu 01:10"; got != want {
 		t.Errorf("a move at 22:40 passing personal over says %q, want %q", got, want)
 	}
 }
@@ -253,7 +270,7 @@ func TestATimeOnAnotherDayThanItsEventsIsToldWithItsWeekdayAsDatedSaysIt(t *test
 func TestAnEventsTimesAreShownInNowsTimeZone(t *testing.T) {
 	e := status.Event{At: at(13, 0), Kind: status.EventLimit, Account: "work", Windows: []string{"5h"}, Until: at(18, 0)}
 
-	got := views.NewTelling(windowNames).Line(e, time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)).What.String()
+	got := rowLine(views.NewTelling(windowNames), e, time.Date(2026, 10, 7, 16, 0, 0, 0, time.UTC)).What.String()
 	if want := "its 5-hour window, till 17:00"; got != want {
 		t.Errorf("a limit lifting at 18:00 an hour east of UTC, told in UTC, says %q, want %q", got, want)
 	}

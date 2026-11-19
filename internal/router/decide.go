@@ -81,8 +81,11 @@ type decision struct {
 	// request, and limit the identity of the limit, where that's what does,
 	// as view's holding says: what forces the move. A move by choice, as by
 	// pin, after the session's idle hour or at its compaction, carries none.
-	held  Hold
-	limit int
+	// heldSince is when the refusals of the account's read that hold it
+	// began, where its hold is what does, as the move's HeldSince carries it.
+	held      Hold
+	limit     int
+	heldSince time.Time
 	// compacted is set when the decision was judged at the first request
 	// after the session's compaction, as compacted says, and move is how
 	// moving the session was judged then: to move it, which the decision
@@ -176,7 +179,7 @@ func (s situation) choose() decision {
 	}
 	d := s.unpinned()
 	if !d.noRoom {
-		d.reason = status.ReasonPinYields + pin + " " + s.unable(pin)
+		d.reason = status.ReasonPinYields + pin + " " + s.unable(pin).why
 	}
 	if s.assigned && s.current.Account == pin {
 		d = s.forcedOff(d)
@@ -185,11 +188,12 @@ func (s situation) choose() decision {
 }
 
 // forcedOff returns d, a choice that has to leave the session's account, as
-// it can't take the request, with what held the request back there, where d
-// moves the session off it.
+// it can't take the request, with what held the request back there, as
+// unable has it, where d moves the session off it.
 func (s situation) forcedOff(d decision) decision {
 	if d.account != s.current.Account {
-		d.held, d.limit = s.accounts.holding(s.current.Account)
+		held := s.unable(s.current.Account)
+		d.held, d.limit, d.heldSince = held.by, held.limit, held.since
 	}
 	return d
 }
@@ -301,26 +305,42 @@ func (s situation) why() (reason, preferred string, forced bool) {
 	case s.movesFree():
 		return status.Rescored(s.now.Sub(s.current.LastSeen)), s.current.Account, false
 	default:
-		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account), "", true
+		return status.ReasonMovedOff + s.current.Account + " " + s.unable(s.current.Account).why, "", true
 	}
 }
 
-// unable says why the account with the given id can't take the request: what
-// went wrong when the request went out on it, else that its last read was
-// refused, which holds it back till a read comes back clean, whatever else
-// does, else that it has reached its reserve, when that alone holds it back,
-// else that it has no room.
-func (s situation) unable(id string) string {
-	switch a, tried := s.req.attempt(id); {
-	case tried:
-		return a.Why
-	case s.accounts.heldByRead(id):
-		return status.WhyReadRefused
-	case s.accounts.reserved(id):
-		return status.WhyReserve
-	default:
-		return status.WhyNoRoom
+// unableOn is why an account can't take a request, and what holds the
+// request back there, as the move it forces is counted: the hold, the
+// identity of the limit, where that's what does, and when the refusals of
+// its read began, where its hold of a read refused does.
+type unableOn struct {
+	why   string
+	by    Hold
+	limit int
+	since time.Time
+}
+
+// unable says why the account with the given id can't take the request, and
+// what holds it back, one owner of both, so a move's reason and the event it
+// counts in agree: what went wrong when the request went out on it, held as
+// that says, as the view's tried has it; else that its last read was
+// refused, and why, which holds it back till a read comes back clean,
+// whatever else does; else that it has reached its reserve, when that alone
+// holds it back; else that it has no room, held as the view has it.
+func (s situation) unable(id string) unableOn {
+	if a, tried := s.req.attempt(id); tried {
+		by, limit := s.accounts.tried(id, a.Why)
+		return unableOn{why: a.Why, by: by, limit: limit}
 	}
+	if refused := s.accounts.heldByRead(id); refused.cause != 0 {
+		return unableOn{why: status.WhyHeldBy(refused.cause), by: HeldByRead, since: refused.since}
+	}
+	why := status.WhyNoRoom
+	if s.accounts.reserved(id) {
+		why = status.WhyReserve
+	}
+	by, limit := s.accounts.holding(id)
+	return unableOn{why: why, by: by, limit: limit}
 }
 
 // noRoom is where a request goes when no account has room for it, for the
