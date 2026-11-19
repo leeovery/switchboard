@@ -5,7 +5,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -52,35 +51,40 @@ func (u *usage) forgetRates(key string) {
 
 // seed takes up, as the router starts, the readings history gives, in the
 // order they were read, into the trails and fast rates of the accounts
-// configured, an account's fast rates forgotten as it moved pools, as
-// forgetSeededMove says, and the day rate of the pool each was in as it was
-// read, as inAt has it, as though they'd come in as read then, the pools
-// judged for room at each, and at each moment a pin kept was set, an account
-// joined another pool or an account's read refused began to hold it, as
-// judgedAlso has them, where the history read anything before it, as
-// judgeSeeded says, each pool by the accounts in it then: the readings
-// history holds each change of a window's use, so its trail, baseline
-// included, is as it was, and its rates outlast a restart. A window the
-// account doesn't hold, as one its answers no longer report, keeps no trail
-// nor fast rate, and nor does one whose reading, as the state file kept it,
-// has another reset than its readings last read, as when it has reset since.
-// It returns how many readings the trails keep.
+// configured, an account's fast rates forgotten at each move between pools
+// the record of the pools it has been in holds, as movesKept has them, as
+// forgetMovedBy says, before any reading at or after it, and the day rate of
+// the pool each was in as it was read, as inAt has it, as though they'd come
+// in as read then, the pools judged for room at each, and at each moment a
+// pin kept was set, an account joined another pool or an account's read
+// refused began to hold it, as judgedAlso has them, where the history read
+// anything before it, as judgeSeeded says, each pool by the accounts in it
+// then: the readings history holds each change of a window's use, so its
+// trail, baseline included, is as it was, and its rates outlast a restart. A
+// window the account doesn't hold, as one its answers no longer report,
+// keeps no trail nor fast rate, and nor does one whose reading, as the state
+// file kept it, has another reset than its readings last read, as when it
+// has reset since. It returns how many readings the trails keep.
 func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	read := slices.Collect(history)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.regroup()
 	taking := newSeeding(read, s.policy.Perishable)
-	also := s.judgedAlso()
+	also, moves := s.judgedAlso(), s.movesKept()
 	for i, r := range read {
 		for ; len(also) > 0 && !r.At.Before(also[0]); also = also[1:] {
 			if i > 0 {
 				s.judgeSeeded(taking, also[0])
 			}
 		}
+		moves = s.forgetMovedBy(moves, r.At)
 		if u, configured := s.usage[r.Account]; configured {
 			s.takeUpReading(taking, u, r)
 		}
+	}
+	for _, m := range moves {
+		clear(s.usage[m.account].fast)
 	}
 	if len(read) > 0 {
 		for _, at := range also {
@@ -121,13 +125,11 @@ func (s *state) judgedAlso() []time.Time {
 
 // takeUpReading takes up r, a reading of the history of the account whose
 // usage u is, after those taking has taken up: into its window's trail and
-// fast rate, as note says, from the reading of the window taken up last, its
-// fast rates forgotten first where it moved pools since, as forgetSeededMove
-// says, and the day rate of the pool its account was in then, as rose and
-// inAt say, the pools judged for room at it, as judgeSeeded says. s.mu must
-// be held, the pools regrouped.
+// fast rate, as note says, from the reading of the window taken up last, and
+// the day rate of the pool its account was in then, as rose and inAt say,
+// the pools judged for room at it, as judgeSeeded says. s.mu must be held,
+// the pools regrouped.
 func (s *state) takeUpReading(taking seeding, u *usage, r readings.Reading) {
-	s.forgetSeededMove(taking, u, r)
 	of, w := windowOf{account: r.Account, key: r.Key}, r.Window()
 	rise := u.note(taking.last[of], w, r.At)
 	taking.last[of] = w
@@ -135,22 +137,15 @@ func (s *state) takeUpReading(taking seeding, u *usage, r readings.Reading) {
 	s.judgeSeeded(taking, r.At)
 }
 
-// forgetSeededMove forgets the fast rates of the account whose usage u is,
-// where the record of the pools it has been in has it in another pool at r,
-// its reading, than at its reading taken up before, as forgetMoved does live,
-// so it brings none of its old pool's demand: where both are pools, none
-// moving as the pools first come in, as "" is none. Its trails stand. s.mu
-// must be held.
-func (s *state) forgetSeededMove(taking seeding, u *usage, r readings.Reading) {
-	pool, recorded := s.joined[r.Account].at(r.At)
-	if !recorded {
-		return
+// forgetMovedBy forgets, as forgetMoved does live, the fast rates of the
+// account of each of moves, in order, made at or before at, its trails
+// standing, and returns the moves after at. s.mu must be held.
+func (s *state) forgetMovedBy(moves []poolMove, at time.Time) []poolMove {
+	i := 0
+	for ; i < len(moves) && !moves[i].at.After(at); i++ {
+		clear(s.usage[moves[i].account].fast)
 	}
-	was, seen := taking.pools[r.Account]
-	taking.pools[r.Account] = pool
-	if seen && was != "" && pool != "" && !config.SamePool(was, pool) {
-		clear(u.fast)
-	}
+	return moves[i:]
 }
 
 // judgeSeeded judges the pools' room at at as the history has been taken up
@@ -168,23 +163,18 @@ func (s *state) judgeSeeded(taking seeding, at time.Time) {
 }
 
 // seeding is the readings history as seed takes it up: the reading of each
-// account's window taken up last, each account's first reading of its shared
-// week, the window named week, the history holds, and the pool the record of
-// the pools each account has been in had it in at its reading taken up last,
-// by the account's id, as recorded.
+// account's window taken up last, and each account's first reading of its
+// shared week, the window named week, the history holds.
 type seeding struct {
 	week  string
 	last  map[windowOf]quota.Window
 	first map[string]quota.Window
-	pools map[string]string
 }
 
 // newSeeding starts the taking up of read, the readings history in the order
 // read, of the shared week, the window named week.
 func newSeeding(read []readings.Reading, week string) seeding {
-	taking := seeding{
-		week: week, last: make(map[windowOf]quota.Window), first: make(map[string]quota.Window), pools: make(map[string]string),
-	}
+	taking := seeding{week: week, last: make(map[windowOf]quota.Window), first: make(map[string]quota.Window)}
 	for _, r := range read {
 		if _, seen := taking.first[r.Account]; !seen && r.Key == week {
 			taking.first[r.Account] = r.Window()

@@ -47,9 +47,9 @@ const (
 // probe, which, being a request, could start a window, and how its probes
 // went, so a restart neither probes it sooner than they allow nor forgets why
 // it can't be read; the hold curve, so a restart doesn't take it back to the
-// default; the pools each account has been in lately, so a restart takes up
-// each reading of the history in the pool its account was in then; and what's
-// been told of each account's token's year, so a restart tells nothing twice.
+// default; the last few pools each account joined, so a restart takes up each
+// reading of the history in the pool its account was in then; and what's been
+// told of each account's token's year, so a restart tells nothing twice.
 type stateFile struct {
 	// path is where the file is: "" until it's loaded, and nothing is kept.
 	path string

@@ -331,70 +331,191 @@ func TestARestartAfterAMoveCountsEachReadingInThePoolItsAccountWasInThen(t *test
 	}
 }
 
-func TestARestartSoonAfterAMoveBringsNoneOfTheOldPoolsFastRate(t *testing.T) {
-	// Side, Default's, rises four points forty minutes in, moves to Acme ten
-	// minutes on, and rises a point ten minutes after that. Seventy minutes
-	// in, the router restarts: too soon for Acme's day rate, so its demand is
-	// its fast rate.
-	path := filepath.Join(t.TempDir(), "state.json")
-	clock := &testClock{now: start}
-	live, _ := newPairedRouterOf(t, clock.read, pairedAccounts())
-	live.file.load(path)
-	var heard []readings.Reading
-	live.state.history = func(read []readings.Reading) { heard = append(heard, read...) }
-	steps := []struct {
-		after time.Duration
-		do    func()
-	}{
-		{0, func() { readWeekAt(live, "work", 0.5); readWeekAt(live, "side", 0.4) }},
-		{40 * time.Minute, func() { readWeekAt(live, "side", 0.44) }},
-		{50 * time.Minute, func() { moveAccount(live, "side", acmePool) }},
-		{time.Hour, func() { readWeekAt(live, "side", 0.45) }},
-	}
-	for _, step := range steps {
-		clock.now = start.Add(step.after)
-		step.do()
-	}
-	clock.now = start.Add(70 * time.Minute)
-	live.file.save()
-	want := demandIn(live, acmePool)
-	if fast := (forecast.Fast{}).Rose(0.01, start.Add(time.Hour)).Rate(clock.now); want == nil || want.Hours != 0 || !near(want.Day, fast) {
-		t.Fatalf("before the restart, Acme's demand is %+v, want its fast rate, %v, of side's rise since it moved alone", want, fast)
-	}
-
-	restarted := seededOn(t, clock.now, pairedIn("side", acmePool), testPools, path, heard...)
-	if got := demandIn(restarted, acmePool); !sameDemand(got, want) {
-		t.Errorf("after the restart, Acme's demand is %+v, want %+v, as before it: none of side's rise in Default", got, want)
-	}
+// liveStep is what a live router does some time after it starts.
+type liveStep struct {
+	after time.Duration
+	do    func(r *Router)
 }
 
-func TestARestartForgetsAnAccountsFastRateWhereItMovedBetweenPools(t *testing.T) {
-	// Side rises four points forty minutes in, and a point an hour in; the
-	// record has it join Default fifty minutes in, from the pool each case
-	// gives. Seventy minutes in, the router restarts.
-	now := start.Add(70 * time.Minute)
-	both := forecast.Fast{}.Rose(0.04, start.Add(40*time.Minute)).Rose(0.01, start.Add(time.Hour)).Rate(now)
-	since := forecast.Fast{}.Rose(0.01, start.Add(time.Hour)).Rate(now)
+// reads has a router read the week of the account with the given id at u.
+func reads(id string, u float64) func(r *Router) {
+	return func(r *Router) { readWeekAt(r, id, u) }
+}
+
+// movesTo has a router's pools follow a config that puts the account with the
+// given id in the pool given.
+func movesTo(id, pool string) func(r *Router) {
+	return func(r *Router) { moveAccount(r, id, pool) }
+}
+
+// followed returns the accounts r's pools last followed, as configured.
+func followed(r *Router) config.Accounts {
+	m := r.state.pools
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.accounts)
+}
+
+// fastRates returns the fast rate at now of each window of each account r
+// has, by the account's id and the window's key, but those that are none.
+func fastRates(r *Router, now time.Time) map[string]map[string]float64 {
+	r.state.mu.Lock()
+	defer r.state.mu.Unlock()
+	rates := make(map[string]map[string]float64)
+	for id, u := range r.state.usage {
+		for key := range u.fast {
+			if rate := u.fastRate(key, now); rate > 0 {
+				if rates[id] == nil {
+					rates[id] = make(map[string]float64)
+				}
+				rates[id][key] = rate
+			}
+		}
+	}
+	return rates
+}
+
+// sameFastRates reports whether two accounts' fast rates, as fastRates gives
+// them, match, to within rounding.
+func sameFastRates(a, b map[string]map[string]float64) bool {
+	return maps.EqualFunc(a, b, func(x, y map[string]float64) bool { return maps.EqualFunc(x, y, near) })
+}
+
+func TestARestartTakesUpTheRatesARouterRunningOnWouldHave(t *testing.T) {
+	// As the router starts, work, Default's, and personal, Acme's, read their
+	// weeks at 50%, giving their pools room, and side, Default's, at 40%;
+	// side reads 44% forty minutes in, and moves, or reads again, as each
+	// case says, till the router stops and starts again.
 	tests := []struct {
-		name string
-		from string
-		want float64
+		name  string
+		steps []liveStep
+		// down moves an account while the router is down, as the config it
+		// starts again on has it, where it's set.
+		down func(r *Router)
+		end  time.Duration
 	}{
-		{name: "from another pool, its rise since alone", from: acmePool, want: since},
-		{name: "from a pool since removed, its rise since alone", from: "x4pz", want: since},
-		{name: "from the pool before pools, as the pools came in, both rises", from: "", want: both},
+		{
+			name:  "a move, then a restart with no reading since",
+			steps: []liveStep{{50 * time.Minute, movesTo("side", acmePool)}},
+			end:   55 * time.Minute,
+		},
+		{
+			name: "a move while the router was down",
+			down: movesTo("side", acmePool),
+			end:  55 * time.Minute,
+		},
+		{
+			name: "a move away and back between two readings",
+			steps: []liveStep{
+				{45 * time.Minute, movesTo("side", acmePool)}, {50 * time.Minute, movesTo("side", defaultPool)}, {time.Hour, reads("side", 0.45)},
+			},
+			end: 70 * time.Minute,
+		},
+		{
+			name:  "a move with readings on both sides",
+			steps: []liveStep{{50 * time.Minute, movesTo("side", acmePool)}, {time.Hour, reads("side", 0.45)}},
+			end:   70 * time.Minute,
+		},
+		{
+			name:  "a reading at the moment of a move",
+			steps: []liveStep{{50 * time.Minute, movesTo("side", acmePool)}, {50 * time.Minute, reads("side", 0.45)}},
+			end:   70 * time.Minute,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "state.json")
-			keepJoined(t, path, map[string]poolsJoined{"side": joins([]string{tt.from, defaultPool}, start.Add(-time.Hour), start.Add(50*time.Minute))})
+			clock := &testClock{now: start}
+			live, _ := newPairedRouterOf(t, clock.read, pairedAccounts())
+			live.file.load(path)
+			var heard []readings.Reading
+			live.state.history = func(read []readings.Reading) { heard = append(heard, read...) }
+			steps := append([]liveStep{
+				{0, reads("work", 0.5)}, {0, reads("personal", 0.5)}, {0, reads("side", 0.4)}, {40 * time.Minute, reads("side", 0.44)},
+			}, tt.steps...)
+			for _, step := range steps {
+				clock.now = start.Add(step.after)
+				step.do(live)
+			}
+			clock.now = start.Add(tt.end)
+			live.file.save()
+			if tt.down != nil {
+				tt.down(live)
+			}
+
+			restarted := seededOn(t, clock.now, followed(live), testPools, path, heard...)
+			if got, want := fastRates(restarted, clock.now), fastRates(live, clock.now); !sameFastRates(got, want) {
+				t.Errorf("after the restart, the fast rates are %v, want %v, as the router running on has them", got, want)
+			}
+			for _, pool := range []string{defaultPool, acmePool} {
+				if got, want := demandIn(restarted, pool), demandIn(live, pool); !sameDemand(got, want) {
+					t.Errorf("after the restart, pool %s's demand is %+v, want %+v, as the router running on has it", pool, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestARestartForgetsAnAccountsFastRatesWhereItMovedBetweenPools(t *testing.T) {
+	// Side rises four points forty minutes in, and a point an hour in, in
+	// Default as the config has it now; the record has it join Default as
+	// each case says. Seventy minutes in, the router restarts.
+	now := start.Add(70 * time.Minute)
+	both := forecast.Fast{}.Rose(0.04, start.Add(40*time.Minute)).Rose(0.01, start.Add(time.Hour)).Rate(now)
+	since := forecast.Fast{}.Rose(0.01, start.Add(time.Hour)).Rate(now)
+	before, joined := start.Add(-time.Hour), start.Add(50*time.Minute)
+	tests := []struct {
+		name   string
+		joined poolsJoined
+		want   float64
+	}{
+		{name: "from another pool, its rise since alone", joined: joins([]string{acmePool, defaultPool}, before, joined), want: since},
+		{name: "from a pool since removed, its rise since alone", joined: joins([]string{"x4pz", defaultPool}, before, joined), want: since},
+		{name: "from the pool before pools, as the pools came in, both rises", joined: joins([]string{"", defaultPool}, before, joined), want: both},
+		{
+			name:   "from another pool by way of the pool before pools, both rises",
+			joined: joins([]string{acmePool, "", defaultPool}, before, start.Add(45*time.Minute), joined), want: both,
+		},
+		{name: "from itself, spelt in another case, both rises", joined: joins([]string{"B2N8", defaultPool}, before, joined), want: both},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			keepJoined(t, path, map[string]poolsJoined{"side": tt.joined})
 			r := seededOn(t, now, pairedAccounts(), testPools, path,
 				weekReads("side", start, 0.4), weekReads("side", start.Add(40*time.Minute), 0.44), weekReads("side", start.Add(time.Hour), 0.45))
-			r.state.mu.Lock()
-			got := r.state.usage["side"].fastRate("7d", now)
-			r.state.mu.Unlock()
-			if !near(got, tt.want) {
+			if got := fastRates(r, now)["side"]["7d"]; !near(got, tt.want) {
 				t.Errorf("side's week's fast rate is %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestARestartForgetsTheFastRateOfEachWindowOfAnAccountThatMoved(t *testing.T) {
+	// Side's session and week each rise forty minutes in. The router
+	// restarts fifty-five minutes in, side in Default.
+	now := start.Add(55 * time.Minute)
+	sessionReads := func(at time.Time, u float64) readings.Reading {
+		return readings.Reading{At: at, Account: "side", Key: "5h", Utilization: u, ResetsAt: session.ResetsAt, Source: readings.FromProbe}
+	}
+	tests := []struct {
+		name   string
+		joined poolsJoined
+		// want are the windows with a fast rate.
+		want []string
+	}{
+		{name: "moved from Acme fifty minutes in, none", joined: joins([]string{acmePool, defaultPool}, start.Add(-time.Hour), start.Add(50*time.Minute))},
+		{name: "in Default all along, both", joined: joins([]string{defaultPool}, start.Add(-time.Hour)), want: []string{"5h", "7d"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state.json")
+			keepJoined(t, path, map[string]poolsJoined{"side": tt.joined})
+			r := seededOn(t, now, pairedAccounts(), testPools, path,
+				weekReads("side", start, 0.4), sessionReads(start, 0.1),
+				weekReads("side", start.Add(40*time.Minute), 0.44), sessionReads(start.Add(40*time.Minute), 0.2))
+			if got := slices.Sorted(maps.Keys(fastRates(r, now)["side"])); !slices.Equal(got, tt.want) {
+				t.Errorf("side's windows with a fast rate are %v, want %v", got, tt.want)
 			}
 		})
 	}

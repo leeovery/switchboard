@@ -135,3 +135,28 @@ func (s *state) joinedAt() []time.Time {
 	}
 	return at
 }
+
+// poolMove is an account's move between pools, by the account's id, and
+// when it joined the pool it moved to.
+type poolMove struct {
+	account string
+	at      time.Time
+}
+
+// movesKept returns the moves between pools the record of the pools each
+// account has been in holds, in the order made: each of its pools it joined
+// from another, as config.SamePool compares them, where both are pools, so
+// none is made as the pools first come in, nor back to a config from before
+// them, as forgetMoved has it live. s.mu must be held.
+func (s *state) movesKept() []poolMove {
+	var moves []poolMove
+	for id, js := range s.joined {
+		for i := 1; i < len(js); i++ {
+			if from, to := js[i-1].Pool, js[i].Pool; from != "" && to != "" && !config.SamePool(from, to) {
+				moves = append(moves, poolMove{account: id, at: js[i].Since})
+			}
+		}
+	}
+	slices.SortFunc(moves, func(a, b poolMove) int { return a.at.Compare(b.at) })
+	return moves
+}

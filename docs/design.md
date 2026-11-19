@@ -1126,8 +1126,9 @@ config edited while it was down, or of one it keeps none of, and each move as it
 up; a table of pools it can't tell records none. A restart replays each reading of the readings
 history into the day rate of the pool its account was in then, one from before its first entry
 into that entry's, and judges each pool's room at each moment by the accounts in it then. An
-account's recent rates are forgotten at its first reading after a move between pools, as live, so
-a restart soon after a move brings none of the old pool's demand. A pool since removed takes in
+account's recent rates are forgotten at each move between pools the record holds, as live, so a
+restart soon after a move, or after a move made while the router was down, brings none of the old
+pool's demand. A pool since removed takes in
 nothing, and the one pool of a config from before pools is the first pool's, as live.
 
 ### What's recorded
