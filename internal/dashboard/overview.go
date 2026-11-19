@@ -405,10 +405,10 @@ func (u unit) apart() bool {
 	return u.ledBy(SectionUsage) && u.lean > givenNone
 }
 
-// short reports whether the unit is COMING UP's or LATELY's in their short
-// form, as shorten opens them.
-func (u unit) short() bool {
-	return u.ledBy(SectionComing, SectionLately) && u.lean == givenShort
+// opensShort reports whether the unit is folded with a short form to open
+// in: COMING UP's or LATELY's, built with it, as listsShort has it.
+func (u unit) opensShort() bool {
+	return u.fold && u.ledBy(SectionComing, SectionLately) && len(u.sections[0].leaner) > 0
 }
 
 // gaveWay reports whether the unit has given way: folded, or USAGE's block
@@ -552,7 +552,7 @@ func allot(units []unit, room int) []unit {
 // plan gives anything else.
 func shorten(units []unit, room int) {
 	for i := range units {
-		if !units[i].fold || !units[i].ledBy(SectionComing, SectionLately) {
+		if !units[i].opensShort() {
 			continue
 		}
 		folded := units[i]

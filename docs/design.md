@@ -4973,21 +4973,23 @@ below, not flex's even share:
    empty. Across arrangements, as a section unfolds, the forms are taken afresh.
 6. **Last, COMING UP and LATELY open short in the rows left blank** (the owner's call, 19
    November 2026). Where they're folded, each takes its short form: its heading and its first 2
-   lines, with no blank row between. It opens only where those 3 rows and the blank row before it
-   fit in the rows the steps above leave empty at the foot, after growth or USAGE's squeeze alike.
-   So it never takes a row the plan gives anything else. Where the plan leaves fewer blank rows
-   than it needs, the page is as it would be without it. Folded, the two would leave those rows
-   blank over the key line, where the next two things could show. That's how they stood at
-   108 × 44 and 116 × 44 with a model's own week in USAGE, folded over 2 blank rows. Side by side,
-   LATELY opens short beside COMING UP, in the same 3 rows, because the two are one unit. Its 2
-   lines fill as they come, as at its least, because a live view's form never hangs on its data.
-   Stacked, COMING UP opens short first, and LATELY only in the rows left after it. A short form
-   never grows, and the arrangement the forms hold through is the plan's before this step. Its 2
-   lines are worded as the full list's, and laid out as the list lays out 2: COMING UP's time
-   column is as wide as their own times, and LATELY tells its sentences for 2 lines. So where a
-   third line has a wider time, the words of the 2 start further left than at the least. Its
-   heading keeps its key and, where it holds more than those 2 lines, the folded heading's `…` in
-   `text.subtle`, three cells after its name.
+   lines, with no blank row between. Its heading's row is already in the plan. It opens only where
+   its 2 lines fit in the rows the steps above leave empty at the foot. Any blank row it brings
+   before or after it must fit there too. That holds after growth and after USAGE's squeeze alike.
+   So it never takes a row the plan gives anything else. Where the plan leaves too few blank rows,
+   the page is as it would be without it. Folded, the two would leave those rows blank over the
+   key line, where the next two things could show. That's how they stood at 108 × 44 and
+   116 × 44 with a model's own week in USAGE. Side by side, LATELY opens short beside COMING UP,
+   in the same 3 rows, because the two are one unit. Its 2 lines fill as they come, as at its
+   least, because a live view's form never hangs on its data. Stacked, COMING UP opens short
+   first, and LATELY only in the rows left after it. A short form never grows. The arrangement the
+   forms hold through is the plan's before this step. A short form may fold again a row taller,
+   where USAGE's squeeze or the held rows leave fewer blank. It fills the rows blank at the size
+   the dashboard has. Its 2 lines are worded as the full list's. They're laid out as the list lays
+   out 2 lines: COMING UP's time column is as wide as their own times. LATELY tells its sentences
+   for 2 lines. So where a third line has a wider time, the 2 lines' words start further left than
+   at the least. Its heading keeps its key. Where it holds more than its 2 lines, the heading says
+   so with the folded heading's `…` in `text.subtle`, three cells after its name.
 7. **Past every most,** or where no unit's next step fits, the rest is empty at the foot, the key
    line on the last row.
 8. **The layout changes only on a key or a resize,** or a section's shape changing, never on its

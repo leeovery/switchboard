@@ -228,6 +228,12 @@ func allottedFully(t *testing.T, allots allotments, height int) {
 	}
 }
 
+// short reports whether the unit is COMING UP's or LATELY's in their short
+// form, as shorten opens them.
+func (u unit) short() bool {
+	return u.ledBy(SectionComing, SectionLately) && u.lean == givenShort
+}
+
 // beforeShort are the units allotted as the plan has them before its last
 // step: COMING UP and LATELY in their short form folded again.
 func beforeShort(units []unit) []unit {
@@ -467,59 +473,74 @@ func TestEachStepUSAGEGivesWayTakesItsOwnPart(t *testing.T) {
 
 // At every height from 10 to 60, at the phone's widths, the iPad's, the
 // landscape phone's and the desktops', with the sections shown at first and
-// with every one, USAGE gives way in its steps' order: its blank rows
+// with every one, of three accounts and of three with a model's own week
+// used, USAGE gives way in its steps' order, as the plan has it before its
+// last step, COMING UP and LATELY in their short form folded: its blank rows
 // between accounts, with a section open, only where it doesn't fit with
 // them, and never further; every other section folded, at the step that
 // shows the most accounts in its rows, the least far of those that tie, but
 // for its key, kept only where it shows; and the accounts it shows never fall
 // as the rows grow.
 func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
-	for _, shown := range []Sections{{}, every} {
-		for _, width := range []int{52, 73, 108, 138, 160, 216} {
-			t.Run(fmt.Sprintf("%v at %d", shown.Names(), width), func(t *testing.T) {
-				t.Parallel()
-				fewest := 0
-				for height := 10; height <= 60; height++ {
-					f := frameOf(width, height)
-					f.Sections, f.Sessions = shown, flippingSessions()
-					units, room := f.allotted(threeRouted(), now), f.viewRows()
-					i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
-					usage := units[i]
-					s := usage.sections[0]
-					folded := !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && !u.ledBy(SectionUsage) })
-					back := slices.Clone(units)
-					for j := range back {
-						back[j].rows = back[j].least
-					}
-					if usage.lean > givenApart {
-						back[i].rows = s.leaner[usage.lean-2]
-					}
-					open := room - (rowsDown(back) - back[i].rows)
-					switch {
-					case !folded && usage.lean > givenNone && open >= back[i].rows:
-						t.Errorf("at %dx%d, USAGE has given way %d steps, but fits a step back", width, height, usage.lean)
-					case !folded && usage.lean > givenApart:
-						t.Errorf("at %dx%d, USAGE has given way %d steps, its headings' blank rows among them, with a section open", width, height, usage.lean)
-					}
-					if folded {
-						shows := s.accounts(usage.lean, open)
-						for given := givenNone; int(given) <= len(s.leaner); given++ {
-							if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean && !keyHidden(s, given, open) {
-								t.Errorf("at %dx%d, USAGE has given way %d steps, showing %d accounts in %d rows, where %d steps show %d", width, height, usage.lean, shows, open, given, other)
-							}
-						}
-						if keyHidden(s, usage.lean, open) {
-							t.Errorf("at %dx%d, USAGE keeps its key in %d rows, out of view under the rows it takes", width, height, open)
-						}
-					}
-					accounts := s.accounts(usage.lean, usage.rows)
-					if accounts < fewest {
-						t.Errorf("at %dx%d, USAGE shows %d accounts, fewer than the %d a row shorter", width, height, accounts, fewest)
-					}
-					fewest = accounts
-				}
-			})
+	worlds := []struct {
+		name string
+		doc  status.Document
+	}{{name: "three", doc: threeRouted()}, {name: "three of three windows", doc: threeFabled()}}
+	for _, w := range worlds {
+		for _, shown := range []Sections{{}, every} {
+			for _, width := range []int{52, 73, 108, 138, 160, 216} {
+				t.Run(fmt.Sprintf("%s, %v at %d", w.name, shown.Names(), width), func(t *testing.T) {
+					t.Parallel()
+					usageStepsInOrder(t, w.doc, shown, width)
+				})
+			}
 		}
+	}
+}
+
+// usageStepsInOrder holds USAGE's steps to their order in frames width
+// columns wide showing the sections given, of doc, from 10 rows to 60.
+func usageStepsInOrder(t *testing.T, doc status.Document, shown Sections, width int) {
+	t.Helper()
+	fewest := 0
+	for height := 10; height <= 60; height++ {
+		f := frameOf(width, height)
+		f.Sections, f.Sessions = shown, flippingSessions()
+		units, room := beforeShort(f.allotted(doc, now)), f.viewRows()
+		i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
+		usage := units[i]
+		s := usage.sections[0]
+		folded := !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && !u.ledBy(SectionUsage) })
+		back := slices.Clone(units)
+		for j := range back {
+			back[j].rows = back[j].least
+		}
+		if usage.lean > givenApart {
+			back[i].rows = s.leaner[usage.lean-2]
+		}
+		open := room - (rowsDown(back) - back[i].rows)
+		switch {
+		case !folded && usage.lean > givenNone && open >= back[i].rows:
+			t.Errorf("at %dx%d, USAGE has given way %d steps, but fits a step back", width, height, usage.lean)
+		case !folded && usage.lean > givenApart:
+			t.Errorf("at %dx%d, USAGE has given way %d steps, its headings' blank rows among them, with a section open", width, height, usage.lean)
+		}
+		if folded {
+			shows := s.accounts(usage.lean, open)
+			for given := givenNone; int(given) <= len(s.leaner); given++ {
+				if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean && !keyHidden(s, given, open) {
+					t.Errorf("at %dx%d, USAGE has given way %d steps, showing %d accounts in %d rows, where %d steps show %d", width, height, usage.lean, shows, open, given, other)
+				}
+			}
+			if keyHidden(s, usage.lean, open) {
+				t.Errorf("at %dx%d, USAGE keeps its key in %d rows, out of view under the rows it takes", width, height, open)
+			}
+		}
+		accounts := s.accounts(usage.lean, usage.rows)
+		if accounts < fewest {
+			t.Errorf("at %dx%d, USAGE shows %d accounts, fewer than the %d a row shorter", width, height, accounts, fewest)
+		}
+		fewest = accounts
 	}
 }
 

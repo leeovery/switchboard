@@ -194,24 +194,24 @@ var knownBreaks = []known{
 		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
 		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
 	},
-	// What's left at the foot where USAGE takes the rows it must, the foot's
-	// blank row among them, short of every folded section's least and of
-	// COMING UP's and LATELY's short form, which opens only in rows left
-	// blank, taking its 2 lines and the blank row before it: by account at
-	// 138x30, as the auto world's and the mixed one's, whose blocks are as
-	// tall, 2 rows, where ROUTING unfolded takes 6 more, COMING UP and LATELY
-	// 5, and side by side under ROUTING's folded heading, their short form 3;
-	// and of a model's own week some accounts have used, stacked under the
-	// 5-hour, its unused account left out, 3 rows at 73x36, every other
-	// section folded, where COMING UP's short form, stacked over LATELY,
-	// takes 4 more, the blank rows before and after it among them, and
-	// LATELY's 3.
+	// What's left at the foot where USAGE takes the rows it must, counted
+	// in rows the plan leaves, the foot's blank row aside, short of every
+	// folded section's least and of COMING UP's and LATELY's short form,
+	// which opens only in rows left blank, taking its 2 lines and any blank
+	// row it brings: by account at 138x30, as the auto world's and the mixed
+	// one's, whose blocks are as tall, 2 rows, where ROUTING unfolded takes 6
+	// more, COMING UP and LATELY 5, and their short form, side by side under
+	// ROUTING's folded heading, 3; and of a model's own week some accounts
+	// have used, stacked under the 5-hour, its unused account left out, 2
+	// rows at 73x36, every other section folded, where COMING UP's short
+	// form, stacked over LATELY, takes 4 more, the blank rows before and
+	// after it among them, and LATELY's 3.
 	{
 		byDesign: "2 rows under USAGE by account, short of every folded section's least and the short form side by side", rule: foldWithRowsSpare,
 		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160", "overview-mixed-by-account-160"},
 	},
 	{
-		byDesign: "3 rows under a used model's week stacked, short of every folded section's least and either short form", rule: foldWithRowsSpare,
+		byDesign: "2 rows under a used model's week stacked, short of every folded section's least and either short form", rule: foldWithRowsSpare,
 		sizes: []string{"73x36"},
 		fixtures: []string{
 			"overview-fable-160", "overview-fable-phone-52", "overview-fable-73x61", "overview-fable-108x44", "overview-fable-116x44",
@@ -221,9 +221,10 @@ var knownBreaks = []known{
 	// What's left at the foot at 73x36, every other section folded, where
 	// USAGE takes the least far step that fits whole, as it keeps its key
 	// only where it shows: six accounts stacked, their blank rows and their
-	// headings' given way, 2 rows, where those take 3 more and LATELY 5.
+	// headings' given way, 2 rows, where those take 3 more, LATELY 5, and
+	// COMING UP's short form 4 and LATELY's 3, as above.
 	{
-		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
+		byDesign: "the rows under USAGE whole, short of its step before, every folded section's least and either short form", rule: foldWithRowsSpare,
 		sizes: []string{"73x36"}, fixtures: []string{"overview-six-accounts-160"},
 	},
 	// Projects' list never hangs its form on the chosen project's data, so it

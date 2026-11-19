@@ -748,6 +748,28 @@ func TestTheLayoutChangesOnlyOnAKeyOrAResizeNeverOnItsOwn(t *testing.T) {
 			t.Errorf("%s, USAGE has given way %d steps, want %d", name, got, tt.want)
 		}
 	}
+
+	// At 116x44, a model's own week used, COMING UP and LATELY open short;
+	// the layout kept holds their short form as LATELY's lines come.
+	quiet := threeFabled()
+	told := quiet
+	told.Events = eventsOf(status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "work"}).Events
+	short := frameOf(116, 44)
+	short.Layout = short.LayoutOf(quiet, now)
+	if again := short.LayoutOf(told, now); !sameLayout(again, short.Layout) {
+		t.Errorf("as an event is told, the layout kept is made again otherwise: %+v, want %+v", again, short.Layout)
+	}
+	for name, doc := range map[string]status.Document{"as kept": quiet, "an event told, as kept": told} {
+		laid := short.laidOut(doc, now, short.top())
+		if got, want := shortened(laid), []Section{SectionComing, SectionLately}; !slices.Equal(got, want) {
+			t.Errorf("%s, %v take their short form, want %v", name, got, want)
+		}
+		for _, p := range laid {
+			if p.lists() && p.body.rows != shortLines {
+				t.Errorf("%s, %s's body takes %d rows, want its short form's %d", name, p.heading(), p.body.rows, shortLines)
+			}
+		}
+	}
 }
 
 // A session's page over the Overview hides it: LayoutOf builds none of its
