@@ -77,7 +77,7 @@ type usageBlock struct {
 // row apart, the blank rows between them gone; the blank rows under its
 // windows' headings gone too, as the blank under USAGE's heading is; and its
 // key gone too, with the blank row over it. COMING UP and LATELY have one
-// step, their short form, as listsShort has it.
+// step, givenShort, their short form, as listsShort has it.
 type giving int
 
 const (

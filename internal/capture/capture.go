@@ -445,6 +445,7 @@ var pages = []page{
 	{name: "overview-fable-phone-52", size: watch.Size{Width: 52, Height: 66}, world: accountWorlds.fable},
 	{name: "overview-fable-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.fable},
 	{name: "overview-fable-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.fable},
+	{name: "overview-fable-116x44", size: watch.Size{Width: 116, Height: 44}, world: accountWorlds.fable},
 	{name: "overview-model-nearing-160", size: wide(37), world: accountWorlds.fableNearing},
 	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
 	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("s")},

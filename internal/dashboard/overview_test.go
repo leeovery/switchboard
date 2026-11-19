@@ -416,15 +416,16 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 		{rows: 35, usage: 13},
 		{rows: 34, folds: []Section{SectionSessions}, usage: 13},
 		{rows: 28, folds: []Section{SectionSessions}, usage: 13},
-		// SESSIONS, then COMING UP and LATELY fold; they take back their
-		// short form where their least doesn't fit, then neither fits again.
+		// SESSIONS, then COMING UP and LATELY fold, neither fitting again;
+		// as the last step, they open short in the rows left blank, where
+		// their short form and the blank row before it fit.
 		{rows: 27, folds: []Section{SectionSessions}, short: lists, usage: 13},
 		{rows: 26, folds: []Section{SectionSessions}, short: lists, usage: 13},
 		{rows: 25, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
 		{rows: 23, folds: []Section{SectionSessions, SectionComing, SectionLately}, usage: 13},
 		// ROUTING folds too; it doesn't fit again, but COMING UP and LATELY,
-		// folded before it, do, where SESSIONS doesn't: at their least, then
-		// in their short form.
+		// folded before it, do, where SESSIONS doesn't; then, folded, they
+		// open short in the rows left blank.
 		{rows: 22, folds: []Section{SectionRouting, SectionSessions}, usage: 13},
 		{rows: 21, folds: []Section{SectionRouting, SectionSessions}, short: lists, usage: 13},
 		{rows: 20, folds: []Section{SectionRouting, SectionSessions}, short: lists, usage: 13},
@@ -624,12 +625,10 @@ func TestOnAPhoneCOMINGUPAndLATELYEachGrowALineAtATimeInTurnAndCOMINGUPUnfoldsAl
 		{rows: 11, coming: 5, lately: 5},
 		{rows: 14, coming: 7, lately: 6},
 		{rows: 30, coming: 9, lately: 14},
-		// LATELY in its short form, the row left over going on to COMING UP.
-		{rows: 10, coming: 6, lately: 3},
-		{rows: 9, coming: 5, lately: 3},
-		{rows: 8, coming: 6, lately: 1, latelyFold: true},
+		{rows: 10, coming: 8, lately: 1, latelyFold: true},
 		{rows: 7, coming: 5, lately: 1, latelyFold: true},
-		// COMING UP in its short form first, which never grows.
+		// Both folded, the rows left blank holding COMING UP's short form,
+		// which never grows, over LATELY's folded heading.
 		{rows: 6, coming: 3, lately: 1, latelyFold: true},
 		{rows: 5, coming: 3, lately: 1, latelyFold: true},
 		{rows: 4, coming: 1, lately: 1, comingFold: true, latelyFold: true},

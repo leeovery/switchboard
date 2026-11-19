@@ -200,11 +200,12 @@ which sections show. It decides only how much room each one gets:
   two. They close up only if that keeps a section open.
 - **Sections fold in this order:** SESSIONS, then COMING UP and LATELY, then ROUTING.
 - **A folded section opens again** wherever it fits, the last folded first.
-- **COMING UP and LATELY open short** if their heading and two lines fit, but not three lines.
-  Opened short, a section shows its first two lines straight under its heading. Side by side, both
-  open short together.
-- **Spare rows** grow the open sections, up to their full size. SESSIONS takes them first, a whole
-  session at a time.
+- **Spare rows** grow the fully open sections, up to their full size. SESSIONS takes them first, a
+  whole session at a time.
+- **Rows still blank** go to COMING UP and LATELY if they're folded. A folded section opens short
+  if the blank rows hold two of its lines. Opened short, the section shows two lines right under
+  the heading, without the blank row a fully open section has. Side by side, both sections open
+  short together.
 
 USAGE never folds. With every other section folded, it shows as many accounts as it can. It closes
 up its accounts first, then drops the blank rows under its headings, then its key. If the accounts

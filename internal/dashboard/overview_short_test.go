@@ -1,19 +1,20 @@
 package dashboard
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"testing"
 )
 
-// COMING UP and LATELY take their short form, their heading and their first
-// two lines in three rows, in the rows a fold leaves where those hold it and
-// their least doesn't fit; where even three rows aren't there, they fold.
-// Side by side, LATELY takes its short form beside COMING UP's, in the same
-// rows. Stacked, COMING UP takes it first, and LATELY opens only in what's
-// left, a blank row between them. USAGE takes 13 rows here, then a blank
-// row; neither short form ever grows.
-func TestCOMINGUPAndLATELYTakeTheirShortFormWhereTheRowsAFoldLeavesHoldIt(t *testing.T) {
+// COMING UP and LATELY, folded, open in their short form, their heading and
+// their first two lines in three rows, as the plan's last step: only in the
+// rows it leaves blank, where those hold the short form and the blank row
+// before it; where they don't, they stay folded. Side by side, LATELY takes
+// its short form beside COMING UP's, in the same rows. Stacked, COMING UP
+// takes it first, and LATELY only in what's left. USAGE takes 13 rows here,
+// then a blank row; neither short form ever grows.
+func TestCOMINGUPAndLATELYOpenShortInTheRowsThePlanLeavesBlank(t *testing.T) {
 	sections := []section{sized(SectionUsage, 13, 13), sized(SectionComing, 5, 9), sized(SectionLately, 5, 14)}
 	type shown struct {
 		rows        int
@@ -27,15 +28,15 @@ func TestCOMINGUPAndLATELYTakeTheirShortFormWhereTheRowsAFoldLeavesHoldIt(t *tes
 		last           int
 	}{
 		{name: "side by side, a row for them: folded", width: 160, rows: 15, coming: folded, lately: folded, last: 15},
-		{name: "side by side, two rows spare, short of three: folded, a row blank", width: 160, rows: 16, coming: folded, lately: folded, last: 15},
-		{name: "side by side, exactly three rows spare: their short form", width: 160, rows: 17, coming: short, lately: short, last: 17},
-		{name: "side by side, four rows spare: their short form, a row blank", width: 160, rows: 18, coming: short, lately: short, last: 17},
-		{name: "side by side, five rows spare: their least, never their short form", width: 160, rows: 19, coming: shown{rows: 5}, lately: shown{rows: 5}, last: 19},
-		{name: "stacked, both folded, no room for COMING UP's short form and the blank rows round it", width: 73, rows: 18, coming: folded, lately: folded, last: 16},
-		{name: "stacked, COMING UP's short form first, LATELY folded under it", width: 73, rows: 19, coming: short, lately: folded, last: 19},
-		{name: "stacked, COMING UP's short form, a row blank", width: 73, rows: 20, coming: short, lately: folded, last: 19},
-		{name: "stacked, COMING UP's least, never its short form", width: 73, rows: 21, coming: shown{rows: 5}, lately: folded, last: 21},
-		{name: "stacked, COMING UP's least, LATELY's short form in what's left", width: 73, rows: 23, coming: shown{rows: 5}, lately: short, last: 23},
+		{name: "side by side, a row blank, short of the two more the short form takes: folded", width: 160, rows: 16, coming: folded, lately: folded, last: 15},
+		{name: "side by side, exactly two rows blank: their short form", width: 160, rows: 17, coming: short, lately: short, last: 17},
+		{name: "side by side, three rows blank: their short form, a row blank", width: 160, rows: 18, coming: short, lately: short, last: 17},
+		{name: "side by side, their least fitting: their least, never their short form", width: 160, rows: 19, coming: shown{rows: 5}, lately: shown{rows: 5}, last: 19},
+		{name: "stacked, two rows blank, short of COMING UP's short form and the blank rows round it", width: 73, rows: 18, coming: folded, lately: folded, last: 16},
+		{name: "stacked, three rows blank: COMING UP's short form first, LATELY folded under it", width: 73, rows: 19, coming: short, lately: folded, last: 19},
+		{name: "stacked, four rows blank: COMING UP's short form, a row blank", width: 73, rows: 20, coming: short, lately: folded, last: 19},
+		{name: "stacked, COMING UP's least fitting: its least, never its short form", width: 73, rows: 21, coming: shown{rows: 5}, lately: folded, last: 21},
+		{name: "stacked, COMING UP grown into the rows LATELY's short form would take: LATELY folded", width: 73, rows: 23, coming: shown{rows: 7}, lately: folded, last: 23},
 		{name: "stacked, each at its least", width: 73, rows: 25, coming: shown{rows: 5}, lately: shown{rows: 5}, last: 25},
 	}
 	for _, tt := range tests {
@@ -59,28 +60,83 @@ func TestCOMINGUPAndLATELYTakeTheirShortFormWhereTheRowsAFoldLeavesHoldIt(t *tes
 	}
 }
 
-// The short form draws its heading, its key at its end and, where it holds
-// more lines than two, the ellipsis its folded heading has; then, straight
-// under it, its first two lines, each as the full list draws it at its
-// least, in its columns: so, with LATELY's twelve lines on auto, at 160
-// columns, COMING UP and LATELY side by
-// side, at 160x29 against 160x30, and at 73 columns COMING UP stacked, at
-// 73x36 against 73x37.
-func TestTheShortFormDrawsItsHeadingThenItsFirstTwoLinesAsItsLeastDoes(t *testing.T) {
+// The short form takes only rows the plan leaves blank, never one it gives
+// anything else: at 73x36, COMING UP stays folded and LATELY at its least,
+// where both short would take its rows; at 73x40, COMING UP grows to six
+// lines, LATELY folded; at 160x31 with every section, SESSIONS shows a
+// session and how many more, COMING UP and LATELY folded; and where USAGE
+// gives way further, a model's own week used, at 108x35, every other
+// section folded, they open short in the rows its step leaves at the foot.
+func TestTheShortFormTakesOnlyTheRowsThePlanLeavesBlank(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
-	doc = withEvents(doc, onAuto()...)
-	drawn := func(width, height int) []string {
-		f := Frame{Width: width, Height: height, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream}
-		return textOf(f.Draw(doc, routedAt))
+	tests := []struct {
+		name          string
+		width, height int
+		shown         Sections
+		fable         bool
+		rows          map[Section]int
+		folds, short  []Section
+	}{
+		{
+			name: "73x36", width: 73, height: 36,
+			rows:  map[Section]int{SectionUsage: 20, SectionRouting: 1, SectionComing: 1, SectionLately: 5},
+			folds: []Section{SectionRouting, SectionComing},
+		},
+		{
+			name: "73x40", width: 73, height: 40,
+			rows:  map[Section]int{SectionUsage: 20, SectionRouting: 1, SectionComing: 8, SectionLately: 1},
+			folds: []Section{SectionRouting, SectionLately},
+		},
+		{
+			name: "160x31, every section", width: 160, height: 31, shown: every,
+			rows:  map[Section]int{SectionUsage: 11, SectionRouting: 6, SectionSessions: 4, SectionComing: 1, SectionLately: 1},
+			folds: []Section{SectionComing, SectionLately},
+		},
+		{
+			name: "108x35, a model's own week used", width: 108, height: 35, fable: true,
+			rows:  map[Section]int{SectionUsage: 23, SectionRouting: 1, SectionComing: 3, SectionLately: 3},
+			folds: []Section{SectionRouting}, short: []Section{SectionComing, SectionLately},
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: tt.height, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream, Sections: tt.shown}
+			laid := f.laidOut(doc, routedAt, 0)
+			if tt.fable {
+				f = frameOf(tt.width, tt.height)
+				laid = f.laidOut(threeFabled(), now, 0)
+			}
+			if got := rowsGiven(laid); !maps.Equal(got, tt.rows) {
+				t.Errorf("the sections take %v, want %v", got, tt.rows)
+			}
+			if got := folds(laid); !slices.Equal(got, tt.folds) {
+				t.Errorf("%v fold, want %v", got, tt.folds)
+			}
+			if got := shortened(laid); !slices.Equal(got, tt.short) {
+				t.Errorf("%v take their short form, want %v", got, tt.short)
+			}
+		})
+	}
+}
+
+// The short form draws its heading, its key at its end and, where it holds
+// more lines than two, the ellipsis its folded heading has, else nothing;
+// then, straight under it, its first two lines as the list draws two. With a
+// model's own week used, COMING UP has more than two things and LATELY none,
+// and its third thing's time is no wider than the first two's, so its lines
+// read as its least's first two: side by side at 116x44 against 116x41, and
+// COMING UP stacked at 73x43 against 73x45.
+func TestTheShortFormDrawsItsHeadingThenItsFirstTwoLines(t *testing.T) {
+	doc := threeFabled()
+	drawn := func(width, height int) []string { return textOf(frameOf(width, height).Draw(doc, now)) }
 	tests := []struct {
 		name         string
 		width        int
 		short, least int
-		headings     []string
+		holds, lacks []string
 	}{
-		{name: "side by side", width: 160, short: 29, least: 30, headings: []string{"COMING UP   … ─", "LATELY   … ─"}},
-		{name: "stacked", width: 73, short: 36, least: 37, headings: []string{"COMING UP   … ─"}},
+		{name: "side by side", width: 116, short: 44, least: 41, holds: []string{"COMING UP   … ─", "─ c ", "LATELY  ─"}, lacks: []string{"LATELY   …"}},
+		{name: "stacked", width: 73, short: 43, least: 45, holds: []string{"COMING UP   … ─", "─ c "}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,13 +148,16 @@ func TestTheShortFormDrawsItsHeadingThenItsFirstTwoLinesAsItsLeastDoes(t *testin
 			if s < 0 || l < 0 {
 				t.Fatalf("COMING UP's heading isn't drawn: at row %d short, %d at its least", s, l)
 			}
-			for _, heading := range tt.headings {
-				if !strings.Contains(short[s], heading) {
-					t.Errorf("the short form's heading reads %q, want it to hold %q", short[s], heading)
+			heading := short[s] + " "
+			for _, holds := range tt.holds {
+				if !strings.Contains(heading, holds) {
+					t.Errorf("the short form's heading reads %q, want it to hold %q", short[s], holds)
 				}
 			}
-			if !strings.Contains(short[s]+" ", "─ c ") {
-				t.Errorf("the short form's heading reads %q, want COMING UP's key, c, at its end", short[s])
+			for _, lacks := range tt.lacks {
+				if strings.Contains(heading, lacks) {
+					t.Errorf("the short form's heading reads %q, want it without %q", short[s], lacks)
+				}
 			}
 			if got, want := short[s+1:s+1+shortLines], least[l+sectionHead:l+sectionHead+shortLines]; !slices.Equal(got, want) {
 				t.Errorf("the short form's lines read\n  %q\nwant the least's first two\n  %q", got, want)
@@ -117,7 +176,7 @@ func TestTheShortFormsHeadingSaysItHoldsMoreOnlyWhereItDoes(t *testing.T) {
 			lines int
 			want  string
 		}{{lines: 0}, {lines: 2}, {lines: 3, want: "…"}, {lines: 12, want: "…"}} {
-			short := listsShort(section{Section: s, lines: func() int { return tt.lines }}).leaned(givenNone + 1)
+			short := listsShort(section{Section: s, lines: func() int { return tt.lines }}).leaned(givenShort)
 			if got := f.says(planned{section: short}, f.Width).plain(); got != tt.want {
 				t.Errorf("%s in its short form, holding %d lines, says %q after its name, want %q", s.heading(), tt.lines, got, tt.want)
 			}

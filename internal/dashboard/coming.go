@@ -41,13 +41,18 @@ func comingLeast(name int) int {
 // shortLines are the lines COMING UP and LATELY show in their short form.
 const shortLines = 2
 
-// listsShort is s, COMING UP or LATELY, with its short form, the one step it
-// has short of its least, as its leaner and leaned have it: the rung between
-// folded and its least, which the rows a fold leaves may hold where its
-// least doesn't fit. It takes its heading, with no blank row under it, and
-// its first shortLines lines, drawn as at its least, in as many rows and
-// its heading's; its heading saying, where it holds more lines than those,
-// that it has more, as its folded heading does.
+// givenShort is the one step COMING UP and LATELY have short of their
+// least: their short form.
+const givenShort = givenNone + 1
+
+// listsShort is s, COMING UP or LATELY, with its short form, its one step
+// short of its least, givenShort, as its leaner and leaned have it: the rung
+// between folded and its least, which a folded section opens in where the
+// rows the plan leaves blank hold it, as shorten has it. It takes its
+// heading, with no blank row under it, and its first shortLines lines,
+// drawn as its body draws as many, in as many rows and its heading's; its
+// heading saying, where it holds more lines than those, that it has more,
+// as its folded heading does.
 func listsShort(s section) section {
 	short := s
 	short.heads = 1

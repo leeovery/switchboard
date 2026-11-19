@@ -115,11 +115,7 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 			settle: func(f *Frame) { f.Fresh = map[int]float64{1: 0.5} },
 		},
 		{
-			name: "an event fresh, its row on screen in LATELY's short form", f: frameOf(160, 28), doc: news, at: now, want: true,
-			settle: func(f *Frame) { f.Fresh = map[int]float64{2: 0.5} },
-		},
-		{
-			name: "an event fresh, LATELY folded", f: frameOf(160, 27), doc: news, at: now,
+			name: "an event fresh, LATELY folded", f: frameOf(160, 28), doc: news, at: now,
 			settle: func(f *Frame) { f.Fresh = map[int]float64{2: 0.5} },
 		},
 	}
