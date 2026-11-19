@@ -8,11 +8,12 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 )
 
-// joinedKept is how long the record of the pools an account has been in
-// keeps the pool it was in after it left: longer than the two days of the
-// readings history seed takes up, so the pool each reading it reads back was
-// read in is known.
-const joinedKept = 3 * 24 * time.Hour
+// joinedKept is how many of the pools an account joined its record keeps,
+// the latest: enough for every move the days of the readings history seed
+// takes up can hold. It's a count, not a time, as those days are the two
+// newest with a file, which a quiet day or a router stopped for days can
+// leave of any age.
+const joinedKept = 4
 
 // poolJoined is a pool an account joined, by the pool's id, "" being the one
 // pool there is in a config from before pools, and when it joined it.
@@ -49,14 +50,10 @@ func (js poolsJoined) joining(pool string, at time.Time) poolsJoined {
 	return append(js, poolJoined{Pool: pool, Since: at})
 }
 
-// pruned returns js without the pools the account left more than joinedKept
-// before now, its last always kept.
-func (js poolsJoined) pruned(now time.Time) poolsJoined {
-	i := 0
-	for i < len(js)-1 && now.Sub(js[i+1].Since) > joinedKept {
-		i++
-	}
-	return js[i:]
+// pruned returns the last joinedKept of js, the pools the account joined
+// latest.
+func (js poolsJoined) pruned() poolsJoined {
+	return js[max(len(js)-joinedKept, 0):]
 }
 
 // joinPools has the record of the pools each account has been in, as the
@@ -68,13 +65,12 @@ func (js poolsJoined) pruned(now time.Time) poolsJoined {
 func (s *state) joinPools(at time.Time) (changed bool) {
 	for _, a := range s.accounts {
 		was := s.joined[a.ID]
-		kept := was.pruned(at)
-		js := kept
+		js := was
 		if pool, in := s.grouped.in(a.ID); in {
 			js = js.joining(pool, at)
 		}
-		if len(kept) != len(was) || len(js) != len(kept) {
-			s.joined[a.ID], changed = js, true
+		if kept := js.pruned(); len(js) != len(was) || len(kept) != len(js) {
+			s.joined[a.ID], changed = kept, true
 		}
 	}
 	return changed
@@ -85,14 +81,19 @@ func (s *state) joinPools(at time.Time) (changed bool) {
 // configured, each in the order its pools were joined, and has it take in the
 // pools as they stand, at now, as joinPools does, so an account moved while
 // the router was down joined its pool as the router starts. It reports
-// whether the record taken in differs from the one kept. s.mu must be held.
+// whether the record taken in differs from the one kept, as one kept out of
+// order does. s.mu must be held.
 func (s *state) recallJoined(kept map[string]poolsJoined, now time.Time) (changed bool) {
+	bySince := func(a, b poolJoined) int { return a.Since.Compare(b.Since) }
 	for id, js := range kept {
 		if _, configured := s.usage[id]; !configured {
 			changed = true
 			continue
 		}
-		s.joined[id] = slices.SortedStableFunc(slices.Values(js), func(a, b poolJoined) int { return a.Since.Compare(b.Since) })
+		if !slices.IsSortedFunc(js, bySince) {
+			changed = true
+		}
+		s.joined[id] = slices.SortedStableFunc(slices.Values(js), bySince)
 	}
 	return s.joinPools(now) || changed
 }

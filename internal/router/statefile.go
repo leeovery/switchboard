@@ -189,10 +189,10 @@ type savedUsage struct {
 	// or with one of a shape it doesn't know, holds the curve of no answers,
 	// as forecast.Hold reads it.
 	Hold forecast.Hold `json:"hold,omitzero"`
-	// PoolsJoined are the pools each account has been in lately, by the
-	// account's id, each with when it joined, oldest first. A file without
-	// them, as from before they were kept, records none, and each account
-	// joins the pool it's in as the router starts.
+	// PoolsJoined are the pools each account joined latest, joinedKept at
+	// most, by the account's id, each with when it joined, oldest first. A
+	// file without them, as from before they were kept, records none, and
+	// each account joins the pool it's in as the router starts.
 	PoolsJoined map[string]poolsJoined `json:"pools_joined,omitempty"`
 }
 

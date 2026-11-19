@@ -132,36 +132,32 @@ func TestTheRecordOfAnAccountsPoolsGivesThePoolItWasInAtAMoment(t *testing.T) {
 	}
 }
 
-func TestTheRecordOfAnAccountsPoolsKeepsThePoolInForceThreeDaysBack(t *testing.T) {
-	now := start.Add(10 * 24 * time.Hour)
+func TestTheRecordOfAnAccountsPoolsKeepsItsLatestFour(t *testing.T) {
 	day := 24 * time.Hour
 	tests := []struct {
-		name  string
-		since []time.Duration
+		name string
+		// joined is how many pools the account joined, a day apart, the
+		// first a year ago.
+		joined int
 		// want are the indexes of the entries kept.
 		want []int
 	}{
-		{name: "the one entry, however old", since: []time.Duration{-9 * day}, want: []int{0}},
-		{name: "one taken over more than three days ago goes", since: []time.Duration{-9 * day, -4 * day}, want: []int{1}},
-		{name: "one taken over three days ago exactly stays", since: []time.Duration{-9 * day, -3 * day}, want: []int{0, 1}},
-		{name: "one taken over within three days stays", since: []time.Duration{-9 * day, -2 * day}, want: []int{0, 1}},
-		{
-			name:  "of several, those taken over more than three days ago go, the one in force three days back stays",
-			since: []time.Duration{-9 * day, -8 * day, -5 * day, -2 * day, -time.Hour},
-			want:  []int{2, 3, 4},
-		},
-		{name: "the last, however old, stays", since: []time.Duration{-9 * day, -8 * day, -5 * day}, want: []int{2}},
+		{name: "none", joined: 0, want: nil},
+		{name: "one, however old", joined: 1, want: []int{0}},
+		{name: "four, however old", joined: 4, want: []int{0, 1, 2, 3}},
+		{name: "five, the oldest goes", joined: 5, want: []int{1, 2, 3, 4}},
+		{name: "seven, the oldest three go", joined: 7, want: []int{3, 4, 5, 6}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var js, want poolsJoined
-			for i, d := range tt.since {
-				js = append(js, poolJoined{Pool: string(rune('a' + i)), Since: now.Add(d)})
+			for i := range tt.joined {
+				js = append(js, poolJoined{Pool: string(rune('a' + i)), Since: start.Add(-365*day + time.Duration(i)*day)})
 			}
 			for _, i := range tt.want {
 				want = append(want, js[i])
 			}
-			if got := js.pruned(now); !reflect.DeepEqual(got, want) {
+			if got := js.pruned(); !reflect.DeepEqual(got, want) {
 				t.Errorf("pruned = %+v, want %+v", got, want)
 			}
 		})
@@ -247,20 +243,21 @@ func TestLoadingTheRecordOfTheAccountsPools(t *testing.T) {
 			wantSaved: true,
 		},
 		{
-			name:      "a pool left more than three days ago goes",
-			kept:      map[string]poolsJoined{"work": joins([]string{acmePool, defaultPool}, start, now.Add(-4*24*time.Hour))},
-			want:      joins([]string{defaultPool}, now.Add(-4*24*time.Hour)),
+			name:      "of five pools kept, the oldest goes",
+			kept:      map[string]poolsJoined{"work": joins([]string{acmePool, defaultPool, acmePool, "x4pz", defaultPool}, start, start.Add(time.Hour), start.Add(2*time.Hour), start.Add(3*time.Hour), start.Add(4*time.Hour))},
+			want:      joins([]string{defaultPool, acmePool, "x4pz", defaultPool}, start.Add(time.Hour), start.Add(2*time.Hour), start.Add(3*time.Hour), start.Add(4*time.Hour)),
 			wantSaved: true,
 		},
 		{
-			name: "a pool left within three days stays",
-			kept: map[string]poolsJoined{"work": joins([]string{acmePool, defaultPool}, start, now.Add(-time.Hour))},
-			want: joins([]string{acmePool, defaultPool}, start, now.Add(-time.Hour)),
+			name: "four pools kept, however old, stay",
+			kept: map[string]poolsJoined{"work": joins([]string{acmePool, defaultPool, acmePool, defaultPool}, start, start.Add(time.Hour), start.Add(2*time.Hour), start.Add(3*time.Hour))},
+			want: joins([]string{acmePool, defaultPool, acmePool, defaultPool}, start, start.Add(time.Hour), start.Add(2*time.Hour), start.Add(3*time.Hour)),
 		},
 		{
-			name: "pools kept out of order are taken in the order joined",
-			kept: map[string]poolsJoined{"work": {{Pool: defaultPool, Since: now.Add(-time.Hour)}, {Pool: acmePool, Since: now.Add(-2 * time.Hour)}}},
-			want: joins([]string{acmePool, defaultPool}, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+			name:      "pools kept out of order are taken in the order joined",
+			kept:      map[string]poolsJoined{"work": {{Pool: defaultPool, Since: now.Add(-time.Hour)}, {Pool: acmePool, Since: now.Add(-2 * time.Hour)}}},
+			want:      joins([]string{acmePool, defaultPool}, now.Add(-2*time.Hour), now.Add(-time.Hour)),
+			wantSaved: true,
 		},
 		{
 			name:      "an account kept in another pool than it's in now joins its pool as the router starts",
@@ -468,6 +465,10 @@ func TestARestartCountsEachReadingInThePoolTheRecordPlacesItsAccountIn(t *testin
 			name:  "one in the pool before pools, in the first",
 			pools: testPools, joined: joins([]string{"", acmePool}, start.Add(-time.Hour), now), want: defaultPool,
 		},
+		{
+			name:  "one in a pool spelt in another case, in the pool as the config spells it",
+			pools: testPools, joined: joins([]string{"Q7MT", defaultPool}, start.Add(-time.Hour), now), want: acmePool,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -486,8 +487,8 @@ func TestARestartCountsEachReadingInThePoolTheRecordPlacesItsAccountIn(t *testin
 				}
 			}
 			for pool := range r.state.days {
-				if !r.state.grouped.within(pool) {
-					t.Errorf("seed made a day rate of pool %q, which isn't configured", pool)
+				if !slices.Contains(r.state.grouped.each(), pool) {
+					t.Errorf("seed made a day rate of pool %q, which isn't configured as spelt", pool)
 				}
 			}
 		})

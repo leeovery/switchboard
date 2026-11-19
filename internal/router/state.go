@@ -293,7 +293,7 @@ type state struct {
 	grouped *poolTable
 	sizes   map[string]float64
 	days    map[string]forecast.Day
-	// joined holds, by id, the pools each account has been in lately, as
+	// joined holds, by id, the pools each account joined latest, as
 	// joinPools records them, which the state file keeps, so seed takes up
 	// each reading in the pool its account was in as it was read.
 	joined map[string]poolsJoined

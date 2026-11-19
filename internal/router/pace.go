@@ -59,13 +59,12 @@ func (u *usage) forgetRates(key string) {
 // joined another pool or an account's read refused began to hold it, as
 // judgedAlso has them, where the history read anything before it, as
 // judgeSeeded says, each pool by the accounts in it then: the readings
-// history holds each
-// change of a window's use, so its trail, baseline included, is as it was,
-// and its rates outlast a restart. A window the account doesn't hold, as one
-// its answers no longer report, keeps no trail nor fast rate, and nor does
-// one whose reading, as the state file kept it, has another reset than its
-// readings last read, as when it has reset since. It returns how many
-// readings the trails keep.
+// history holds each change of a window's use, so its trail, baseline
+// included, is as it was, and its rates outlast a restart. A window the
+// account doesn't hold, as one its answers no longer report, keeps no trail
+// nor fast rate, and nor does one whose reading, as the state file kept it,
+// has another reset than its readings last read, as when it has reset since.
+// It returns how many readings the trails keep.
 func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	read := slices.Collect(history)
 	s.mu.Lock()
