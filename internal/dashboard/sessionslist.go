@@ -25,9 +25,10 @@ const (
 // The List's columns' widths, in cells: a session's directory's least, as
 // the Overview's SESSIONS cuts it; the session's least, listProjectLeast
 // cells of its project, as the List cuts one before its name, and as many
-// of its name as the dashboard shows of an id; its natural, a project and a
-// name of listNameMost cells each, either taking what the other leaves; and
-// the most on's least takes, where the widest name is wider.
+// of its name as the dashboard shows of an id; its natural at its most, a
+// project and a name of listNameMost cells each, either taking what the
+// other leaves; and the most on's least takes, where the widest name is
+// wider.
 const (
 	listDirLeast     = 6
 	listProjectLeast = 6
@@ -99,7 +100,9 @@ type listNaturals struct {
 
 // listParts are the List's columns as flex lays them, listGap apart, each
 // from its least to its natural, holding its natural until it narrows in its
-// turn: on's natural as given, its least that, listOnLeast at the most;
+// turn: the session's natural its project and name whole, as sessionNatural
+// has it of sessionWhole; on's natural as given, its least that,
+// listOnLeast at the most;
 // model, started and worth whole wherever they show, their leasts and
 // naturals the widest given where it's past their own, so routing never
 // shows, nor the session grows past its least, beside one cut; and routing
@@ -115,6 +118,7 @@ func listParts(n listNaturals) []flex.Part {
 			Narrows: facts.narrows, Leaves: facts.leaves, Gap: listGap,
 		}
 	}
+	parts[listSession].Natural = sessionNatural(sessionWhole(n))
 	parts[listOn].Least, parts[listOn].Natural = min(n.on, listOnLeast), n.on
 	for p, widest := range map[listPart]int{listModel: n.model, listStarted: n.started, listWorth: n.worth} {
 		parts[p].Least = max(parts[p].Least, widest)
@@ -135,12 +139,12 @@ type listColumn struct {
 // wide, of the naturals given, on's at least its head's, in two passes of
 // flex, as the Log's Requests are: the first decides which of listParts
 // show; the second lays out only those, as flex's Decided has them, so
-// what's past the leasts goes to the session first, then on, in the row's
-// order. In the second, the session grows past its natural to its project
-// and name whole, as sessionWhole has them, before routing takes what's
-// left, so no name is cut where the row has room; where routing's left, on
-// is raised to its whole first, and the session takes what's left past its
-// natural itself, so the columns after it end at the row's end.
+// what's past the leasts goes to the session first, to its natural, then on,
+// to its whole, in the row's order. In the second, the session grows past
+// its natural to its project and name whole, as sessionWhole has them,
+// before routing takes what's left, so no name is cut where the row has
+// room; where routing's left, the session takes what's left itself, so the
+// columns after it end at the row's end.
 func listColumnsOf(width int, n listNaturals) []listColumn {
 	room := width - listFrom
 	n.on = max(n.on, ansi.StringWidth(listPartFacts[listOn].head))
@@ -154,15 +158,7 @@ func listColumnsOf(width int, n listNaturals) []listColumn {
 		if !ok {
 			continue
 		}
-		switch listPart(p) {
-		case listOn:
-			// What on gave up in the first pass, to keep worth or started, it
-			// takes back only where routing has left, as the session would
-			// take it otherwise.
-			if !routingLeft {
-				part.Natural = span.Size
-			}
-		case listSession:
+		if listPart(p) == listSession {
 			part.Grows, part.Most = true, max(part.Natural, sessionWhole(n))
 			if routingLeft {
 				part.Most = 0
@@ -182,6 +178,13 @@ func sessionWhole(n listNaturals) int {
 		return n.name
 	}
 	return n.project + 1 + n.name
+}
+
+// sessionNatural is the session column's natural, of the cells its widest
+// is whole: those, at least listSessionLeast and at most listSessionWhole,
+// so a log of short names leaves the other columns its cells.
+func sessionNatural(whole int) int {
+	return min(listSessionWhole, max(whole, listSessionLeast))
 }
 
 // columnsAt are the columns of the kinds given where the spans given lay

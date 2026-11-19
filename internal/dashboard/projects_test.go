@@ -3,6 +3,7 @@ package dashboard
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -541,13 +542,17 @@ func TestSessionsColumnsGiveWayInTheirOrder(t *testing.T) {
 }
 
 // SESSIONS fills the width at every width from the phone's, of short
-// account names and long: the session's column takes every cell past the
-// others' naturals, so the last column ends at the frame's edge; it grows
-// past its whole only beside on whole; and wherever every column shows, each
-// other keeps its width, as at 220, flush to the right (the owner's call, 19
-// November 2026).
+// account names and long, 5b19 on side: the session's column takes every
+// cell past the others' naturals, so the last column ends at the frame's
+// edge; its natural is its least, 11, as its names, by their ids, are
+// shorter, and it grows past that only beside on whole; and wherever every
+// column shows, each other but on keeps its width, as at 220, flush to the
+// right, on narrowing toward its least to keep them, as the List's does
+// (the owner's call, 19 November 2026).
 func TestSessionsFillsTheWidthItsSessionColumnTakingTheSpare(t *testing.T) {
-	page := chosenPage(chosenSessions())
+	sessions := chosenSessions()
+	sessions[1].Account = "side"
+	page := chosenPage(sessions)
 	for name, doc := range map[string]status.Document{"short names": framedDoc(nil, nil), "long names": longListDoc()} {
 		t.Run(name, func(t *testing.T) {
 			words := sessionWords{m: frameOf(173, 53).Moment(doc, routedAt), now: routedAt}
@@ -560,17 +565,59 @@ func TestSessionsFillsTheWidthItsSessionColumnTakingTheSpare(t *testing.T) {
 				if last := columns[len(columns)-1]; last.x+last.width != width {
 					t.Errorf("at %d SESSIONS' last column ends at %d, want the frame's edge: %+v", width, last.x+last.width, columns)
 				}
-				if columns[0].width > listSessionWhole && columns[1].width != widest[listOn] {
+				if columns[0].width > listSessionLeast && columns[1].width != widest[listOn] {
 					t.Errorf("at %d SESSIONS' session is %d cells beside on cut to %d, want on whole, %d, first", width, columns[0].width, columns[1].width, widest[listOn])
 				}
 				if len(columns) < len(projectColumns) {
 					continue
 				}
-				for _, c := range columns[1:] {
+				for _, c := range columns[2:] {
 					if c.width != widest[c.part] {
 						t.Errorf("at %d SESSIONS' %s is %d cells, want %d, as at 220", width, c.head(), c.width, widest[c.part])
 					}
 				}
+			}
+		})
+	}
+}
+
+// Of short sessions, named by their ids, and 5b19 on side-hustle-consulting,
+// 22 cells, SESSIONS holds on whole at 85, model left, and at 104 and 108,
+// the session taking the cells left past its least.
+func TestSessionsHoldsALongAccountWholeBesideShortSessions(t *testing.T) {
+	sessions := chosenSessions()
+	sessions[1].Account = "side"
+	page := chosenPage(sessions)
+	tests := []struct {
+		width     int
+		heads, on string
+	}{
+		{
+			width: 85,
+			heads: "  session      on                      state        started          requests   worth",
+			on:    "  5b19         side-hustle-consulting  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			width: 104,
+			heads: "  session               on                      model     state        started          requests   worth",
+			on:    "  5b19                  side-hustle-consulting  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			width: 108,
+			heads: "  session                   on                      model     state        started          requests   worth",
+			on:    "  5b19                      side-hustle-consulting  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
+			f := projectsFrame(t, tt.width, 60, projectRows(3), 0, &page)
+			rows := textOf(f.page(longListDoc(), routedAt).rows(Look{}))
+			heads := rowWith(rows, "SESSIONS") + 1
+			if rows[heads] != tt.heads {
+				t.Errorf("SESSIONS' heads read\n%q\nwant\n%q", rows[heads], tt.heads)
+			}
+			if got := rows[rowWith(rows, "  5b19 ")]; got != tt.on {
+				t.Errorf("5b19's row reads\n%q\nwant\n%q", got, tt.on)
 			}
 		})
 	}
