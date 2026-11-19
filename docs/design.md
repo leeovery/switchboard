@@ -563,7 +563,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
     router starts, and posts nothing, as its news is old: its `since` when it began, which its
     card gives as `held since`, and its `at` the same, but no earlier than the event files take an
     event back, 7 days before now; with no `status`, as nothing kept the read's answer. One whose
-    start the state file doesn't give is filed at now, with no `since`. A router taken back to a
+    start the state file doesn't give is filed at the end of its last read; with neither, at now,
+    with no `since`. A router taken back to a
     version from before and then upgraded again tells such a hold a second time, a second row
     with no notification: accepted, as a router from before keeps no `held_told`. A hold told
     before a restart, whose account's token changed while the router was down, was lifted by the
@@ -10992,23 +10993,22 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
     into unchecked, and a refusal is told of once, of the files it was given. `service restart`
     still restarts at once, without waiting for a quiet moment, but is refused, to be tried again,
     where either file changed as it checked, naming which.
-  - **While it's held,** the router carries on as it is, and says why once: at `warn` in its log,
-    in a `restart` event with `held` (see The router's events), and in the status document's
+  - **While it's put off,** the router carries on as it is, and says why once: at `warn` in its
+    log, in a `restart` event with `held` (see The router's events), and in the status document's
     `restart`, `held` (see The status document), which `status`, the status line, LATELY and the
-    Log word as put off. A restart that falls due again while the refusal holds, as when a config
-    change's config file has been gone a while and comes back as it was, is told of held too, with
-    no second
-    warning. It asks again only once the config file or the binary moves on, there and
-    another file or changed, never at a look, so a config put right is taken up, and a newer
-    binary is too. A path that leads nowhere for a moment, as `brew` moves the binary's link on or
-    an editor saves the config, hasn't moved on: lifting the hold then would ask a binary that
-    isn't there, which can't answer, and restart into the one that refused. `service restart`
+    Log word as put off. A restart that falls due again while the refusal stands, as when a
+    config change's config file has been gone a while and comes back as it was, is told of as put
+    off too, with no second warning. It asks again only once the config file or the binary moves
+    on, there and another file or changed, never at a look, so a config put right is taken up,
+    and a newer binary is too. A path that leads nowhere for a moment, as `brew` moves the
+    binary's link on or an editor saves the config, hasn't moved on: asking again then would ask
+    a binary that isn't there, which can't answer, and restart into the one that refused. `service restart`
     meanwhile is refused with the binary's reason. The CLI the user runs is that newer binary, and
     can't read the config either: `status`, as text or JSON, shows the router's document while the
-    router answers, its restart held, then fails with the config's error, which it fails with
+    router answers, its restart put off, then fails with the config's error, which it fails with
     alone where the router doesn't answer, or with `--probe`, which needs the config; `usage` and a
     dashboard opened then fail on the config; and each `claude` started meanwhile is routed
-    through the held router all the same, on the accounts the router's document names, saying on
+    through the router all the same, on the accounts the router's document names, saying on
     stderr that the config can't be read, as for any config it can't read while the router
     answers, and starts unaided only where the router doesn't answer, until the config is put
     right (see Launching's Without the config; the owner's call, 9 November 2026).

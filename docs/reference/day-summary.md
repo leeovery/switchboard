@@ -122,14 +122,14 @@ the first pool in the config.
 ## Accounts without requests keep a pool
 
 ```bash
-jq '.accounts[] | {account, pool, minutes_at_cap}' day-2026-11-12.json
+jq '.accounts[] | {account, pool}' \
+  day-2026-11-12.json
 ```
 
 ```json
 {
   "account": "work",
-  "pool": "q7mt",
-  "minutes_at_cap": 95
+  "pool": "q7mt"
 }
 ```
 
@@ -141,8 +141,8 @@ spent capped there after the account moves on.
 - **Fixed for good.** A day summarised again keeps the `pool` it named first. A day that named
   none gets one only from an import.
 - **A move on the day, or before the router first summarises it,** files the day under the new
-  pool. This happens, for example, if the router moved the account because it's capped, or if you
-  moved the account while the router was stopped.
+  pool. This happens, for example, if you moved the account that morning, or while the router was
+  stopped.
 - **Older days name none.** A day first summarised by v1.0.1 or earlier has no `pool` for such an
   account. It shows in the pool the account is in now.
 - **Older releases** pass over this `pool`, and drop it if they summarise the day again. The
@@ -150,7 +150,8 @@ spent capped there after the account moves on.
 - **Imports** rename this `pool` the same way as the pool of a worked day. The summary that the day
   keeps gets the `pool` that either Mac recorded for each account without requests. If both Macs
   recorded one for an account, the summary that the day keeps decides. If only one Mac recorded a
-  `pool`, the day gets that `pool`.
+  `pool`, the day gets that `pool`. A day this Mac holds requests of, but hasn't summarised yet,
+  takes nothing from the import: its first summary places such accounts by this Mac's pools.
 
 ## Which accounts get a day
 

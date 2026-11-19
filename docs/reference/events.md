@@ -92,7 +92,7 @@ Once the move is done, an event of these kinds without a pool is in the first po
 | Field | Type | Meaning |
 |---|---|---|
 | `reason` | string | Why. See below. |
-| `held` | string | On `restart` only, why the binary the router would become refuses to start. That puts off the restart. |
+| `held` | string | On `restart` only, why the binary the router would become refuses to start. That puts off the restart. It isn't a [hold](../glossary.md). |
 | `windows` | list of strings | The keys of the windows the event is of. |
 | `joined` | object | On `limit` or `cap`, when each window joined it after it began, by key. |
 | `until` | time | When a limit, cap, refusal or hold ends, or a window runs out or resets. |
@@ -120,9 +120,10 @@ Once the move is done, an event of these kinds without a pool is in the first po
 - **A hold from before this event existed** gets a `held` event once, when the router first starts
   on a version that tells holds. No notification goes out. The event's `since` is when the hold
   began. The event's `at` is the same, but no more than 7 days back, so the event files can take
-  it. Such an event has no `status`, because nothing kept the read's answer. If the state file
-  doesn't say when the hold began, the event has no `since`, and its `at` is when the router
-  started.
+  it. Such an event has no `status`, because nothing kept the read's answer.
+- **A hold from before with no start kept** takes `since` and `at` from when the account's last
+  read ended. With neither in the state file, the event has no `since`, and `at` is when the
+  router started.
 
 ## Counts and settings
 
