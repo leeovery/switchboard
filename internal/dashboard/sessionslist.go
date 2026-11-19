@@ -70,7 +70,8 @@ const (
 )
 
 // listPartFacts are each column's head; its least and its natural, 0 for
-// its least, on's both placeholders for the widest name, and model's,
+// its least, on's both placeholders for the widest name, the session's
+// natural a placeholder for its project and name whole, and model's,
 // started's and worth's each raised to its widest said, as listParts gives
 // them; how its words sit; and the turns it narrows and leaves in, 0 never.
 var listPartFacts = [...]struct {

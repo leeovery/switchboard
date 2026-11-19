@@ -5846,17 +5846,16 @@ tall, narrow screen, its SESSIONS filling the width.
   cells); its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
   and its date, each session's state its end by the clock alone and its start, where it began on
   another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the
-  widest each says of all
-  the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
-  as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
-  each frame. Past its rows, its last says how many sessions are out of view, as the List's row
-  over the key line does, but only where that leaves its page four rows, a rule over each of two
-  sessions, so it never costs a session at SESSIONS' least, however far it's scrolled. Where
-  rows run shorter than its least, a page of one line shows no rule, a rule showing only with the
-  session under it, and where no line fits, SESSIONS shows nothing, its heading never alone. BY
-  MODEL draws a version as Compare's BY MODEL does, ON ACCOUNTS its names as Detail's column of
-  names, marks and all. The chosen row is lit where `↑` and `↓` act, in the list or SESSIONS, the
-  other's bold, marked `▸`, a bar's own surface kept.
+  widest each says of all the project's sessions, so they hold still as it scrolls; the ended
+  sessions are measured once, as the watch builds the project's page (`dashboard.MeasureSessions`),
+  and only those running at each frame. Past its rows, its last says how many sessions are out of
+  view, as the List's row over the key line does, but only where that leaves its page four rows, a
+  rule over each of two sessions, so it never costs a session at SESSIONS' least, however far it's
+  scrolled. Where rows run shorter than its least, a page of one line shows no rule, a rule showing
+  only with the session under it, and where no line fits, SESSIONS shows nothing, its heading never
+  alone. BY MODEL draws a version as Compare's BY MODEL does, ON ACCOUNTS its names as Detail's
+  column of names, marks and all. The chosen row is lit where `↑` and `↓` act, in the list or
+  SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days before today, read off the update loop once
   Projects or Sessions' List first shows, one read serving both, from the period's first day, and
   again only where the dial reaches further back; and today's, folded off the loop at every read of
@@ -6287,11 +6286,11 @@ each at least its least and at most its natural, but `session`, which grows wher
   as much of its id as tells it from the others, its first 4 characters at the least, as `Named`
   names sessions among themselves. A twin's id is as long as that too. It's one owner, in `views`
   (`views.toldApart`, as the rows are made, setting `PeriodSession.Twinned` and `IDCells`).
-- **The project's column:** the List's projects take a column of their own within `session`, as
-  wide as the widest project of the log, measured as `started` is so it holds still as the List
-  scrolls, but cut to leave the widest name whole, up to 14 cells of it, at its least 6, so the
-  names line up; one long name is cut rather than cut every project. Within `session`'s 29 cells
-  at most, a short project leaves the name more.
+- **The project's column:** the List's projects take a column of their own within `session`, as wide
+  as the widest project of the log, measured as `started` is so it holds still as the List scrolls,
+  but cut to leave the widest name whole, up to 14 cells of it, at its least 6, so the names line
+  up; one long name is cut rather than cut every project. Within `session`'s natural, 29 cells at
+  most, a short project leaves the name more.
 - **The tree:** every Nerd Font glyph goes through one owner (`dashboard.nerdFont`), which gives
   what stands in for it without one: here, nothing, the name plain, as a font without the glyph
   draws a box.
@@ -6331,10 +6330,10 @@ each at least its least and at most its natural, but `session`, which grows wher
   rest. Of a shorter log, every column comes back sooner: of d28c alone, `switchboard d28c`, 16
   cells, with names of 8 cells, `started` comes back at 79, `worth` at 88 and `routing` at 114. A
   name over 14 cells is cut only where the row can't hold it beside the columns shown: beside a
-  session of 8 cells, `side-hustle-consulting` is cut at 85 and 90, keeping `started` and `worth`,
-  and reads whole at 104 and 108. With `sonnet-5-5` and `$126.75+`, as the frames'
-  `sessions-list-sizable-200` has them, its sessions 24 cells, with names of 8 cells, `model` comes
-  back at 58, `started` at 88, `worth` at 98 and `routing` at 124.
+  session of 8 cells, `side-hustle-consulting` is cut at 85, keeping `started`, and at 90, keeping
+  `started` and `worth`, and reads whole at 104 and 108. With `sonnet-5-5` and `$126.75+`, as the
+  frames' `sessions-list-sizable-200` has them, its sessions 24 cells, with names of 8 cells,
+  `model` comes back at 58, `started` at 88, `worth` at 98 and `routing` at 124.
 - **No natural comes from the rows in view,** so the columns hold still as the List scrolls: the
   session's whole is the widest project and name of the whole log, and its natural that, up to 29;
   and `on`'s the accounts configured; `model`'s and `worth`'s are the widest of every session the

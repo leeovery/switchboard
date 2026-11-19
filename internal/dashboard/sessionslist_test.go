@@ -372,8 +372,8 @@ func listLaidAsDesigned(width int, n listNaturals) []string {
 		wrong = append(wrong, "on takes cells past its least before the session's natural")
 	case (hasPart(shown, listWorth) || hasPart(shown, listStarted)) && session.width < natural:
 		wrong = append(wrong, "worth or started shows beside a session cut short")
-	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width < natural || shown[listOn].width != on):
-		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short")
+	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width < natural || session.width > max(natural, whole) || shown[listOn].width != on):
+		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short, or a session past its whole")
 	case hasPart(shown, listRouting) && session.width < whole && routing.width > leasts[listRouting]:
 		wrong = append(wrong, "routing takes cells past its least before the session's whole")
 	case !hasPart(shown, listRouting) && (shown[listOn].width > on || last.x+last.width != width):

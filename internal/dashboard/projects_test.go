@@ -623,6 +623,64 @@ func TestSessionsHoldsALongAccountWholeBesideShortSessions(t *testing.T) {
 	}
 }
 
+// SESSIONS' session column takes its natural, its widest name whole, before
+// on takes cells past its least, so where the row can't hold both whole,
+// the name reads whole and side-hustle-consulting is cut: an ended
+// session's name of 16 cells, as measured, at 94; a running worktree's, of
+// 18 and its tree under Nerd Font, 20, at 99; and an ended worktree's, of 16
+// and its tree, 18, as measured with its marks, at 97.
+func TestSessionsTakesItsWidestNameWholeBeforeOnGrows(t *testing.T) {
+	const tree = "~/Code/agentic-workflows/.claude/worktrees/"
+	tests := []struct {
+		name          string
+		width         int
+		nerdFont      bool
+		at            int
+		dir, named    string
+		heads, widest string
+		on            string
+	}{
+		{
+			name: "an ended session's name", width: 94, at: 2, named: "release-notes-v2",
+			heads:  "  session           on                model     state        started          requests   worth",
+			widest: "  release-notes-v2  work-team-plan    opus-5-5  ended 16:40  Tue 09:00              40  $12.00",
+			on:     "  5b19              side-hustle-con…  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			name: "a running worktree's name", width: 99, nerdFont: true, at: 0, dir: tree + "dashboard-redesign",
+			heads:  "  session               on                 model     state        started          requests   worth",
+			widest: "   dashboard-redesign  work-team-plan     opus-5-5  answering    yesterday 15:08        40  $12.00",
+			on:     "  5b19                  side-hustle-cons…  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+		{
+			name: "an ended worktree's name", width: 97, nerdFont: true, at: 2, dir: tree + "release-notes-v2",
+			heads:  "  session             on                 model     state        started          requests   worth",
+			widest: "   release-notes-v2  work-team-plan     opus-5-5  ended 16:40  Tue 09:00              40  $12.00",
+			on:     "  5b19                side-hustle-cons…  opus-5-5  ended 11:21  10:02                  40  $12.00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := chosenSessions()
+			sessions[1].Account = "side"
+			sessions[tt.at].Name = tt.named
+			if tt.dir != "" {
+				sessions[tt.at].Dir = tt.dir
+			}
+			page := chosenPage(sessions)
+			f := projectsFrame(t, tt.width, 60, projectRows(3), 0, &page)
+			f.NerdFont = tt.nerdFont
+			rows := textOf(f.page(longListDoc(), routedAt).rows(Look{}))
+			heads := rowWith(rows, "SESSIONS") + 1
+			for _, want := range []string{tt.heads, tt.widest, tt.on} {
+				if !slices.Contains(rows[heads:], want) {
+					t.Errorf("SESSIONS shows no row\n%q\namong\n%s", want, strings.Join(rows[heads:heads+8], "\n"))
+				}
+			}
+		})
+	}
+}
+
 // SESSIONS groups the sessions ended under a rule for the day they ended:
 // today, yesterday, a weekday within the week, else the day and its date;
 // the sessions running over the first, under none.

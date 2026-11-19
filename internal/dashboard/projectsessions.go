@@ -95,11 +95,12 @@ func projectSessionsOf(words sessionWords, page *views.ProjectPage, measured Ses
 // session's as the List's, from its least to its natural, as sessionNatural
 // has it of the widest name the sessions say whole, the ended as measured
 // has them, taking what's spare first, and past its natural, every cell
-// left, so the others end at the frame's edge; then each other at the widest of its head and what it says
-// of the sessions, the ended as measured has them and those running as they
-// say now, on's narrowing as the List's does toward listOnLeast. As it
-// narrows, model, started and requests leave in the turns above. No natural
-// comes from the rows shown, so the columns hold still as SESSIONS scrolls.
+// left, so the others end at the frame's edge; then each other at the
+// widest of its head and what it says of the sessions, the ended as
+// measured has them and those running as they say now, on's narrowing as
+// the List's does toward listOnLeast. As it narrows, model, started and
+// requests leave in the turns above. No natural comes from the rows shown,
+// so the columns hold still as SESSIONS scrolls.
 func (s projectSessions) columnsOf(width int, sessions []views.PeriodSession, measured SessionsMeasured) []listColumn {
 	parts := make([]flex.Part, len(projectColumns))
 	for i, p := range projectColumns {
