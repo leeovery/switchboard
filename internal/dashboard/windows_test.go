@@ -20,21 +20,21 @@ func using(a status.Account, key string, rate float64) status.Account {
 	return a
 }
 
-func TestTheWindowsShown(t *testing.T) {
+// The windows listed are those every model shares, always, and a model's own
+// where some account has used it, as Listed has them, whatever its pace.
+func TestTheWindowsListed(t *testing.T) {
 	tests := []struct {
-		name       string
-		accounts   []status.Account
-		wantShown  []string
-		wantHidden []string
+		name     string
+		accounts []status.Account
+		want     []string
 	}{
 		{
-			name: "those every model shares, always, and a model's own no account uses, hidden",
+			name: "those every model shares, always, and not a model's own no account uses",
 			accounts: []status.Account{
 				readAccount("work", fableOf(0, 4*quota.Day), sessionOf(0, time.Hour), weekOf(0, 4*quota.Day)),
 				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)),
 			},
-			wantShown:  []string{"5h", "7d"},
-			wantHidden: []string{"7d_oi"},
+			want: []string{"7d", "5h"},
 		},
 		{
 			name: "a model's own one account has used",
@@ -42,7 +42,7 @@ func TestTheWindowsShown(t *testing.T) {
 				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)),
 				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0.04, 4*quota.Day)),
 			},
-			wantShown: []string{"5h", "7d", "7d_oi"},
+			want: []string{"7d", "5h", "7d_oi"},
 		},
 		{
 			name: "a model's own one account used, reset since it was read, so unused at now",
@@ -50,39 +50,25 @@ func TestTheWindowsShown(t *testing.T) {
 				readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)),
 				readAccount("side", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0.12, -time.Hour)),
 			},
-			wantShown:  []string{"5h", "7d"},
-			wantHidden: []string{"7d_oi"},
+			want: []string{"7d", "5h"},
 		},
 		{
-			name: "a model's own no account has used, hidden however fast it's used lately",
+			name: "a model's own no account has used, not listed however fast it's used lately",
 			accounts: []status.Account{
 				using(readAccount("work", sessionOf(0.2, time.Hour), weekOf(0.3, 4*quota.Day), fableOf(0, 4*quota.Day)), "7d_oi", 0.01),
 			},
-			wantShown:  []string{"5h", "7d"},
-			wantHidden: []string{"7d_oi"},
+			want: []string{"7d", "5h"},
 		},
-		{name: "nothing read", accounts: []status.Account{{ID: "work", TokenSet: true}}},
+		{name: "nothing read", accounts: []status.Account{{ID: "work", TokenSet: true}}, want: []string{"7d", "5h"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := routerDoc("", 0, tt.accounts...).At(now, claudeLike)
-			if got := windowKeys(m.Shown); !slices.Equal(got, tt.wantShown) {
-				t.Errorf("the windows shown are %q, want %q", got, tt.wantShown)
-			}
-			if got := windowKeys(m.Hidden); !slices.Equal(got, tt.wantHidden) {
-				t.Errorf("the windows hidden are %q, want %q", got, tt.wantHidden)
+			if got := m.Listed(); !slices.Equal(got, tt.want) {
+				t.Errorf("the windows listed are %q, want %q", got, tt.want)
 			}
 		})
 	}
-}
-
-// windowKeys are the keys of the windows given, in their order.
-func windowKeys(windows []status.WindowName) []string {
-	keys := make([]string, len(windows))
-	for i, w := range windows {
-		keys[i] = w.Key
-	}
-	return keys
 }
 
 func TestAWindowIsNamedAsTheMomentNamesIt(t *testing.T) {

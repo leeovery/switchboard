@@ -75,33 +75,32 @@ func alike(words string, k ink) usageWords {
 // At say them: that its account has no token of its own, as prose.Tokenless
 // says it; what holds it back, and until when; when it runs out; that it
 // isn't started; that its account has no such limit, or hasn't used a model's
-// own, which Unused says before its Kind; or its allowance, to its
-// reset. A time reads as Dated has it in full, and short, its time today and
+// own, as Unused says of a window none of those hold; or its allowance, to
+// its reset. A time reads as Dated has it in full, and short, its time today and
 // only its weekday for another day; but a reading's, as lastRead has it; a
 // run-out's as RunOut has it in full; and a run-out's and a back's short as
 // BriefDated dates them a week on. An allowance's reset keeps its weekday
 // alone: its short cells can't hold a date beside the rate, and a rate isn't
 // read as an end today.
 func wordsOf(w status.WindowNow, now time.Time) usageWords {
-	if w.Unused {
-		return unused(status.Headed(w.Name))
-	}
-	switch w.Kind {
-	case status.WindowTokenless:
+	switch {
+	case w.Kind == status.WindowTokenless:
 		return alike(prose.Tokenless(w.TokenForeign), errorInk)
-	case status.WindowUnread:
+	case w.Kind == status.WindowUnread:
 		return usageWords{full: line{{"not read yet", dimInk}}, short: line{{"not read", dimInk}}}
-	case status.WindowNone:
+	case w.Kind == status.WindowNone:
 		return lacked(status.InProse(w.Name))
-	case status.WindowStale:
+	case w.Kind == status.WindowStale:
 		return staleWords(w.Stale, w.At, now)
-	case status.WindowLimited:
+	case w.Kind == status.WindowLimited:
 		return heldBack("limit", "limit", w.At, now, errorInk)
-	case status.WindowCapped:
+	case w.Kind == status.WindowCapped:
 		return heldBack("at cap", "cap", w.At, now, warningInk)
-	case status.WindowRunsOut:
+	case w.Unused:
+		return unused(status.Headed(w.Name))
+	case w.Kind == status.WindowRunsOut:
 		return usageWords{full: line{{"out ~" + prose.RunOut(now, w.At), warningInk}}, short: line{{"out ~" + prose.BriefDated(now, w.At), warningInk}}}
-	case status.WindowNotStarted:
+	case w.Kind == status.WindowNotStarted:
 		return alike("not started", mutedInk)
 	default:
 		return allowed(w.Allowance, w.At, now)

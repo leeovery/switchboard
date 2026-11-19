@@ -88,11 +88,11 @@ router has taken it up.
 | `limit · back 15:54` | Claude's limit holds the window. |
 | `limit` | Claude's limit holds the window, and Anthropic refused the account's last read, so no time brings the account back. Only a clean read does. |
 | `at cap · back 17:10` | The window has reached the cap, so the router holds the account back. |
-| `no Fable use` | The account hasn't used the Fable week. It shows in place of the bar, or as `no use` where room is short. |
 | `out ~16:05` | The window runs out before it resets. Within a day, the time shows. |
 | `out ~Sat` | It runs out more than a day ahead, so the day shows only, because a forecast days out can miss by a day. |
 | `out ~Thu 12 Nov` | It runs out on the same weekday as today, a week on, so the date shows. |
-| `no 5-hour limit` | The account has no 5-hour window, such as a verified Ultra account. It shows in place of the bar, or as `no limit` where room is short. |
+| `no 5-hour limit` | The account has no 5-hour window, such as a verified Ultra account. It shows in place of the bar, or as `no limit` if room is short. |
+| `no Fable use` | The account hasn't used the Fable week. It shows in place of the bar, or as `no use` if room is short. |
 | `not started` | The 5-hour window hasn't started yet. |
 | `19%/day till Sun 21:00` | Otherwise, the allowance: how much you can spend an hour or a day and still last to the reset. |
 | `34% till 16:30` | In place of the allowance, under an hour from the 5-hour window's reset, or under a day from a week's reset: the room itself. |
@@ -139,6 +139,8 @@ doesn't have it. The Fable section also leaves out an account that hasn't used i
 |---|---|
 | No account has a window | Leaves the window out. |
 | No account has used the Fable week | Leaves the Fable week out. |
+| A limit holds an account's Fable week | Shows the Fable week, even at 0%. |
+| An account's last read failed | Keeps its Fable row as last read, if the Fable week shows. |
 | An account isn't read yet | Keeps its rows, because it may have any window. |
 
 ### A token near the end of its year
@@ -180,8 +182,8 @@ them. Once there's a second pool, the text names the pool it read, such as `pool
 - **The header** takes one line only if every part fits in full, from 84 columns for a healthy
   router with short names. So one line never says less than two would.
 - **The second key line** names the cap, if a bar draws one.
-- **Short words** include `cap · back Mon`, `limit · back Sun` and `19%/day · Thu`. Where those
-  don't fit, a cap or a limit narrows to `cap · Mon`, then `back Mon`.
+- **Short words** include `cap · back Mon`, `limit · back Sun` and `19%/day · Thu`. If those
+  don't fit, a cap narrows to `cap · Mon` and a limit to `limit · Sun`, then either to `back Mon`.
 
 As the terminal narrows, the bars shorten to 12 cells first, then the words go short.
 

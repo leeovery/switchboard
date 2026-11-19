@@ -184,7 +184,7 @@ func TestUsagePrintsTheWindowsGivenLaidOutAsAsked(t *testing.T) {
 
 // A window the printout wouldn't show is refused: one no account reports,
 // and a model's own no account has used, as the printout shows it only where
-// some account has.
+// some account has, said so.
 func TestUsageRefusesAWindowNoAccountHasToShowNamingThoseThereAre(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -202,7 +202,7 @@ func TestUsageRefusesAWindowNoAccountHasToShowNamingThoseThereAre(t *testing.T) 
 		},
 		{
 			name: "a model's window no account has used", upstream: unusedModelAPI, args: []string{"--fable"},
-			want: "no account has the Fable week to show: give --week or --5h",
+			want: "no account has used the Fable week: give --week or --5h",
 		},
 		{
 			name: "a model's window, where no account is read", upstream: refusingAPI, args: []string{"--fable", "--5h"},

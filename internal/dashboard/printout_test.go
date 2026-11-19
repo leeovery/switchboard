@@ -26,6 +26,27 @@ func TestThePrintoutRunsFromItsHeaderToItsKeyLine(t *testing.T) {
 	}
 }
 
+// An account that hasn't used a model's own window draws nothing on its row
+// of it, its cap's mark included, so the key names no cap of its in that
+// window: as usage --fable prints it, personal's reserve of 10% names no cap,
+// side by side or stacked, by window or by account.
+func TestAnUnusedWindowsRowDrawsNoCap(t *testing.T) {
+	doc := trio(account("personal", func(a *status.Account) { a.Reserve = 0.1 }))
+	m := doc.At(printNow, printPolicy)
+	personal, _ := m.Account("personal")
+	if g := accountGauge(personal, "7d_oi", printNow); !g.none || !g.bar.empty {
+		t.Fatalf("personal's Fable week gauge goes without it %t, its bar empty %t: want both", g.none, g.bar.empty)
+	}
+	for _, by := range []By{ByWindow, ByAccount} {
+		for _, width := range []int{160, 52} {
+			rows := printed(doc, width, by, "7d_oi")
+			if key := rows[len(rows)-1]; !strings.Contains(key, "cap: work at 95%") || strings.Contains(key, "personal") {
+				t.Errorf("by %d at %d columns, the key reads %q, want work's cap alone", by, width, key)
+			}
+		}
+	}
+}
+
 func TestTheHeaderSaysWhenTheDocumentWasRead(t *testing.T) {
 	doc := trio(func(d *status.Document) { d.GeneratedAt = on(1, 14, 41).Add(58 * time.Second).UTC() })
 	if got, want := colAt(printed(doc, 160, ByWindow)[0], 15, 16), "Thu 1 Oct  14:41"; got != want {

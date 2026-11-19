@@ -4095,7 +4095,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `cap · back Mon`, `cap · back 12 Nov` a week on; narrower, `cap · Mon`, then `back Mon` | `accent.attention` |
   | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
-  | A model's own window the account hasn't used (below) | `no Fable use` | `no use` | `text.subtle` |
+  | A model's own window the account is known not to have used: read fresh, and neither a limit nor its cap holding it (below) | `no Fable use` | `no use` | `text.subtle` |
   | A 5-hour window not started (settled in the plan) | `not started` | `not started` | `text.muted` |
   | The reset is less than an hour away for the 5-hour window, or a day for a week (settled in the plan) | `34% till 16:30` | `34% · 16:30` | as the allowance |
   | Otherwise, the allowance | `19%/day till Sun 21:00`, `34%/h till 16:30` | `19%/day · Sun`, `34%/h · 16:30` | the rate and the time in `text.muted`; ` till ` and ` · ` in `text.subtle` |
@@ -4215,13 +4215,19 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   owner's call, 18 November 2026, replacing that of 17 October): any window the policy doesn't
   share, as Fable's, so a new model's falls under it with no change.
   - An account that has used it, its reading above 0 as it stands now, shows it: its bar,
-    percentage and words. It's live: as an account's resets to 0, its bar goes, and the window
-    goes once no account has use left in it; the first use on any account brings it back.
-  - An account that hasn't goes without it, as an account without a 5-hour window does: stacked,
+    percentage and words. So does one a limit or its cap holds it on, at 0% or not, as a limit
+    may still hold a window read again at 0% once it resets. It's live: as an account's resets to
+    0, its bar goes, and the window goes once no account has use left in it, or a hold on it; the
+    first use on any account brings it back.
+  - An account known not to have used it goes without it, as an account without a 5-hour window
+    does: read fresh, neither stale nor held by a limit or its cap, and at 0% as it stands. Stacked,
     its section leaves the account out; side by side, in the matrix and by account, its words alone
     from where its bar would start, `no Fable use`, or `no use` where the words are short or its
-    label beside them names the window, in `text.subtle`. An account unread, or without a usable
-    token, may have used it, so keeps its row.
+    label beside them names the window, in `text.subtle`. Its row draws nothing else: no bar, no
+    cap's mark and no even pace, so the key names no cap of it. An account unread, without a usable
+    token, stale or held may have used it, so keeps its row, worded as its kind says: `not read
+    since 09:00`, `limit · back Sun`. A stale one at 0% alone doesn't bring the window back, as its
+    last reading had no use.
   - Where no account has used it, it isn't drawn at all, as the 5-hour isn't where no account has
     one.
   - The 17 October call hid each model's own window behind `w`, and showed one anyway while it
@@ -4237,13 +4243,15 @@ last token's line where it has any, with no blank line after it, as a shell's pr
     document keeps every window, used or not, as do the records Trends draws, the Log, Accounts'
     records (limits hit, past weeks) and every JSON; routing and scoring never read which show.
   - One owner: the moment's `Listed` lists the windows a view lists, those every model shares that
-    some account has or may have, then each model's own some account has used, and `Reported`
-    every model's own any account reports, for a layout to hold still as use comes and goes. Of an
-    account's window, `WindowNow.Unused` says it's a model's own the account hasn't used, and
-    `WindowNow.Without` takes it with `WindowNone`, a window the account doesn't have: every view
-    leaves an account out, or words it so, by `Without`. `WindowNow.Nearing` is still judged, but
-    no view reads it. The views guard holds drawing packages from asking the policy which windows
-    are shared.
+    some account has or may have, then each model's own some account has used, or a limit or cap
+    holds, and `Reported` every model's own any account reports, for a layout to hold still as use
+    comes and goes. Of an account's window, `WindowNow.Unused` says it's a model's own the account
+    is known not to have used, and `WindowNow.Without` takes it with `WindowNone`, a window the
+    account doesn't have: every view leaves an account out, words it so, and draws its bar empty,
+    by `Without`. The 17 October rule's parts are gone: `WindowNow.Nearing`, and `Moment.Shown`,
+    `Moment.Hidden` and `WindowNow.InUse`, the windows once worth showing; the moment's `Windows`
+    names every window its accounts have, for naming alone. The views guard holds drawing packages
+    from asking the policy which windows are shared.
 - **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
   17 October 2026). In general, the windows every model shares, the policy's, longest first; then
   each model's own, as any window the policy doesn't share is, a new model's among them, in
@@ -12376,7 +12384,7 @@ dashboard on a phone, an iPad and the Mac, as sorted with the owner on 17 Octobe
 - **Order:** the week first wherever windows are listed (`status.CompareWindows`), with Runway
   opening on it.
 - **Model windows:** each model's own window behind `w`, hidden at first, and shown anyway near its
-  limit.
+  limit (replaced 18 November 2026).
 - **The pool:** its percentage is its accounts' mean use.
 - **Layout:** USAGE's blocks a blank row apart; the heading's clock live under a card; Runway's pool
   lane named at its top; Runway's account column collapsing on `a`; a phone's view tabs padded; a

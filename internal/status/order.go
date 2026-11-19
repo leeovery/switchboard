@@ -88,11 +88,18 @@ func lackedByEvery(lacks iter.Seq[[]string], key string) bool {
 // page, Accounts' Detail and usage's printout list them: those every model
 // shares that some account has or may have, as SharedWindows has them, so
 // every account keeps its rows before any is read; then each model's own,
-// as any window the policy doesn't share is, that some account has used at
-// Now, as used says, so it shows as the 5-hour does, only where some account
-// has it to show. In the order CompareWindows has.
+// as any window the policy doesn't share is, that some account has to show
+// at Now, as shows says, so it shows as the 5-hour does, only where some
+// account has it to show. In the order CompareWindows has.
 func (m Moment) Listed() []string {
-	return m.listed(WindowNow.used)
+	return m.listed(WindowNow.shows)
+}
+
+// shows reports whether a model's own window shows where windows are listed
+// as they stand: its account has used it, as used says, or a limit or its
+// cap holds it, as one may still once it has reset to 0%.
+func (w WindowNow) shows() bool {
+	return w.used() || w.Held || w.Capped
 }
 
 // Reported are the keys of every window Listed may list at the moment: as it

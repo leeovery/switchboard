@@ -53,12 +53,10 @@ type Moment struct {
 	// Accounts are its accounts, in the document's order, each as it stands
 	// at Now.
 	Accounts []AccountNow
-	// Shown are the windows of the accounts worth showing at Now, in
-	// quota's order: those every model shares, always, and any other an
-	// account has used this period, or is heading to, as its InUse says, or
-	// a probe expected but couldn't read. Hidden are the rest, unused on
-	// every account.
-	Shown, Hidden []WindowName
+	// Windows are the windows of the accounts, and those a probe of one
+	// expected but couldn't read, in quota's order, each named as its
+	// accounts name it. Which a view lists is Listed's.
+	Windows []WindowName
 	// Coming is what comes next of priming at Now: of the windows a prime
 	// starts, the next to reset, as they stand then, and the router's next
 	// prime.
@@ -285,17 +283,12 @@ type WindowNow struct {
 	// a bar's projection fills to: all of it where it runs out at its limit;
 	// nil where nothing says, and while it's held or not started.
 	Projected *float64
-	// Nearing is set where what it's heading for at Now, short of running
-	// out, comes within 10 points of where its account runs out, as near has it.
-	Nearing bool
-	// InUse is set where its account has used it this period, or is heading
-	// to: some of it used as it stands at Now, or its heading has some used
-	// by its reset.
-	InUse bool
 	// Unused is set where it's a model's own window, as Fable's week, that
-	// its account, read with a usable token, hasn't used: none of it used as
-	// it stands at Now, as used says, as once it resets. A view listing
-	// windows as they stand leaves the account out of it, as Without says.
+	// its account is known not to have used: read fresh with a usable
+	// token, neither stale nor held by a limit or its cap, as heldOrStale
+	// says, and none of it used as it stands at Now, as used says, as once
+	// it resets. A view listing windows as they stand leaves the account out
+	// of it, as Without says.
 	Unused bool
 	// Read is the window as it was read.
 	Read AsRead
@@ -329,7 +322,7 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	for i, j := range judged {
 		m.Accounts[i] = m.accountNow(i+1, j, names)
 	}
-	m.Shown, m.Hidden = m.windowsShown(names)
+	m.Windows = slices.SortedFunc(maps.Values(names), func(a, b WindowName) int { return quota.CompareKeys(a.Key, b.Key) })
 	m.Coming = m.coming()
 	return m
 }
@@ -721,10 +714,6 @@ func firstHeld(since ...time.Time) time.Time {
 	return slices.MinFunc(since, time.Time.Compare)
 }
 
-// near is how close a window comes to where its account runs out before it's
-// said to near it: within 10 points.
-const near = 0.1
-
 // windowNow is the window judged as w, of the account whose windows stand as
 // s says, as it stands at the moment, named as given.
 func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
@@ -751,9 +740,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	wn.Capped, wn.CappedAsRead = s.capped(key), m.doc.reserveHolds(a) && slices.Contains(a.AtReserve, key)
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
 	wn.RunsOutAhead = wn.Unheld == WindowRunsOut
-	wn.Nearing = wn.Projected != nil && !w.runsOut && *wn.Projected >= m.doc.floor(a)-near-score.Tolerance
-	wn.InUse = inUse(w.stands, w.out.Projection)
-	wn.Unused = !wn.Shared && !wn.used()
+	wn.Unused = !wn.Shared && !wn.heldOrStale() && !wn.used()
 	return wn
 }
 
@@ -761,6 +748,14 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 // used as it stands.
 func (w WindowNow) used() bool {
 	return w.Used > 0
+}
+
+// heldOrStale reports whether what the window reads at Now may not be all
+// its account has used: its read stale, or a limit or its account's cap
+// holding it, as a limit may still hold a window read again at 0% once it
+// resets.
+func (w WindowNow) heldOrStale() bool {
+	return w.Kind == WindowStale || w.Held || w.Capped
 }
 
 // Without reports whether a view listing windows as they stand leaves the
@@ -786,23 +781,6 @@ func projected(kind WindowKind, p score.Projection) *float64 {
 		return new(p.AtReset)
 	default:
 		return nil
-	}
-}
-
-// inUse reports whether a window standing as stands, heading as p says, is
-// in use this period, or is heading to be: some of it is used, or p has it
-// run out, spent already, or with some used by its reset.
-func inUse(stands quota.Window, p score.Projection) bool {
-	if stands.Utilization > 0 {
-		return true
-	}
-	switch p.Kind {
-	case score.RunsOut, score.Exhausted:
-		return true
-	case score.OnPace:
-		return p.AtReset > score.Tolerance
-	default:
-		return false
 	}
 }
 
@@ -847,12 +825,10 @@ func NameOfKey(key string) string {
 }
 
 // Window is the window of the moment's accounts with the given key, as its
-// Shown or Hidden names it, reporting false where none of them has it.
+// Windows names it, reporting false where none of them has it.
 func (m Moment) Window(key string) (WindowName, bool) {
-	for _, windows := range [][]WindowName{m.Shown, m.Hidden} {
-		if i := slices.IndexFunc(windows, func(w WindowName) bool { return w.Key == key }); i >= 0 {
-			return windows[i], true
-		}
+	if i := slices.IndexFunc(m.Windows, func(w WindowName) bool { return w.Key == key }); i >= 0 {
+		return m.Windows[i], true
 	}
 	return WindowName{}, false
 }
@@ -864,30 +840,6 @@ func (m Moment) NameOf(key string) string {
 		return w.Name
 	}
 	return NameOfKey(key)
-}
-
-// windowsShown are the windows of the accounts at the moment, in quota's
-// order, named as names has them: those shown, every model's, those in use
-// on an account, and those a probe expected but couldn't read; and those
-// hidden, the rest.
-func (m Moment) windowsShown(names map[string]WindowName) (shown, hidden []WindowName) {
-	used := make(map[string]bool)
-	for _, a := range m.Accounts {
-		for _, w := range a.Windows {
-			used[w.Key] = used[w.Key] || w.Shared || w.InUse
-		}
-		for _, f := range a.Failures {
-			used[f.Window] = true
-		}
-	}
-	for _, key := range slices.SortedFunc(maps.Keys(used), quota.CompareKeys) {
-		if used[key] {
-			shown = append(shown, names[key])
-		} else {
-			hidden = append(hidden, names[key])
-		}
-	}
-	return shown, hidden
 }
 
 // reachedIn is when account a reached the limit that holds its window w at

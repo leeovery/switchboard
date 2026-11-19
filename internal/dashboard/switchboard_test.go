@@ -248,8 +248,8 @@ func sceneTraffic() Traffic {
 }
 
 // boardFrame is a frame of Sessions' Switchboard, width by height, in the
-// look given, every model's own window shown, as w shows them, the board as
-// given, what travels it as traffic tells.
+// look given, each model's own window shown where some account has used it,
+// the board as given, what travels it as traffic tells.
 func boardFrame(width, height int, look Look, board SessionsShown, traffic Traffic) Frame {
 	return Frame{Width: width, Height: height, Look: look, View: Sessions, Policy: claudeLike, SessionsTab: board, Traffic: traffic}
 }

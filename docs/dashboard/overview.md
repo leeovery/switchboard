@@ -76,6 +76,7 @@ side have used Fable this week, and personal hasn't.
 | If | USAGE shows |
 |---|---|
 | An account has used the week | Its bar, percentage and words. |
+| A limit holds an account's week, even at 0% | Its bar and words, such as `limit · back Sun`. |
 | An account hasn't used it, side by side | `no Fable use`, or `no use` if room is short or USAGE is by account. |
 | An account hasn't used it, stacked | Nothing: the account is left out of the FABLE section. |
 | No account has used it | No FABLE section at all. |
@@ -85,8 +86,11 @@ The same holds on these views:
 
 - Detail on [Accounts](accounts.md);
 - the Switchboard on [Sessions](sessions.md);
-- [the session page](session-page.md);
-- [`usage`](../commands/usage.md).
+- [the session page](session-page.md).
+
+The [`usage`](../commands/usage.md) command prints the week the same way. The Switchboard's lanes
+show the week and the 5-hour window only if they sit side by side. Stacked, the lanes show the
+Fable week too.
 
 [The Log](log.md) and the JSON of every command keep every model window, used or not.
 

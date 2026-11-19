@@ -184,6 +184,32 @@ func TestNoViewCutsWhatItCantScrollTo(t *testing.T) {
 	}
 }
 
+// A model's own week a phone's lanes draw stacked must be reached as every
+// window is, where the pages stack their lanes too; only pages drawing them
+// side by side, which draw the week and the 5-hour alone, pass over it.
+func TestALanesModelWeekIsReachedWhereThePagesStackThem(t *testing.T) {
+	read := func(rows, like []string) []string {
+		return lanesRead(rows, drawnBeside(like, []string{"Week", "5-hour"}))
+	}
+	tall := []string{
+		"1 work          ● at its cap · 17:10", " Week     ▌   ┃   34%  out ~Sat", " 5-hour      ┃ ▎  95%  cap · 17:10",
+		" Fable wk  ▉  ┃   12%  25%/day · Sun",
+	}
+	for _, tt := range []struct {
+		name    string
+		page    []string
+		missing []string
+	}{
+		{name: "stacked, the week cut off", page: tall[:3], missing: []string{"1 Fable 12%"}},
+		{name: "side by side", page: []string{tall[0], " Week  ▏ ┃  34%   5-hour  ┃ ▍  95%"}},
+		{name: "stacked, all of it", page: tall},
+	} {
+		if got := unreached(read, []paged{{rows: tt.page}}, tall, 52); !slices.Equal(got, tt.missing) {
+			t.Errorf("%s, the pages never show %q, want %q", tt.name, got, tt.missing)
+		}
+	}
+}
+
 // ofTheLog reports whether the fixture of the name given draws the Log.
 func ofTheLog(name string) bool {
 	return strings.HasPrefix(name, "log-") || strings.HasPrefix(name, "page-log-")
@@ -217,7 +243,7 @@ func pagesThroughAt(t *testing.T, m watch.Model, f Fixture, at swept, walked *sy
 		if beyond := saidBeyond(w.down); beyond != "" {
 			t.Errorf("at %d×%d, paged as far as it goes, the view says %q:\n%s", width, height, beyond, strings.Join(w.down[len(w.down)-1].rows, "\n"))
 		}
-		if reached == nil || len(reached(w.down[0].rows)) < 2 {
+		if reached == nil || len(reached(w.down[0].rows, w.down[0].rows)) < 2 {
 			continue
 		}
 		if first := w.down[0]; len(w.down) > 1 && !saysMore(first.rows, "▼") {
@@ -595,6 +621,11 @@ func saysMore(rows []string, mark string) bool {
 	})
 }
 
+// reach reads what of a view the sweep holds paged to reach every row of,
+// from its rows as drawn, in the form the rows like draw it, as a page
+// does: the tallest drawing is read like the pages it's held against.
+type reach func(rows, like []string) []string
+
 // reachOf is what of the fixture's view, by name, at the width given, the
 // sweep holds paged to reach every row of, from its rows as drawn: the
 // Overview's USAGE under 150 columns, where nothing is drawn beside its
@@ -604,14 +635,15 @@ func saysMore(rows []string, mark string) bool {
 // heading; Accounts' views, but for Detail's list and Tokens' footnote, as
 // beforeFootnote cuts it; a phone's Switchboard in lanes, from the row under
 // the view's heading to the foot, which gives way where they scroll, its
-// windows those every step draws, as besideLabels has them.
+// windows those like draws: where its lanes stand side by side, those
+// besideLabels has, else every one.
 // Elsewhere it's nil: the rest of the views fold and drop what they show by
 // the room they have, as the design lays them out.
-func reachOf(f Fixture, width int) func(rows []string) []string {
+func reachOf(f Fixture, width int) reach {
 	name, chrome := f.Name, chromeOf(width)
 	switch {
 	case strings.HasPrefix(name, "overview-") && width < 150:
-		return func(rows []string) []string {
+		return func(rows, _ []string) []string {
 			from := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })
 			if from < 0 {
 				return nil
@@ -628,7 +660,7 @@ func reachOf(f Fixture, width int) func(rows []string) []string {
 			return shownRows(view)
 		}
 	case strings.HasPrefix(name, "accounts-"):
-		return func(rows []string) []string {
+		return func(rows, _ []string) []string {
 			view := make([]string, 0, len(rows))
 			for _, r := range rows[chrome+2 : len(rows)-1] {
 				view = append(view, panelOf(r))
@@ -636,12 +668,15 @@ func reachOf(f Fixture, width int) func(rows []string) []string {
 			return shownRows(beforeFootnote(view))
 		}
 	case strings.HasPrefix(name, "sessions-") && !strings.Contains(name, "-list") && dashboard.Phone(width):
-		return func(rows []string) []string {
+		lanes := func(rows []string) []string {
 			view := rows[chrome+2 : len(rows)-1]
 			if to := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "┃ even pace") }); to >= 0 {
 				view = view[:to]
 			}
-			return lanesRead(shownRows(view), besideLabels(f))
+			return shownRows(view)
+		}
+		return func(rows, like []string) []string {
+			return lanesRead(lanes(rows), drawnBeside(lanes(like), besideLabels(f)))
 		}
 	}
 	return nil
@@ -660,10 +695,9 @@ var (
 // account's name row and each session's as drawn; and as the lanes stack
 // their windows a row each where rows are free, and side by side where
 // they're short, each window a windows' row shows as its account's number,
-// its label and its percentage, of those whose labels beside gives, the
-// windows the lanes draw side by side: a model's own week shows where they
-// stack alone, by design, so no page of them need reach it.
-func lanesRead(rows, beside []string) []string {
+// its label and its percentage, of those whose labels only gives, every one
+// where it gives none.
+func lanesRead(rows, only []string) []string {
 	var read []string
 	account := ""
 	for _, r := range rows {
@@ -678,7 +712,7 @@ func lanesRead(rows, beside []string) []string {
 		fields := strings.Fields(r)
 		label := fields[0]
 		for i, f := range fields[1:] {
-			if shownPercent.MatchString(f) && slices.Contains(beside, label) {
+			if shownPercent.MatchString(f) && (only == nil || slices.Contains(only, label)) {
 				read = append(read, account+" "+label+" "+f)
 				if i+2 < len(fields) {
 					label = fields[i+2]
@@ -687,6 +721,24 @@ func lanesRead(rows, beside []string) []string {
 		}
 	}
 	return read
+}
+
+// drawnBeside are the labels beside gives where the lanes' rows given draw
+// their windows side by side, as a windows' row with more than one
+// percentage on it, nil where they stack: side by side, the lanes draw the
+// windows beside names alone, and a model's own week only where they stack,
+// by design, so a page of them side by side needn't reach it, where one of
+// them stacked must.
+func drawnBeside(rows, beside []string) []string {
+	for _, r := range rows {
+		if laneName.MatchString(r) || !laneWindows.MatchString(r) {
+			continue
+		}
+		if len(slices.DeleteFunc(strings.Fields(r), func(f string) bool { return !shownPercent.MatchString(f) })) > 1 {
+			return beside
+		}
+	}
+	return nil
 }
 
 // besideLabels are the labels the fixture f's lanes read their windows side
@@ -725,15 +777,15 @@ func shownRows(rows []string) []string {
 // unreached are the rows reached reads of tall, the view drawn as tall as
 // everything fits, that none of the pages shows, in the order tall draws
 // them.
-func unreached(reached func([]string) []string, pages []paged, tall []string, width int) []string {
+func unreached(reached reach, pages []paged, tall []string, width int) []string {
 	seen := make(map[string]bool)
 	for _, p := range pages {
-		for _, r := range reached(p.rows) {
+		for _, r := range reached(p.rows, p.rows) {
 			seen[r] = true
 		}
 	}
 	var missing []string
-	for _, r := range reached(tall) {
+	for _, r := range reached(tall, pages[0].rows) {
 		if !seen[r] {
 			missing = append(missing, ansi.Truncate(r, width, ""))
 		}

@@ -91,9 +91,11 @@ func TestTheMomentListsItsWindowsInTheOrderOfCare(t *testing.T) {
 
 // Each model's own window is listed as the 5-hour is, only where some
 // account has it to show: where some account has used it, some of it used
-// as it stands now, however near or far its limit. An account that hasn't
-// goes without it, as an account without a 5-hour window does; one with no
-// usable token, or nothing read, may have used it, so keeps it. Reported
+// as it stands now, however near or far its limit, or where a limit holds
+// it, as one may once it has reset to 0%. An account known not to have used
+// it goes without it, as an account without a 5-hour window does; one with
+// no usable token, nothing read, its read failed since, or a limit holding
+// it, may have used it, so keeps it. Reported
 // lists every model's window any account reports, used or not. Those every
 // model shares are listed always.
 func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
@@ -108,6 +110,10 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 		return readAt("side", windowIn("5h", 0.1, 4*time.Hour), windowIn("7d", 0.5, 3*day), w)
 	}
 	reserveAll := func(a *status.Account) { a.Reserve = 0.9999 }
+	failed := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
+	holdingFable := func(a *status.Account) {
+		a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(time.Hour)}
+	}
 	lapsed := windowIn("7d_oi", 0.3, -time.Hour)
 	tests := []struct {
 		name   string
@@ -140,6 +146,20 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 		{
 			name: "used by every account: listed, none without it", listed: []string{"7d", "5h", "7d_oi"},
 			doc: routerDocOf(work(0.2, nil), side(windowIn("7d_oi", 0.5, 3*day))),
+		},
+		{
+			name: "at 0% as last read, its read failed since, which may have used it: not listed, that one keeping it", listed: []string{"7d", "5h"},
+			doc:     routerDocOf(work(0, failed), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"side"},
+		},
+		{
+			name: "at 0% as last read, its read failed since, beside one used: listed, that one keeping it, stale", listed: []string{"7d", "5h", "7d_oi"},
+			doc: routerDocOf(work(0, failed), side(windowIn("7d_oi", 0.03, 3*day))),
+		},
+		{
+			name: "read 0% again once reset, a limit naming it still holding it: listed, that one keeping it, held", listed: []string{"7d", "5h", "7d_oi"},
+			doc:     routerDocOf(work(0, holdingFable), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"side"},
 		},
 		{
 			name: "at 0% beside an account with no usable token, which may have used it: not listed, that one keeping it", listed: []string{"7d", "5h"},

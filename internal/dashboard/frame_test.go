@@ -86,7 +86,7 @@ func probed(accounts ...status.Account) status.Document {
 }
 
 // frameOf is a frame of a terminal the size given, as text alone, showing
-// the Overview, every model's own window shown, as w shows them, its key
+// the Overview, each model's own window shown where used, its key
 // line listing tab, ? and q.
 func frameOf(width, height int) Frame {
 	return Frame{

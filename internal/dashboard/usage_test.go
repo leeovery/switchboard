@@ -1599,7 +1599,7 @@ func checkGaugeAgrees(t *testing.T, a status.AccountNow, w status.WindowNow, g g
 		t.Errorf("%s's %s runs out %t, want %t", a.ID, w.Key, g.runsOut, w.RunsOut)
 	}
 	want := usageBar{used: w.Used, capAt: a.Cap, pace: w.Pace, stale: w.Kind == status.WindowStale}
-	if drawsEmpty(w.Kind) {
+	if drawsEmpty(w) {
 		want = usageBar{empty: true}
 	}
 	if got := g.bar; got.empty != want.empty || got.stale != want.stale || got.used != want.used || got.capAt != want.capAt || paceAt(got.pace) != paceAt(want.pace) {

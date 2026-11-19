@@ -464,7 +464,8 @@ func tenReadAs(change func(*status.Document)) status.Document {
 // A layout is kept while what it was made for holds, and USAGE's form with
 // it: so whatever a read changes, its key line's marks or the rows over
 // them, the form kept is the form a layout made afresh for the read would
-// have, at every width, height and grouping, models' windows hidden.
+// have, at every width, height and grouping, each model's own window shown
+// where some account has used it.
 func TestUSAGEsFormKeptWithItsLayoutIsTheFormMadeAfresh(t *testing.T) {
 	t.Parallel()
 	reads := []struct {

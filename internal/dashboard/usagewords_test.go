@@ -47,8 +47,12 @@ func TestAWindowsWordsSayHowItStandsInFullAndShort(t *testing.T) {
 		{name: "no week, its name as a sentence has it", state: lacking("Week"), full: "no week limit", short: "no limit", ink: dimInk},
 		{name: "a model's own week unused", state: status.WindowNow{Name: "Fable week", Kind: status.WindowOpen, Unused: true}, full: "no Fable use", short: "no use", ink: dimInk},
 		{
-			name: "a model's own week unused, whatever else its kind says", state: status.WindowNow{Name: "Fable week", Kind: status.WindowLimited, At: on(1, 15, 54), Unused: true},
-			full: "no Fable use", short: "no use", ink: dimInk,
+			name: "a model's own week at 0%, a limit holding it, held, not unused", state: status.WindowNow{Name: "Fable week", Kind: status.WindowLimited, At: on(1, 15, 54), Unused: true},
+			full: "limit · back 15:54", short: "limit · back 15:54", ink: errorInk,
+		},
+		{
+			name: "a model's own week at 0%, its read failed since, stale, not unused", state: status.WindowNow{Name: "Fable week", Kind: status.WindowStale, Stale: status.StaleFailed, At: on(1, 9, 0), Unused: true},
+			full: "not read since 09:00", short: "read 09:00", ink: dimInk,
 		},
 		{
 			name: "the allowance an hour", state: state(status.WindowOpen, on(1, 16, 30)), allowance: quota.Allowance{Share: 0.339, Per: quota.PerHour},

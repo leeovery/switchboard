@@ -218,16 +218,13 @@ func addWindowFlags(cmd *cobra.Command) windowFlags {
 // printout of the moment m wouldn't show, as its Listed has them, naming
 // those it would by their flags.
 func (ws windowFlags) keys(m status.Moment) ([]string, error) {
-	reported := make(map[string]bool)
-	for _, key := range m.Listed() {
-		reported[key] = true
-	}
+	listed := m.Listed()
 	var keys []string
 	for _, f := range ws {
 		switch {
 		case !f.given:
-		case !reported[f.key]:
-			return nil, ws.unreported(f, reported)
+		case !slices.Contains(listed, f.key):
+			return nil, ws.unlisted(f, listed, slices.Contains(m.Reported(), f.key))
 		default:
 			keys = append(keys, f.key)
 		}
@@ -235,17 +232,22 @@ func (ws windowFlags) keys(m status.Moment) ([]string, error) {
 	return keys, nil
 }
 
-// unreported is the error of the window flag f, for a window the printout
-// wouldn't show, as no account has it, or none has used a model's own,
-// naming the flags of those it would.
-func (ws windowFlags) unreported(f *windowFlag, reported map[string]bool) error {
+// unlisted is the error of the window flag f, for a window the printout
+// wouldn't show, as listed has those it would: a model's own some account
+// reports, as reported says, that none has used, or one no account has;
+// naming the flags of those it would show.
+func (ws windowFlags) unlisted(f *windowFlag, listed []string, reported bool) error {
 	var there []string
 	for _, w := range ws {
-		if reported[w.key] {
+		if slices.Contains(listed, w.key) {
 			there = append(there, "--"+w.name)
 		}
 	}
-	return fmt.Errorf("no account has %s to show: give %s", f.what, strings.Join(there, " or "))
+	give := strings.Join(there, " or ")
+	if reported {
+		return fmt.Errorf("no account has used %s: give %s", f.what, give)
+	}
+	return fmt.Errorf("no account has %s to show: give %s", f.what, give)
 }
 
 // IsTerminal reports whether out is a terminal: Deps.Terminal, for the

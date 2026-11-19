@@ -997,7 +997,7 @@ func (d detailDrawn) sessionTargets() []Target {
 // eases from where it stood, but none USAGE draws empty; and all accounts'
 // windows, by their keys alone.
 func (d detailDrawn) filled() map[Ref]float64 {
-	filled := windowsFilled(d.m, func(w status.WindowNow) bool { return !drawsEmpty(w.Kind) })
+	filled := windowsFilled(d.m, func(w status.WindowNow) bool { return !drawsEmpty(w) })
 	for _, w := range d.m.All().Windows {
 		filled[Ref{Window: w.Key}] = w.Used
 	}
