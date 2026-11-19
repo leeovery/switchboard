@@ -646,16 +646,17 @@ func (cp compared) weekUsed(c *canvas, y int, columns []compareColumn) {
 }
 
 // weekGauge is the column's week as WEEK USED draws it, as far as its bar
-// has eased: an account's as usage draws its window, its cap and even pace
-// marked, faded where it's stale, and empty where the moment doesn't have
-// the account; all accounts', as allGauge has it.
+// has eased: an account's as a record of weeks reads its window, as
+// recordedGauge has it, its cap and even pace marked, faded where it's
+// stale, and empty where the moment doesn't have the account; all
+// accounts', as allGauge has it.
 func (cp compared) weekGauge(col compareColumn) gauge {
 	g := gauge{of: Ref{Account: col.id, Window: cp.week}, bar: usageBar{empty: true}}
 	switch {
 	case col.all:
 		g = allGauge(cp.m, cp.week)
 	case col.known:
-		g = accountGauge(col.account, cp.week, cp.now)
+		g = recordedGauge(col.account, cp.week, cp.now)
 	}
 	if used, ok := cp.f.Eased[g.of]; ok {
 		g.bar.eased = &used
