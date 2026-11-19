@@ -237,8 +237,10 @@ func TestAnAccountWhoseLabelShowsNothingIsTitledByItsID(t *testing.T) {
 
 // A pool shown whose label shows nothing once cleaned is named by its id.
 func TestAPoolShownWhoseLabelShowsNothingIsNamedByItsID(t *testing.T) {
-	if got := (status.ShownPool{ID: "q7mt", Label: "\u200e", Pools: 2}).Named(); got != "q7mt" {
-		t.Errorf("Named() = %q, want q7mt", got)
+	pools := config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "\u200e"}}
+	shown := status.PoolShown(pools, nil, "q7mt")
+	if shown.Label != "q7mt" || shown.Named() != "q7mt" {
+		t.Errorf("PoolShown labels it %q, named %q, want q7mt for each", shown.Label, shown.Named())
 	}
 }
 
