@@ -6250,10 +6250,10 @@ each at least its least and at most its natural, but `session`, which grows wher
   rename since never followed; else by its worktree's name; else by its id. The List shows its
   project, then its name; a project's SESSIONS its name alone. A worktree's name carries Nerd
   Font's `fa-tree`, U+F1BB, under the config's `nerd_font`, off by default. The project and the
-  name are two things that may share words, as zmx's `switchboard-Kk5phk` under `switchboard`,
+  name are two things that may share words, as zmx's `switchboard-Q7rWx2` under `switchboard`,
   so the name shows whole: in a table, such as the List, as two cells with no dot; and where the
   two read as one phrase, as in a session page's heading, as a breadcrumb,
-  `switchboard · switchboard-Kk5phk`, the dot in `text.muted`.
+  `switchboard · switchboard-Q7rWx2`, the dot in `text.muted`.
 - **How the name is built.** The name a session's lines and the router's listing keep is that of
   its last request to name a place, so a session resumed outside every terminal session is named
   by none. A worktree is one Claude Code made, as the project fold knows one by its path

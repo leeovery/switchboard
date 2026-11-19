@@ -54,9 +54,9 @@ func TestASessionIsNamedAfterItsProjectOnTheListAndAloneUnderItsProject(t *testi
 			want: line{{"api         ", mutedInk}, {"api-auth", secondaryInk}},
 		},
 		{
-			name: "the List: a name that starts with its project's, whole", s: periodSession("~/Code/switchboard", "switchboard", "switchboard-Kk5phk"),
+			name: "the List: a name that starts with its project's, whole", s: periodSession("~/Code/switchboard", "switchboard", "switchboard-Q7rWx2"),
 			projectCells: 10, cells: 29,
-			want: line{{"switchboa… ", mutedInk}, {"switchboard-Kk5phk", secondaryInk}},
+			want: line{{"switchboa… ", mutedInk}, {"switchboard-Q7rWx2", secondaryInk}},
 		},
 		{
 			name: "the List: a worktree's name, plain without a Nerd Font", s: periodSession(inWorktree, "switchboard", ""),
@@ -168,8 +168,8 @@ func TestTheSessionPagesHeadingNamesItsProjectThenItsName(t *testing.T) {
 		want         line
 	}{
 		{
-			name: "its project, then its name", project: "switchboard", shown: views.ShownName{Name: "switchboard-Kk5phk"}, cells: 60,
-			want: line{{"switchboard", titleInk}, {" · ", mutedInk}, {"switchboard-Kk5phk", titleInk}},
+			name: "its project, then its name", project: "switchboard", shown: views.ShownName{Name: "switchboard-Q7rWx2"}, cells: 60,
+			want: line{{"switchboard", titleInk}, {" · ", mutedInk}, {"switchboard-Q7rWx2", titleInk}},
 		},
 		{
 			name: "a worktree's, marked under a Nerd Font", project: "switchboard", shown: views.ShownName{Name: "fix-login", Worktree: true}, nerdFont: true, cells: 60,
