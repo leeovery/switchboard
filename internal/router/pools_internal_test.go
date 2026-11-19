@@ -42,6 +42,18 @@ var testPools = config.Pools{
 	{ID: acmePool, Label: "Acme", Dirs: []string{"/work/acme"}, WrittenDirs: []string{"/work/acme"}},
 }
 
+// What the router tells a client names a pool by its label as it shows,
+// else, where nothing of it shows, by its id.
+func TestAPoolIsShownToAClientByItsLabelAsItShowsElseItsID(t *testing.T) {
+	pools := config.Pools{{ID: defaultPool, Label: "Default"}, {ID: acmePool, Label: "\u200e"}, {ID: "x4pz", Label: "Spare\u2067 pool"}}
+	table := newPoolTable(pooledAccounts(), pools, "", sameID)
+	for pool, want := range map[string]string{defaultPool: "Default", acmePool: acmePool, "x4pz": "Spare pool"} {
+		if got := table.shown(pool); got != want {
+			t.Errorf("shown(%q) = %q, want %q", pool, got, want)
+		}
+	}
+}
+
 // pooledAccounts are testConfigured in testPools.
 func pooledAccounts() config.Accounts {
 	return config.Accounts{

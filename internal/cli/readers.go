@@ -234,7 +234,7 @@ func notALabel(names status.Names, given string) error {
 	for i, id := range ids {
 		ids[i] = prose.Clean(id)
 	}
-	return fmt.Errorf("%s is a label: give its id, %s", prose.Clean(redact.Text(given)), prose.ListOr(ids))
+	return fmt.Errorf("%s is a label: give its id, %s", redact.Text(prose.Clean(given)), prose.ListOr(ids))
 }
 
 // removedHere are the accounts removed that the accounts record in the state

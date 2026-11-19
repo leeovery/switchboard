@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -143,7 +144,7 @@ func (t *poolTable) named(id string) string {
 		return ""
 	}
 	p, _ := t.pools.ByID(t.poolOf[id])
-	return p.Label
+	return prose.LabelOr(p.Label, p.ID)
 }
 
 // pooled reports whether the table has pools: a config's that has them, or
@@ -294,14 +295,14 @@ func (t *poolTable) apart() bool {
 }
 
 // shown returns how what switchboard tells a client names the pool with the
-// given id: by its label, else its id, where there are pools to tell apart,
-// as apart says; "" where there aren't.
+// given id: by its label, cleaned, else its id, as prose.LabelOr has it,
+// where there are pools to tell apart, as apart says; "" where there aren't.
 func (t *poolTable) shown(pool string) string {
 	if !t.apart() {
 		return ""
 	}
 	if p, ok := t.pools.ByID(pool); ok {
-		return p.Label
+		return prose.Clean(prose.LabelOr(p.Label, p.ID))
 	}
 	return pool
 }

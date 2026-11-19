@@ -225,8 +225,20 @@ func TestALabelGivenNamesTheAccountsThatShowIt(t *testing.T) {
 
 // An account whose label shows nothing once cleaned is titled by its id.
 func TestAnAccountWhoseLabelShowsNothingIsTitledByItsID(t *testing.T) {
-	if got := (status.Account{ID: "work", Label: "\u200e"}).Title(); got != "work · work" {
-		t.Errorf("Title() = %q, want work · work", got)
+	for _, label := range []string{"", "\u200e", "\u200b "} {
+		if got := (status.Account{ID: "work", Label: label}).Title(); got != "work" {
+			t.Errorf("Title() of work labelled %+q = %q, want its id alone", label, got)
+		}
+	}
+	if got := (status.Account{ID: "work", Label: "Work"}).Title(); got != "work · Work" {
+		t.Errorf("Title() of work labelled Work = %q, want work · Work", got)
+	}
+}
+
+// A pool shown whose label shows nothing once cleaned is named by its id.
+func TestAPoolShownWhoseLabelShowsNothingIsNamedByItsID(t *testing.T) {
+	if got := (status.ShownPool{ID: "q7mt", Label: "\u200e", Pools: 2}).Named(); got != "q7mt" {
+		t.Errorf("Named() = %q, want q7mt", got)
 	}
 }
 

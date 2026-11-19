@@ -1175,6 +1175,11 @@ func TestLoadReportsProblems(t *testing.T) {
 			want:   []string{`account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`},
 		},
 		{
+			name:   "a label that looks like a token once a character drawn as nothing within it is dropped, as it's shown",
+			config: work + "label = \"Work sk\\u200b" + strings.TrimPrefix(tokenShaped, "sk") + "\"\n",
+			want:   []string{`account "work": label looks like a token, which a label mustn't, as it shows wherever the account does`},
+		},
+		{
 			name:   "a label past the longest a label may be, never quoted",
 			config: work + "label = \"" + strings.Repeat("w", 101) + "\"\n",
 			want:   []string{`account "work": label is 101 characters: must be at most 100`},

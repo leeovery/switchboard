@@ -122,7 +122,7 @@ func KeptPoolOf(record identity.Record, pools config.Pools, id string) (KeptPool
 // "pool Acme (removed 4 Sep)"; else, of another Mac's, as "pool Acme (not
 // configured here)".
 func (p KeptPool) Said() string {
-	return prose.Pool(p.Label) + " (" + p.mark() + ")"
+	return prose.Pool(prose.LabelOr(p.Label, p.ID)) + " (" + p.mark() + ")"
 }
 
 // mark is how Said marks the pool: removed, and when, where it was this

@@ -448,9 +448,14 @@ func (a Account) Title() string {
 	return title(a.ID, a.Label)
 }
 
-// title names the account with the given id and label, as Title does.
+// title names the account with the given id and label, as Title does: by
+// its id alone where nothing of the label shows once cleaned, where
+// prose.LabelOr falls back to the id.
 func title(id, label string) string {
-	return prose.Clean(id) + " · " + prose.Clean(prose.LabelOr(label, id))
+	if prose.Clean(label) == "" {
+		return prose.Clean(id)
+	}
+	return prose.Clean(id) + " · " + prose.Clean(label)
 }
 
 // Account finds the account with the given id.

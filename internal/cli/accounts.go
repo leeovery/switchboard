@@ -376,7 +376,7 @@ func (a *app) inPoolOf(ctx context.Context, id string) string {
 		return ""
 	}
 	pools := a.poolsStanding(ctx)
-	return inPoolNamed(pools, poolLabel(pools, id))
+	return inPoolNamed(pools, poolLabel(pools, id), id)
 }
 
 // contrary reports whether given answers otherwise than the account was
@@ -789,7 +789,7 @@ func emptiedSays(left accounts.Left) string {
 	if left.Emptied.ID == "" {
 		return ""
 	}
-	return "\n" + prose.Pool(left.Emptied.Label) + " has no accounts now: its sessions aren't routed until one is added to it " +
+	return "\n" + prose.Pool(prose.LabelOr(left.Emptied.Label, left.Emptied.ID)) + " has no accounts now: its sessions aren't routed until one is added to it " +
 		"(switchboard accounts add <label> --pool " + prose.Clean(left.Emptied.ID) + ")"
 }
 
