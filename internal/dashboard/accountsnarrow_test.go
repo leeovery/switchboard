@@ -449,7 +449,8 @@ func TestDetailsStackedBodyFollowsTheWidth(t *testing.T) {
 // Stacked Detail lays its parts across the width, at every width it's
 // drawn at: USAGE's bars from a cell after the windows' names, growing past
 // their least of 18 once their words have the cells of their form at its
-// widest, to 40 at most, their names and words whole beside them; BY MODEL's
+// widest, to every cell left, their names and words whole beside them, the
+// words' column ending at the frame's edge, so every bar ends alike; BY MODEL's
 // bar from column 10 to the frame's edge, as it's no bar beside words; the
 // latest of BY DAY's weeks that fit, from column 10, their days two cells
 // where the period's six weeks fit so, else one, and where they don't all
@@ -463,8 +464,9 @@ func TestStackedDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
 	}{
 		{width: 52, bar: 21, byModel: 41, weeks: []string{"31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}, more: "‹ 1 more"},
 		{width: 73, bar: 32, byModel: 62, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
-		{width: 108, bar: 40, byModel: 97, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
-		{width: 138, bar: 40, byModel: 127, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
+		{width: 104, bar: 63, byModel: 93, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
+		{width: 108, bar: 67, byModel: 97, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
+		{width: 138, bar: 97, byModel: 127, weeks: []string{"24 Aug", "31 Aug", "7 Sep", "14 Sep", "21 Sep", "28 Sep"}},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
@@ -477,6 +479,9 @@ func TestStackedDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
 				}
 				if words := strings.TrimLeft(ansi.Cut(row, percent, f.Width), " "); columnOf(row, words) != percent+2 || strings.Contains(row, "…") {
 					t.Errorf("%s's words are %q, want them whole two cells after its percentage, in %q", name, words, row)
+				}
+				if end := percent + 2 + (usageBlock{width: f.Width}).widestWords(); end != f.edge() {
+					t.Errorf("%s's words' column ends at column %d, want it at the frame's edge, %d, in %q", name, end, f.edge(), row)
 				}
 			}
 			byModel := rowStarting(t, rows, "BY MODEL")
@@ -607,8 +612,8 @@ func rowStarting(t *testing.T, rows []string, prefix string) string {
 // stack's 18 or the wide form's 16, then its windows' names toward their
 // widest whole, at least 8, or wide, the widest name's shortest whole form,
 // and at most 24, the bars a cell after them, then its percentage and words
-// in their cells; the bars grow into what's left, at most 40. Where even
-// their leasts don't fit, it says so.
+// in their cells; the bars take every cell left, so the words end the row
+// wherever it fits. Where even their leasts don't fit, it says so.
 func TestDetailsUSAGERowIsLaidByFlex(t *testing.T) {
 	const full = 24
 	tests := []struct {
@@ -619,10 +624,10 @@ func TestDetailsUSAGERowIsLaidByFlex(t *testing.T) {
 	}{
 		{name: "the short words at 52", room: 51, bar: 18, names: 6, words: shortCells, fits: true, want: detailUsage{names: 8, at: 9, bar: 21}},
 		{name: "the full words at 73", room: 72, bar: 18, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 32}},
-		{name: "at its most at 108", room: 107, bar: 18, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 40}},
+		{name: "past 40 at 108", room: 107, bar: 18, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 67}},
 		{name: "a long name whole", room: 72, bar: 18, names: 11, words: full, fits: true, want: detailUsage{names: 11, at: 12, bar: 29}},
 		{name: "a name past the room, the bars at their least", room: 72, bar: 18, names: 30, words: full, fits: true, want: detailUsage{names: 22, at: 23, bar: 18}},
-		{name: "a name past the most", room: 107, bar: 18, names: 30, words: full, fits: true, want: detailUsage{names: 24, at: 25, bar: 40}},
+		{name: "a name past the most", room: 107, bar: 18, names: 30, words: full, fits: true, want: detailUsage{names: 24, at: 25, bar: 51}},
 		{name: "a long name before the bars", room: 51, bar: 18, names: 11, words: shortCells, fits: true, want: detailUsage{names: 11, at: 12, bar: 18}},
 		{name: "the stack's leasts", room: 58, bar: 18, names: 6, words: full, fits: true, want: detailUsage{names: 8, at: 9, bar: 18}},
 		{name: "a cell short of the stack's leasts", room: 57, bar: 18, names: 6, words: full, want: detailUsage{names: 8, at: 9, bar: 18}},
@@ -634,8 +639,12 @@ func TestDetailsUSAGERowIsLaidByFlex(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			row := detailUsageRow{bar: tt.bar, least: tt.least, names: tt.names, words: tt.words}
-			if got, fits := row.laid(tt.room); got != tt.want || fits != tt.fits {
+			got, fits := row.laid(tt.room)
+			if got != tt.want || fits != tt.fits {
 				t.Errorf("%+v laid in %d is %+v, fitting %v, want %+v, fitting %v", row, tt.room, got, fits, tt.want, tt.fits)
+			}
+			if end := got.at + got.bar + afterBar + tt.words; fits && end != tt.room {
+				t.Errorf("%+v laid in %d ends its words at %d, want them at the room's end", row, tt.room, end)
 			}
 		})
 	}

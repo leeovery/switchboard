@@ -87,18 +87,19 @@ func projectSessionsOf(words sessionWords, page *views.ProjectPage, measured Ses
 // columnsOf are SESSIONS' columns of the sessions given across a frame
 // width cells wide, from listFrom, listGap apart, as flex lays them: the
 // session's as the List's, from its least to its whole, taking what's spare
-// first; then each other at the widest of its head and what it says of the
-// sessions, the ended as measured has them and those running as they say
-// now, on's narrowing as the List's does toward listOnLeast. As it narrows,
-// model, started and requests leave in the turns above. No natural comes
-// from the rows shown, so the columns hold still as SESSIONS scrolls.
+// first, and past its whole, every cell left, so the others end at the
+// frame's edge; then each other at the widest of its head and what it says
+// of the sessions, the ended as measured has them and those running as they
+// say now, on's narrowing as the List's does toward listOnLeast. As it
+// narrows, model, started and requests leave in the turns above. No natural
+// comes from the rows shown, so the columns hold still as SESSIONS scrolls.
 func (s projectSessions) columnsOf(width int, sessions []views.PeriodSession, measured SessionsMeasured) []listColumn {
 	parts := make([]flex.Part, len(projectColumns))
 	for i, p := range projectColumns {
 		w := max(measured.widest[i], s.words.widest(p, sessions, sessionRunning))
 		parts[i] = flex.Part{Least: w, Natural: w, Gap: listGap}
 	}
-	parts[0] = flex.Part{Least: listSessionLeast, Natural: listSessionWhole}
+	parts[0] = flex.Part{Least: listSessionLeast, Natural: listSessionWhole, Grows: true}
 	parts[1].Least = min(parts[1].Natural, listOnLeast)
 	parts[2].Leaves, parts[4].Leaves, parts[5].Leaves = modelGivesWay, startedGivesWay, requestsGiveWay
 	spans, _ := flex.Lay(width-listFrom, parts...)

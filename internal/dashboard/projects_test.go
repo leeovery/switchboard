@@ -540,6 +540,33 @@ func TestSessionsColumnsGiveWayInTheirOrder(t *testing.T) {
 	}
 }
 
+// SESSIONS fills the width at every width from the phone's: the session's
+// column takes every cell past the others' naturals, so the last column ends
+// at the frame's edge; and wherever every column shows, each other keeps its
+// width, as at 220, flush to the right (the owner's call, 19 November 2026).
+func TestSessionsFillsTheWidthItsSessionColumnTakingTheSpare(t *testing.T) {
+	page := chosenPage(chosenSessions())
+	words := sessionWords{m: frameOf(173, 53).Moment(framedDoc(nil, nil), routedAt), now: routedAt}
+	widest := map[listPart]int{}
+	for _, c := range projectSessionsOf(words, &page, SessionsMeasured{}, 220).columns {
+		widest[c.part] = c.width
+	}
+	for width := 52; width <= 220; width++ {
+		columns := projectSessionsOf(words, &page, SessionsMeasured{}, width).columns
+		if last := columns[len(columns)-1]; last.x+last.width != width {
+			t.Errorf("at %d SESSIONS' last column ends at %d, want the frame's edge: %+v", width, last.x+last.width, columns)
+		}
+		if len(columns) < len(projectColumns) {
+			continue
+		}
+		for _, c := range columns[1:] {
+			if c.width != widest[c.part] {
+				t.Errorf("at %d SESSIONS' %s is %d cells, want %d, as at 220", width, c.head(), c.width, widest[c.part])
+			}
+		}
+	}
+}
+
 // SESSIONS groups the sessions ended under a rule for the day they ended:
 // today, yesterday, a weekday within the week, else the day and its date;
 // the sessions running over the first, under none.

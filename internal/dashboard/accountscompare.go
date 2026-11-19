@@ -40,7 +40,8 @@ const (
 	// six of ten at 160.
 	leastColumn = 19
 	// barMost are the most cells a bar beside words takes, so none reads as
-	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.
+	// a rule, but Detail's USAGE, whose bars run to their words at the row's
+	// end; and shareSpare the cells a column keeps beside BY MODEL's.
 	barMost    = 40
 	shareSpare = 4
 	// compareHeads are the rows the heads take, held however far the rest

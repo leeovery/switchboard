@@ -5,36 +5,36 @@
 
 SESSIONS   Switchboard  List                                                 < this week >
 
-  session                        on        model       state        requests
-▸ infra       terraform          side      opus-5-5    idle 50s          153
-  website     9c2e               personal  opus-5-5    idle 9m           267
-↑ switchboard router-fix d28c    side      opus-5-5    asking            445
-  docs        handbook           personal  opus-5-5    idle 34s          158
-↓ api         api-auth           side      opus-5-5    answering          84
-↓ mobile      c61b               side      opus-5-5    answering           4
+  session                                      on        model       state        requests
+▸ infra       terraform                        side      opus-5-5    idle 50s          153
+  website     9c2e                             personal  opus-5-5    idle 9m           267
+↑ switchboard router-fix d28c                  side      opus-5-5    asking            445
+  docs        handbook                         personal  opus-5-5    idle 34s          158
+↓ api         api-auth                         side      opus-5-5    answering          84
+↓ mobile      c61b                             side      opus-5-5    answering           4
   ended today  ───────────────────────────────────────────────────────────────────────────
-  mobile      ios-build          personal  opus-5-5    ended 11:21        38
-  docs        guides 3d7a        work      opus-5-5    ended 10:15        12
-  infra       e0c4               work      opus-5-5    ended 10:02        19
-  website     a8f1               side      opus-5-5    ended 09:28        24
-  api         billing 2b6d       work      opus-5-5    ended 09:05        31
-  api         billing 5e7d       side      opus-5-5    ended 00:41        39
-  infra       4b0e               work      opus-5-5    ended 00:31        13
-  docs        guides 8a2c        side      opus-5-5    ended 00:18        43
+  mobile      ios-build                        personal  opus-5-5    ended 11:21        38
+  docs        guides 3d7a                      work      opus-5-5    ended 10:15        12
+  infra       e0c4                             work      opus-5-5    ended 10:02        19
+  website     a8f1                             side      opus-5-5    ended 09:28        24
+  api         billing 2b6d                     work      opus-5-5    ended 09:05        31
+  api         billing 5e7d                     side      opus-5-5    ended 00:41        39
+  infra       4b0e                             work      opus-5-5    ended 00:31        13
+  docs        guides 8a2c                      side      opus-5-5    ended 00:18        43
   ended yesterday  ───────────────────────────────────────────────────────────────────────
-▸ switchboard dashboard          side      opus-5-5    ended 18:46       595
-  switchboard settings           personal  opus-5-5    ended 16:45       201
-  infra       d29e               side      opus-5-5    ended 16:27       410
-  switchboard fix-login          personal  opus-5-5    ended 15:23       179
-  infra       fd98               personal  opus-5      ended 14:47       397
-  website     landing            personal  sonnet-5-5  ended 14:23       398
-  switchboard pools 1cb3         side      sonnet-5-5  ended 13:27       159
-  website     3449               side      sonnet-5-5  ended 12:57       260
-  switchboard pools 0084         side      opus-5-5    ended 12:17       192
-  api         e9d9               side      opus-5-5    ended 12:16       669
-  website     f17c               personal  opus-5-5    ended 12:12       332
-  switchboard router-fix 31e1    side      opus-5-5    ended 11:33       146
-  switchboard release            work      opus-5-5    ended 11:23       142
+▸ switchboard dashboard                        side      opus-5-5    ended 18:46       595
+  switchboard settings                         personal  opus-5-5    ended 16:45       201
+  infra       d29e                             side      opus-5-5    ended 16:27       410
+  switchboard fix-login                        personal  opus-5-5    ended 15:23       179
+  infra       fd98                             personal  opus-5      ended 14:47       397
+  website     landing                          personal  sonnet-5-5  ended 14:23       398
+  switchboard pools 1cb3                       side      sonnet-5-5  ended 13:27       159
+  website     3449                             side      sonnet-5-5  ended 12:57       260
+  switchboard pools 0084                       side      opus-5-5    ended 12:17       192
+  api         e9d9                             side      opus-5-5    ended 12:16       669
+  website     f17c                             personal  opus-5-5    ended 12:12       332
+  switchboard router-fix 31e1                  side      opus-5-5    ended 11:33       146
+  switchboard release                          work      opus-5-5    ended 11:23       142
 
 this week  27 sessions · 5,410 requests · $635.00 at API prices
 tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit

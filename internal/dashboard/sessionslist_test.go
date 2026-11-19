@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -182,9 +184,9 @@ var d28cMoved = listedSession{"d28c5e17", "~/Code/switchboard", "side", asking, 
 // worth, at 101, and started, at 92, beside the session whole; and model as
 // the leasts don't fit.
 // What's past the leasts goes to the session, to its project and its name,
-// 29 cells, then to on, its natural the widest account's name; nothing but
-// routing grows past its natural, so where routing's left the spare lies at
-// the row's end.
+// 29 cells, then to on, its natural the widest account's name; then where
+// routing shows, to routing, and where it's left, to the session, so the
+// last column ends at the row's end and nothing floats short of it.
 func TestTheListsColumnsByWidth(t *testing.T) {
 	whole := "  session                        on        model      state        started          requests    worth"
 	moved := "↑ switchboard d28c               side      opus-5-5   asking       12:02                 445   $48.20"
@@ -223,14 +225,30 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 			f := listFrame(t, tt.width, 37, placedList(d28cMoved.placed("")))
 			c := f.page(framedDoc(nil, nil), routedAt)
 			top := f.top()
-			if got := rowOf(c, top); got != tt.heads {
-				t.Errorf("the heads read\n%q\nwant\n%q", got, tt.heads)
+			heads, row := tt.heads, tt.row
+			if !strings.HasSuffix(heads, "routing") {
+				heads, row = sessionWidened(heads, tt.width), sessionWidened(row, tt.width)
 			}
-			if got := rowOf(c, top+1); got != tt.row {
-				t.Errorf("d28c's row reads\n%q\nwant\n%q", got, tt.row)
+			if got := rowOf(c, top); got != heads {
+				t.Errorf("the heads read\n%q\nwant\n%q", got, heads)
+			}
+			if got := rowOf(c, top+1); got != row {
+				t.Errorf("d28c's row reads\n%q\nwant\n%q", got, row)
 			}
 		})
 	}
+}
+
+// sessionWidened is the List's row given, its session whole, its session's
+// column widened past its whole so the row ends at width; as given where it
+// ends there already.
+func sessionWidened(row string, width int) string {
+	spare := width - ansi.StringWidth(row)
+	if spare <= 0 {
+		return row
+	}
+	end := listFrom + listSessionWhole
+	return ansi.Cut(row, 0, end) + strings.Repeat(" ", spare) + ansi.Cut(row, end, width)
 }
 
 // listLeaving are the List's columns that leave, in the order they leave.
@@ -268,16 +286,15 @@ func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
 }
 
 // listWidensSteadily says how the List's columns, a cell wider than before,
-// narrow a name: the session never, but where model comes back; and on
-// never, once the session's whole. The session and on are its first two
-// columns, as they never leave.
+// narrow a name: the session never, but where a column comes back, taking
+// the cells it held; and on never, once the session's whole. The session
+// and on are its first two columns, as they never leave.
 func listWidensSteadily(before, after []listColumn) []string {
 	var wrong []string
-	modelBack := len(after) > len(before) && after[2].part == listModel && before[2].part != listModel
-	if after[listSession].width < before[listSession].width && !modelBack {
+	if after[listSession].width < before[listSession].width && len(after) <= len(before) {
 		wrong = append(wrong, fmt.Sprintf("the session narrows from %d cells to %d", before[listSession].width, after[listSession].width))
 	}
-	if before[listSession].width == 29 && after[listOn].width < before[listOn].width {
+	if before[listSession].width >= 29 && after[listOn].width < before[listOn].width {
 		wrong = append(wrong, fmt.Sprintf("on narrows from %d cells to %d", before[listOn].width, after[listOn].width))
 	}
 	return wrong
@@ -292,7 +309,8 @@ func listWidensSteadily(before, after []listColumn) []string {
 // past the leasts goes to the session, to 29, before on takes a cell past
 // its least; neither worth nor started shows beside a session cut short;
 // routing, where it shows, ends at the last column, beside the session and
-// on whole, and where it's left, no column is past its natural; and model
+// on whole, and where it's left, the session takes the spare, no other
+// column past its natural, so the last ends at the last column; and model
 // and worth, wherever they show, are whole.
 func listLaidAsDesigned(width int, n listNaturals) []string {
 	on := n.on
@@ -322,14 +340,14 @@ func listLaidAsDesigned(width int, n listNaturals) []string {
 	}
 	session, routing, last := shown[listSession], shown[listRouting], columns[len(columns)-1]
 	switch {
-	case shown[listOn].width > leasts[listOn] && session.width != 29:
+	case shown[listOn].width > leasts[listOn] && session.width < 29:
 		wrong = append(wrong, "on takes cells past its least before the session's whole")
-	case (hasPart(shown, listWorth) || hasPart(shown, listStarted)) && session.width != 29:
+	case (hasPart(shown, listWorth) || hasPart(shown, listStarted)) && session.width < 29:
 		wrong = append(wrong, "worth or started shows beside a session cut short")
 	case hasPart(shown, listRouting) && (routing.x+routing.width != width || session.width != 29 || shown[listOn].width != on):
 		wrong = append(wrong, "routing shows short of the last column, or beside a session or on cut short")
-	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
-		wrong = append(wrong, "with routing left, a column grows past its natural")
+	case !hasPart(shown, listRouting) && (shown[listOn].width > on || last.x+last.width != width):
+		wrong = append(wrong, "with routing left, a column but the session grows past its natural, or the row ends short of the last column")
 	}
 	if listCut(shown, listModel, n.model) || listCut(shown, listWorth, n.worth) {
 		wrong = append(wrong, "model or worth shown cut short")
@@ -382,7 +400,7 @@ func longListDoc() status.Document {
 // on holds its 14, work-team-plan still whole; and at 138, routing still
 // left, and 173, on as wide as the widest name, every name whole, the
 // session past its 29 to hold the widest project whole beside the widest
-// name.
+// name, and at 138 past that, to the row's end.
 func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 	infra := listedSession{"db8a71e3", "~/Code/infra-terraform-modules", "side", idleFor(50 * time.Second), yesterdayClock(15, 8), 126, 1137, views.MarkMoved, 0}
 	docs := listedSession{"3d7a8e12", "~/Code/docs-site-getting-started", "work", endedAt(10, 15), routedClock(1, 9, 40), 12, 84, views.NoMark, 0}
@@ -399,8 +417,8 @@ func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 			"  docs-site-getti… docs  work-team-plan  opus-5-5   ended 10:15        12",
 		}},
 		{width: 138, rows: []string{
-			"▸ infra-terraform-modules   plan  side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
-			"  docs-site-getting-started docs  work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
+			"▸ infra-terraform-modules   plan                        side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",
+			"  docs-site-getting-started docs                        work-team-plan          opus-5-5   ended 10:15  09:40                  12    $0.84",
 		}},
 		{width: 173, rows: []string{
 			"▸ infra-terraform-modules   plan  side-hustle-consulting  opus-5-5   idle 50s     yesterday 15:08       126   $11.37",

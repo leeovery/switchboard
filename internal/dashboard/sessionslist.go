@@ -139,7 +139,8 @@ type listColumn struct {
 // order. In the second, the session grows past its natural to its project
 // and name whole, as sessionWhole has them, before routing takes what's
 // left, so no name is cut where the row has room; where routing's left, the
-// spare past that lies at the row's end.
+// session takes what's left itself, so the columns after it end at the
+// row's end.
 func listColumnsOf(width int, n listNaturals) []listColumn {
 	room := width - listFrom
 	n.on = max(n.on, ansi.StringWidth(listPartFacts[listOn].head))
@@ -159,6 +160,9 @@ func listColumnsOf(width int, n listNaturals) []listColumn {
 			part.Natural = span.Size
 		case listSession:
 			part.Grows, part.Most = true, max(part.Natural, sessionWhole(n))
+			if decided[listRouting].Left {
+				part.Most = 0
+			}
 		}
 		shown, kept = append(shown, listPart(p)), append(kept, part)
 	}
