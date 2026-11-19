@@ -91,8 +91,10 @@ func TestTheMomentListsItsWindowsInTheOrderOfCare(t *testing.T) {
 
 // Each model's own window is listed as the 5-hour is, only where some
 // account has it to show: where some account has used it, some of it used
-// as it stands now, however near or far its limit, or where a limit holds
-// it, as one may once it has reset to 0%. An account known not to have used
+// as it stands now, however near or far its limit, or where a limit naming
+// it holds it, as one may once it has reset to 0%; never where a limit
+// naming no window holds it alone, which says nothing of its use. An
+// account known not to have used
 // it goes without it, as an account without a 5-hour window does; one with
 // no usable token, nothing read, its read failed since, or a limit holding
 // it, may have used it, so keeps it. Reported
@@ -111,6 +113,7 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 	}
 	reserveAll := func(a *status.Account) { a.Reserve = 0.9999 }
 	failed := func(a *status.Account) { a.Error = "HTTP 529 · Overloaded" }
+	holdingAll := func(a *status.Account) { a.Limit = status.Limit{Until: built.Add(time.Hour)} }
 	holdingFable := func(a *status.Account) {
 		a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(time.Hour)}
 	}
@@ -159,6 +162,11 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 		{
 			name: "read 0% again once reset, a limit naming it still holding it: listed, that one keeping it, held", listed: []string{"7d", "5h", "7d_oi"},
 			doc:     routerDocOf(work(0, holdingFable), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"side"},
+		},
+		{
+			name: "every one at 0%, a limit naming no window holding one, which says nothing of its use: not listed, that one keeping it", listed: []string{"7d", "5h"},
+			doc:     routerDocOf(work(0, holdingAll), side(windowIn("7d_oi", 0, 3*day))),
 			without: []string{"side"},
 		},
 		{

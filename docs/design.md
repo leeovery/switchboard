@@ -4215,8 +4215,11 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   owner's call, 18 November 2026, replacing that of 17 October): any window the policy doesn't
   share, as Fable's, so a new model's falls under it with no change.
   - An account that has used it, its reading above 0 as it stands now, shows it: its bar,
-    percentage and words. So does one a limit or its cap holds it on, at 0% or not, as a limit
-    may still hold a window read again at 0% once it resets. It's live: as an account's resets to
+    percentage and words. So does one held on it by a limit naming it, or its cap reached in it,
+    at 0% or not, as a limit may still hold a window read again at 0% once it resets. A limit
+    naming no window holds every window alike, so says nothing of a model's use, and never brings
+    the window up alone (the owner's rule: shown where used); where another account's use shows
+    it, the held account's row reads by its kind, `limit · back Sun`. It's live: as an account's resets to
     0, its bar goes, and the window goes once no account has use left in it, or a hold on it; the
     first use on any account brings it back.
   - An account known not to have used it goes without it, as an account without a 5-hour window
@@ -4243,8 +4246,9 @@ last token's line where it has any, with no blank line after it, as a shell's pr
     document keeps every window, used or not, as do the records Trends draws, the Log, Accounts'
     records (limits hit, past weeks) and every JSON; routing and scoring never read which show.
   - One owner: the moment's `Listed` lists the windows a view lists, those every model shares that
-    some account has or may have, then each model's own some account has used, or a limit or cap
-    holds, and `Reported` every model's own any account reports, for a layout to hold still as use
+    some account has or may have, then each model's own some account has used, or a limit naming
+    it or a cap reached in it holds, as `AccountNow.shows` says, and `Reported` every model's own
+    any account reports, for a layout to hold still as use
     comes and goes. Of an account's window, `WindowNow.Unused` says it's a model's own the account
     is known not to have used, and `WindowNow.Without` takes it with `WindowNone`, a window the
     account doesn't have: every view leaves an account out, words it so, and draws its bar empty,
