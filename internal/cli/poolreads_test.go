@@ -535,3 +535,25 @@ func TestTheVerbsTextNamesThePoolOnceThereIsASecond(t *testing.T) {
 		}
 	}
 }
+
+// history --json, history --windows --json and sessions --json name the pool
+// they read alike, by its id and its label, the pool named, else the first.
+func TestTheVerbsJSONNamesThePoolItReadsAlike(t *testing.T) {
+	deps := pooledDeps(t, false)
+	tests := []struct {
+		args      []string
+		id, label string
+	}{
+		{args: nil, id: "b2n8", label: "Default"},
+		{args: []string{"--pool", "q7mt"}, id: "q7mt", label: "Acme"},
+	}
+	for _, tt := range tests {
+		for _, verb := range [][]string{{"history"}, {"history", "--windows"}, {"sessions"}} {
+			args := append(append(verb, "--json"), tt.args...)
+			got := run(t, deps, args...)
+			if page := jsonObject(t, got.stdout); got.code != 0 || page["pool"] != tt.id || page["pool_label"] != tt.label {
+				t.Errorf("switchboard %s gave the pool %v labelled %v (%+v), want %s labelled %s", strings.Join(args, " "), page["pool"], page["pool_label"], got, tt.id, tt.label)
+			}
+		}
+	}
+}

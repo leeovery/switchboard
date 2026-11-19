@@ -287,7 +287,7 @@ func (f LinkFound) stated() StepLine {
 		return StepLine{Mark: Warning, Detail: f.after(", but ", fronted(detail))}
 	}
 	switch sh.Situation {
-	case Through:
+	case Through, OfferCompletions:
 		return StepLine{Mark: Done, Detail: f.after(" · ", "your shell runs "+it)}
 	case LineAdded:
 		added := f.after(", and ", "switchboard's line is added to "+sh.Where)

@@ -2,8 +2,11 @@ package setup_test
 
 import (
 	"errors"
+	"io/fs"
+	"path/filepath"
 	"slices"
 	"testing"
+	"testing/fstest"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
@@ -100,7 +103,7 @@ func TestCheckPoolRefusesAsTheConfigsRulesDo(t *testing.T) {
 			w.writeConfig(t, doneInPools(defaultPool+"\n"+acmePool))
 			was := w.readConfig(t)
 
-			err := w.setup(t).CheckPool(tt.pool)
+			_, err := w.setup(t).CheckPool(tt.pool)
 			refused, ok := errors.AsType[*setup.Refused](err)
 			if !ok || refused.Field != tt.field || refused.Dir != tt.dir || refused.Why != tt.why {
 				t.Fatalf("CheckPool() error = %v (%+v), want a Refused of field %d, dir %d, saying %q", err, refused, tt.field, tt.dir, tt.why)
@@ -109,6 +112,55 @@ func TestCheckPoolRefusesAsTheConfigsRulesDo(t *testing.T) {
 				t.Errorf("the config reads\n%s\nwant it as it was", got)
 			}
 		})
+	}
+}
+
+// A new pool that passes its check is warned of each directory that isn't
+// on this Mac, as the config writes it, as pool add warns of it, the pool
+// passing all the same; none where the filesystem isn't looked in.
+func TestCheckPoolFindsTheDirectoriesNotOnThisMac(t *testing.T) {
+	machine := fstest.MapFS{"Code/client": &fstest.MapFile{Mode: fs.ModeDir}}
+	pool := accounts.NewPool{Label: "Client", Dirs: []string{"/Code/client", "/Code/cleint"}}
+	tests := []struct {
+		name string
+		root fs.FS
+		want []string
+	}{
+		{name: "looked for", root: machine, want: []string{"/Code/cleint"}},
+		{name: "not looked for", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.writeConfig(t, doneInPools(defaultPool+"\n"+acmePool))
+			was := w.readConfig(t)
+			s := w.setup(t)
+			s.Root = tt.root
+
+			checked, err := s.CheckPool(pool)
+			if err != nil || !slices.Equal(checked.Missing, tt.want) {
+				t.Errorf("CheckPool() = %+v, %v; want %q missing, the pool passing", checked, err, tt.want)
+			}
+			if got := w.readConfig(t); got != was {
+				t.Errorf("the config reads\n%s\nwant it as it was", got)
+			}
+		})
+	}
+}
+
+// A new pool passing is given its directories as the config would write
+// them, one typed in full in the home from ~/, so the card's hint and its
+// warning name it alike.
+func TestCheckPoolGivesTheDirectoriesAsTheConfigWouldWriteThem(t *testing.T) {
+	w := newWorld(t)
+	w.writeConfig(t, doneInPools(defaultPool+"\n"+acmePool))
+	s := w.setup(t)
+	s.Accounts.HomeDir = func() (string, error) { return w.home, nil }
+	s.Root = fstest.MapFS{}
+
+	checked, err := s.CheckPool(accounts.NewPool{Label: "Client", Dirs: []string{filepath.Join(w.home, "Code", "client")}})
+	if want := []string{"~/Code/client"}; err != nil || !slices.Equal(checked.Dirs, want) || !slices.Equal(checked.Missing, want) {
+		t.Errorf("CheckPool() = %+v, %v; want %q written, and missing", checked, err, want)
 	}
 }
 
@@ -306,6 +358,24 @@ func TestWhichSessionsUseAPool(t *testing.T) {
 				t.Errorf("Places() = %q, want %q", got, tt.places)
 			}
 		})
+	}
+}
+
+// A new pool's directories that aren't on this Mac are warned of, each as
+// the config writes it, one or several; none, nothing.
+func TestANewPoolWarnsOfItsDirectoriesNotOnThisMac(t *testing.T) {
+	tests := []struct {
+		missing []string
+		want    string
+	}{
+		{want: ""},
+		{missing: []string{"~/Code/cleint"}, want: "~/Code/cleint isn't a directory on this Mac, so no session starts in it yet"},
+		{missing: []string{"~/Code/cleint", "/Volumes/Client"}, want: "~/Code/cleint and /Volumes/Client aren't directories on this Mac, so no session starts in them yet"},
+	}
+	for _, tt := range tests {
+		if got := (setup.PoolChoice{Held: true, Missing: tt.missing}).Warning(); got != tt.want {
+			t.Errorf("Warning() of %q missing = %q, want %q", tt.missing, got, tt.want)
+		}
 	}
 }
 

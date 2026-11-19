@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -25,12 +24,14 @@ type poolsDocument struct {
 }
 
 // listedPool is a pool as pool lists it: its id and label, the directories
-// it's fenced to, as the config writes them, none for the unfenced pool, and
-// its accounts, in the config's order.
+// it's fenced to, as the config writes them and as it resolves them,
+// absolute, as the router fences sessions by them, none for the unfenced
+// pool, and its accounts, in the config's order.
 type listedPool struct {
 	Pool      string          `json:"pool"`
 	PoolLabel string          `json:"pool_label"`
 	Dirs      []string        `json:"dirs"`
+	Paths     []string        `json:"paths"`
 	Accounts  []pooledAccount `json:"accounts"`
 }
 
@@ -88,10 +89,7 @@ func listPools(cfg *config.Config) []listedPool {
 	listed := []listedPool{}
 	for _, p := range cfg.Pools {
 		in := cfg.Accounts.InPool(p.ID)
-		pool := listedPool{Pool: p.ID, PoolLabel: p.Label, Dirs: slices.Clone(p.WrittenDirs), Accounts: []pooledAccount{}}
-		if pool.Dirs == nil {
-			pool.Dirs = []string{}
-		}
+		pool := listedPool{Pool: p.ID, PoolLabel: p.Label, Dirs: listedDirs(p.WrittenDirs), Paths: listedDirs(p.Dirs), Accounts: []pooledAccount{}}
 		primary, _ := cfg.Accounts.PrimaryOf(p.ID)
 		for _, acct := range in {
 			pool.Accounts = append(pool.Accounts, pooledAccount{Account: acct.ID, AccountName: status.ConfiguredName(acct), Primary: acct.ID == primary.ID})
@@ -99,6 +97,11 @@ func listPools(cfg *config.Config) []listedPool {
 		listed = append(listed, pool)
 	}
 	return listed
+}
+
+// listedDirs are dirs as a pool's JSON lists them: a copy, empty for none.
+func listedDirs(dirs []string) []string {
+	return append([]string{}, dirs...)
 }
 
 // noPools says why there are no pools to list: before the move to pools, the
@@ -413,19 +416,12 @@ func verbsSaid(before, after config.Pools, p config.Pool) string {
 }
 
 // warnUnmade warns w of each of p's directories that isn't a directory on
-// this Mac, as root, the filesystem from its root, finds it, as where it's
-// mistyped: the pool's made all the same, as its directory may be made
-// later. Where root is nil, or a directory can't be looked for, nothing is
-// said of it.
+// this Mac, as root, the filesystem from its root, finds it, as
+// config.Pool's Missing has them: the pool's made all the same, as its
+// directory may be made later.
 func warnUnmade(w io.Writer, root fs.FS, p config.Pool) {
-	if root == nil || len(p.Dirs) != len(p.WrittenDirs) {
-		return
-	}
-	for i, dir := range p.Dirs {
-		info, err := fs.Stat(root, cmp.Or(strings.TrimPrefix(dir, "/"), "."))
-		if errors.Is(err, fs.ErrNotExist) || err == nil && !info.IsDir() {
-			launch.Notice(w, prose.Clean(p.WrittenDirs[i])+" isn't a directory, so no session starts in it yet: if it's mistyped, fence the pool anew with switchboard pool edit "+p.ID+" --dirs")
-		}
+	for _, dir := range p.Missing(root) {
+		launch.Notice(w, prose.Clean(dir)+" isn't a directory, so no session starts in it yet: if it's mistyped, fence the pool anew with switchboard pool edit "+p.ID+" --dirs")
 	}
 }
 

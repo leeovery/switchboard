@@ -59,12 +59,26 @@ doesn't go through the router.
 
 ## Completions don't work
 
-The switchboard file for your shell loads completions for commands and flags.
+The switchboard file for your shell loads completions for commands and flags. The switchboard line
+in your startup file loads that file. If you declined the line, run `switchboard setup` again. It
+offers the line once more only if your shell can take completions, as the table below says, and
+has none of switchboard's.
+
+`setup` doesn't offer the line in these cases:
+
+- your shell can't take completions;
+- an alias runs the switchboard link while your `PATH` finds another `claude`;
+- `setup` can't read your startup file;
+- `setup` can't tell which startup file a new terminal reads;
+- another switchboard's line is in the file.
+
+If another switchboard's line is there, replace it with this switchboard's line. In the other
+cases, add the line yourself. "Which startup file gets the line" below says where it goes.
 
 | Shell | Completions load if |
 |---|---|
 | zsh | `compinit` has run before the switchboard line. A usual `.zshrc` does. |
-| bash | The bash-completion package is loaded. |
+| bash | The bash-completion package is loaded, and bash isn't in POSIX mode. |
 | fish | Always. |
 
 ## Going round switchboard

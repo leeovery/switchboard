@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -48,6 +49,25 @@ func (p Pool) Fenced() bool {
 // files: links are resolved by the caller, where they're to be.
 func (p Pool) Covers(dir string) bool {
 	return slices.ContainsFunc(p.Dirs, func(fence string) bool { return within(dir, fence) })
+}
+
+// Missing returns those of the pool's directories, as the config writes
+// them, that aren't a directory on this Mac as root, the filesystem from its
+// root, finds them, as where one's mistyped, or on a disk that isn't
+// mounted: none where root is nil, nor of a directory that can't be looked
+// for. Every verb and setup ask it alike, so they never disagree.
+func (p Pool) Missing(root fs.FS) []string {
+	if root == nil || len(p.Dirs) != len(p.WrittenDirs) {
+		return nil
+	}
+	var missing []string
+	for i, dir := range p.Dirs {
+		info, err := fs.Stat(root, cmp.Or(strings.TrimPrefix(dir, "/"), "."))
+		if errors.Is(err, fs.ErrNotExist) || err == nil && !info.IsDir() {
+			missing = append(missing, p.WrittenDirs[i])
+		}
+	}
+	return missing
 }
 
 // Pools are the configured pools, in the config file's order: none in a

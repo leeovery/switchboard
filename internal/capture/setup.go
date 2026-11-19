@@ -670,9 +670,10 @@ func (s setupSteps) CheckAdding(adding setup.Adding) (accounts.Adding, error) {
 	return accounts.Adding{Account: account, NewPool: adding.NewPool}, err
 }
 
-// CheckPool refuses no pool, as no fixture's is refused.
-func (s setupSteps) CheckPool(accounts.NewPool) error {
-	return nil
+// CheckPool refuses no pool, writing its directories as given, and finds
+// every one on this Mac, as no fixture's is refused, nor missing.
+func (s setupSteps) CheckPool(pool accounts.NewPool) (setup.CheckedPool, error) {
+	return setup.CheckedPool{Dirs: pool.Dirs}, nil
 }
 
 // MakeToken makes the account's token as makings has it: it reports each

@@ -44,16 +44,21 @@ func (e *NewPoolError) Unwrap() error {
 }
 
 // CheckNewPool checks a pool to make with an account against the config file
-// as it stands, as AddPool checks a pool it adds, writing nothing. It fails
-// with a NewPoolError where the pool's refused, as AddPool says, and as
+// as it stands, as AddPool checks a pool it adds, writing nothing, and
+// returns it as the config would read it, under an id it's checked under. It
+// fails with a NewPoolError where the pool's refused, as AddPool says, and as
 // config.Edit does otherwise.
-func (r Registry) CheckNewPool(pool NewPool) error {
+func (r Registry) CheckNewPool(pool NewPool) (config.Pool, error) {
 	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
-		return err
+		return config.Pool{}, err
 	}
-	_, err = madeIn(draft, pool, checkedID)
-	return err
+	id, err := madeIn(draft, pool, checkedID)
+	if err != nil {
+		return config.Pool{}, err
+	}
+	checked, _ := draft.Config().Pools.ByID(id)
+	return checked, nil
 }
 
 // poolID gives the id of a pool being made, apart from the ids configured,

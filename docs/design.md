@@ -1358,8 +1358,13 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   pools, or can't be read, the router is read as before, there being no pools to tell it by; once
   the move is done, a config naming no pools has its pools as they stand, from the accounts record,
   as `launch.PoolsOf` gives them, so such a router is read as above.
-- **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
-  add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
+- **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries,
+  its JSON giving each pool's directories twice: `dirs` as the config writes them, and `paths`,
+  one for each of them, in order, as the config resolves them, absolute and clean (a directory it
+  can't resolve fails the config's load, so none is ever left out). The router matches a session's
+  directory to them with links resolved on both sides, ignoring case and how accents are written
+  (`launch`'s `fencesHolding`), so an exact compare of strings can miss. `pool add <label>
+  [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
   label with `--label`, replaces its directories with `--dirs` and clears them with `--unfence`; and
   `pool remove <id>` removes one that has no accounts. Leaving a second pool unfenced is refused,
@@ -1373,32 +1378,35 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
   label over lines is. `pool add` and `pool edit` say, as they fence a pool, that the sessions
   running in its directories keep the pool they started in till they're resumed (see What pools
   can't hold); they warn of a directory that isn't one on this Mac, making the pool all the same,
-  as it may be made later. `pool edit` says, as it fences the one unfenced pool, that `claude`
-  won't start outside every fence now, but within a session or in a worktree of a repository
-  inside one; `pool add` and `pool edit`, as they make a pool unfenced, that the sessions started
-  outside every fence go to it now; and each, where the pool the verbs act on without `--pool`
-  changes, as `pool add` beside one pool alone, fenced, changes it, which it is now, or that they
-  need `--pool`, `accounts add` among them. An account
-  moved to another pool is its new pool's primary only with `--primary`: without it, the pool
-  keeps its primary, `accounts edit` marking it where the config marks none, so the account moved
-  doesn't take it by coming first in the config's order, and saying so. The pool it leaves takes
-  its next account as its primary where it was the primary, and `accounts edit` says which, that
-  the sessions running on the moved account's token, where it has a usable one, are refused now it
-  has left, and which account's token they start on resumed, as a launch in that pool would choose
-  it by the config and the tokens, or another's where the router holds that one back then, or
+  as it may be made later. Which directories are missing is `config.Pool.Missing`'s alone, looked
+  for on the filesystem from its root, a directory that can't be looked for not among them, and
+  `pool add`, `pool edit`, `import` and setup's new pool card all ask it, so they never disagree.
+  `pool edit` says, as it fences the one unfenced pool, that `claude` won't start outside every
+  fence now, but within a session or in a worktree of a repository inside one; `pool add` and `pool
+  edit`, as they make a pool unfenced, that the sessions started outside every fence go to it now;
+  and each, where the pool the verbs act on without `--pool` changes, as `pool add` beside one pool
+  alone, fenced, changes it, which it is now, or that they need `--pool`, `accounts add` among them.
+  An account moved to another pool is its new pool's primary only with `--primary`: without it, the
+  pool keeps its primary, `accounts edit` marking it where the config marks none, so the account
+  moved doesn't take it by coming first in the config's order, and saying so. The pool it leaves
+  takes its next account as its primary where it was the primary, and `accounts edit` says which,
+  that the sessions running on the moved account's token, where it has a usable one, are refused now
+  it has left, and which account's token they start on resumed, as a launch in that pool would
+  choose it by the config and the tokens, or another's where the router holds that one back then, or
   doesn't route it yet, unless every account there is so, as the router isn't asked; or, where it
-  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same
-  of the removed account's pool: its primary now, by the pool, or that it has no accounts.
+  was the pool's last account, that the pool has no accounts now. `accounts remove` says the same of
+  the removed account's pool: its primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
-  beside each account's day's `pool` and in its `pools`; `history` and `sessions` name the pool
-  they read at their top, `sessions` saying too where it read its list, its `source` `router`
-  where the router listed its sessions, else `ledger`; and `pool` lists every pool so. The
-  status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the room, and
-  as it gives its accounts' labels in its `accounts`, not on each event, its events name their pool
-  by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps
-  it, else, of a pool the record keeps but the config doesn't name, as the config last wrote it.
+  beside each account's day's `pool` and in its `pools`; `history`, `history --windows` and
+  `sessions` name the pool they read at their top, `sessions` saying too where it read its list, its
+  `source` `router` where the router listed its sessions, else `ledger`; and `pool` lists every pool
+  so. The status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the
+  room, and as it gives its accounts' labels in its `accounts`, not on each event, its events name
+  their pool by its id, as they name their accounts. A removed pool is labelled as the accounts
+  record keeps it, else, of a pool the record keeps but the config doesn't name, as the config last
+  wrote it.
 - **The skill** tells Claude to pass `--pool "$SWITCHBOARD_POOL"`, the session's pool's id, to the
   verbs, so that a session reads its own pool, named explicitly. Outside a pool, as in a config
   without pools or a session not started through switchboard, it's empty, and `--pool ""` is no
@@ -1550,11 +1558,16 @@ Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
     directory left empty passed over; with none, the pool's unfenced. `enter` elsewhere has
     `accounts.Registry.CheckNewPool` check it, by the config's own rules, a refusal said under the
     label or under the directory refused, which `config.DirError` places; once it passes, the card
-    that opened it holds it among its pools, chosen, and `esc` goes back to that card. Its keys
-    are `tab next`, `enter create pool` and `esc back`, `enter add a directory` on `+ another
-    directory`; the card under it says `enter new pool` while its Pool is on `new pool`. The pool
-    held is written with the account, in the one edit that adds it, after its token, or moves it,
-    under an id drawn as `pool add` draws one (`accounts.NewPool`).
+    that opened it holds it among its pools, chosen, its directories as the config would write
+    them, `setup.CheckedPool`'s, so the hint and the warning name them alike, and `esc` goes back
+    to that card. Of a directory that isn't on this Mac, as `config.Pool.Missing` finds it, that
+    card warns under Pool's hint while the pool's chosen, in `accent.attention`, `~/Code/acme isn't
+    a directory on this Mac, so no session starts in it yet`, as `pool add` warns of one: a warning,
+    never a refusal, as the directory may be made later. Its keys are `tab next`, `enter create
+    pool` and `esc back`, `enter add a directory` on `+ another directory`; the card under it says
+    `enter new pool` while its Pool is on `new pool`. The pool held is written with the account, in
+    the one edit that adds it, after its token, or moves it, under an id drawn as `pool add` draws
+    one (`accounts.NewPool`).
   - The add card's `enter` checks the pool chosen and any new pool with the account, as
     `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
     Pool, a pool removed meanwhile among them, on the edit card too; with no plan chosen, once the
@@ -2923,6 +2936,22 @@ show.
      off to a file of switchboard's own, which puts its claude first and loads its completions.` and
      `It does nothing once switchboard is gone, and nothing else in ~/.zshrc changes.` Its keys:
      `enter add it`, `n I'll add it myself`.
+   - **The offer for the completions** (owner's call, 18 Nov 2026), where the shell's `PATH`
+     finds switchboard's `claude` already, as one kept in another file does, but switchboard's
+     completions aren't loaded and the startup file it reads lacks switchboard's line. The login
+     shell says whether they're loaded in the same asking, by the mechanism each registers a
+     command's with: zsh's `_comps[switchboard]`, which `compdef` sets; bash's `complete -p
+     switchboard`; fish's `complete -c switchboard` listing any. It says they're missing only where
+     it can take them, as switchboard's file loads them only there: zsh once `compdef` is defined,
+     bash where bash-completion is loaded outside POSIX mode, fish always. An alias in front that
+     runs the link by its path is never offered it, as the line would change which `claude` `PATH`
+     finds. The card is the same, its reason `so your shell loads switchboard's completions` in
+     place of `so your shell finds switchboard's claude first` (`OfferCompletions`, worded by
+     `ShellFound.Gains`), and its `n` is `n no completions`. Your shell's row is `✓`, adding `·
+     switchboard's completions aren't loaded: its line isn't in ~/.zshrc`. Nothing is left to put
+     right by hand, so `n` and `esc` end the step, installing the hook; a line setup couldn't add
+     says why on the row, and ends it alike. Where the file can't be looked in, a new terminal may
+     read another, or a line of another switchboard's is there, nothing is offered.
    - **By hand** (frame 11), declined, or where setup writes nothing: `Add this line to your shell's
      startup file yourself, after anything else there that changes PATH:` and the line; `Or, where
      you keep your PATH another way, put this directory first on it:` and the directory; then `Then
@@ -3245,7 +3274,9 @@ not the owner's decisions:
   directory is written from `$HOME`, as it goes on `PATH`.
 - **The step ends with the session hook:**
   - It runs at once where the shell runs switchboard's claude, or where the step stopped before
-    asking. From by hand, it runs on `enter leave it for now`.
+    asking. Where the line's offered for the completions, it runs once `n` or `esc` closes the
+    offer card; after `enter`, once the line's added and the shell asked again, or at once where
+    it couldn't be added. From by hand, it runs on `enter leave it for now`.
   - The step is under way, `q quit` alone, until the hook answers. Then the page shows its row,
     with a warning where it couldn't be installed, and `enter next: Skill`: leaving by hand takes
     a second `enter`.
@@ -3451,8 +3482,9 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       in the verdict's words, with how many weeks it hit its limit, the share it had left at a
       reset, on average, and how many weeks the rest would have been short `without_it`, then every
       account's together, marked `all`.
-  - **`history --windows`:** one object, `{"windows": [{account, window, readings}]}`, printed in
-    place of the blocks (settled in the plan): each account's every window's readings over the days
+  - **`history --windows`:** one object, `{"pool": …, "pool_label": …, "windows": [{account,
+    window, readings}]}`, printed in place of the blocks (settled in the plan): the pool it read,
+    as `history` and `sessions` name it, and each account's every window's readings over the days
     asked for, each `{at, utilization, resets_at, status, source}`, as the readings history holds
     them (see Files).
   - **`sessions`:** one object,
@@ -12900,10 +12932,6 @@ was dropped binds a later choice, the design proper says so.
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
-| Completions for a shell that already reaches switchboard's `claude`, which setup offers no line to | open: to settle with its owner, 17 November 2026 | [completions-without-the-line](../ideas/2026-11-17--completions-without-the-line.md) |
 | An idle day's pool, recorded as the day is summarised, so the pool a moved account left keeps the window facts of its idle days too | open: after v1 | [idle-day-pool](../ideas/2026-11-17--idle-day-pool.md) |
-| Setup's card for a new pool warns of a fence folder that isn't on this Mac, as `pool add` and `pool edit` do | open: after v1 | [setup-fence-folder-warning](../ideas/2026-11-17--setup-fence-folder-warning.md) |
-| `history --windows --json` names the pool it read, as `history --json` and `sessions --json` do | open: after v1 | [history-windows-json-pool](../ideas/2026-11-17--history-windows-json-pool.md) |
-| `pool --json` gives each fence folder resolved, absolute, beside `dirs` as written | open: after v1 | [pool-json-resolved-paths](../ideas/2026-11-17--pool-json-resolved-paths.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
 | Three sums the drawing package works out, `movedForms`, `summedSessions` and `summedRate`, moved to `views`, with a guard if one fits | open: after v1 | [drawing-sums-to-views](../ideas/2026-11-17--drawing-sums-to-views.md) |

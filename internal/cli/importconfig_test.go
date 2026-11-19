@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -65,10 +66,11 @@ const unfencedAcme = `switchboard: ~/Code/acme isn't a directory, so no session 
 const ownConfig = "[[account]]\nid = \"m2x7\"\nlabel = \"Mine\"\n"
 
 // newMacDeps are deps of a Mac with nothing of switchboard's yet, as a new
-// one, and its state directory.
+// one, nor any folder a config fences, and its state directory.
 func newMacDeps(t *testing.T) (cli.Deps, string) {
 	t.Helper()
 	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	deps.Root = fstest.MapFS{}
 	return deps, stateDir(t, deps)
 }
 
@@ -177,6 +179,41 @@ func TestImportOnAMacWithNoConfigLaysDownTheFoldersConfig(t *testing.T) {
 	wantLaid(t, path)
 	if _, err := os.Stat(router.ImportDir(state)); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("%s: %v, want nothing staged", router.ImportDir(state), err)
+	}
+}
+
+// A fenced folder is looked for where every verb looks for it, on the
+// filesystem the CLI is given, never on the disk itself: one there is
+// warned of by none, though the disk lacks it.
+func TestImportLooksForTheFencedFoldersOnTheFilesystemItsGiven(t *testing.T) {
+	deps, _ := newMacDeps(t)
+	home, err := deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.Root = fstest.MapFS{strings.TrimPrefix(filepath.Join(home, "Code", "acme"), "/"): &fstest.MapFile{Mode: fs.ModeDir}}
+	dir := t.TempDir()
+	withConfig(t, macFolder(t, dir, "0123456789abcdef"), laidConfig)
+	if _, err := os.Stat(filepath.Join(home, "Code", "acme")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("~/Code/acme: %v, want it absent on disk", err)
+	}
+
+	if got := run(t, deps, "import", dir); got.code != 0 || got.stderr != "" {
+		t.Errorf("switchboard import = %+v, want it laid down, warning of nothing", got)
+	}
+}
+
+// The fenced folder import warns of is made safe to show, as pool add's
+// warning makes it: a control in it, as a config edited by hand can hold,
+// never reaches the terminal.
+func TestImportWarnsOfAFencedFolderMadeSafeToShow(t *testing.T) {
+	deps, _ := newMacDeps(t)
+	dir := t.TempDir()
+	withConfig(t, macFolder(t, dir, "0123456789abcdef"), strings.Replace(laidConfig, `"~/Code/acme"`, `"~/Code/ac\u001b[2Jme"`, 1))
+
+	got := run(t, deps, "import", dir)
+	if got.code != 0 || strings.ContainsRune(got.stderr, '\x1b') || !strings.Contains(got.stderr, "isn't a directory, so no session starts in it yet") {
+		t.Errorf("switchboard import = %+v, want it to warn of the folder, no control in it", got)
 	}
 }
 
@@ -361,6 +398,7 @@ func TestImportLaysNoConfigDownBesideAHistoryOfTheMacsOwn(t *testing.T) {
 // down, and its accounts record, which is this Mac's already, left as it is.
 func TestImportRestoresTheConfigOfThisMacsOwnFolder(t *testing.T) {
 	deps, state := importDeps(t)
+	deps.Root = fstest.MapFS{}
 	writeStateFile(t, state, "install-id", []byte("0123456789abcdef\n"))
 	writeStateFile(t, ledger.Dir(state), "requests-2026-10-02.jsonl", []byte(`{"n":1}`+"\n"))
 	was, err := os.ReadFile(identity.NewFile(state).Path())

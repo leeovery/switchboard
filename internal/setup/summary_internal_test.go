@@ -34,6 +34,8 @@ func TestTheClaudeLinksLineInEverySituation(t *testing.T) {
 		{situation: Through, mark: Done, want: "created · your shell runs it"},
 		{situation: Through, made: LinkInPlace, mark: Done, want: "your shell runs it"},
 		{situation: Through, made: LinkRepaired, mark: Done, want: repaired + " · your shell runs the claude link"},
+		{situation: OfferCompletions, mark: Done, want: "created · your shell runs it"},
+		{situation: OfferCompletions, made: LinkInPlace, mark: Done, want: "your shell runs it"},
 		{situation: LineAdded, mark: Warning, want: "created, and switchboard's line is added to ~/.zshrc, but setup hasn't asked your shell again whether a new terminal's claude goes through it"},
 		{situation: LineAdded, made: LinkInPlace, mark: Warning, want: "switchboard's line is added to ~/.zshrc, but setup hasn't asked your shell again whether a new terminal's claude goes through it"},
 		{situation: LineAdded, front: front, mark: Warning, want: "created, and switchboard's line is added to ~/.zshrc, but " + front + "; and setup hasn't asked your shell again whether a new terminal's claude goes through the claude link"},

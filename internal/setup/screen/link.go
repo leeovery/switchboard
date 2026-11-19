@@ -48,15 +48,15 @@ func (m Model) asking() bool {
 }
 
 // linked takes in what the claude link step found, as found and made safe
-// to show, where it found it: where that's final, the shell running
-// switchboard's claude or setup unable to ask it, the step ends, as ending
-// has it; anywhere else, the step done, its page showing how to put it
-// right by hand, but where Link, asking first, found switchboard's line to
-// offer: then the card offering to add it opens over the page, as it does
-// once, never on asking again. Where it failed, the step failed, as its
-// error says, what it found with the error never said, as it isn't what the
-// step left; but an interrupt from outside the terminal as it asked leaves
-// setup, as q does.
+// to show, where it found it: where Link, asking first, found switchboard's
+// line to offer, for the shell to find switchboard's claude or for its
+// completions, the card offering to add it opens over the page, as it does
+// once, never on asking again; else, where it's final, as ShellFound's
+// Final has it, the step ends, as ending has it; anywhere else, the step
+// done, its page showing how to put it right by hand. Where it failed, the
+// step failed, as its error says, what it found with the error never said,
+// as it isn't what the step left; but an interrupt from outside the
+// terminal as it asked leaves setup, as q does.
 func (m Model) linked(msg linkedMsg) (Model, tea.Cmd) {
 	switch {
 	case m.walk.step != dashboard.SetupLink:
@@ -70,10 +70,10 @@ func (m Model) linked(msg linkedMsg) (Model, tea.Cmd) {
 	found := msg.found
 	m.found, m.link = &found, cleanLink(&found)
 	switch s := found.Shell.Situation; {
-	case s == setup.Through || s == setup.Unreached:
-		return m.ending()
-	case s == setup.OfferLine && !msg.again:
+	case (s == setup.OfferLine || s == setup.OfferCompletions) && !msg.again:
 		m.offer = &offerCard{}
+	case found.Shell.Final():
+		return m.ending()
 	}
 	m.walk = m.walk.finished(nil)
 	return m, nil
@@ -119,7 +119,8 @@ func (c *offerCard) drawn() *dashboard.SetupOfferCard {
 // offerPressed acts on a key at the offer card: while the line's added, q
 // leaves, as ctrl+c does, and no other key acts; else enter adds the line,
 // as addingLine has it, and n or esc closes the card, the line left to add
-// by hand, as the page then shows.
+// by hand, as the page then shows, but where the shell runs switchboard's
+// claude already, the step ended, as there's nothing left to put right.
 func (m Model) offerPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	switch {
@@ -131,6 +132,9 @@ func (m Model) offerPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.addingLine()
 	case k == "n" || k == "esc":
 		m.offer = nil
+		if m.found.Shell.Final() {
+			return m.ending()
+		}
 	}
 	return m, nil
 }
@@ -157,10 +161,11 @@ func (m Model) addingLine() (Model, tea.Cmd) {
 }
 
 // added takes in what AddLine left, the card closed: the line added, the
-// shell asked again at once, as checkingAgain has it; anything else, made
-// safe to show, the page showing how to put it right by hand. Where it
-// failed, the step failed, as its error says, what it returned with the
-// error never said.
+// shell asked again at once, as checkingAgain has it; where that's final,
+// as ShellFound's Final has it, the step ended; anything else, made safe to
+// show, the page showing how to put it right by hand. Where it failed, the
+// step failed, as its error says, what it returned with the error never
+// said.
 func (m Model) added(msg addedMsg) (Model, tea.Cmd) {
 	m.offer = nil
 	if msg.err != nil {
@@ -169,8 +174,11 @@ func (m Model) added(msg addedMsg) (Model, tea.Cmd) {
 	}
 	found := msg.found
 	m.found, m.link = &found, cleanLink(&found)
-	if found.Shell.Situation == setup.LineAdded {
+	switch {
+	case found.Shell.Situation == setup.LineAdded:
 		return m.checkingAgain()
+	case found.Shell.Final():
+		return m.ending()
 	}
 	return m, nil
 }

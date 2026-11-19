@@ -196,6 +196,61 @@ func TestNAndEscCloseTheOfferCardOntoTheByHandPage(t *testing.T) {
 	}
 }
 
+// linkForCompletions is the link made, and zsh running switchboard's claude
+// by a PATH kept in another file, switchboard's line offered for ~/.zshrc
+// for its completions alone.
+var linkForCompletions = func() setup.LinkFound {
+	found := situated(setup.OfferCompletions, "runs switchboard's claude · switchboard's completions aren't loaded: its line isn't in ~/.zshrc")
+	found.Shell.Said.Mark = setup.Done
+	return found
+}()
+
+// Where the shell runs switchboard's claude already, the line offered for
+// its completions opens the offer card, as it does once, naming them;
+// declined, there's nothing left to put right by hand, so the step ends,
+// the hook installed, as where nothing's offered; added, the shell's asked
+// again, as any line added has it.
+func TestTheLineOfferedForTheCompletionsEndsTheStepDeclined(t *testing.T) {
+	h := linkHarness(t, linkForCompletions)
+	if h.model.offer == nil {
+		t.Fatal("no offer card is open where Link offers the line for the completions")
+	}
+	if said := strings.Join(h.rows(), "\n"); !strings.Contains(said, "so your shell loads switchboard's completions:") {
+		t.Errorf("the card reads\n%s\nwant it to say the line loads switchboard's completions", said)
+	}
+	for _, key := range []string{"n", "esc"} {
+		t.Run(key, func(t *testing.T) {
+			h := linkHarness(t, linkForCompletions)
+			h.pressAndDeliver(key)
+			wantRows(t, h.rows(), map[int]string{
+				6: linkPurpose, 8: fact(linkRow), 10: fact(linkForCompletions.Shell.Said), 12: fact(hookInstalled),
+				36: keyLine("", skillRight),
+			})
+			if len(h.steps.addedOf) != 0 || h.steps.hooks != 1 {
+				t.Errorf("%s ran AddLine %d times, installed the hook %d; want none, and once", key, len(h.steps.addedOf), h.steps.hooks)
+			}
+		})
+	}
+	h.steps.lineAdded, h.steps.again = lineAdded, []setup.LinkFound{linkThrough}
+	h.pressAndDeliver("enter")
+	if added := h.steps.addedOf; len(added) != 1 || added[0].Shell.Situation != setup.OfferCompletions {
+		t.Errorf("AddLine was given %+v, want what Link found, once", added)
+	}
+	if len(h.steps.askedOf) != 1 || h.steps.hooks != 1 {
+		t.Errorf("the line added, the shell was asked again %d times, the hook installed %d; want each once", len(h.steps.askedOf), h.steps.hooks)
+	}
+
+	h = linkHarness(t, linkForCompletions)
+	cant := linkForCompletions
+	cant.Shell.Said = setup.Said{Mark: setup.Warning, Label: "Your shell", Detail: "setup can't add its line to ~/.zshrc: permission denied"}
+	h.steps.lineAdded = cant
+	h.pressAndDeliver("enter")
+	wantRows(t, h.rows(), map[int]string{6: linkPurpose, 8: fact(linkRow), 10: fact(cant.Shell.Said), 12: fact(hookInstalled), 36: keyLine("", skillRight)})
+	if len(h.steps.askedOf) != 0 || h.steps.hooks != 1 {
+		t.Errorf("the line not added, the shell was asked again %d times, the hook installed %d; want none, and once", len(h.steps.askedOf), h.steps.hooks)
+	}
+}
+
 func TestWhileTheLineIsAddedOrTheShellAskedOnlyQAndCtrlCAct(t *testing.T) {
 	h := linkHarness(t, linkLeft)
 	h.steps.lineAdded, h.steps.again = lineAdded, []setup.LinkFound{linkThrough}

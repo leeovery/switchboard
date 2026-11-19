@@ -31,12 +31,14 @@ type SetupEditCard struct {
 
 // SetupPool is a card's Pool, as it stands: its options, each pool by its
 // label, then new pool; the one chosen, by its place among them; the hint
-// under it, as setup words it; and whether new pool is chosen, where enter
-// opens the new pool card, whichever field is chosen.
+// under it, and the warning under that, "" for none, as setup words them;
+// and whether new pool is chosen, where enter opens the new pool card,
+// whichever field is chosen.
 type SetupPool struct {
 	Options []string
 	Chosen  int
 	Hint    string
+	Warning string
 	New     bool
 }
 
@@ -293,13 +295,15 @@ func (e SetupEditCard) hints() (primary, reserve string) {
 
 // poolRows are a card's Pool, width cells wide, and the blank row after it,
 // where it has one: its options, the one chosen bold where Pool is the field
-// chosen; its hint under it; and why setup refused the pool chosen, where it
-// did, under that. None where it has no Pool.
+// chosen; its hint under it; its warning under that, where it has one; and
+// why setup refused the pool chosen, where it did, under that. None where it
+// has no Pool.
 func (f cardFocus) poolRows(width int, pool *SetupPool) []line {
 	if pool == nil {
 		return nil
 	}
 	rows := []line{optionsRow(width, poolName, pool.Options, pool.Chosen, f.chosen == setup.PoolField), hintUnder(width, pool.Hint)}
+	rows = append(rows, saidUnder(width, pool.Warning, warningInk)...)
 	return append(append(rows, f.whyUnder(setup.PoolField, width)...), nil)
 }
 
@@ -310,8 +314,18 @@ func (f cardFocus) whyUnder(of setup.Field, width int) []line {
 	if f.refused != of {
 		return nil
 	}
+	return saidUnder(width, f.why, errorInk)
+}
+
+// saidUnder is what's said of a field's value, in the ink given, on the rows
+// under it, width cells wide, from its value's column: none where nothing
+// is.
+func saidUnder(width int, said string, in ink) []line {
+	if said == "" {
+		return nil
+	}
 	var rows []line
-	for _, l := range (line{{f.why, errorInk}}).wrap(width - valueAt(width)) {
+	for _, l := range (line{{said, in}}).wrap(width - valueAt(width)) {
 		rows = append(rows, append(line{spaces(valueAt(width))}, l...))
 	}
 	return rows

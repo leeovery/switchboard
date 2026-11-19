@@ -169,6 +169,7 @@ func (a *app) newSetup(root *cobra.Command) (*setup.Setup, error) {
 	if s.Shells, err = a.shellFiles(root); err != nil {
 		return nil, err
 	}
+	s.Root = a.Root
 	s.Install = service.InstallOptions{Executable: exe, Config: a.configPath}
 	s.Startable = a.startableIn
 	s.Path = a.Getenv("PATH")
