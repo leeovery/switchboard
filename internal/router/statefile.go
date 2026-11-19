@@ -47,8 +47,9 @@ const (
 // probe, which, being a request, could start a window, and how its probes
 // went, so a restart neither probes it sooner than they allow nor forgets why
 // it can't be read; the hold curve, so a restart doesn't take it back to the
-// default; and what's been told of each account's token's year, so a restart
-// tells nothing twice.
+// default; the last few pools each account joined, so a restart takes up each
+// reading of the history in the pool its account was in then; and what's been
+// told of each account's token's year, so a restart tells nothing twice.
 type stateFile struct {
 	// path is where the file is: "" until it's loaded, and nothing is kept.
 	path string
@@ -188,6 +189,11 @@ type savedUsage struct {
 	// or with one of a shape it doesn't know, holds the curve of no answers,
 	// as forecast.Hold reads it.
 	Hold forecast.Hold `json:"hold,omitzero"`
+	// PoolsJoined are the pools each account joined latest, joinedKept at
+	// most, by the account's id, each with when it joined, oldest first. A
+	// file without them, as from before they were kept, records none, and
+	// each account joins the pool it's in as the router starts.
+	PoolsJoined map[string]poolsJoined `json:"pools_joined,omitempty"`
 }
 
 // read counts the accounts whose usage has been read, but those whose

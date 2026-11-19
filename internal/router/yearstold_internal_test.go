@@ -314,8 +314,9 @@ func TestTheStateFileKeepsWhatsToldOfTheTokensYearsOfTheAccountsConfigured(t *te
 func TestAStateFileFromBeforeTokensYearsWereToldOfHasNoneTold(t *testing.T) {
 	path := filepath.Join(t.TempDir(), stateFileName)
 	putState(t, path, savedState{
-		Version: stateVersion,
-		Tokens:  map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+		Version:     stateVersion,
+		Tokens:      map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+		PoolsJoined: keptInNoPool(t),
 	})
 	f := newTestFile(at(start), testAccounts())
 

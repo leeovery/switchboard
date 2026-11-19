@@ -64,6 +64,21 @@ func TestEachSessionsPinInTheStateFileIsRenamed(t *testing.T) {
 	}
 }
 
+func TestThePoolsEachAccountHasBeenInAreRenamedInTheStateFile(t *testing.T) {
+	rename := func(id string) string {
+		if id == "work" {
+			return "wk7q"
+		}
+		return id
+	}
+	was := `{"version": 1, "pools_joined": {"work": [{"pool": "work", "since": "2026-11-08T09:00:00Z"}]}}`
+	got, changed := stateNames.renamed([]byte(was), rename)
+	want := `{"version": 1, "pools_joined": {"wk7q": [{"pool": "work", "since": "2026-11-08T09:00:00Z"}]}}`
+	if !changed || string(got) != want {
+		t.Errorf("renamed, the state file reads\n%s\nwant\n%s: the account renamed, the pool's id as it was", got, want)
+	}
+}
+
 // marshalled is v as the router writes it.
 func marshalled(t *testing.T, v any) []byte {
 	t.Helper()

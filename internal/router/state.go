@@ -293,6 +293,10 @@ type state struct {
 	grouped *poolTable
 	sizes   map[string]float64
 	days    map[string]forecast.Day
+	// joined holds, by id, the pools each account joined latest, as
+	// joinPools records them, which the state file keeps, so seed takes up
+	// each reading in the pool its account was in as it was read.
+	joined map[string]poolsJoined
 	// hold is the hold curve, of the answers' tokens by how long their
 	// sessions had been on their accounts, as answered takes them in, which
 	// the state file keeps.
@@ -316,6 +320,7 @@ func newState(accounts accounts, pools *membership, policy score.Policy, family 
 		seen:     make(map[string]map[string]bool),
 		grouped:  pools.current(),
 		days:     make(map[string]forecast.Day),
+		joined:   make(map[string]poolsJoined),
 	}
 	s.sizes = s.sizesIn(s.grouped)
 	for _, a := range accounts {
@@ -387,7 +392,7 @@ func (s *state) take(id string, windows []quota.Window, at time.Time, sent momen
 		retired = u.retire(windows, s.policy.Shared, sent, taken)
 	}
 	for key, rise := range risen {
-		s.rose(id, key, rise, at)
+		s.rose(s.grouped.in, id, key, rise, at)
 	}
 	s.judgeRooms(s.roomsNow(), at)
 	for _, key := range back {
@@ -1659,11 +1664,14 @@ func (u *usage) current(policy score.Policy, now time.Time) []quota.Window {
 
 // saved is what the state file keeps of the accounts' usage: each account's,
 // as its usage's saved has it, the model families each window has been
-// reported on, and the hold curve.
+// reported on, the hold curve, and the pools each account has been in
+// lately.
 func (s *state) saved() savedUsage {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	saved := savedUsage{Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string), Hold: s.hold}
+	saved := savedUsage{
+		Readings: make(map[string]savedReading), WindowFamilies: make(map[string][]string), Hold: s.hold, PoolsJoined: s.savedJoined(),
+	}
 	for id, u := range s.usage {
 		if reading, ok := u.saved(); ok {
 			saved.Readings[id] = reading
@@ -1702,16 +1710,18 @@ func (u *usage) windowsReadAt() map[string]time.Time {
 
 // recall takes in what the state file kept of the accounts' usage, as the
 // router starts, as each usage's recall has it, holding telling how an
-// account holds the token it held then, and the hold curve; but for what it
-// kept of accounts no longer configured. It reports whether it left out the
-// reading of an account no longer configured, or took an account's probes
-// otherwise than they were kept, so the file is written again as it took
-// them.
+// account holds the token it held then, the hold curve, and the pools each
+// account has been in, as recallJoined has them; but for what it kept of
+// accounts no longer configured. It reports whether it left out what it kept
+// of an account no longer configured, took an account's probes otherwise
+// than they were kept, or the pools it has been in otherwise, so the file is
+// written again as it took them.
 func (s *state) recall(saved savedUsage, holding func(id string) tokenKept) (changed bool) {
 	now := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.hold = saved.Hold
+	changed = s.recallJoined(saved.PoolsJoined, now)
 	for id, reading := range saved.Readings {
 		u, configured := s.usage[id]
 		if !configured {

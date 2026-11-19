@@ -1117,6 +1117,20 @@ sessions stay on an account stays shared, because it describes how sessions beha
 they use. An account that moves pools has its recent rates forgotten, so it brings none of its old
 pool's demand with it, and the day rate learns its new pool's within a day.
 
+The readings keep no pool, as an account's windows follow the account, so the state file keeps
+each account's last four pools instead, which hold its last three moves, as `pools_joined`: by
+account, each pool it joined, with when, `since`. It's four pools, not a span of
+time, as the two days a restart replays are the newest with a file, which can be of any age. The
+router records one as it starts, of an account in another pool than the file last kept, as by a
+config edited while it was down, or of one it keeps none of, and each move as it takes the pools
+up; a table of pools it can't tell records none. A restart replays each reading of the readings
+history into the day rate of the pool its account was in then, one from before its first entry
+into that entry's, and judges each pool's room at each moment by the accounts in it then. An
+account's recent rates are forgotten at each move between pools the record holds, as live, so a
+restart soon after a move, or after a move made while the router was down, brings none of the old
+pool's demand. A pool since removed takes in nothing, and the one pool of a config from before
+pools is the first pool's, as live.
+
 ### What's recorded
 
 Everything that records a pool's work names its pool, on every line, whatever pool it is: no line is

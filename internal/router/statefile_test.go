@@ -110,6 +110,26 @@ func TestTheStateFileKeepsSessionsTheirPinsAndThePoolsPin(t *testing.T) {
     "work": {
       "sha256": "` + workHash + `"
     }
+  },
+  "pools_joined": {
+    "personal": [
+      {
+        "pool": "",
+        "since": "2026-09-28T13:12:00Z"
+      }
+    ],
+    "side": [
+      {
+        "pool": "",
+        "since": "2026-09-28T13:12:00Z"
+      }
+    ],
+    "work": [
+      {
+        "pool": "",
+        "since": "2026-09-28T13:12:00Z"
+      }
+    ]
   }
 }
 `
@@ -234,6 +254,26 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
     ],
     "7d_oi": [
       "fable"
+    ]
+  },
+  "pools_joined": {
+    "personal": [
+      {
+        "pool": "",
+        "since": "2026-09-28T12:12:00Z"
+      }
+    ],
+    "side": [
+      {
+        "pool": "",
+        "since": "2026-09-28T12:12:00Z"
+      }
+    ],
+    "work": [
+      {
+        "pool": "",
+        "since": "2026-09-28T12:12:00Z"
+      }
     ]
   }
 }
@@ -491,7 +531,8 @@ func TestAStateFileFromBeforeProbesWereKeptLoadsNone(t *testing.T) {
         {"key": "7d", "label": "Week", "utilization": 0.93, "resets_at": "2026-10-02T21:00:00Z", "status": "allowed_warning"}
       ]
     }
-  }
+  },
+  ` + joinedInNoPool + `
 }
 `
 	if err := os.WriteFile(path, []byte(before), 0o600); err != nil {
@@ -720,7 +761,8 @@ func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
   "sessions": [
     {"session": "one", "model": "claude-opus-5-5", "account": "work", "reason": "new", "assigned_at": "2026-09-28T12:12:00Z", "last_seen": "2026-09-28T13:11:00Z"}
   ],
-  "tokens": {"side": {"sha256": "` + sideHash + `"}, "work": {"sha256": "` + workHash + `"}}
+  "tokens": {"side": {"sha256": "` + sideHash + `"}, "work": {"sha256": "` + workHash + `"}},
+  ` + joinedInNoPool + `
 }
 `
 	if err := os.WriteFile(path, []byte(before), 0o600); err != nil {
@@ -831,7 +873,7 @@ func TestLoadingThePin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			path := filepath.Join(t.TempDir(), "state.json")
-			content := `{"version": 1, "pin": ` + tt.pin + `, "sessions": [], "tokens": {"side": {"sha256": "` + sideHash + `"}, "work": {"sha256": "` + workHash + `"}}}`
+			content := `{"version": 1, "pin": ` + tt.pin + `, "sessions": [], "tokens": {"side": {"sha256": "` + sideHash + `"}, "work": {"sha256": "` + workHash + `"}}, ` + joinedInNoPool + `}`
 			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -1257,6 +1299,7 @@ func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t
 		Sessions:    []savedAssignment{{Session: "one", Model: opus, Account: "work", LastSeen: start}},
 		SessionPins: map[string]savedPin{"one": {ownPin: ownPin{Account: "work", Since: start}}},
 		Tokens:      map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
+		PoolsJoined: keptInNoPool(t),
 	})
 	// Work's token file is caught emptied as it's rewritten.
 	f := newTestFile(at(start), resolve(testConfigured, tokenstest.Files{"work": "", "side": sideToken}.Read, unrecorded))
