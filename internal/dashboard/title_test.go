@@ -40,37 +40,40 @@ func TestTheTitleRow(t *testing.T) {
 		{name: "the time alone at the narrowest width off a phone, too narrow for the date", width: 100, shown: Overview, clock: oneDigitDay, want: []string{
 			" SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log" + blanks(11) + "13:12:00",
 		}, wantRows: 1},
-		{name: "on a phone, the clock on row 0, and the tabs filling a row of their own, touching", width: 61, shown: Sessions, want: []string{
+		{name: "on a phone, the clock on row 0, and the tabs filling a row of their own after a blank one, touching", width: 61, shown: Sessions, want: []string{
 			" SWITCHBOARD" + blanks(29) + "Mon 28 Sep  13:12:00",
+			"",
 			" Overview  Accounts  Projects  Sessions  Runway  Trends  Log",
-		}, wantRows: 2},
+		}, wantRows: 3},
 		{name: "on a phone too narrow for one row of tabs, two, as even as their order allows", width: 60, shown: Overview, want: []string{
 			" SWITCHBOARD" + blanks(28) + "Mon 28 Sep  13:12:00",
+			"",
 			" Overview  Accounts  Projects",
 			" Sessions  Runway  Trends  Log",
-		}, wantRows: 3},
+		}, wantRows: 4},
 		{name: "on a phone just wide enough for the date", width: 35, shown: Overview, want: []string{
 			" SWITCHBOARD" + blanks(3) + "Mon 28 Sep  13:12:00",
-		}, wantRows: 3},
+		}, wantRows: 4},
 		{name: "on a phone too narrow for a date of two digits, the time alone", width: 34, shown: Overview, want: []string{
 			" SWITCHBOARD" + blanks(14) + "13:12:00",
-		}, wantRows: 3},
+		}, wantRows: 4},
 		{name: "on a phone as narrow, a date of one digit kept", width: 34, shown: Overview, clock: oneDigitDay, want: []string{
 			" SWITCHBOARD" + blanks(3) + "Sat 3 Oct  13:12:00",
-		}, wantRows: 3},
+		}, wantRows: 4},
 		{name: "on a phone too narrow for two rows of tabs, three", width: 30, shown: Overview, want: []string{
 			" SWITCHBOARD" + blanks(10) + "13:12:00",
+			"",
 			" Overview  Accounts",
 			" Projects  Sessions",
 			" Runway  Trends  Log",
-		}, wantRows: 4},
+		}, wantRows: 5},
 		{name: "on a phone too narrow for the time, the badge alone", width: 20, shown: Overview, want: []string{
 			" SWITCHBOARD ",
-		}, wantRows: 5},
+		}, wantRows: 6},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 5, View: tt.shown, Clock: tt.clock}
+			f := Frame{Width: tt.width, Height: 6, View: tt.shown, Clock: tt.clock}
 			c := newCanvas(f.Width, f.Height)
 			f.title(c, now)
 			if got := f.titleRows(); got != tt.wantRows {
@@ -124,12 +127,12 @@ func TestTheTitleRowsInks(t *testing.T) {
 		{name: "the tab shown", width: 160, x: 48, want: shownTabInk},
 		{name: "the date", width: 160, x: 140, want: dateInk},
 		{name: "the time, bold", width: 160, x: 159, want: timeInk},
-		{name: "a phone's tab shown", width: 52, x: 1, y: 2, want: shownTabInk},
+		{name: "a phone's tab shown", width: 52, x: 1, y: 3, want: shownTabInk},
 		{name: "a phone's time", width: 52, x: 51, want: timeInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 3, View: Sessions}
+			f := Frame{Width: tt.width, Height: 4, View: Sessions}
 			c := newCanvas(f.Width, f.Height)
 			f.title(c, now)
 			if got := c.at(tt.x, tt.y).ink; got != tt.want {

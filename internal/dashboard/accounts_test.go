@@ -127,18 +127,18 @@ func TestAccountsHeadingRow(t *testing.T) {
 // period on the row under them, at the right, and the view starts two rows
 // on, as accounts-phone-compare-52 draws it.
 func TestAccountsHeadingOnAPhone(t *testing.T) {
-	f := frameOf(52, 48)
+	f := frameOf(52, 49)
 	f.View, f.Accounts = Accounts, AccountsShown{Accounts: threeConfigured}
 	rows := f.page(threeRouted(), now).rows(Look{})
 
-	if got, want := rows[6], "ACCOUNTS   Compare  Detail  Tokens"; strings.TrimRight(got, " ") != want {
-		t.Errorf("row 7 reads %q, want %q", got, want)
-	}
-	if got, want := rows[7], blanks(39)+"< this week >"; got != want {
+	if got, want := rows[7], "ACCOUNTS   Compare  Detail  Tokens"; strings.TrimRight(got, " ") != want {
 		t.Errorf("row 8 reads %q, want %q", got, want)
 	}
-	if top := f.top(); top != 9 {
-		t.Errorf("the view starts at row %d, want row 10", top+1)
+	if got, want := rows[8], blanks(39)+"< this week >"; got != want {
+		t.Errorf("row 9 reads %q, want %q", got, want)
+	}
+	if top := f.top(); top != 10 {
+		t.Errorf("the view starts at row %d, want row 11", top+1)
 	}
 }
 

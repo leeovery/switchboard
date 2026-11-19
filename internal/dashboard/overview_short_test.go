@@ -61,8 +61,8 @@ func TestCOMINGUPAndLATELYOpenShortInTheRowsThePlanLeavesBlank(t *testing.T) {
 }
 
 // The short form takes only rows the plan leaves blank, never one it gives
-// anything else: at 73x36, COMING UP stays folded and LATELY at its least,
-// where both short would take its rows; at 73x40, COMING UP grows to six
+// anything else: at 73x37, COMING UP stays folded and LATELY at its least,
+// where both short would take its rows; at 73x41, COMING UP grows to six
 // lines, LATELY folded; at 160x31 with every section, SESSIONS shows a
 // session and how many more, COMING UP and LATELY folded; and where USAGE
 // gives way further, a model's own week used, at 108x35, every other
@@ -78,12 +78,12 @@ func TestTheShortFormTakesOnlyTheRowsThePlanLeavesBlank(t *testing.T) {
 		folds, short  []Section
 	}{
 		{
-			name: "73x36", width: 73, height: 36,
+			name: "73x37", width: 73, height: 37,
 			rows:  map[Section]int{SectionUsage: 20, SectionRouting: 1, SectionComing: 1, SectionLately: 5},
 			folds: []Section{SectionRouting, SectionComing},
 		},
 		{
-			name: "73x40", width: 73, height: 40,
+			name: "73x41", width: 73, height: 41,
 			rows:  map[Section]int{SectionUsage: 20, SectionRouting: 1, SectionComing: 8, SectionLately: 1},
 			folds: []Section{SectionRouting, SectionLately},
 		},
@@ -125,7 +125,7 @@ func TestTheShortFormTakesOnlyTheRowsThePlanLeavesBlank(t *testing.T) {
 // model's own week used, COMING UP has more than two things and LATELY none,
 // and its third thing's time is no wider than the first two's, so its lines
 // read as its least's first two: side by side at 116x44 against 116x41, and
-// COMING UP stacked at 73x43 against 73x45.
+// COMING UP stacked at 73x44 against 73x46.
 func TestTheShortFormDrawsItsHeadingThenItsFirstTwoLines(t *testing.T) {
 	doc := threeFabled()
 	drawn := func(width, height int) []string { return textOf(frameOf(width, height).Draw(doc, now)) }
@@ -136,7 +136,7 @@ func TestTheShortFormDrawsItsHeadingThenItsFirstTwoLines(t *testing.T) {
 		holds, lacks []string
 	}{
 		{name: "side by side", width: 116, short: 44, least: 41, holds: []string{"COMING UP   … ─", "─ c ", "LATELY  ─"}, lacks: []string{"LATELY   …"}},
-		{name: "stacked", width: 73, short: 43, least: 45, holds: []string{"COMING UP   … ─", "─ c "}},
+		{name: "stacked", width: 73, short: 44, least: 46, holds: []string{"COMING UP   … ─", "─ c "}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

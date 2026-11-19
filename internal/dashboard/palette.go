@@ -138,11 +138,13 @@ type ink struct {
 // beneath: it keeps a fifth of its colour.
 const behindFade = 0.8
 
-// hue is a colour as an ink has one: a token's, or a bar's ramp's at a place
-// along it, faded so far into the colour beneath, then taken to a step of its
-// ramp of shades. The zero hue is no colour.
+// hue is a colour as an ink has one: a token's, its hue turned so many
+// degrees round the wheel, as a pool's is from the badge's, or a bar's
+// ramp's at a place along it, faded so far into the colour beneath, then
+// taken to a step of its ramp of shades. The zero hue is no colour.
 type hue struct {
 	token theme.Token
+	turn  float64
 	ramp  bool
 	at    float64
 	fade  float64
@@ -265,13 +267,17 @@ func (l Look) glowing(c color.Color, amount float64) color.Color {
 	}
 }
 
-// unfaded is the hue's colour in the look before it's faded: its token's, or
-// its ramp's where it sits.
+// unfaded is the hue's colour in the look before it's faded: its token's,
+// turned as the hue says, or its ramp's where it sits.
 func (l Look) unfaded(h hue) color.Color {
 	if h.ramp {
 		return l.ramp(h.at)
 	}
-	return l.theme.Colour(h.token)
+	c := l.theme.Colour(h.token)
+	if h.turn == 0 || c == nil {
+		return c
+	}
+	return theme.Turned(c, h.turn)
 }
 
 // faded is c blended amount into the colour beneath it, or, in a look that

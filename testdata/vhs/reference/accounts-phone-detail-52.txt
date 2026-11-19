@@ -1,4 +1,5 @@
  SWITCHBOARD                     Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects
  Sessions  Runway  Trends  Log
 
@@ -29,7 +30,6 @@ BY DAY    ▪▪▪▪▪   ▪▪▪▪▪   ▪▪▪ ▪   ▪▪▪▪▪   
 
 WEEKS       94%    100%     81%    100%     34%…
 limit hit 3 of 5 weeks · 5% left at a reset
-
 
 
 

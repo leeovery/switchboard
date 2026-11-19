@@ -1,4 +1,5 @@
  SWITCHBOARD                                                           Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
@@ -35,6 +36,5 @@ SESSIONS   Switchboard  List                                                 < t
   website     f17c                             personal  opus-5-5    ended 12:12       332
   switchboard router-fix 31e1                  side      opus-5-5    ended 11:33       146
   switchboard release                          work      opus-5-5    ended 11:23       142
-
 this week  27 sessions · 5,410 requests · $635.00 at API prices
 tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit

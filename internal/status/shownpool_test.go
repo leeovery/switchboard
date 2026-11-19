@@ -1,7 +1,9 @@
 package status_test
 
 import (
+	"math"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,19 +31,59 @@ func TestAPoolShownIsTheConfigsByItsID(t *testing.T) {
 		id   string
 		want status.ShownPool
 	}{
-		{name: "unfenced", id: "b2n8", want: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 1, Pools: 3}},
-		{name: "fenced, its id in another case", id: "Q7MT", want: status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Accounts: 1, Pools: 3}},
-		{name: "with no accounts", id: "r2d4", want: status.ShownPool{ID: "r2d4", Label: "Client", Dirs: []string{"~/Code/client", "~/Code/client-api"}, Pools: 3}},
+		{name: "unfenced", id: "b2n8", want: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 1, Pools: 3, Turn: status.PoolTurn(shownPools.IDs(), "b2n8")}},
+		{name: "fenced, its id in another case", id: "Q7MT", want: status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Accounts: 1, Pools: 3, Turn: status.PoolTurn(shownPools.IDs(), "q7mt")}},
+		{name: "with no accounts", id: "r2d4", want: status.ShownPool{ID: "r2d4", Label: "Client", Dirs: []string{"~/Code/client", "~/Code/client-api"}, Pools: 3, Turn: status.PoolTurn(shownPools.IDs(), "r2d4")}},
 		{name: "none named", id: "", want: status.ShownPool{Pools: 3}},
 		{name: "one not configured", id: "x9z9", want: status.ShownPool{Pools: 3}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := status.PoolShown(shownPools, shownAccounts, tt.id)
-			if got.ID != tt.want.ID || got.Label != tt.want.Label || !slices.Equal(got.Dirs, tt.want.Dirs) || got.Accounts != tt.want.Accounts || got.Pools != tt.want.Pools {
+			if got.ID != tt.want.ID || got.Label != tt.want.Label || !slices.Equal(got.Dirs, tt.want.Dirs) || got.Accounts != tt.want.Accounts || got.Pools != tt.want.Pools || got.Turn != tt.want.Turn {
 				t.Errorf("PoolShown(%q) = %+v, want %+v", tt.id, got, tt.want)
 			}
 		})
+	}
+}
+
+// A pool's hue is turned from the badge's by its id, ignoring case, the
+// same each time and whatever pools come after it, never within 75 degrees
+// of the badge's, either way; and pools' are kept 50 degrees apart, even
+// where two ids hash to turns side by side, the later stepping away.
+func TestAPoolsTurnFollowsFromItsIDAndStandsApart(t *testing.T) {
+	sets := [][]string{
+		{"b2n8", "q7mt"},
+		{"b2n8", "q7mt", "r2d4", "d3wn"},
+		{"k3f9", "a0a0", "zzzz", "m4zq"},
+		{"b2n8", "k0q6"},
+		{"b2n8", "k0q6", "q7mt", "r2d4"},
+		{"b2n8", "k0q6", "q7mt"},
+	}
+	if b, k := status.PoolTurn([]string{"b2n8"}, "b2n8"), status.PoolTurn([]string{"k0q6"}, "k0q6"); math.Abs(b-k) >= 50 {
+		t.Fatalf("b2n8 and k0q6 alone are turned %v and %v, want them within 50 degrees, so the sets below test the step away", b, k)
+	}
+	for _, ids := range sets {
+		turns := make([]float64, len(ids))
+		for i, id := range ids {
+			turns[i] = status.PoolTurn(ids, id)
+			if turns[i] < 75 || turns[i] >= 285 {
+				t.Errorf("PoolTurn(%v, %q) = %v, want from 75 up to 285, clear of the badge's hue", ids, id, turns[i])
+			}
+			if again, upper := status.PoolTurn(ids, id), status.PoolTurn(ids, strings.ToUpper(id)); again != turns[i] || upper != turns[i] {
+				t.Errorf("PoolTurn(%v, %q) = %v, then %v, and %v in capitals, want the same each time", ids, id, turns[i], again, upper)
+			}
+			if first := status.PoolTurn(ids[:i+1], id); first != turns[i] {
+				t.Errorf("PoolTurn of %q is %v among %v, %v among the pools up to it, want it the same", id, turns[i], ids, first)
+			}
+		}
+		for i := range turns {
+			for j := i + 1; j < len(turns); j++ {
+				if apart := math.Abs(turns[i] - turns[j]); apart < 50-1e-9 {
+					t.Errorf("among %v, %q and %q are turned %v and %v, %.1f degrees apart, want 50 at least", ids, ids[i], ids[j], turns[i], turns[j], apart)
+				}
+			}
+		}
 	}
 }
 

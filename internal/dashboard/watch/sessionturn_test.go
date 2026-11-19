@@ -449,16 +449,16 @@ func TestATurnOpenHoldsItsRequestsWholeInViewAsTurnsCome(t *testing.T) {
 // first shown, the middle or the last, and its foot in view: of one turn
 // and of thirteen, its one or its twelfth open, on one account or two, at a
 // phone's widths and the wide chrome's, from the least a turn open is drawn
-// in, 14 rows, or 15 where a phone's tabs take two, to 40, and at 73×61 and
-// 160×37.
+// in, 14 rows, or 15 on a phone, or 16 where its tabs take two, to 40, and
+// at 73×62 and 160×37.
 func TestATurnOpenKeepsItsRequestChosenInViewAsAnAccountJoins(t *testing.T) {
 	var sizes []Size
-	for _, at := range []Size{{Width: 52, Height: 15}, {Width: 73, Height: 14}, {Width: 138, Height: 14}, {Width: 173, Height: 14}} {
+	for _, at := range []Size{{Width: 52, Height: 16}, {Width: 73, Height: 15}, {Width: 138, Height: 14}, {Width: 173, Height: 14}} {
 		for height := at.Height; height <= 40; height++ {
 			sizes = append(sizes, Size{Width: at.Width, Height: height})
 		}
 	}
-	sizes = append(sizes, Size{Width: 73, Height: 61}, Size{Width: 160, Height: 37})
+	sizes = append(sizes, Size{Width: 73, Height: 62}, Size{Width: 160, Height: 37})
 	for _, turns := range []int{1, 13} {
 		for _, size := range sizes {
 			for _, ran := range []int{1, 2} {
@@ -491,8 +491,8 @@ func TestATurnOpenIsLaidOutAfreshOnAResize(t *testing.T) {
 		want     int
 	}{
 		{name: "173×53 to 173×37", from: Size{Width: 173, Height: 53}, to: Size{Width: 173, Height: 37}, want: 5},
-		{name: "160×37 to 73×61", from: Size{Width: 160, Height: 37}, to: Size{Width: 73, Height: 61}, want: 20},
-		{name: "73×61 to 160×17, the least", from: Size{Width: 73, Height: 61}, to: Size{Width: 160, Height: 17}, want: 1},
+		{name: "160×37 to 73×62", from: Size{Width: 160, Height: 37}, to: Size{Width: 73, Height: 62}, want: 20},
+		{name: "73×62 to 160×17, the least", from: Size{Width: 73, Height: 62}, to: Size{Width: 160, Height: 17}, want: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

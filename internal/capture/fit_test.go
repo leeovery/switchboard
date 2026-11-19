@@ -64,6 +64,11 @@ func holdsItsChromeAt(t *testing.T, m watch.Model, at swept) {
 	tall := plainRows(m, width, tallest)
 	chrome := chromeOf(width)
 	for _, height := range at.heights {
+		// Too short for its chrome and the key line, as a phone's tabs on four
+		// rows leave 20×8, the page has no room for a view to draw on them.
+		if height <= chrome {
+			continue
+		}
 		sized := deliver(m, tea.WindowSizeMsg{Width: width, Height: height})
 		rows := plainOf(sized.View().Content, height)
 		for y := range chrome {

@@ -959,14 +959,14 @@ func TestTheListOfARowShowsNoEndedRule(t *testing.T) {
 	}
 }
 
-// At the view's least, at 52 by 14 on a phone, the dial under the heading,
+// At the view's least, at 52 by 15 on a phone, the dial under the heading,
 // the period line keeps both its rows, its worth on the second, and the
 // List keeps a row, paging a session at a time, with no room to say how
 // many are out of view.
 func TestThePeriodLineKeepsBothRowsAtTheListsLeast(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	list := framedList()
-	f := listFrame(t, 52, 14, list)
+	f := listFrame(t, 52, 15, list)
 	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: len(list.Sessions) - 1, Page: 1}); got != want {
 		t.Errorf("it scrolls %+v, want %+v", got, want)
 	}

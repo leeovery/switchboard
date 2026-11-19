@@ -378,7 +378,7 @@ func TestLanesScrollARowAtATimeWhereALaneDoesntFit(t *testing.T) {
 	}
 	seen := make(map[string]bool)
 	for _, tt := range tests {
-		f := lanesFrame(52, 16, Look{}, phoneScene())
+		f := lanesFrame(52, 17, Look{}, phoneScene())
 		f.Scroll = tt.offset
 		if got := f.Scrolling(doc, routedAt); got != tt.scrolling || !f.ScrollsRows(doc, routedAt) {
 			t.Errorf("scrolled %d, Scrolling() = %+v, a row at a time %v; want %+v, a row at a time", tt.offset, got, f.ScrollsRows(doc, routedAt), tt.scrolling)
@@ -566,18 +566,18 @@ func laneStepOf(f Frame, doc status.Document) (int, bool) {
 // side; then the gaps back to their least; then they scroll, the key giving
 // way. Each step holds while its lanes, a blank row and the key fit the
 // view and the row over the key line: of the scene's 30 rows stacked, from
-// 41 rows of terminal at 73 columns; its 18 side by side, from 29; and its
-// 14 with the least gaps, from 25.
+// 42 rows of terminal at 73 columns; its 18 side by side, from 30; and its
+// 14 with the least gaps, from 26.
 func TestTheLanesStepsAsRowsRunShort(t *testing.T) {
 	doc := phoneDoc()
-	for height := 12; height <= 70; height++ {
+	for height := 13; height <= 71; height++ {
 		want, fits := 2, false
 		switch {
-		case height >= 41:
+		case height >= 42:
 			want, fits = 0, true
-		case height >= 29:
+		case height >= 30:
 			want, fits = 1, true
-		case height >= 25:
+		case height >= 26:
 			want, fits = 2, true
 		}
 		f := lanesFrame(73, height, Look{}, phoneScene())
@@ -639,7 +639,7 @@ func TestTheLanesKeyIsOverTheKeyLine(t *testing.T) {
 }
 
 // As calls come and go, the lanes' form changes only at a step's edge: in a
-// view of 45 rows at 73 columns, their windows stacked up to 11 calls on
+// view of 46 rows at 73 columns, their windows stacked up to 11 calls on
 // side, side by side up to 23, the gaps at their least up to 26, and
 // scrolling past; as many calls give the same form whether they came or
 // went.
@@ -650,7 +650,7 @@ func TestTheLanesFormChangesOnlyAtAStepsEdgeAsCallsComeAndGo(t *testing.T) {
 		for i := range n {
 			calls = append(calls, sceneCall("side", fmt.Sprintf("s%03d-session", i), "api", "", idleFor(time.Minute)))
 		}
-		return laneStepOf(lanesFrame(73, 45, Look{}, calls), doc)
+		return laneStepOf(lanesFrame(73, 46, Look{}, calls), doc)
 	}
 	var counts []int
 	for n := range 31 {

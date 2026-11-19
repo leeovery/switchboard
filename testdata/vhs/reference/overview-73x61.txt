@@ -1,4 +1,5 @@
  SWITCHBOARD                                          Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
@@ -47,7 +48,6 @@ COMING UP  ───────────────────────
 ~Fri       side's week runs out at its pace                      in 1d 1h
 ~Sat       personal's week runs out at its pace                 in 1d 15h
 Sun 02:00  personal's week resets                               in 2d 11h
-Sun 21:00  work's week resets                                    in 3d 6h
 
 LATELY  ─────────────────────────────────────────────────────────────── l
 

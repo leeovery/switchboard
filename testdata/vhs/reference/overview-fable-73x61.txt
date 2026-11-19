@@ -1,4 +1,5 @@
  SWITCHBOARD                                          Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
@@ -56,6 +57,5 @@ LATELY  ────────────────────────
 14:31  ╎ work reached its cap: 3 sessions moved to side
 14:12  ▲ api started on work
 13:50  ◇ side primed: its 5-hour window started
-13:22  ▸ infra moved personal → work: personal came under pressure, its…
 
 tab views   ? keys and toggles   q quit

@@ -15,7 +15,8 @@ everywhere, and what a click does.
 Every page is one frame. From top to bottom, it has:
 
 1. **The title row:** the tabs and the clock. Once there's a second pool, the label of the pool
-   shown follows the badge.
+   shown follows the badge, on a colour of that pool's own. On a phone, a blank row sits above the
+   tabs.
 2. **The status line:** how the router stands.
 3. **The heading row:** the name of the tab and a rule. The Overview and Trends have none, because
    they head their own sections.

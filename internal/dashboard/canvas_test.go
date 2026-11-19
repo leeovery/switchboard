@@ -234,7 +234,7 @@ func TestEachSelectedRowIsReversedWithoutColourAndOnBgSelectionInColour(t *testi
 	card, _ := drawnLit(Frame{Width: 160, Height: 37}, cursor)
 	phoneCard, _ := drawnLit(Frame{Width: 52, Height: 40}, cursor)
 	titled := func(width int) *canvas {
-		f := Frame{Width: width, Height: 3, View: Sessions}
+		f := Frame{Width: width, Height: 4, View: Sessions}
 		c := newCanvas(f.Width, f.Height)
 		f.title(c, now)
 		return c
@@ -248,7 +248,7 @@ func TestEachSelectedRowIsReversedWithoutColourAndOnBgSelectionInColour(t *testi
 		{name: "the routing card's cursor", c: card, rows: []int{15}},
 		{name: "on a phone, the cursor's account's both lines", c: phoneCard, rows: []int{16, 17}},
 		{name: "the title's tab", c: titled(160), rows: []int{0}},
-		{name: "on a phone, the title's tab, on the tabs' second row", c: titled(52), rows: []int{2}},
+		{name: "on a phone, the title's tab, on the tabs' second row", c: titled(52), rows: []int{3}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

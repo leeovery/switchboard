@@ -47,7 +47,8 @@ its own, whatever pool it worked in.
 
 Once there's a second pool:
 
-- The title row names the pool shown, by its label, after the badge, at every size.
+- The title row names the pool shown, by its label, after the badge, at every size. Each pool's
+  label sits on a colour of its own, the same every time, so you can tell the pool at a glance.
 - `P` turns to the next pool in the config's order, and from the last to the first, on every
   tab.
 - `P` reads the pools afresh, so a pool you add or remove while the dashboard is open shows at the

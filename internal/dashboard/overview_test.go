@@ -344,8 +344,8 @@ func TestThePlannerLaysEachOverviewFrameOutOnItsRows(t *testing.T) {
 			{SectionUsage, 5, 23, false}, {SectionRouting, 25, 33, false}, {SectionSessions, 35, 45, false},
 			{SectionComing, 47, 51, false}, {SectionLately, 47, 51, false},
 		}},
-		{stem: "overview-phone-52", width: 52, height: 66, world: autoWorld, want: []rowsOf{
-			{SectionUsage, 7, 36, false}, {SectionRouting, 38, 47, false}, {SectionComing, 49, 56, false}, {SectionLately, 58, 64, false},
+		{stem: "overview-phone-52", width: 52, height: 67, world: autoWorld, want: []rowsOf{
+			{SectionUsage, 8, 37, false}, {SectionRouting, 39, 48, false}, {SectionComing, 50, 57, false}, {SectionLately, 59, 65, false},
 		}},
 	}
 	for _, tt := range tests {
@@ -455,7 +455,7 @@ func TestRowsShortSectionsFoldInTurnThenWhatFitsUnfoldsTheLastFoldedFirstAndUSAG
 // the group folded last from the first: with SESSIONS at 3 rows, in 22,
 // SESSIONS, COMING UP and LATELY, then ROUTING fold; COMING UP and LATELY,
 // folded after SESSIONS, unfold before it, and leave it no room. With every
-// section shown, at 73x42, SESSIONS, COMING UP and LATELY fold, and at
+// section shown, at 73x43, SESSIONS, COMING UP and LATELY fold, and at
 // 108x32, SESSIONS alone.
 func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 	sections := shortOfRows()
@@ -471,7 +471,7 @@ func TestTheGroupFoldedLastUnfoldsFirst(t *testing.T) {
 		width, height int
 		folds         []Section
 	}{
-		{width: 73, height: 42, folds: []Section{SectionSessions, SectionComing, SectionLately}},
+		{width: 73, height: 43, folds: []Section{SectionSessions, SectionComing, SectionLately}},
 		{width: 108, height: 32, folds: []Section{SectionSessions}},
 	}
 	for _, tt := range tests {

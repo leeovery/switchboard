@@ -147,7 +147,7 @@ func TestATurnOpensRequestsFitTheRowsThereAre(t *testing.T) {
 		turns         int
 		want          int
 	}{
-		{name: "thirteen turns at 73×61: the rows under them all", width: 73, height: 61, turns: 13, want: 19},
+		{name: "thirteen turns at 73×62: the rows under them all", width: 73, height: 62, turns: 13, want: 19},
 		{name: "thirteen turns at 173×53", width: 173, height: 53, turns: 13, want: 11},
 		{name: "three turns at 160×37", width: 160, height: 37, turns: 3, want: 5},
 		{name: "thirteen turns at 160×37: five, as they don't all fit", width: 160, height: 37, turns: 13, want: 5},
@@ -424,7 +424,7 @@ func TestTheLogsCardOverASessionsPageIsPlacedByItsRequestChosen(t *testing.T) {
 	}{
 		{name: "over its line", request: 2, width: 160, height: 37, placed: true, line: 30},
 		{name: "too short for it", scroll: 1, width: 160, height: 24, line: 16},
-		{name: "a tall phone, its card stacked", width: 52, height: 64, line: 29},
+		{name: "a tall phone, its card stacked", width: 52, height: 65, line: 30},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

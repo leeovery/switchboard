@@ -329,10 +329,10 @@ func TestGraphsHeadingIsATargetThatPressesItsKeyWhileItShows(t *testing.T) {
 }
 
 // scrollingFrame is a phone's frame of Graphs too short for its sections:
-// WEEK, POOL and GLANCE shown, of two accounts, at 73 by 40, its 44 rows in
+// WEEK, POOL and GLANCE shown, of two accounts, at 73 by 41, its 44 rows in
 // the 32 over the legend.
 func scrollingFrame() Frame {
-	f := graphsFrame(73, 40, GraphsSectionsNamed([]string{"week", "pool", "glance"}))
+	f := graphsFrame(73, 41, GraphsSectionsNamed([]string{"week", "pool", "glance"}))
 	f.Graphs.Accounts = configured("work", "personal")
 	return f
 }
@@ -383,7 +383,7 @@ func TestGraphsScrollsWholeShortOfEveryLeastTheLegendHeldAtTheFoot(t *testing.T)
 		{name: "short of the least", frame: scrollingFrame(), first: "WEEK ", state: "▼ 12 more below"},
 		{name: "scrolled 3", frame: scrollingFrame(), scroll: 3, state: "▲ 3 more above · ▼ 12 more below"},
 		{name: "scrolled to the foot", frame: scrollingFrame(), scroll: 99, state: "▲ 12 more above"},
-		{name: "fitting", frame: graphsFrame(73, 61, GraphsSections{}), first: "WEEK "},
+		{name: "fitting", frame: graphsFrame(73, 62, GraphsSections{}), first: "WEEK "},
 	}
 	nord := Screen(builtin(t, "nord"))
 	for _, tt := range tests {

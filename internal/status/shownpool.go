@@ -1,7 +1,10 @@
 package status
 
 import (
+	"hash/fnv"
+	"math"
 	"slices"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -17,7 +20,8 @@ import (
 // document of it is read, as AsRead has it, and Routing is how many
 // accounts that document routes in it. Refusing is how the router answered
 // where it refuses to read the pool, as Refused has it: nil where it
-// doesn't.
+// doesn't. Turn is how far the pool's hue is turned from the badge's, as
+// PoolTurn gives it.
 type ShownPool struct {
 	ID, Label string
 	Dirs      []string
@@ -26,6 +30,7 @@ type ShownPool struct {
 	Routed    bool
 	Routing   int
 	Refusing  *RouterAnswer
+	Turn      float64
 }
 
 // RouterAnswer is how the router answered its health check: its health, and
@@ -49,7 +54,92 @@ func PoolShown(pools config.Pools, accounts config.Accounts, id string) ShownPoo
 	if !ok {
 		return ShownPool{Pools: len(pools)}
 	}
-	return ShownPool{ID: p.ID, Label: prose.LabelOr(p.Label, p.ID), Dirs: slices.Clone(p.WrittenDirs), Accounts: len(PoolAccounts(pools, accounts, p.ID)), Pools: len(pools)}
+	return ShownPool{ID: p.ID, Label: prose.LabelOr(p.Label, p.ID), Dirs: slices.Clone(p.WrittenDirs), Accounts: len(PoolAccounts(pools, accounts, p.ID)), Pools: len(pools), Turn: PoolTurn(pools.IDs(), p.ID)}
+}
+
+// PoolTurn is how far, in degrees, the hue of the pool with the id given,
+// ignoring case, is turned from the badge's round the colour wheel, among
+// pools with the ids given, in the config's order: the turn its id hashes
+// to, unless that's within poolTurnApart of a pool's before it, when it
+// takes the nearest turn that isn't, as spreadTurn has it. So a pool's
+// colour follows from its id, holds as pools are added after it, and stands
+// apart from the others', always for three pools, mostly for four, as far as
+// the band allows for more; and none comes within poolTurnClear of the
+// badge's, either way, so every pool's reads against the badge.
+func PoolTurn(ids []string, id string) float64 {
+	var taken []float64
+	for _, each := range ids {
+		turn := spreadTurn(hashedTurn(each), taken)
+		if strings.EqualFold(each, id) {
+			return turn
+		}
+		taken = append(taken, turn)
+	}
+	return hashedTurn(id)
+}
+
+// The band a pool's turn lies in, from poolTurnClear past the badge's hue to
+// poolTurnClear short of it, and how far apart pools' turns are kept.
+const (
+	poolTurnClear = 75
+	poolTurnBand  = 360 - 2*poolTurnClear
+	poolTurnApart = 50
+)
+
+// hashedTurn is the turn a pool's id hashes to, ignoring case, in the band.
+func hashedTurn(id string) float64 {
+	h := fnv.New32a()
+	h.Write([]byte(strings.ToLower(id)))
+	return poolTurnClear + float64(h.Sum32()%(poolTurnBand*10))/10
+}
+
+// spreadTurn is turn where it's poolTurnApart from every one taken; else the
+// nearest turn in the band that is, which lies poolTurnApart from one taken
+// or at an end of the band; else, where none is, the turn in the band
+// farthest from them, at an end or midway between two.
+func spreadTurn(turn float64, taken []float64) float64 {
+	nearest := func(c float64) float64 {
+		near := math.Inf(1)
+		for _, t := range taken {
+			near = min(near, math.Abs(c-t))
+		}
+		return near
+	}
+	// The slack lets a turn set exactly poolTurnApart from one taken count
+	// as apart, as the subtraction can land a hair short.
+	const slack = 1e-9
+	if nearest(turn) >= poolTurnApart-slack {
+		return turn
+	}
+	lo, hi := float64(poolTurnClear), float64(poolTurnClear+poolTurnBand)
+	candidates := []float64{lo, hi}
+	for _, t := range taken {
+		candidates = append(candidates, t-poolTurnApart, t+poolTurnApart)
+	}
+	best, found := 0.0, false
+	for _, c := range candidates {
+		if c < lo || c > hi || nearest(c) < poolTurnApart-slack {
+			continue
+		}
+		if !found || math.Abs(c-turn) < math.Abs(best-turn) || math.Abs(c-turn) == math.Abs(best-turn) && c < best {
+			best, found = c, true
+		}
+	}
+	if found {
+		return best
+	}
+	sorted := slices.Sorted(slices.Values(taken))
+	points := []float64{lo, hi}
+	for i := 1; i < len(sorted); i++ {
+		points = append(points, (sorted[i-1]+sorted[i])/2)
+	}
+	best = points[0]
+	for _, c := range points[1:] {
+		if far, was := nearest(c), nearest(best); far > was || far == was && math.Abs(c-turn) < math.Abs(best-turn) {
+			best = c
+		}
+	}
+	return best
 }
 
 // PoolAccounts are the accounts of accounts a dashboard shows of the pool of

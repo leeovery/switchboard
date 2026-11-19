@@ -1,4 +1,5 @@
  SWITCHBOARD                                          Thu 1 Oct  14:42:07
+
  Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ side
@@ -55,7 +56,6 @@ SESSIONS   Switchboard  List                                  < 30 days >
   infra       8096            side      opus-5-5    ended 10:48        87
   ended Wed 23 Sep  ─────────────────────────────────────────────────────
   website     2ed2            work      opus-5-5    ended 17:36       186
-  website     3e08            side      fable-5-1   ended 16:22       117
 30 days  162 sessions · 26,469 requests · $3,061.31 at API prices
-  ▼ 118 more sessions
+  ▼ 119 more sessions
 tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit

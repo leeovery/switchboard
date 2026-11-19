@@ -107,12 +107,12 @@ func TestAPhonesTabsAreTargetsOnTheRowsTheyreDrawnOn(t *testing.T) {
 		// rows are the rows each tab is on, in the tabs' order.
 		rows []int
 	}{
-		{width: 61, rows: []int{1, 1, 1, 1, 1, 1, 1}},
-		{width: 60, rows: []int{1, 1, 1, 2, 2, 2, 2}},
-		{width: 31, rows: []int{1, 1, 1, 2, 2, 2, 2}},
-		{width: 30, rows: []int{1, 1, 2, 2, 3, 3, 3}},
-		{width: 21, rows: []int{1, 1, 2, 2, 3, 3, 3}},
-		{width: 20, rows: []int{1, 1, 2, 2, 3, 3, 4}},
+		{width: 61, rows: []int{2, 2, 2, 2, 2, 2, 2}},
+		{width: 60, rows: []int{2, 2, 2, 3, 3, 3, 3}},
+		{width: 31, rows: []int{2, 2, 2, 3, 3, 3, 3}},
+		{width: 30, rows: []int{2, 2, 3, 3, 4, 4, 4}},
+		{width: 21, rows: []int{2, 2, 3, 3, 4, 4, 4}},
+		{width: 20, rows: []int{2, 2, 3, 3, 4, 4, 5}},
 	}
 	for _, tt := range tests {
 		f := clickable(tt.width, 33, Overview)

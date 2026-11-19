@@ -180,7 +180,11 @@ func TestProjectsGivesWayInItsOrder(t *testing.T) {
 				before := projectsGiving{list: n, kept: projectSections, chart: worthRows}
 				beforeThird, beforeSpare := 0, 0
 				seen := map[string]bool{}
-				for height := 70; height >= 22; height-- {
+				blank := 0
+				if Phone(width) {
+					blank = phoneTabsY - 1
+				}
+				for height := 70 + blank; height >= 22+blank; height-- {
 					f := projectsFrame(t, width, height, projectRows(n), 0, &page)
 					l := f.projectsLaying(doc, routedAt)
 					g := projectsGiving{list: l.list.linesShown(), kept: l.project.kept, chart: l.project.chart}
