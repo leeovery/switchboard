@@ -61,12 +61,15 @@ type AccountShare struct {
 // as Projects names the project's row: "" on a project's SESSIONS, which
 // the project heads, and of a session with no directory or of temporary
 // folders. Twinned is set where another row of its list shows the same
-// project and name, as twinsApart has it, so ShownName gives its id too.
+// project and name, so ShownName gives its id too; and IDCells, where it
+// shows its id beside one that would show alike, is how much of its id
+// tells it apart, 0 for status.IDShown: each as toldApart has them.
 type PeriodSession struct {
 	ListedSession
 	EndedOn     string
 	ProjectName string
 	Twinned     bool
+	IDCells     int
 }
 
 // page is the project's page, its row given, the page built of in.
@@ -119,7 +122,7 @@ func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
 // List's start and its first request, as the days and the walk back before
 // them found it; each other as listedEnded has it; each named by its project
 // as projects names it, by its id, none for nil; and those that show alike
-// told apart, as twinsApart has it. It's the one way a session of the period
+// told apart, as toldApart has it. It's the one way a session of the period
 // is rowed, a project's or the List's.
 func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[string]string) []PeriodSession {
 	listed := make(map[string]ListedSession, len(in.List.Sessions))
@@ -143,7 +146,7 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[
 		rows = append(rows, row)
 	}
 	slices.SortFunc(rows, inPeriodOrder)
-	twinsApart(rows)
+	toldApart(rows)
 	return rows
 }
 

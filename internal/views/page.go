@@ -277,16 +277,30 @@ func eachWhole(string) ledger.Rest { return ledger.RestWhole }
 func onPage(string) ledger.Rest { return ledger.RestOnPage }
 
 // AskedPage is the page of the session with the given id as it's drawn
-// asked to open, while its lines are read: its id, and its directory as the
-// router lists it, of the sessions running given, as dir has it of a
-// session it lists, none where it doesn't list it; nothing else is known
-// till its lines are.
+// asked to open, while its lines are read: its id, and its directory,
+// project and name as the router lists them, of the sessions running given,
+// as listedPlace has them of a session it lists, named as namedAs names a
+// page, so its heading holds its shape as its lines are read; none where it
+// doesn't list it; nothing else is known till its lines are.
 func AskedPage(id string, running []status.Session) SessionPage {
 	page := SessionPage{Session: id}
 	if s := Routed(running, id); s != nil {
-		page.Dir = routedDir(*s)
+		place := listedPlace(*s, sessionPlace{}, status.Projects{})
+		page.Dir = place.dir
+		page.namedAs(ListedSession{Session: id, Dir: place.dir, Project: place.project, Name: place.name})
 	}
 	return page
+}
+
+// namedAs names the page as its heading names it, of the session as listed:
+// its project, as Projects names one shown alone; and the session as the
+// List names it, as shownName has it, but where that's by its id, which the
+// heading shows already.
+func (p *SessionPage) namedAs(s ListedSession) {
+	p.ProjectName = projectNamedAlone(s.Project)
+	if shown, byID := s.shownName(); !byID {
+		p.Shown = shown
+	}
 }
 
 // Named returns the ids of the sessions one is named among, by as much of its

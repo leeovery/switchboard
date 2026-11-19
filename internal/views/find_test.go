@@ -216,21 +216,24 @@ func TestIDMatchesOnDaysNotReadYetComeFromTheSummaries(t *testing.T) {
 	}
 }
 
-// A session is found by the name of the terminal session it was started in,
-// whatever the case, today's as the find opens and a past day's once its
-// lines are read; one named otherwise isn't.
+// A session is found by its name as the List shows it, whatever the case:
+// the terminal session it was started in, or else its worktree's; today's
+// as the find opens and a past day's once its lines are read; one named
+// otherwise isn't.
 func TestTheFindFindsASessionByItsName(t *testing.T) {
 	lines := []ledger.Line{
+		in("~/Code/api/.claude/worktrees/fix-login/web", line(findBack, opus, "work", "new", october(5, 9, 0), smallUsage)),
 		startedIn("Hotfix-2", in("~/Code/web", line(findYester, opus, "work", "new", october(6, 9, 0), smallUsage))),
 		startedIn("release", in("~/Code/api", line(findToday, opus, "work", "new", october(7, 9, 0), smallUsage))),
 	}
-	summaries := []ledger.Summary{naming("2026-10-06", findYester), naming("2026-10-07", findToday)}
+	summaries := []ledger.Summary{naming("2026-10-05", findBack), naming("2026-10-06", findYester), naming("2026-10-07", findToday)}
 	tests := []struct {
 		typed string
 		want  []string
 	}{
 		{typed: "rele", want: []string{findToday}},
 		{typed: "hotfix", want: []string{findYester}},
+		{typed: "FIX-LOGIN", want: []string{findBack}},
 		{typed: "deploy"},
 	}
 	for _, tt := range tests {

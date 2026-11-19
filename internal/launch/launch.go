@@ -720,7 +720,7 @@ func (l Launcher) told(state routerState, args []string, project string) (dir, s
 // Dir. The pool and the project stay Dir's, which are the worktree's too:
 // a worktree follows its repository.
 func (l Launcher) startedIn(args []string) string {
-	name, ok := claude.WorktreeArg(args)
+	folder, ok := claude.WorktreeArg(args)
 	if !ok || l.Project == nil {
 		return l.Dir
 	}
@@ -728,7 +728,7 @@ func (l Launcher) startedIn(args []string) string {
 	if !inRepository {
 		return l.Dir
 	}
-	return claude.WorktreePath(root, name)
+	return claude.WorktreePath(root, folder)
 }
 
 // project returns the project the session, in in, runs in, by its path: the

@@ -56,8 +56,8 @@ In the panel:
 
 ## Finding a session
 
-Press `/` to find a session by the start of its id or the name of its folder. The find looks at
-today's sessions first, then back a day at a time.
+Press `/` to find a session by the start of its id, the name of its folder, or its
+[session name](sessions.md). The find looks at today's sessions first, then back a day at a time.
 
 You type in it as in the fields of `switchboard setup`:
 

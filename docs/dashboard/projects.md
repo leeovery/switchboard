@@ -60,14 +60,13 @@ WORTH BY picks its bucket by the period:
 
 SESSIONS lists the running sessions first. The rest follow under a rule for the day they ended:
 `ended today`, `ended yesterday`, a weekday this week, or a date before. Each session starts at its
-first request, with the day if it began on another.
+first request, with the day if it began on another. If the sessions don't all fit, the last row
+counts those out of view: `▲ 3 more sessions · ▼ 12 more sessions`. On a short screen, that row
+shows only if two sessions still fit above it.
 
 Each session shows its [session name](sessions.md) alone, such as `router-fix`, because the project
-heads the page. Two sessions of one name each add their id, as the List does.
-
-If the sessions don't all fit, the last row counts those out of view, as the List does:
-`▲ 3 more sessions · ▼ 12 more sessions`. On a short screen, that row shows only if two sessions
-still fit above it.
+heads the page. Two sessions of one name each add their id, dimmed, as the List does. A session
+with no name shows the first 4 characters of its id.
 
 Only the part where `↑` and `↓` act, the list or the sessions, lights its chosen row. The other
 keeps its chosen row bold, marked `▸`.

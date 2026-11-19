@@ -36,6 +36,14 @@ func TestRunTellsTheRouterTheWorktreeClaudeCodeMakes(t *testing.T) {
 			want: "X-Switchboard-Dir: ~/Code/api/.claude/worktrees/review\nX-Switchboard-Project: ~/Code/api",
 		},
 		{
+			name: "named in segments, its folder as Claude Code makes it", args: []string{"-w", "feature/auth"}, dir: api, found: api, inRepository: true,
+			want: "X-Switchboard-Dir: ~/Code/api/.claude/worktrees/feature+auth\nX-Switchboard-Project: ~/Code/api",
+		},
+		{
+			name: "a pull request's, the directory", args: []string{"-w", "#123"}, dir: api, found: api, inRepository: true,
+			want: "X-Switchboard-Dir: ~/Code/api\nX-Switchboard-Project: ~/Code/api",
+		},
+		{
 			name: "named none, the directory", args: []string{"-w", "--resume"}, dir: api, found: api, inRepository: true,
 			want: "X-Switchboard-Dir: ~/Code/api\nX-Switchboard-Project: ~/Code/api",
 		},

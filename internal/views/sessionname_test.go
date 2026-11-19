@@ -123,8 +123,10 @@ func TestTheLogNamesEachSessionOfThePeriodAsItsLastLineToNameAPlaceNamedIt(t *te
 }
 
 // Rows of one list that show the same project and name each show their id
-// too, on the List and on a project's SESSIONS alike; a row whose name no
-// other row shows, one of another project, and one shown by its id, don't.
+// too, as much of it as tells them apart, here whole, as the two differ only
+// at their ends, on the List and on a project's SESSIONS alike; a row whose
+// name no other row shows, one of another project, and one shown by its id,
+// don't.
 func TestRowsThatShowAlikeShowTheirIDs(t *testing.T) {
 	days := heldDays(now, slices.Concat(
 		namedAsks("deploy", projectAsks(repoSession, "/code/switchboard", "/code/switchboard", "side", october(6, 9, 0))),
@@ -134,8 +136,8 @@ func TestRowsThatShowAlikeShowTheirIDs(t *testing.T) {
 	)...)
 	in := projectsIn(views.PeriodThisWeek, now)
 	listed := map[string]views.ShownName{
-		repoSession:     {Name: "deploy", ID: status.ShownID(repoSession)},
-		worktreeSession: {Name: "deploy", ID: status.ShownID(worktreeSession)},
+		repoSession:     {Name: "deploy", ID: repoSession},
+		worktreeSession: {Name: "deploy", ID: worktreeSession},
 		ownSession:      {Name: "deploy"},
 		clientSession:   {Name: status.ShownID(clientSession)},
 	}
@@ -168,6 +170,59 @@ func TestASessionsPageNamesItsProjectAndItsName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			page := pageOf(t, []ledger.Line{startedIn(tt.told, in(tt.dir, line(paged, opus, "work", "new", october(7, 9, 0), hourUsage)))}, nil)
+			if page.ProjectName != tt.wantProject || page.Shown != tt.want {
+				t.Errorf("the page names its project %q and it %+v, want %q and %+v", page.ProjectName, page.Shown, tt.wantProject, tt.want)
+			}
+		})
+	}
+}
+
+// Rows of one project named by their ids, whose first 4 characters are
+// alike, each show as much of its id as tells it from the others, and are
+// never marked as twins; one of another project, or alone, shows its 4.
+func TestRowsNamedByIDsAlikeShowAsMuchOfThemAsTellsThemApart(t *testing.T) {
+	const (
+		first  = "c1a0aa00-0000-4000-8000-000000000001"
+		second = "c1a0ab00-0000-4000-8000-000000000002"
+		third  = "c1a0b000-0000-4000-8000-000000000003"
+		other  = "c1a0aa00-0000-4000-8000-000000000004"
+	)
+	days := heldDays(now, slices.Concat(
+		projectAsks(first, "/code/api", "/code/api", "work", october(6, 9, 0)),
+		projectAsks(second, "/code/api", "/code/api", "work", october(6, 10, 0)),
+		projectAsks(third, "/code/api", "/code/api", "work", october(6, 11, 0)),
+		projectAsks(other, "/code/web", "/code/web", "work", october(6, 12, 0)),
+	)...)
+	want := map[string]views.ShownName{first: {Name: "c1a0aa"}, second: {Name: "c1a0ab"}, third: {Name: "c1a0b"}, other: {Name: "c1a0"}}
+	if got := rowsShown(days.SessionLog(projectsIn(views.PeriodThisWeek, now)).Sessions); !maps.Equal(got, want) {
+		t.Errorf("the List shows %+v, want %+v", got, want)
+	}
+}
+
+// A page asked to open, its lines still read, names its project and the
+// session as the router lists them, as the page will once they're read, so
+// its heading holds its shape; one the router doesn't list, nothing.
+func TestAPageAskedToOpenIsNamedAsTheRouterListsItsSession(t *testing.T) {
+	worktree := "~/Code/api/.claude/worktrees/fix-login"
+	tests := []struct {
+		name        string
+		running     []status.Session
+		wantProject string
+		want        views.ShownName
+	}{
+		{
+			name: "its terminal session's", wantProject: "api", want: views.ShownName{Name: "deploy"},
+			running: []status.Session{{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: "work", Dir: worktree, Project: "~/Code/api", SessionName: "deploy", LastSeen: now}}}},
+		},
+		{
+			name: "its worktree's", wantProject: "api", want: views.ShownName{Name: "fix-login", Worktree: true},
+			running: []status.Session{{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: "work", Dir: worktree, Project: "~/Code/api", LastSeen: now}}}},
+		},
+		{name: "not listed, nothing"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := views.AskedPage(paged, tt.running)
 			if page.ProjectName != tt.wantProject || page.Shown != tt.want {
 				t.Errorf("the page names its project %q and it %+v, want %q and %+v", page.ProjectName, page.Shown, tt.wantProject, tt.want)
 			}

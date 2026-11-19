@@ -61,11 +61,11 @@ scroll under it, so the day always shows.
 ## Session names: your terminal's
 
 ```
-switchboard  router-fix
-switchboard  fix-login
-api          billing 2b6d
-api          billing 5e7d
-api          0b5c
+switchboard router-fix
+switchboard fix-login
+api         billing 2b6d
+api         billing 5e7d
+api         0b5c
 ```
 
 Each session takes the name of the [terminal session](../glossary.md) you started it in. `claude`
@@ -81,8 +81,9 @@ session name stays.
 | Anywhere else | The first 4 characters of its id |
 
 The project and the name are two columns, so the names line up. If two rows show the same project
-and name, each adds the first 4 characters of its id, faint. For example, every pane of one tmux
-session gives its sessions one name.
+and name, each adds the first 4 characters of its id, dimmed. For example, every pane of one tmux
+session gives its sessions one name. If two sessions named by their ids share those 4 characters,
+each shows as many more as tell them apart.
 
 If your terminal uses a Nerd Font, set `nerd_font = true` under `[dashboard]` in
 [the config](../configuration.md). A worktree's name then carries a tree icon. Without a Nerd

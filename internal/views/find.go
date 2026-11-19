@@ -8,7 +8,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -67,16 +66,16 @@ type FoundSession struct {
 
 // FindSessions finds the sessions what's typed matches, as far back as the
 // find has read: each whose id starts with it, or whose directory's name, its
-// last part, or the name of the terminal session it was started in, holds
-// it, whatever the case. Each session is judged once, on
-// the newest day it's of: today's first, in the panel's order; then each
-// past day's the summaries give, newest first, back to the oldest day the
-// ledger keeps: of a day read, its sessions as its lines name them, the last
-// to arrive first, then those its summary names that its lines don't, as
-// where its lines are damaged; of a day not read yet, those its summary
-// names. A session its summary alone names is found by its id alone, as its
-// directory and name aren't known till its lines are read. A day whose summary names
-// no session, and might name none, is never read.
+// last part, or its name, as the List shows it (ListedSession.ShownName),
+// holds it, whatever the case. Each session is judged once, on the newest
+// day it's of: today's first, in the panel's order; then each past day's
+// the summaries give, newest first, back to the oldest day the ledger keeps:
+// of a day read, its sessions as its lines name them, the last to arrive
+// first, then those its summary names that its lines don't, as where its
+// lines are damaged; of a day not read yet, those its summary names. A
+// session its summary alone names is found by its id alone, as its directory
+// and name aren't known till its lines are read. A day whose summary names no
+// session, and might name none, is never read.
 func FindSessions(src FindSources) Found {
 	today := Today(src.Now)
 	f := finder{typed: strings.ToLower(src.Typed), judged: make(map[string]bool)}
@@ -140,7 +139,8 @@ func (f *finder) judge(s FoundSession) {
 		return
 	}
 	f.judged[s.ID] = true
-	dir, name := strings.ToLower(status.DirName(s.Dir, math.MaxInt)), strings.ToLower(prose.Clean(s.Name))
+	dir := strings.ToLower(status.DirName(s.Dir, math.MaxInt))
+	name := strings.ToLower(ListedSession{Session: s.ID, Dir: s.Dir, Name: s.Name}.ShownName().Name)
 	if strings.HasPrefix(strings.ToLower(s.ID), f.typed) || strings.Contains(dir, f.typed) || strings.Contains(name, f.typed) {
 		f.found = append(f.found, s)
 	}

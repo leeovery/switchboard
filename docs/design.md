@@ -3565,9 +3565,10 @@ Every view speaks as `usage` does:
   apart: the pool to each account's cap, the room new sessions can take, and `all accounts` to each
   account's limit.
 - **A session is named by the first 4 characters of its id,** and, where switchboard knows it, the
-  directory it was started in; but on Sessions' List and a project's SESSIONS, by its session
-  name: the terminal session it was started in, else its worktree's, else those 4 characters of
-  its id (the owner's call, 18 November 2026; see Sessions, The List). A request of it in flight is
+  directory it was started in. On Sessions' List, a project's SESSIONS and a session page's
+  heading, the session name names it: the terminal session it was started in, else the worktree's
+  name, else the id (the owner's call, 18 November 2026), its first 4 characters, or more where
+  another row would show the same (see Sessions, The List). A request of it in flight is
   `asking`, until its answer's first byte, then `answering`.
 - **Times** read `16:30` for today and `Sun 21:00` for another day, `~` before one projected.
 
@@ -6038,13 +6039,16 @@ each at least its least and at most its natural:
   The id is its first 4 characters (`status.ShownID`), as every other view names a session. The
   name is worked out once, in `views` (`PeriodSession.ShownName`), which says where it's a
   worktree's, and read alike by the List and a project's SESSIONS; the project's name is
-  Projects' row's (`PeriodSession.ProjectName`, set on the List alone). The row shows neither the
-  id beside the name nor the directory: the project stands for the directory, and the id would
-  take the cells the name needs.
+  Projects' row's (`PeriodSession.ProjectName`, set on the List alone). The row shows no id
+  beside the name, but a twin's, nor the directory: the project stands for the directory, and the
+  id would take the cells the name needs.
 - **Twins:** two rows of one list that show the same project and name, as every pane of one tmux
   session does, and every `/clear` or `claude -p` under one zmx session, each add their id after
-  the name, in `text.subtle`, as `ProjectNames` sets two projects of one name apart
-  (`views.twinsApart`, as the rows are made). A row named by its id has none added.
+  the name, in `text.subtle`, as `ProjectNames` sets two projects of one name apart. Rows of one
+  project each named by their id are told apart alike, though never marked as twins: each shows
+  as much of its id as tells it from the others, its first 4 characters at the least, as `Named`
+  names sessions among themselves. A twin's id is as long as that too. It's one owner, in `views`
+  (`views.toldApart`, as the rows are made, setting `PeriodSession.Twinned` and `IDCells`).
 - **The project's column:** the List's projects take a column of their own within `session`, as
   wide as the widest project of the log, measured as `started` is so it holds still as the List
   scrolls, but cut to leave the widest name whole, up to 14 cells of it, at its least 6, so the
@@ -7536,11 +7540,12 @@ follows again, the newest line at the foot and nothing chosen; `s` opens the cho
 page, and `esc` there comes back to the Log as it was, paused at its line; `f` opens the panel; `/`
 opens a find line in the state line's row, `/ api▏`, typed in as setup's fields are (`←→`, `home`,
 `end`, `delete` and a paste, through `internal/dashboard/textfield`), the cursor drawn where it
-stands, what's typed scrolling to keep it in view, which finds a session by its id's start or by
-its directory's name, today's sessions first, then back a day at a time through the days the
-ledger keeps, each past day's sessions read from the side its head holds where it stands, and its
-lines only where none does (see Live updates); `↑↓` and `enter` pick among the sessions it
-matches, and `enter` filters both tables to the one picked, its lines alone, headed
+stands, what's typed scrolling to keep it in view, which finds a session by its id's start, by
+its directory's name, or by its session name as the List shows it (`ListedSession.ShownName`,
+the one owner the List reads), today's sessions first, then back a day at a time through
+the days the ledger keeps, each past day's sessions read from the side its head holds where it
+stands, and its lines only where none does (see Live updates); `↑↓` and `enter` pick among the
+sessions it matches, and `enter` filters both tables to the one picked, its lines alone, headed
 `only <id> <name>`, paused at its newest line where it has ended, the panel listing it among
 today's sessions, ticked; `esc` cancels the find, and with a filter on and nothing open, `esc`
 clears the filter (the owner's call, 13 October 2026; see The request ledger); `p` opens new
@@ -7791,8 +7796,8 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
 
 **The heading** (row 4): `SESSION` in `text.muted`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its project and its session name as one
-phrase, a breadcrumb, `switchboard · router-fix`, each bold `text.primary`, the ` · ` in
-`text.muted` (the owner's call, 18 November 2026); two spaces; the directory as the ledger holds
+phrase, a breadcrumb (the owner's call, 18 November 2026), `switchboard · router-fix`, each bold
+`text.primary`, the ` · ` in `text.muted`; two spaces; the directory as the ledger holds
 it, the home as `~` (`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words
 (the owner's call, 17 October 2026); one space; a rule of `─` in `border`; two spaces; and,
 ending at the last column, `esc` bold `accent.key` and ` back` in `text.muted`. While it loads,
@@ -7803,8 +7808,12 @@ spaced there (settled in the plan).
   shown alone (`SessionPage.ProjectName`), and its name as the List's (`SessionPage.Shown`), a
   worktree's marked as the List marks one. A session named by its id shows its project alone, as
   the id is beside it already; one of no project, or of temporary folders, its name alone; and
-  one whose page is still loading, which names neither yet, the directory's last part, as before.
-  Cut short, the project gives way first, the dot and the name kept whole while a cell of it fits.
+  one that names neither, named by its id in temporary folders, the directory's last part, as
+  before, loaded or not. While its page loads, the router's listing names it, as it names the
+  List's rows (`views.AskedPage`, through the same owner), so the heading holds its shape as the
+  page's lines are read; a session the router doesn't list shows the directory's last part till
+  then. Cut short, the project gives way first, the dot and the name kept whole while a cell of
+  it fits.
   It's the one place the dashboard shows the project and the name as one phrase: the Overview's
   SESSIONS, the Switchboard's calls and the Log name a session by its id and directory.
 
@@ -11875,10 +11884,10 @@ verbs).
   Proxy rules). The project header goes with it, and only with it, naming the repository that
   directory is in, which `run` finds by walking up from it, as A project says, shown from home
   alike, as `~/Code/api`. The name header goes to such a router too, naming the terminal session
-  `run` started in. The owner chose its source on 18 November 2026: `ZMX_SESSION` where it's set,
-  as zmx sets it; else, inside tmux, as `TMUX` says, the tmux session's name; else none; read once,
-  as the launch starts, a rename since not followed, with no poll, no read of Claude Code's own
-  files and no verb to rename a session. It's read in one place (`Launcher.terminalName`), tmux
+  `run` started in: `ZMX_SESSION` where it's set, as zmx sets it; else, inside tmux, as `TMUX`
+  says, the tmux session's name; else none; read once, as the launch starts, a rename since not
+  followed (the owner's call, 18 November 2026). So nothing polls, nothing reads Claude Code's own
+  files, and no verb renames a session. It's read in one place (`Launcher.terminalName`), tmux
   asked by `tmux display-message -p '#S'`, given a second at most, after the router's health is
   known. A tmux that fails, or isn't there, names none, and the launch goes on, logging it at
   debug. A name of digits alone names none, so the fallbacks name the session: tmux numbers the
@@ -11893,14 +11902,21 @@ verbs).
   reads the flag before Claude Code has made the worktree, so it tells the router that worktree
   as the directory, in place of the one it's run in (`claude.WorktreeArg`, `Launcher.startedIn`),
   where the directory is in a repository, its root as the project finds it, so the session's
-  lines name the worktree from its first request and its name falls back to the worktree's. The
-  pool and the project stay those of the directory it's run in, which are the worktree's too: a
-  worktree follows its repository. The flag's value is read as Claude Code reads an optional one:
-  the next argument where it doesn't start with `-`, the last flag's where it's given twice, none
-  past `--`. A flag with no name, as Claude Code then makes one up, and a name of other
-  characters than letters, digits, `.`, `-` and `_`, as a prompt after the flag is, which Claude
-  Code's docs give no rule for, leave the directory as it is. A `WorktreeCreate` hook that places
-  worktrees elsewhere isn't seen, and the router is told the path Claude Code would have used.
+  lines name the worktree from its first request and its name falls back to the worktree's. That
+  root is the canonical one, the main checkout's, launched from a linked worktree too, as Claude
+  Code 2.1.327 itself was checked to make it. The pool and the project stay those of the
+  directory it's run in, which are the worktree's too: a worktree follows its repository. The
+  flag's value is read as Claude Code reads an optional one, as its own `--tmux` launcher reads
+  it: the next argument where it doesn't start with `-`, the last flag's where it's given twice,
+  none past `--`. A name is taken as Claude Code 2.1.327 takes one: segments of letters, digits,
+  `.`, `-` and `_`, `/` apart, none of them `.`, `..` or `.git`, 64 characters at most in all,
+  its folder the segments joined by `+`, so `-w feature/auth` makes `feature+auth`
+  (`claude.WorktreeArg`). A flag with no name, as Claude Code then makes one up, and a name
+  Claude Code doesn't take so, as a prompt after the flag, leave the directory as it is. A pull
+  request's number or address, `#123` or its URL, which Claude Code makes a worktree named
+  `pr-123` of, is a known miss: the directory stays as it is, and the session is named by its id,
+  as before. A `WorktreeCreate` hook that places worktrees elsewhere isn't seen, and the router is
+  told the path Claude Code would have used.
 - **The hints:** `run` sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
   send a base URL the headers it sends the API directly, the prompt each request serves and its
   class among them, which the router records (see The request ledger); but where the environment

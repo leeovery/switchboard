@@ -562,10 +562,7 @@ func (w worked) page() (SessionPage, bool) {
 		Models: listed.Models, State: listed.State, MoveCost: listed.MoveCost, Ended: listed.Ended, Started: listed.Started,
 		Resumed: p.resumed, Accounts: p.accountsSaid(priced), Moves: movesOf(rec.story), Activity: listed.Activity,
 	}
-	page.ProjectName = projectNamedAlone(listed.Project)
-	if shown, byID := listed.shownName(); !byID {
-		page.Shown = shown
-	}
+	page.namedAs(listed)
 	unplaced := running && by.h.unplaced(routed)
 	page.Turns = turnsOf(p.turns, p.inNone, page.Runs(), unplaced, priced)
 	page.Goes = by.goesOf(h.id, live.Stream, p)
