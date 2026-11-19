@@ -41,10 +41,11 @@ type storedSession struct {
 // has taken in a request, its first and last; what names it; the directory,
 // project and name it last named, as its sessionPlace has them; its last
 // request whose answer gave usage, and its last such of its own
-// conversation, each none where none did, as metered says; whether a request of it said its class; each move a request
-// of it made; and, of each of its threads, when its last request ended, and
-// how long its writes to the cache last, in nanoseconds. Not its prices, its
-// day, its requests on the day nor their worth.
+// conversation, each none where none did, as metered says; whether a
+// request of it said its class; each move a request of it made; and, of each
+// of its threads, when its last request ended, and how long its writes to
+// the cache last, in nanoseconds. Not its prices, its day, its requests on
+// the day nor their worth.
 type storedStory struct {
 	Begun      bool                     `json:"b,omitzero"`
 	First      storedFlight             `json:"f,omitzero"`

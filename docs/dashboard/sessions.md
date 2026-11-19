@@ -45,7 +45,7 @@ Running sessions come first. The rest follow, newest first, under a rule for the
 
 Each row shows the session with:
 
-- its project, then its session name, as `switchboard router-fix`;
+- the project, then the session name, as `switchboard router-fix`;
 - the account, model and state, as `ended 18:20` once it's over;
 - the start time, with the day if it started on another;
 - the requests in the period, and their worth at API prices;
@@ -81,9 +81,9 @@ session name stays.
 | Anywhere else | The first 4 characters of its id |
 
 The project and the name are two columns, so the names line up. If two rows show the same project
-and name, each adds the first 4 characters of its id, dimmed. For example, every pane of one tmux
-session gives its sessions one name. If two sessions named by their ids share those 4 characters,
-each shows as many more as tell them apart.
+and name, each adds its id, dimmed. For example, every pane of one tmux session gives its sessions
+one name. The id shows as much as tells the rows apart, at least 4 characters. A session named by
+its id shows its id the same way.
 
 If your terminal uses a Nerd Font, set `nerd_font = true` under `[dashboard]` in
 [the config](../configuration.md). A worktree's name then carries a tree icon. Without a Nerd

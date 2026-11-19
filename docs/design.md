@@ -11893,7 +11893,8 @@ verbs).
   debug. A name of digits alone names none, so the fallbacks name the session: tmux numbers the
   sessions it isn't given a name for, `0`, `1` and on, which say nothing of the work. The name is
   text from outside, so it's cleaned and cut as a line keeps it (`ledger.LineName`:
-  `prose.Clean`, anything token-shaped hidden, 100 bytes at most) before it's encoded as the
+  `prose.Clean`, then anything token-shaped hidden, as cleaning drops characters that don't show
+  and so joins a token they split, 100 bytes at most) before it's encoded as the
   directory is, and the router cleans and cuts it again as it reads it. A name inherited from a
   session this one is started within goes: what this launch reads is the only one.
 - **A worktree `claude` makes:** run as `claude -w <name>` or `claude --worktree <name>`, or

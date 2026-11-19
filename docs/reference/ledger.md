@@ -61,9 +61,10 @@ puts `pool_label` after it too.
   scratchpad often shows cut there, with no `project`.
 - **`name`** is the zmx session's name, else the tmux session's name, read once when `claude`
   starts. A name of digits alone counts as none, so the next source is read. `name` is left out
-  outside both, and on lines filed before switchboard recorded it. It holds 100 bytes at most,
-  cleaned of control characters. A rename of the terminal session after the start never reaches
-  the line.
+  outside both, and on lines filed before switchboard recorded it. It holds 100 bytes at most. It's
+  cleaned as the dashboard cleans shown text, with control characters made spaces and zero-width
+  characters dropped. Then anything shaped like a token is hidden. A rename of the terminal
+  session after the start never reaches the line.
 - **`dir` for `claude --worktree <name>`** is the worktree Claude Code makes,
   `<repository>/.claude/worktrees/<name>`, because Claude Code starts the session there. This
   holds only inside a repository, and only for a name Claude Code takes as it is:

@@ -78,7 +78,8 @@ same conversation, but starts a new process.
 **Session name.** What Sessions' List, Projects and the session page's heading call a session:
 the name of the terminal session it started in, read when `claude` starts. A session started
 outside a terminal session takes the name of the Claude Code worktree it runs in. Else the
-session goes by the first 4 characters of its id. See [Sessions](dashboard/sessions.md).
+session goes by its id, as much as tells it apart from another session's, at least 4 characters.
+See [Sessions](dashboard/sessions.md).
 
 **The service.** The LaunchAgent that runs the router at login and restarts it when needed.
 

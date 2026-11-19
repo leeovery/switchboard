@@ -249,7 +249,7 @@ func (m Model) relived(msg tea.Msg, now time.Time) Model {
 			m.tail.due = m.tail.due || !s.wholeAsked
 			s.wholeAsked = true
 			if s.shown.Page.Session == "" {
-				s.shown = dashboard.SessionShown{Page: views.AskedPage(s.id, m.sessions), Home: m.cfg.Home, Loading: true}
+				s.shown = dashboard.SessionShown{Page: views.AskedPage(s.id, m.sessions, m.cfg.Projects), Home: m.cfg.Home, Loading: true}
 			}
 			m.session = &s
 			return m
