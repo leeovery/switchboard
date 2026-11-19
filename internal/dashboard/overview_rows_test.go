@@ -47,9 +47,11 @@ func nextStep(u unit) int {
 
 // leastShort is the fewest rows the unit takes short of folding a section
 // for it: USAGE's first step short of its least, its accounts a row apart;
-// any other's least.
+// any other's least, COMING UP's and LATELY's among them, as their short
+// form opens only in rows the plan leaves blank, never to keep a section
+// open.
 func leastShort(u unit) int {
-	if leaner := u.sections[0].leaner; len(leaner) > 0 {
+	if leaner := u.sections[0].leaner; u.ledBy(SectionUsage) && len(leaner) > 0 {
 		return leaner[0]
 	}
 	return u.least
@@ -95,19 +97,15 @@ func TestCOMINGUPAndLATELYSitSideBySideWhereTheirLeastsFit(t *testing.T) {
 // Every height from 10 to 120 at the phone's widths, the iPad's, the
 // landscape phone's and the desktop's, with the sections shown at first and
 // with every one, of three accounts by window and by account, three of three
-// windows by account, and six and ten by window: a unit folded never fits at
-// its least with the others at theirs, and rows are left blank at the foot
-// only where every unit not folded is at its most, or none's next step fits
-// in them.
+// windows by window and by account, and six and ten by window: a unit folded
+// never fits at its least with the others at theirs, and rows are left blank
+// at the foot only where every unit not folded is at its most, or none's
+// next step fits in them, as the plan has them before its last step; and in
+// its last step, COMING UP and LATELY, folded, open in their short form
+// wherever it fits in the rows left blank.
 func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 	t.Parallel()
 	ten, _ := tenAccounts()
-	fabled := threeRouted()
-	fabled.Accounts = slices.Clone(fabled.Accounts)
-	for i := range fabled.Accounts {
-		a := &fabled.Accounts[i]
-		a.Windows = append(slices.Clone(a.Windows), windowOf("7d_oi", "Fable week", 0.3, 4*quota.Day))
-	}
 	worlds := []struct {
 		name string
 		doc  status.Document
@@ -115,7 +113,8 @@ func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 	}{
 		{name: "three by window", doc: threeRouted()},
 		{name: "three by account", doc: threeRouted(), by: ByAccount},
-		{name: "three of three windows by account", doc: fabled.WorkedOut(claudeLike), by: ByAccount},
+		{name: "three of three windows by window", doc: threeFabled()},
+		{name: "three of three windows by account", doc: threeFabled(), by: ByAccount},
 		{name: "six by window", doc: manyRead(6)},
 		{name: "ten by window", doc: ten},
 	}
@@ -134,6 +133,18 @@ func TestNoUnitFoldsWhereItFitsAndNoRowIsLeftBlankWhereAStepFits(t *testing.T) {
 			}
 		}
 	}
+}
+
+// threeFabled is threeRouted with a model's own week each account has used,
+// its third window.
+func threeFabled() status.Document {
+	fabled := threeRouted()
+	fabled.Accounts = slices.Clone(fabled.Accounts)
+	for i := range fabled.Accounts {
+		a := &fabled.Accounts[i]
+		a.Windows = append(slices.Clone(a.Windows), windowOf("7d_oi", "Fable week", 0.3, 4*quota.Day))
+	}
+	return fabled.WorkedOut(claudeLike)
 }
 
 // allotments are the units of doc a frame allots at each height, each
@@ -167,17 +178,19 @@ func (a allotments) of(height int) []unit {
 	return units
 }
 
-// allottedFully holds the units allotted at height to the
-// rules: none folded that fits at its least, the others at theirs, USAGE's
-// blank rows between its accounts given way; and no row blank at the foot
-// that a unit not folded, short of its most, could take its next step in,
-// but where USAGE's blank rows between its accounts are given way and come
-// back before a section unfolds, as heldAt works it out, which holds them
-// from every form.
+// allottedFully holds the units allotted at height to the rules, as the
+// plan has them before its last step, as beforeShort has it: none folded
+// that fits at its least, the others at theirs, USAGE's blank rows between
+// its accounts given way; and no row blank at the foot that a unit not
+// folded, short of its most, could take its next step in, but where USAGE's
+// blank rows between its accounts are given way and come back before a
+// section unfolds, as heldAt works it out, which holds them from every
+// form. Then, after its last step, none of COMING UP and LATELY folded
+// whose short form fits in the rows left blank.
 func allottedFully(t *testing.T, allots allotments, height int) {
 	t.Helper()
 	f := allots.sized(height)
-	units, room := allots.of(height), f.viewRows()
+	units, room := beforeShort(allots.of(height)), f.viewRows()
 	for i, u := range units {
 		if !u.fold {
 			continue
@@ -202,6 +215,35 @@ func allottedFully(t *testing.T, allots allotments, height int) {
 				f.Width, f.Height, u.sections[0].heading(), u.rows, u.most(), spare, nextStep(u))
 		}
 	}
+	last := allots.of(height)
+	for i, u := range last {
+		if !u.fold || !u.ledBy(SectionComing, SectionLately) {
+			continue
+		}
+		opened := slices.Clone(last)
+		opened[i].fold, opened[i].rows = false, 1+shortLines
+		if rowsDown(opened) <= room {
+			t.Errorf("at %dx%d, %s is folded, but its short form fits in the rows left blank", f.Width, f.Height, u.sections[0].heading())
+		}
+	}
+}
+
+// short reports whether the unit is COMING UP's or LATELY's in their short
+// form, as shorten opens them.
+func (u unit) short() bool {
+	return u.ledBy(SectionComing, SectionLately) && u.lean == givenShort
+}
+
+// beforeShort are the units allotted as the plan has them before its last
+// step: COMING UP and LATELY in their short form folded again.
+func beforeShort(units []unit) []unit {
+	before := slices.Clone(units)
+	for i, u := range before {
+		if u.short() {
+			before[i].fold, before[i].lean = true, givenNone
+		}
+	}
+	return before
 }
 
 func TestSESSIONSRowsAreASessionAndHowManyMoreToEveryOneASessionAtATime(t *testing.T) {
@@ -431,59 +473,74 @@ func TestEachStepUSAGEGivesWayTakesItsOwnPart(t *testing.T) {
 
 // At every height from 10 to 60, at the phone's widths, the iPad's, the
 // landscape phone's and the desktops', with the sections shown at first and
-// with every one, USAGE gives way in its steps' order: its blank rows
+// with every one, of three accounts and of three with a model's own week
+// used, USAGE gives way in its steps' order, as the plan has it before its
+// last step, COMING UP and LATELY in their short form folded: its blank rows
 // between accounts, with a section open, only where it doesn't fit with
 // them, and never further; every other section folded, at the step that
 // shows the most accounts in its rows, the least far of those that tie, but
 // for its key, kept only where it shows; and the accounts it shows never fall
 // as the rows grow.
 func TestUSAGEGivesWayInItsStepsOrder(t *testing.T) {
-	for _, shown := range []Sections{{}, every} {
-		for _, width := range []int{52, 73, 108, 138, 160, 216} {
-			t.Run(fmt.Sprintf("%v at %d", shown.Names(), width), func(t *testing.T) {
-				t.Parallel()
-				fewest := 0
-				for height := 10; height <= 60; height++ {
-					f := frameOf(width, height)
-					f.Sections, f.Sessions = shown, flippingSessions()
-					units, room := f.allotted(threeRouted(), now), f.viewRows()
-					i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
-					usage := units[i]
-					s := usage.sections[0]
-					folded := !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && !u.ledBy(SectionUsage) })
-					back := slices.Clone(units)
-					for j := range back {
-						back[j].rows = back[j].least
-					}
-					if usage.lean > givenApart {
-						back[i].rows = s.leaner[usage.lean-2]
-					}
-					open := room - (rowsDown(back) - back[i].rows)
-					switch {
-					case !folded && usage.lean > givenNone && open >= back[i].rows:
-						t.Errorf("at %dx%d, USAGE has given way %d steps, but fits a step back", width, height, usage.lean)
-					case !folded && usage.lean > givenApart:
-						t.Errorf("at %dx%d, USAGE has given way %d steps, its headings' blank rows among them, with a section open", width, height, usage.lean)
-					}
-					if folded {
-						shows := s.accounts(usage.lean, open)
-						for given := givenNone; int(given) <= len(s.leaner); given++ {
-							if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean && !keyHidden(s, given, open) {
-								t.Errorf("at %dx%d, USAGE has given way %d steps, showing %d accounts in %d rows, where %d steps show %d", width, height, usage.lean, shows, open, given, other)
-							}
-						}
-						if keyHidden(s, usage.lean, open) {
-							t.Errorf("at %dx%d, USAGE keeps its key in %d rows, out of view under the rows it takes", width, height, open)
-						}
-					}
-					accounts := s.accounts(usage.lean, usage.rows)
-					if accounts < fewest {
-						t.Errorf("at %dx%d, USAGE shows %d accounts, fewer than the %d a row shorter", width, height, accounts, fewest)
-					}
-					fewest = accounts
-				}
-			})
+	worlds := []struct {
+		name string
+		doc  status.Document
+	}{{name: "three", doc: threeRouted()}, {name: "three of three windows", doc: threeFabled()}}
+	for _, w := range worlds {
+		for _, shown := range []Sections{{}, every} {
+			for _, width := range []int{52, 73, 108, 138, 160, 216} {
+				t.Run(fmt.Sprintf("%s, %v at %d", w.name, shown.Names(), width), func(t *testing.T) {
+					t.Parallel()
+					usageStepsInOrder(t, w.doc, shown, width)
+				})
+			}
 		}
+	}
+}
+
+// usageStepsInOrder holds USAGE's steps to their order in frames width
+// columns wide showing the sections given, of doc, from 10 rows to 60.
+func usageStepsInOrder(t *testing.T, doc status.Document, shown Sections, width int) {
+	t.Helper()
+	fewest := 0
+	for height := 10; height <= 60; height++ {
+		f := frameOf(width, height)
+		f.Sections, f.Sessions = shown, flippingSessions()
+		units, room := beforeShort(f.allotted(doc, now)), f.viewRows()
+		i := slices.IndexFunc(units, func(u unit) bool { return u.ledBy(SectionUsage) })
+		usage := units[i]
+		s := usage.sections[0]
+		folded := !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && !u.ledBy(SectionUsage) })
+		back := slices.Clone(units)
+		for j := range back {
+			back[j].rows = back[j].least
+		}
+		if usage.lean > givenApart {
+			back[i].rows = s.leaner[usage.lean-2]
+		}
+		open := room - (rowsDown(back) - back[i].rows)
+		switch {
+		case !folded && usage.lean > givenNone && open >= back[i].rows:
+			t.Errorf("at %dx%d, USAGE has given way %d steps, but fits a step back", width, height, usage.lean)
+		case !folded && usage.lean > givenApart:
+			t.Errorf("at %dx%d, USAGE has given way %d steps, its headings' blank rows among them, with a section open", width, height, usage.lean)
+		}
+		if folded {
+			shows := s.accounts(usage.lean, open)
+			for given := givenNone; int(given) <= len(s.leaner); given++ {
+				if other := s.accounts(given, open); other > shows || other == shows && given < usage.lean && !keyHidden(s, given, open) {
+					t.Errorf("at %dx%d, USAGE has given way %d steps, showing %d accounts in %d rows, where %d steps show %d", width, height, usage.lean, shows, open, given, other)
+				}
+			}
+			if keyHidden(s, usage.lean, open) {
+				t.Errorf("at %dx%d, USAGE keeps its key in %d rows, out of view under the rows it takes", width, height, open)
+			}
+		}
+		accounts := s.accounts(usage.lean, usage.rows)
+		if accounts < fewest {
+			t.Errorf("at %dx%d, USAGE shows %d accounts, fewer than the %d a row shorter", width, height, accounts, fewest)
+		}
+		fewest = accounts
 	}
 }
 
@@ -575,7 +632,7 @@ var heightWorlds = []struct {
 // way, and a taller frame, before one whose sections fold otherwise, has
 // them back.
 func heldAt(allots allotments, height int, units []unit) bool {
-	if !slices.ContainsFunc(units, func(u unit) bool { return !u.fold && u.gaveWay() }) {
+	if !slices.ContainsFunc(units, unit.apart) {
 		return false
 	}
 	for taller := height + 1; ; taller++ {
@@ -583,7 +640,7 @@ func heldAt(allots allotments, height int, units []unit) bool {
 		if !oneArrangement(got, units) {
 			return false
 		}
-		if !slices.ContainsFunc(got, func(u unit) bool { return !u.fold && u.gaveWay() }) {
+		if !slices.ContainsFunc(got, unit.apart) {
 			return true
 		}
 	}
@@ -616,9 +673,12 @@ func sweepHeights(t *testing.T, check func(t *testing.T, height int, units, shor
 }
 
 // oneArrangement reports whether two allotments of the same units are one
-// arrangement: each unit folded in both, or open in both.
+// arrangement: each unit folded in both, or open in both, as the plan has
+// them before its last step, COMING UP and LATELY in their short form
+// folded.
 func oneArrangement(units, other []unit) bool {
-	return slices.EqualFunc(units, other, func(u, o unit) bool { return u.fold == o.fold })
+	folded := func(u unit) bool { return u.fold || u.short() }
+	return slices.EqualFunc(units, other, func(u, o unit) bool { return folded(u) == folded(o) })
 }
 
 // A row taller, within one arrangement, no form a section took turns off:

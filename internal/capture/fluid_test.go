@@ -194,43 +194,37 @@ var knownBreaks = []known{
 		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
 		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
 	},
-	// What's left at the foot where USAGE takes the rows it must, the foot's
-	// blank row among them, short of every folded section's least: of six
-	// accounts at 73x61, stacked, ROUTING open under it; by account at 138x30,
-	// as the auto world's and the mixed one's, whose blocks are as tall,
-	// 2 rows, where ROUTING unfolded takes 6 more and COMING UP and LATELY 5,
-	// a blank row before each among them, and the blank rows between its
-	// accounts give way only 2; and of ten accounts side by side, their blank
-	// rows given way, 3 rows: at 138x30, where ROUTING takes 13 more and COMING
-	// UP and LATELY 5, its headings' blank rows and its key giving way only
-	// where no section is open; and at 108x44, ROUTING open, where COMING UP
-	// and LATELY take 5; and of a model's own week some accounts have used,
-	// stacked under the 5-hour, its unused account left out, 3 rows: at
-	// 73x36, every other section folded; and at 108x44, ROUTING open, where
-	// COMING UP and LATELY take 5.
+	// What's left at the foot where USAGE takes the rows it must, counted
+	// in rows the plan leaves, the foot's blank row aside, short of every
+	// folded section's least and of COMING UP's and LATELY's short form,
+	// which opens only in rows left blank, taking its 2 lines and any blank
+	// row it brings: by account at 138x30, as the auto world's and the mixed
+	// one's, whose blocks are as tall, 2 rows, where ROUTING unfolded takes 6
+	// more, COMING UP and LATELY 5, and their short form, side by side under
+	// ROUTING's folded heading, 3; and of a model's own week some accounts
+	// have used, stacked under the 5-hour, its unused account left out, 2
+	// rows at 73x36, every other section folded, where COMING UP's short
+	// form, stacked over LATELY, takes 4 more, the blank rows before and
+	// after it among them, and LATELY's 3.
 	{
-		byDesign: "2 rows under ROUTING, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"73x61"}, fixtures: []string{"overview-six-running-173x53"},
-	},
-	{
-		byDesign: "2 rows under USAGE by account, short of every folded section's least", rule: foldWithRowsSpare,
+		byDesign: "2 rows under USAGE by account, short of every folded section's least and the short form side by side", rule: foldWithRowsSpare,
 		sizes: []string{"138x30"}, fixtures: []string{"overview-by-account-160", "overview-mixed-by-account-160"},
 	},
 	{
-		byDesign: "3 rows under USAGE's ten accounts side by side, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes: []string{"138x30", "108x44"}, fixtures: []string{"overview-ten-accounts-160"},
-	},
-	{
-		byDesign: "3 rows under a used model's week stacked, short of every folded section's least", rule: foldWithRowsSpare,
-		sizes:    []string{"73x36", "108x44"},
-		fixtures: []string{"overview-fable-160", "overview-fable-phone-52", "overview-fable-73x61", "overview-fable-108x44", "overview-model-nearing-160"},
+		byDesign: "2 rows under a used model's week stacked, short of every folded section's least and either short form", rule: foldWithRowsSpare,
+		sizes: []string{"73x36"},
+		fixtures: []string{
+			"overview-fable-160", "overview-fable-phone-52", "overview-fable-73x61", "overview-fable-108x44", "overview-fable-116x44",
+			"overview-model-nearing-160",
+		},
 	},
 	// What's left at the foot at 73x36, every other section folded, where
 	// USAGE takes the least far step that fits whole, as it keeps its key
 	// only where it shows: six accounts stacked, their blank rows and their
-	// headings' given way, 2 rows, where those take 3 more and LATELY 5.
+	// headings' given way, 2 rows, where those take 3 more, LATELY 5, and
+	// COMING UP's short form 4 and LATELY's 3, as above.
 	{
-		byDesign: "the rows under USAGE whole, short of its step before and every folded section's least", rule: foldWithRowsSpare,
+		byDesign: "the rows under USAGE whole, short of its step before, every folded section's least and either short form", rule: foldWithRowsSpare,
 		sizes: []string{"73x36"}, fixtures: []string{"overview-six-accounts-160"},
 	},
 	// Projects' list never hangs its form on the chosen project's data, so it
@@ -561,10 +555,12 @@ func (d fluidFrame) footBlank() int {
 var (
 	// noRoom is a part with no room at the frame's height.
 	noRoom = regexp.MustCompile(`no room at [0-9]+ rows`)
-	// foldedHeading is a section's heading folded, holding what it lists on
-	// its own row: its first line, then an ellipsis for the rest, two cells
-	// on, or cut short where its rule and key follow, as "COMING UP   16:30
-	// personal's 5-hour resets  …" or "… ── c". Words cut, or a week still
+	// foldedHeading is a section's heading saying it holds more than it
+	// shows. Folded, it holds what it lists on its own row: its first line,
+	// then an ellipsis for the rest, two cells on, or cut short where its
+	// rule and key follow, as "COMING UP   16:30 personal's 5-hour resets  …"
+	// or "… ── c". In its short form, it holds the ellipsis alone over the
+	// two lines it shows, as "COMING UP   … ── c". Words cut, or a week still
 	// running, as "34%…", end in an ellipsis of their own.
 	foldedHeading = regexp.MustCompile(`^[A-Z][A-Z0-9-]*[A-Z]( [A-Z0-9-]+)* {2,}.*(  …( ─+ \S)?|… ─+ \S)( {2,}|$)`)
 )

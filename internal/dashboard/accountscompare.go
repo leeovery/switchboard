@@ -39,8 +39,9 @@ const (
 	// holds from 83 columns, every one of three accounts shows at 108, and
 	// six of ten at 160.
 	leastColumn = 19
-	// barMost are the most cells a bar beside words takes, so none reads as
-	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.
+	// barMost are the most cells Compare's bars beside words take, so none
+	// reads as a rule; and shareSpare the cells a column keeps beside BY
+	// MODEL's.
 	barMost    = 40
 	shareSpare = 4
 	// compareHeads are the rows the heads take, held however far the rest

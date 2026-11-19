@@ -975,8 +975,8 @@ func sonnetWeek(d *status.Document) {
 // one-cell days show. The rule names the weeks shown and ends at their
 // edge, as BY DAY's last week does, and THIS WEEK ends there too, 23 cells
 // with three accounts, its figures cut there. USAGE's bar takes what's left
-// before THIS WEEK, its words at their widest a cell short of it, at least
-// 16 and at most 40.
+// before THIS WEEK, at least 16, its words' column, at their widest, ending
+// a cell short of it.
 func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	tests := []struct {
@@ -989,11 +989,11 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 		{width: 107, rule: "the last eight weeks", weeks: 8, gap: 2, dw: 1, edge: 106, bar: 18, first: "10 Aug"},
 		{width: 108, rule: "the last eight weeks", weeks: 8, gap: 2, dw: 1, edge: 106, bar: 18, first: "10 Aug"},
 		{width: 120, rule: "the last nine weeks", weeks: 9, gap: 2, dw: 1, edge: 115, bar: 27, first: "3 Aug"},
-		{width: 138, rule: "the last six weeks", weeks: 6, gap: 3, dw: 2, edge: 135, bar: 40, first: "24 Aug"},
-		{width: 141, rule: "the last six weeks", weeks: 6, gap: 4, dw: 2, edge: 140, bar: 40, first: "24 Aug"},
-		{width: 160, rule: "the last seven weeks", weeks: 7, gap: 4, dw: 2, edge: 158, bar: 40, first: "17 Aug"},
-		{width: 173, rule: "the last eight weeks", weeks: 8, gap: 3, dw: 2, edge: 169, bar: 40, first: "10 Aug"},
-		{width: 220, rule: "the last 11 weeks", weeks: 11, gap: 2, dw: 2, edge: 210, bar: 40, first: "20 Jul"},
+		{width: 138, rule: "the last six weeks", weeks: 6, gap: 3, dw: 2, edge: 135, bar: 47, first: "24 Aug"},
+		{width: 141, rule: "the last six weeks", weeks: 6, gap: 4, dw: 2, edge: 140, bar: 52, first: "24 Aug"},
+		{width: 160, rule: "the last seven weeks", weeks: 7, gap: 4, dw: 2, edge: 158, bar: 70, first: "17 Aug"},
+		{width: 173, rule: "the last eight weeks", weeks: 8, gap: 3, dw: 2, edge: 169, bar: 81, first: "10 Aug"},
+		{width: 220, rule: "the last 11 weeks", weeks: 11, gap: 2, dw: 2, edge: 210, bar: 122, first: "20 Jul"},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
@@ -1012,8 +1012,9 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 			if columnOf(heads, tt.first) != l.cx() || columnOf(heads, "28 Sep") != l.cx()+(tt.weeks-1)*l.step() {
 				t.Errorf("BY DAY's weeks are headed %q, want %s at %d and 28 Sep a step of %d apart after", heads, tt.first, l.cx(), l.step())
 			}
-			if at := columnOf(rows[rowWith(rows, "THIS WEEK")], "THIS WEEK"); at != tt.edge-23 {
-				t.Errorf("THIS WEEK is at %d, want it 23 cells before the weeks' edge, %d", at, tt.edge)
+			thisWeek := columnOf(rows[rowWith(rows, "THIS WEEK")], "THIS WEEK")
+			if thisWeek != tt.edge-23 {
+				t.Errorf("THIS WEEK is at %d, want it 23 cells before the weeks' edge, %d", thisWeek, tt.edge)
 			}
 			for _, label := range []string{"requests", "limits", "plan", "worth", "extra use"} {
 				if row := rows[rowWith(rows, padded(label, thisWeekLabels))]; ansi.StringWidth(row) > tt.edge {
@@ -1023,6 +1024,9 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 			week := rows[rowWith(rows, "Week ")]
 			if bar := columnOf(week, "34%") - l.panel - 9 - 2; bar != tt.bar {
 				t.Errorf("USAGE's week reads %q, its bar %d cells, want %d", week, bar, tt.bar)
+			}
+			if end := columnOf(week, "34%") + 5 + (usageBlock{width: f.Width}).widestWords(); end != thisWeek-thisWeekApart {
+				t.Errorf("USAGE's week reads %q, its words' column ending at %d, want it a cell before THIS WEEK, at %d", week, end, thisWeek-thisWeekApart)
 			}
 		})
 	}

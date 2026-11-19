@@ -53,6 +53,10 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
 		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "side"},
 	)
+	// fabledNews are the same events, of three accounts with a model's own
+	// week used, whose COMING UP and LATELY open short at 116x44.
+	fabledNews := threeFabled()
+	fabledNews.Events = news.Events
 	// usageAlone is USAGE alone, too short for every account: studio's
 	// out of view at 16 rows, and lab's, whose words say out ~, at 13.
 	usageAlone := func(height int) Frame {
@@ -113,6 +117,10 @@ func TestWhatSettlesOnScreenAloneMovesTheFrame(t *testing.T) {
 		{
 			name: "an event fresh, its row on screen in LATELY", f: frameOf(160, 60), doc: news, at: now, want: true,
 			settle: func(f *Frame) { f.Fresh = map[int]float64{1: 0.5} },
+		},
+		{
+			name: "an event fresh, its row on screen in LATELY's short form", f: frameOf(116, 44), doc: fabledNews, at: now, want: true,
+			settle: func(f *Frame) { f.Fresh = map[int]float64{2: 0.5} },
 		},
 		{
 			name: "an event fresh, LATELY folded", f: frameOf(160, 28), doc: news, at: now,
