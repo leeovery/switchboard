@@ -194,18 +194,6 @@ var knownBreaks = []known{
 		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
 		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
 	},
-	// The List's directories at their most, where the session's column is
-	// whole and the rows end blank.
-	{
-		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
-		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
-	},
-	// A project's SESSIONS, in the List's columns, so its directories at
-	// their most as the List's, where SESSIONS shows.
-	{
-		byDesign: "a project's SESSIONS' directories at their most, as the List's", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
-		sizes: []string{"138x30", "173x53"}, fixtures: []string{"long-names-projects", "long-names-project-sessions"},
-	},
 	// What's left at the foot where USAGE takes the rows it must, the foot's
 	// blank row among them, short of every folded section's least: of six
 	// accounts at 73x61, stacked, ROUTING open under it; by account at 138x30,

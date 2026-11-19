@@ -733,14 +733,16 @@ func TestTheRoutersSayJoinsWhatItsLinesTell(t *testing.T) {
 		Moves: []views.SessionMove{{At: utc(local(13, 5, 0)), Model: opus, From: "work", To: "side", Reason: "pinned", Written: 1000, Cost: cost(hourWrite), Rewrote: true}},
 		Turns: []views.Turn{{Turn: 1, Started: utc(local(13, 0, 0)), Requests: 2, Tools: []views.ToolCalls{},
 			Read: 200000, Written: 2000, Out: 1000, Worth: priced(2 * hourWorth), Accounts: []string{"work", "side"}}},
-		Totals:   views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: priced(2 * hourWorth)},
-		Activity: views.Activity{Doing: views.Asking, Since: utc(local(13, 11, 0)), LastSeen: utc(local(13, 11, 0))},
-		Goes:     []views.SessionModel{{Model: opus, Account: "side", Reason: "pinned"}},
+		Totals:      views.SessionTotals{Turns: 1, Requests: 2, FromCache: 200000.0 / (2 * 101010), Worth: priced(2 * hourWorth)},
+		Activity:    views.Activity{Doing: views.Asking, Since: utc(local(13, 11, 0)), LastSeen: utc(local(13, 11, 0))},
+		Goes:        []views.SessionModel{{Model: opus, Account: "side", Reason: "pinned"}},
+		ProjectName: "api",
 	}
 	if !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
-		t.Errorf("the page is\n%s\nwant\n%s", gotJSON, wantJSON)
+		t.Errorf("the page is\n%s\nits project named %q, it shown %+v; want\n%s\nits project named %q, it shown %+v",
+			gotJSON, got.ProjectName, got.Shown, wantJSON, want.ProjectName, want.Shown)
 	}
 }
 
