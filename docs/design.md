@@ -6009,11 +6009,11 @@ project's SESSIONS rows on Projects, the same function's (`SessionDays.SessionLo
 `SessionDays.Projects` keeps), so a session reads alike on either. Its heads are on row 6 in
 `text.subtle`, each at its column's start, or right-aligned where its column is, and its rows run
 from row 7 (settled in the plan). Its columns run from column 2, two cells apart, in this order,
-each at least its least and at most its natural:
+each at least its least and at most its natural, but `session`, which grows where the row has room:
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
-| `session` | 11 | 29 | Two cells, with no dot: its project, as Projects names the project's row, in `text.muted`, in a column of its own within this one, as wide as the widest project of the log, cut with `…` to leave the widest name whole, up to 14 cells of it, at its least 6, blank of a session of no project or of temporary folders, so the names line up; a space, then its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`, and a twin's id after it in `text.subtle`, cut with `…` to the rest, a twin's id kept whole |
+| `session` | 11 | 29, growing to hold the widest project and the widest name whole before `routing` takes what's left | Two cells, with no dot: its project, as Projects names the project's row, in `text.muted`, in a column of its own within this one, as wide as the widest project of the log, cut with `…` to leave the widest name whole, up to 14 cells of it, at its least 6, blank of a session of no project or of temporary folders, so the names line up; a space, then its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`, and a twin's id after it in `text.subtle`, cut with `…` to the rest, a twin's id kept whole |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |

@@ -136,8 +136,10 @@ type listColumn struct {
 // flex, as the Log's Requests are: the first decides which of listParts
 // show; the second lays out only those, as flex's Decided has them, so
 // what's past the leasts goes to the session first, then on, in the row's
-// order. Nothing grows but routing, so where it's left, the spare lies at
-// the row's end.
+// order. In the second, the session grows past its natural to its project
+// and name whole, as sessionWhole has them, before routing takes what's
+// left, so no name is cut where the row has room; where routing's left, the
+// spare past that lies at the row's end.
 func listColumnsOf(width int, n listNaturals) []listColumn {
 	room := width - listFrom
 	n.on = max(n.on, ansi.StringWidth(listPartFacts[listOn].head))
@@ -150,15 +152,28 @@ func listColumnsOf(width int, n listNaturals) []listColumn {
 		if !ok {
 			continue
 		}
-		if listPart(p) == listOn {
+		switch listPart(p) {
+		case listOn:
 			// What on gave up in the first pass, to keep worth or started, it
 			// never takes back, so it never narrows as the frame widens.
 			part.Natural = span.Size
+		case listSession:
+			part.Grows, part.Most = true, max(part.Natural, sessionWhole(n))
 		}
 		shown, kept = append(shown, listPart(p)), append(kept, part)
 	}
 	spans, _ := flex.Lay(room, kept...)
 	return columnsAt(spans, shown)
+}
+
+// sessionWhole is the cells the session column takes to show the widest
+// project and the widest name, as the naturals given measure them, uncut, a
+// cell apart: the name's alone where no session has a project.
+func sessionWhole(n listNaturals) int {
+	if n.project == 0 {
+		return n.name
+	}
+	return n.project + 1 + n.name
 }
 
 // columnsAt are the columns of the kinds given where the spans given lay
