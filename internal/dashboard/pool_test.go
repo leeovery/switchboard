@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -27,7 +28,7 @@ func TestTheTitleRowNamesThePoolShownOnceThereIsASecond(t *testing.T) {
 		{name: "one of two, as overview-acme-160 draws it", width: 160, pool: acme, want: []string{
 			" SWITCHBOARD   Acme    Overview   Accounts   Projects   Sessions   Runway   Trends   Log " + blanks(51) + "Mon 28 Sep  13:12:00",
 		}},
-		{name: "one of two whose label shows nothing, named by its id", width: 160, pool: status.ShownPool{ID: "q7mt", Label: "\u200e", Accounts: 3, Pools: 2}, want: []string{
+		{name: "one of two whose label shows nothing, named by its id", width: 160, pool: status.PoolShown(config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "\u200e"}}, nil, "q7mt"), want: []string{
 			" SWITCHBOARD   q7mt    Overview   Accounts   Projects   Sessions   Runway   Trends   Log " + blanks(51) + "Mon 28 Sep  13:12:00",
 		}},
 		{name: "the only pool: unnamed", width: 160, pool: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 1}, want: []string{
