@@ -26,7 +26,8 @@ func periodTokens() *views.TokensPage {
 // the page given over the period given, split as given.
 func accountsTokensFrame(width, height int, period views.Period, split TokensSplit, page *views.TokensPage) Frame {
 	f := frameOf(width, height)
-	f.View, f.Period = Accounts, period
+	f.View = Accounts
+	f = f.over(period)
 	f.Accounts = AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured, TokensSplit: split, Tokens: page}
 	return f
 }

@@ -34,4 +34,4 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
   website     f17c             personal  opus-5-5    ended 12:12  Mon 11:28             332   $43.91
 this week  27 sessions · 5,410 requests · $635.00 at API prices
   ▼ 2 more sessions
-tab views   [ ] view   < > period: this week   ↑↓ session   enter its page   p pin   ? help  q quit
+tab views   [ ] view   - + period: this week   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit

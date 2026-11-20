@@ -129,6 +129,9 @@ func listFrame(t *testing.T, width, height int, log *views.SessionLog) Frame {
 	f := frameOf(width, height)
 	f.Look = Screen(builtin(t, "nord"))
 	f.View, f.SessionsTab = Sessions, SessionsShown{Shown: SessionsList, Log: log}
+	if log != nil {
+		f = f.over(log.Period)
+	}
 	return f
 }
 
@@ -1324,7 +1327,7 @@ func TestEveryRowTheListScrollsDrawsAnotherPage(t *testing.T) {
 func TestTheDialShowsOnTheListAlone(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	f := listFrame(t, 160, 37, logOver(views.LengthThirtyDays.Now()))
-	f.Period = views.LengthThirtyDays.Now()
+	f = f.over(views.LengthThirtyDays.Now())
 	if got := textOf(f.Draw(doc, routedAt))[f.headingY()]; !strings.HasSuffix(got, "─  < 30 days >") {
 		t.Errorf("on the List, the heading reads %q, want it to end with the dial", got)
 	}

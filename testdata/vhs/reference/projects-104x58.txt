@@ -55,4 +55,4 @@ SESSIONS
 
 
 
-tab views   ↑↓ project   → its sessions   < > period: this week   p pin   ? help  q quit
+tab views   ↑↓ project   → its sessions   - + period: this week   < > back · on   p pin   ? help  q quit

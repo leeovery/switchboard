@@ -176,8 +176,8 @@ var threeFramed = config.Accounts{{ID: "work"}, {ID: "personal", Primary: true},
 func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsPage) Frame {
 	f := frameOf(160, 37)
 	f.View, f.Look, f.WeekWindow, f.VersionNameCells = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
-	f.Period, f.Accounts = page.Period, AccountsShown{Accounts: configured, Page: &page}
-	return f
+	f.Accounts = AccountsShown{Accounts: configured, Page: &page}
+	return f.over(page.Period)
 }
 
 // extraOff has every account's extra usage read off, as Compare's frames
@@ -911,7 +911,7 @@ func TestComparesBarsGrowWithTheirColumnsToTheMost(t *testing.T) {
 // cells after it, and a version's name past it is cut to it.
 func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	f, doc := threeCompared(t, 160, 60)
-	f.Period = views.LengthThirtyDays.Now()
+	f = f.over(views.LengthThirtyDays.Now())
 	f.Accounts.Page.Versions[0].Name = "Opus 5.5 with a name long past the most"
 	rows := f.Draw(doc, routedAt)
 	labels := compareLabels()

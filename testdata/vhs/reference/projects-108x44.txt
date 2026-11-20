@@ -41,4 +41,4 @@ SESSIONS
   fix-login                                   personal  opus-5-5    ended 15:23  Mon 11:37       179  $20.56
   ▼ 4 more sessions
 
-tab views   ↑↓ project   → its sessions   < > period: this week   p pin   ? help  q quit
+tab views   ↑↓ project   → its sessions   - + period: this week   < > back · on   p pin   ? help  q quit

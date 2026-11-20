@@ -231,7 +231,7 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 			}
 			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
 			doc := usageWorld(extraOff)
-			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Period: tt.period, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
+			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look, Policy: claudeLike}.over(tt.period).At(doc, routedAt).accountsHelp()
 			glyphs := parts[slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == "DETAIL" })].glyphs
 			var got []line
 			for _, g := range glyphs[:len(glyphs)-1] {
@@ -276,8 +276,8 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"worth at API prices", "what the same tokens would have cost through the API, each version at its own prices"},
 		{"why worth is unpriced", "of a model the price table doesn't know or of requests that went upstream without their usage"},
 		{"how a period is priced", "a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve months'"},
-		{"how the periods run", "today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before"},
-		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare, Detail and Tokens sharing the period, the one Projects and Sessions' List share."},
+		{"how the periods run", "a period is a length and the day it ends on. Today is that day, this week its week, 30 days and 12 months run back from it, and 12 weeks over its week and the 11 before"},
+		{"the periods stepped through", "and n goes back to now, Compare, Detail and Tokens sharing the period, the one Projects and Sessions' List share."},
 		{"Tokens' total", "The whole period's row leads, named for it, its figures its rows' summed, but its models, each counted once"},
 		{"Tokens' rows", "a day each over this week and 30 days, a week each over 12 weeks and a month each over 12 months"},
 		{"a part-way row priced by its days", "but for one that begins part-way through, as the oldest month at 12 months or the one the ledger began in, priced by its days from then"},
@@ -305,7 +305,7 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 // With one account, Compare gone, help says Detail and Tokens share the
 // period, with Projects and Sessions' List.
 func TestAccountsHelpOfOneAccountSaysItsViewsShareThePeriod(t *testing.T) {
-	if said, want := accountsHelpSaid(oneShown), "12 weeks and 12 months, Detail and Tokens sharing the period, the one Projects and Sessions' List share."; !strings.Contains(said, want) {
+	if said, want := accountsHelpSaid(oneShown), "and n goes back to now, Detail and Tokens sharing the period, the one Projects and Sessions' List share."; !strings.Contains(said, want) {
 		t.Errorf("help reads\n%s\nwant it to say %q", said, want)
 	}
 }

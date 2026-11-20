@@ -30,4 +30,4 @@ SESSIONS   Switchboard  List
 this week  27 sessions · 5,410 requests
 $635.00 at API prices
   ▼ 11 more sessions
-↑↓ session   [ ] view   < > period   ? keys   q quit
+↑↓ session   [ ] view   ? keys   q quit

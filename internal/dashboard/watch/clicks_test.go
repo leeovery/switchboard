@@ -703,8 +703,8 @@ func onStep(way int) func(dashboard.Target) bool {
 }
 
 // keyLineKeys are the keys the key line names by a word, an arrow or a
-// pair, as the terminal sends them, a pair as the way on: what a click on
-// one acts as. Any other key it names is a printable ASCII character.
+// pair, as the terminal sends them, a pair as the way on, but the dial's
+// < >, as <, back: what a click on one acts as. Any other key it names is a printable ASCII character.
 var keyLineKeys = map[string]tea.KeyPressMsg{
 	"tab":   {Code: tea.KeyTab},
 	"enter": {Code: tea.KeyEnter},
@@ -717,7 +717,8 @@ var keyLineKeys = map[string]tea.KeyPressMsg{
 	"↑↓":    {Code: tea.KeyDown},
 	"←→":    rightKey,
 	"[ ]":   {Code: ']', Text: "]"},
-	"< >":   {Code: '>', Text: ">"},
+	"< >":   {Code: '<', Text: "<"},
+	"- +":   {Code: '+', Text: "+"},
 }
 
 // keyNamed is the key the key line names as given, as keyLineKeys has it,

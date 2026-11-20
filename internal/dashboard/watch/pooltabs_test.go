@@ -74,7 +74,7 @@ func TestSessionsAndAPageHoldThePoolShownsWorkAlone(t *testing.T) {
 			h.start()
 
 			h.keys(toSessions...)
-			h.keyed("] <")
+			h.keyed("] -")
 			if got := listedRequests(h); !maps.Equal(got, tt.listed) {
 				t.Errorf("Sessions lists %v, want %v, the pool's requests alone", got, tt.listed)
 			}
@@ -181,8 +181,8 @@ func TestAPoolsDaysBeginWhereItsWorkBegins(t *testing.T) {
 			h.model.graphs = dashboard.GraphsSectionsNamed([]string{"when"})
 			h.start()
 
-			if want := dayfile.DayStart(past(-time.Duration(tt.began)*day).Local(), 0); !h.model.past.began.Equal(want) {
-				t.Errorf("Accounts begins %v, want %v, where the pool's work begins", h.model.past.began, want)
+			if want := dayfile.DayStart(past(-time.Duration(tt.began)*day).Local(), 0); !h.model.begun.began.Equal(want) {
+				t.Errorf("Accounts begins %v, want %v, where the pool's work begins", h.model.begun.began, want)
 			}
 			hours := h.model.past.last.past.Hours()
 			known := 0
@@ -321,11 +321,11 @@ func TestATurnReadsEveryTabOfThePoolTurnedTo(t *testing.T) {
 			if got := requestsHeld(h); got != tt.requests {
 				t.Errorf("Accounts' days hold %d requests, want %d, the pool's", got, tt.requests)
 			}
-			if want := dayfile.DayStart(past(-tt.began).Local(), 0); !h.model.past.began.Equal(want) {
-				t.Errorf("Accounts begins %v, want %v, where the pool's work begins", h.model.past.began, want)
+			if want := dayfile.DayStart(past(-tt.began).Local(), 0); !h.model.begun.began.Equal(want) {
+				t.Errorf("Accounts begins %v, want %v, where the pool's work begins", h.model.begun.began, want)
 			}
 			h.keys(tabKey, tabKey)
-			h.keyed("] <")
+			h.keyed("] -")
 			if got := listedRequests(h); !maps.Equal(got, tt.listed) {
 				t.Errorf("Sessions lists %v, want %v, the pool's requests alone", got, tt.listed)
 			}

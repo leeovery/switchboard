@@ -32,9 +32,14 @@ type pageLoadingMsg struct {
 }
 
 // awaiting reports whether the tab shown waits on a read of the files it's
-// drawn of: Accounts on the ledger's days; Projects on the
-// sessions' days, read for it and of the ledger's tail, while it has no
-// page to draw, as daysReady has it, and the List held, which
+// drawn of: Accounts on the ledger's days its page reads, and the fold of
+// the day gone it charts by the hour, while it has no page to draw, as
+// accountsBuilt lets it go to await them, never on a read it no longer
+// needs, as one overtaken by a step on in time, and Detail in a past period
+// on the router's events its LATELY tells, as pastLatelyAwaited has it;
+// Projects on the sessions' days, read for it and of the ledger's tail, or
+// the fold of its day gone, while it has no page to draw, as daysReady and
+// hoursReady have it, and the List held, which
 // names its sessions running, as listAwaited has it; and Detail's SESSIONS,
 // listing a session, as followed held them for the message, on the List
 // held, as the Overview's SESSIONS and Sessions do, which names their
@@ -54,7 +59,7 @@ func (m Model) awaiting() bool {
 	case dashboard.Overview:
 		return m.sections.Has(dashboard.SectionSessions) && m.listAwaited()
 	case dashboard.Accounts:
-		return m.past.reading || m.detailShown() && len(m.accounts.running) > 0 && m.listAwaited()
+		return m.cfg.Ledger != nil && m.accounts.page == nil || m.pastLatelyAwaited() || m.detailShown() && len(m.accounts.running) > 0 && m.listAwaited()
 	case dashboard.Projects:
 		return m.cfg.Ledger != nil && m.projects.shown.Page == nil || m.listAwaited()
 	case dashboard.Sessions:

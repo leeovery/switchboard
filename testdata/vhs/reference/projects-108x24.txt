@@ -21,4 +21,4 @@ SESSIONS
   ended yesterday  ─────────────────────────────────────────────────────────────────────────────────────────
 ▸ dashboard                                   side      opus-5-5    ended 18:46  13:20           595  $73.00
 
-tab views   ↑↓ project   → its sessions   < > period: this week   p pin   ? help  q quit
+tab views   ↑↓ project   → its sessions   - + period: this week   < > back · on   p pin   ? help  q quit

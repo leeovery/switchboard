@@ -34,4 +34,4 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │               ▄
                     │               Oct        Nov      Dec        Jan     Feb      Mar        Apr      May      Jun        Jul     Aug        Sep
                         ▼ 12 more below · j/k
-tab views   [ ] view    < > period: 12 months    ↑↓ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    - + period: 12 months    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit

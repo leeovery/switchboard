@@ -89,8 +89,17 @@ func statesHelp() []glyph {
 }
 
 // periodsRun is how the periods run, as Accounts' and Projects' helps say it.
-const periodsRun = "The periods are never billing months, as switchboard knows no renewal date: today and this week run " +
-	"from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before."
+const periodsRun = "The periods are never billing months, as switchboard knows no renewal date: a period is a length and the " +
+	"day it ends on. Today is that day, this week its week, 30 days and 12 months run back from it, and 12 weeks over its " +
+	"week and the 11 before. The period that reaches today is now; any other is past, its name drawn in its own colour."
+
+// dialStepped is how the dial's keys step the period, as each help of a tab
+// the dial shows on says it.
+func dialStepped() string {
+	return "`-` and `+` step through " + prose.List(views.LengthNames()) + ", keeping the period's last day, `=` as `+`; " +
+		"`<` and `>` step back and on in time, a period at a time, `<` stopping at the ledger's first day and `>` at now, " +
+		"each faint where it stops; and `n` goes back to now"
+}
 
 // valueHelp is what the period's use was worth as help explains it: worth at
 // API prices, as of the price table's date where the page is read; against
@@ -126,7 +135,7 @@ func (f Frame) valueHelp() helpPart {
 				"running priced whole, and one the ledger began part-way through priced from its first day." + plans +
 				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
-			said(periodsRun + " `<` and `>` step through " + prose.List(views.LengthNames()) + shared),
+			said(periodsRun + " " + dialStepped() + shared),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},
