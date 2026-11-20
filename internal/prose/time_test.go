@@ -301,6 +301,26 @@ func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
 // today; else its date, a day gone and a time begun with its weekday, a time
 // begun with its time after the day. Today, a day gone is today, and a time
 // lately and a time begun its time.
+// A day gone named by its date in another year than now's carries its year;
+// one within the week names no date, so no year.
+func TestADayGoneInAnotherYearCarriesItsYear(t *testing.T) {
+	now := time.Date(2026, 1, 4, 16, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "within the week, last year", t: time.Date(2025, 12, 31, 9, 0, 0, 0, time.UTC), want: "Wed"},
+		{name: "a date of last year", t: time.Date(2025, 9, 21, 9, 0, 0, 0, time.UTC), want: "Sun 21 Sep 2025"},
+		{name: "within the week, this year", t: time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC), want: "Thu"},
+	}
+	for _, tt := range tests {
+		if got := prose.DayGone(now, tt.t); got != tt.want {
+			t.Errorf("%s: DayGone() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestADayGoneAndATimeLatelyNameTheDayBeforeNow(t *testing.T) {
 	zone := time.FixedZone("UTC+1", 60*60)
 	now := time.Date(2026, 11, 19, 16, 0, 0, 0, zone)
@@ -524,6 +544,32 @@ func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 				t.Errorf("Past() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// PastAt shows a time as Past does, but a date in another year than now's
+// with its year; a time within the week names no date, so no year, though
+// the year turned since.
+func TestPastAtGivesTheYearOfADateInAnotherYear(t *testing.T) {
+	now := time.Date(2027, 1, 2, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "yesterday, last year", t: time.Date(2027, 1, 1, 8, 0, 0, 0, time.UTC), want: "yesterday 08:00"},
+		{name: "within the week, last year", t: time.Date(2026, 12, 30, 12, 8, 0, 0, time.UTC), want: "Wed 12:08"},
+		{name: "a date of last year", t: time.Date(2026, 9, 21, 12, 8, 0, 0, time.UTC), want: "21 Sep 2026 12:08"},
+		{name: "today", t: time.Date(2027, 1, 2, 8, 0, 0, 0, time.UTC), want: "08:00"},
+	}
+	for _, tt := range tests {
+		if got := prose.PastAt(now, tt.t); got != tt.want {
+			t.Errorf("%s: PastAt() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+	thisYear := time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC)
+	if got, want := prose.PastAt(thisYear, time.Date(2026, 9, 21, 12, 8, 0, 0, time.UTC)), "21 Sep 12:08"; got != want {
+		t.Errorf("a date of this year: PastAt() = %q, want %q", got, want)
 	}
 }
 

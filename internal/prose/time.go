@@ -17,6 +17,7 @@ const (
 	secondsLayout      = time.TimeOnly
 	clockLayout        = "Mon 15:04"
 	pastLayout         = "2 Jan 15:04"
+	pastInYearLayout   = "2 Jan 2006 15:04"
 	readingLayout      = "Mon 2 Jan 15:04"
 	dayLayout          = "Mon 2 Jan"
 	dayInYearLayout    = "Mon 2 Jan 2006"
@@ -248,15 +249,28 @@ func Past(now, t time.Time) string {
 	return DayMonthTime(now, t)
 }
 
+// PastAt shows t, before now, as Past shows it, but where Past gives its
+// date in a year other than now's, with its year, such as "21 Sep 2025
+// 12:08", as a start in a period gone is dated. Within the week it names no
+// date, so no year, across a new year too.
+func PastAt(now, t time.Time) string {
+	t = t.In(now.Location())
+	if !WithinWeek(now, t) && t.Year() != now.Year() {
+		return t.Format(pastInYearLayout)
+	}
+	return Past(now, t)
+}
+
 // yesterday leads a time on the day before now's, as Past says it.
 const yesterday = "yesterday "
 
 // DayGone names the day t falls on, before now, in now's time zone, as a
 // rule over what ended that day names it: "today"; "yesterday"; its weekday
 // within the six days before today, as "Tue"; else its weekday and date, as
-// Day names it, "Mon 21 Sep".
+// DayAt names it, "Mon 21 Sep", or in another year than now's, "Sun 21 Sep
+// 2025".
 func DayGone(now, t time.Time) string {
-	return dayBefore(now, t, "today", Day)
+	return dayBefore(now, t, "today", func(d time.Time) string { return DayAt(now, d) })
 }
 
 // Begun says when t was, before now, in now's time zone, as a session's

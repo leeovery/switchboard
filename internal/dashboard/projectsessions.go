@@ -51,11 +51,11 @@ func MeasureSessions(page *views.ProjectPage, m status.Moment, now time.Time) Se
 	words := sessionWords{m: m, now: now}
 	widest := make([]int, len(projectColumns))
 	for i, p := range projectColumns {
-		widest[i] = words.widest(p, page.Sessions, sessionEnded)
+		widest[i] = words.widest(p, page.Sessions, sessionStill)
 	}
 	return SessionsMeasured{
 		of: page, widest: widest,
-		name: widestSaid(page.Sessions, sessionEnded, nameCells(false)), marked: widestSaid(page.Sessions, sessionEnded, nameCells(true)),
+		name: widestSaid(page.Sessions, sessionStill, nameCells(false)), marked: widestSaid(page.Sessions, sessionStill, nameCells(true)),
 	}
 }
 
@@ -67,14 +67,15 @@ func (m SessionsMeasured) Of(page *views.ProjectPage) SessionsMeasured {
 	return m
 }
 
-// sessionEnded reports whether the session has ended.
-func sessionEnded(s views.PeriodSession) bool {
-	return s.EndedOn != ""
+// sessionStill reports whether what the session says holds still, as it
+// doesn't run: it ended, or went on after a period gone.
+func sessionStill(s views.PeriodSession) bool {
+	return !sessionRunning(s)
 }
 
 // sessionRunning reports whether the session runs.
 func sessionRunning(s views.PeriodSession) bool {
-	return !sessionEnded(s)
+	return s.Running
 }
 
 // projectSessionsOf are the chosen project's sessions, of the page given, as

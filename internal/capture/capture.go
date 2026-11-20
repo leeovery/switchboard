@@ -589,6 +589,7 @@ var pages = []page{
 		keys: append(toSessions("]", "+"), slices.Repeat(keysOf("j"), toTuesday22)...),
 	},
 	{name: "sessions-list-sizable-200", size: watch.Size{Width: 200, Height: 37}, world: accountWorlds.sizableValues, keys: toSessions("]")},
+	{name: "sessions-list-last-week-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.scene, keys: toSessions("]", "<")},
 	{
 		name: "sessions-ten-accounts-160", size: wide(37), world: accountWorlds.ten, before: lookedAway(time.Minute), keys: cameBack,
 		looked: &looked{listed: inTheFramesOrder(tenSessions)},
