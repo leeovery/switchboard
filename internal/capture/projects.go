@@ -141,16 +141,14 @@ type projectRun struct {
 }
 
 // lines are the run's requests as the ledger's lines keep them, evenly from
-// when it began to when it ended, its worth all on its first, the rest
-// spending nothing.
+// when it began to when it ended, its worth shared among them as
+// readWeights weighs them.
 func (r projectRun) lines() []ledger.Line {
 	step := r.to.Sub(r.from) / time.Duration(max(r.requests-1, 1))
 	lines := make([]ledger.Line, r.requests)
+	reads := apportion(r.reads, r.readWeights())
 	for i := range lines {
-		usage := json.RawMessage(`{"input_tokens":0,"output_tokens":0}`)
-		if i == 0 {
-			usage = fmt.Appendf(nil, `{"cache_read_input_tokens":%d}`, r.reads)
-		}
+		usage := fmt.Appendf(nil, `{"cache_read_input_tokens":%d}`, reads[i])
 		lines[i] = ledger.Line{
 			At: r.from.Add(time.Duration(i) * step).UTC(), Request: fmt.Sprintf("%s-%s-%d-%d", r.session[:8], r.account, r.d, i), Kind: ledger.KindMessage,
 			Session: r.session, Dir: r.place.dir, Project: r.place.project, Name: r.place.terminal, Model: r.place.model, Account: r.account,
@@ -160,14 +158,29 @@ func (r projectRun) lines() []ledger.Line {
 	return lines
 }
 
+// readWeights weigh the worth of each of the run's requests: each by a
+// weight drawn from its session, its day and its place in the run, the same
+// every run, from half to one and a half.
+func (r projectRun) readWeights() []float64 {
+	weights := make([]float64, r.requests)
+	for i := range weights {
+		weights[i] = 0.5 + float64(drawn(fmt.Appendf(nil, "%s/%s/%d/reads", dateOf(r.d), r.session, i)))/math.MaxUint64
+	}
+	return weights
+}
+
 // runOn is the session's run of day d of the year, of the requests and
 // reads given, on the account given, in its place: from a time between
 // 09:00 and 15:59 drawn from its id and the day, the same every run, a
-// request each 40 seconds, ending by 23:30.
+// request each 40 seconds, ending by 23:30; on Tuesday, whose hours Detail's
+// frames over Tue 29 Sep chart, its requests spread on to 23:30.
 func (y year) runOn(d int, session, account string, place projectPlace, requests, reads int) projectRun {
 	at := drawn(fmt.Appendf(nil, "%s/%s/run", dateOf(d), session))
-	from := dayAt(y.now, d, 9+int(at%7), int(at/7%60), 0)
-	to := score.Earlier(from.Add(time.Duration(requests)*40*time.Second), dayAt(y.now, d, 23, 30, 0))
+	from, last := dayAt(y.now, d, 9+int(at%7), int(at/7%60), 0), dayAt(y.now, d, 23, 30, 0)
+	to := score.Earlier(from.Add(time.Duration(requests)*40*time.Second), last)
+	if d == thisWeek+1 {
+		to = last
+	}
 	return projectRun{session: session, account: account, place: place, d: d, from: from, to: to, requests: requests, reads: reads}
 }
 

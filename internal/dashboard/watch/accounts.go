@@ -175,13 +175,14 @@ func (m Model) tokensBuilt(now time.Time, past views.Past, of builtOf) Model {
 // standing is Accounts as the frame f shows it: its page as accountsBuilt
 // last stood it, and Tokens' as tokensBuilt last built it, none till the
 // days are read; Detail's LATELY in a past period as pastLatelyTold last
-// told it; Compare's columns scrolled to show its focus at f's size, as
-// CompareFirst has them, and Detail's list to show the account it shows, as
-// DetailListScroll has it, each from as far along as it was left, so a
-// frame smaller than the one it was scrolled in still shows it.
+// told it, and whether it's told, as told has it; Compare's columns scrolled
+// to show its focus at f's size, as CompareFirst has them, and Detail's list
+// to show the account it shows, as DetailListScroll has it, each from as far
+// along as it was left, so a frame smaller than the one it was scrolled in
+// still shows it.
 func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 	s := t.shown
-	s.Page, s.Tokens, s.Lately = t.stood, t.tokens, t.lately.sentences
+	s.Page, s.Tokens, s.Lately, s.LatelyHeld = t.stood, t.tokens, t.lately.sentences, t.lately.told()
 	s.First, s.ListScroll = f.CompareFirst(s.Focus), f.DetailListScroll(s.Account())
 	return s
 }

@@ -5110,7 +5110,9 @@ its space, and turned Compare's WEEKS and WORTH, are drawn in round 2 of the das
 and kept as `accounts-detail-all-173x53`, all accounts' bands, `accounts-detail-work-12-weeks-173x53`,
 an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table on a phone; and
 `accounts-detail-104x58`, an account stacked on a tall, narrow screen, its USAGE bars filling the
-row.
+row. Detail over a past period, signed off on 20 November 2026, is kept as
+`accounts-detail-tue-29-sep-173x53`, an account two days back on a MacBook; and stacked, drawn
+from the build alone, as `accounts-detail-tue-29-sep-73x61` and `accounts-detail-tue-29-sep-52x41`.
 
 **Accounts' rules,** which Trends' YEAR, BY MONTH and MODELS BY DAY keep too, but for the dial and
 its periods, as Trends has none:

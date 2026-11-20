@@ -67,8 +67,11 @@ type AccountsShown struct {
 	Tokens      *views.TokensPage
 	// Lately is Detail's LATELY in a past period, the router's events up to
 	// the end of its last day as the watch tells them: none at now, where
-	// Detail tells the document's, nor while they're read.
-	Lately []views.Sentence
+	// Detail tells the document's, nor while they're read; and LatelyHeld is
+	// set once they're held, for LATELY to say it has none where it has none
+	// to tell, and nothing while they're read.
+	Lately     []views.Sentence
+	LatelyHeld bool
 }
 
 // AccountsKept is Accounts as the preferences kept it: the sub-tab and

@@ -236,18 +236,18 @@ type tableRow struct {
 
 // draw draws the table from row y: on its heads' row, label at its left, or
 // where weeks reached over don't show, how many, as moreWeeks says it; each
-// week's first day, right-aligned in a week's cells, this week's bold, as
-// weekHead has it, of the weeks given; and over the facts, their heads, in
-// text.faint. Under them all accounts' row, a blank, and a row each account,
-// as row draws them.
-func (t weeksTable) draw(c *canvas, y int, label line, weeks []string, reach int, all tableRow, accounts []tableRow) {
+// week's first day, right-aligned in a week's cells, the last bold where
+// it's this week, as thisWeek says, as weekHead has it, of the weeks given;
+// and over the facts, their heads, in text.faint. Under them all accounts'
+// row, a blank, and a row each account, as row draws them.
+func (t weeksTable) draw(c *canvas, y int, label line, weeks []string, thisWeek bool, reach int, all tableRow, accounts []tableRow) {
 	if more := moreWeeks(reach - t.shown); more != nil {
 		label = more
 	}
 	c.line(t.x, y, label.fit(t.names-1))
 	shown := weeks[max(len(weeks)-t.shown, 0):]
 	for i, week := range shown {
-		c.right(t.at(i)+weekColumnCells, y, weekHead(week, i == len(shown)-1))
+		c.right(t.at(i)+weekColumnCells, y, weekHead(week, thisWeek && i == len(shown)-1))
 	}
 	c.line(t.limitsAt(), y, line{{limitsHead, faintInk}})
 	c.line(t.leftAt(), y, line{{atResetHead, faintInk}})
