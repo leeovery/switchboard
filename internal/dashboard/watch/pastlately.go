@@ -31,8 +31,9 @@ type pastLatelyReadMsg struct {
 // in the dial's period while it's gone, as a command, once for each last
 // day, one read at a time: none where what's held, or a read under way, is
 // of its last day already; where another's is under way, it's asked again
-// as that lands. Without a reader of the files there's nothing to read, and
-// it holds no events at once, as LATELY at now tells none it can't read.
+// as that lands. Without a reader of the files there's nothing to read: it
+// holds no events at once, and the page says what it says where LATELY has
+// none to tell.
 // The reader takes concurrent reads, as an events.Reader holds the files to
 // read them, so it reads beside the Log's and Runway's reads.
 func (m Model) askPastLately() (Model, tea.Cmd) {

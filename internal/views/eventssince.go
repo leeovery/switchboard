@@ -3,7 +3,6 @@ package views
 import (
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -53,7 +52,5 @@ type Event struct {
 // files' as the router holds it now; oldest first, by when each happened,
 // then by run and id, as EventsRead merges them. A nil filed reads no files.
 func EventsSince(since time.Time, m status.Moment, run time.Time, filed Events) []Event {
-	r := EventsRead{since: since, held: make(map[eventKey]Event)}
-	r.file(filed, since, dayfile.DayStart(m.Now.Local(), 1))
-	return r.Look(m, run).Events()
+	return ReadEventsFrom(filed, since, m.Now).Look(m, run).Events()
 }

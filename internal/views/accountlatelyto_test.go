@@ -137,7 +137,8 @@ func TestDetailsLATELYOfAPastPeriodReadsTheWeekToItsEnd(t *testing.T) {
 }
 
 // A past period's last day ends at the end of the local day it ends on, a
-// week length's on its last week's Sunday; at now it doesn't end.
+// week length's on its last week's last day, weeks starting on any day;
+// at now it doesn't end.
 func TestAPastPeriodEndsAtTheEndOfItsLastDay(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -145,19 +146,106 @@ func TestAPastPeriodEndsAtTheEndOfItsLastDay(t *testing.T) {
 		keys   string
 		until  time.Time
 		gone   bool
+		starts time.Weekday
 	}{
 		{name: "today, now", length: views.LengthToday},
 		{name: "yesterday", length: views.LengthToday, keys: "<", until: framesDay(30, 0, 0).AddDate(0, 0, 1), gone: true},
-		{name: "last week, to its Sunday", length: views.LengthThisWeek, keys: "<", until: framesDay(28, 0, 0), gone: true},
+		{name: "last week, to its Sunday", length: views.LengthThisWeek, keys: "<", until: framesDay(28, 0, 0), gone: true, starts: time.Monday},
+		{name: "last week from Sunday, to its Saturday", length: views.LengthThisWeek, keys: "<", until: framesDay(27, 0, 0), gone: true, starts: time.Sunday},
 		{name: "30 days back", length: views.LengthThirtyDays, keys: "<", until: time.Date(2026, 9, 2, 0, 0, 0, 0, time.Local), gone: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
-			until, gone := p.Until(framesNow, time.Monday)
+			p := pressed(t, tt.length, tt.keys, framesNow, tt.starts, time.Time{})
+			until, gone := p.Until(framesNow, tt.starts)
 			if gone != tt.gone || !until.Equal(tt.until) {
 				t.Errorf("it ends at %v, gone %v; want %v, %v", until, gone, tt.until, tt.gone)
 			}
 		})
+	}
+}
+
+// refiledLines are the router's files of events as it files each event
+// again as it changes, every version in the order filed: on Tuesday, work
+// held as its subscription lapsed, personal at its cap at 23:00 and a
+// session moved off it to side at 23:30, and work at its cap at 23:50; on
+// Wednesday, two sessions moved off work to side, and one off personal to
+// work, each counted in its cap; on Thursday, work's hold lifted, in its
+// run.
+func refiledLines() filedLines {
+	lapsed, thursday := "subscription lapsed", time.Date(2026, 10, 1, 8, 24, 0, 0, time.Local)
+	held := status.Event{ID: 1, At: framesDay(29, 14, 31), Kind: status.EventHeld, Account: "work", Reason: lapsed, Status: 403}
+	personal := status.Event{ID: 2, At: framesDay(29, 23, 0), Kind: status.EventCap, Account: "personal", Windows: []string{"5h"}}
+	work := status.Event{ID: 4, At: framesDay(29, 23, 50), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}}
+	move := func(id int, at time.Time, session, from, to string, forcedBy int) status.Event {
+		return status.Event{ID: id, At: at, Kind: status.EventMoved, Session: session, From: from, To: to, ForcedBy: forcedBy}
+	}
+	counted := func(e status.Event, count int, to string) status.Event {
+		e.Count, e.To = count, to
+		return e
+	}
+	lifted := held
+	lifted.Until = thursday
+	told := []status.Event{
+		held, personal,
+		move(3, framesDay(29, 23, 30), "d28c0b1e", "personal", "side", 2), counted(personal, 1, "side"),
+		work,
+		move(5, framesDay(30, 0, 10), "7f3a5c90", "work", "side", 4), counted(work, 1, "side"),
+		move(6, framesDay(30, 0, 20), "db8a71e3", "work", "side", 4), counted(work, 2, "side"),
+		move(7, framesDay(30, 0, 30), "9e21d4a8", "personal", "work", 2), counted(personal, 2, ""),
+		{ID: 8, At: thursday, Kind: status.EventRoom, Account: "work", Reason: lapsed}, lifted,
+	}
+	lines := make(filedLines, len(told))
+	for i, e := range told {
+		lines[i] = events.Line{Event: e, Run: pastLatelyRun}
+	}
+	return lines
+}
+
+// Detail's LATELY of a day gone tells each event as it stood at the end of
+// the day, however the router filed it again since: a hold lifted after
+// it, unlifted; a cap whose moves came after it, moving none, from the
+// side of the account capped and of the one they went to; a cap that moved
+// a session before it and another after, the one alone, where it went.
+func TestDetailsLATELYOfAPastPeriodTellsEventsAsTheyStoodAtItsEnd(t *testing.T) {
+	m := status.Document{Source: status.SourceRouter}.At(framesNow, claude.Policy())
+	until := framesDay(30, 0, 0)
+	held := views.ReadLatelyTo(refiledLines(), until)
+	tests := []struct {
+		id     string
+		lately []string
+	}{
+		{id: "work", lately: []string{"reached its cap", "held (subscription lapsed)"}},
+		{id: "personal", lately: []string{"reached its cap: 1 session moved to side"}},
+		{id: "side", lately: []string{"1 session came from personal: personal reached its cap"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
+			if got := fullsOf(views.AccountLatelyTo(m, held, tt.id, until, 12, views.SessionDirs{})); !slices.Equal(got, tt.lately) {
+				t.Errorf("%s's LATELY to the end of Tuesday tells %q, want %q", tt.id, got, tt.lately)
+			}
+		})
+	}
+}
+
+// Detail's LATELY of a past period tells the week to the end of its last
+// day, whatever it's given: an event a week before the end, and one just
+// before it, told; one at the end, or after it, and one before the week,
+// not.
+func TestDetailsLATELYOfAPastPeriodTellsTheWeekToItsEndAlone(t *testing.T) {
+	m := status.Document{Source: status.SourceRouter}.At(framesNow, claude.Policy())
+	until := framesDay(30, 0, 0)
+	week := 7 * 24 * time.Hour
+	var held []views.Event
+	for i, at := range []time.Time{until.Add(-week - time.Nanosecond), until.Add(-week), until.Add(-time.Nanosecond), until, until.Add(time.Hour)} {
+		e := status.Event{ID: i + 1, At: at, Kind: status.EventPrimed, Account: "work", Windows: []string{"5h"}}
+		held = append(held, views.Event{Key: views.EventKey{Run: pastLatelyRun, ID: e.ID}, Event: e})
+	}
+	var told []int
+	for _, s := range views.AccountLatelyTo(m, held, "work", until, 12, views.SessionDirs{}) {
+		told = append(told, s.ID)
+	}
+	if want := []int{3, 2}; !slices.Equal(told, want) {
+		t.Errorf("LATELY to the end of Tuesday tells the events %v, want %v: from a week before the end, up to it", told, want)
 	}
 }

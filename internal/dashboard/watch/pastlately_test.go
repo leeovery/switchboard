@@ -97,7 +97,8 @@ func heldIDs(m Model) ([]int, bool) {
 
 // A past period's LATELY is read once for each last day: the events of the
 // week to the end of it, none after; asked again for the same day, it reads
-// nothing; stepped back a day more, it reads that day's.
+// nothing; stepped on to now, nothing; stepped back a day more, it reads
+// that day's.
 func TestPastLATELYIsReadOnceForEachLastDay(t *testing.T) {
 	h := pastLatelyHarness(t, nil, 1)
 	files := pastLatelyFiles(h.clock)
@@ -119,8 +120,10 @@ func TestPastLATELYIsReadOnceForEachLastDay(t *testing.T) {
 	if m, msg = askedLately(t, m); msg != nil || !slices.Equal(files.datesRead(), read) {
 		t.Errorf("asked again for yesterday, LATELY read %v, the files read %v; want nothing read again", msg, files.datesRead())
 	}
-	m = steppedBack(t, m, 2)
-	if _, msg = askedLately(t, m); msg == nil {
+	if _, msg = askedLately(t, steppedBack(t, m, 0)); msg != nil {
+		t.Errorf("stepped on to now, LATELY read %v; want nothing read, as LATELY at now reads the document", msg)
+	}
+	if _, msg = askedLately(t, steppedBack(t, m, 2)); msg == nil {
 		t.Error("stepped back a day more, LATELY reads nothing; want that day's read")
 	}
 }
