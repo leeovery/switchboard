@@ -23,10 +23,54 @@ import (
 // marks since. Each is told in full alone, its Short its Full, as stacked
 // Detail tells LATELY in full too. Each names a session as Lately does.
 func AccountLately(m status.Moment, id string, n int, dirs SessionDirs) []Sentence {
-	if id == "" {
-		return toldFrom(m, given(m), n, everyAccount, dirs)
+	return toldFrom(m, given(m), n, sideOf(id), dirs)
+}
+
+// AccountLatelyTo are the router's events held, oldest first, as
+// ReadLatelyTo reads them, as Detail's LATELY tells them of the account
+// with the given id, or every account's for "", at the end of a past
+// period's last day, until, the newest first, n at most: those AccountLately
+// would tell of them had it been until then, of the week before it alone,
+// as pastLatelyFrom has it, their facts worked out over those before it
+// alone, so a hold lifted after it is told as it stood. Each is told in
+// AccountLately's words at m's Now, as LATELY at now tells them.
+func AccountLatelyTo(m status.Moment, held []Event, id string, until time.Time, n int, dirs SessionDirs) []Sentence {
+	since, of := pastLatelyFrom(until), sideOf(id)
+	within := side{tells: func(e status.Event) bool { return !e.At.Before(since) && of.tells(e) }, tell: of.tell}
+	var newest []Event
+	for _, e := range slices.Backward(held) {
+		if e.Event.At.Before(until) {
+			newest = append(newest, e)
+		}
 	}
-	return toldFrom(m, given(m), n, accountSide{id: id}.side(), dirs)
+	return toldFrom(m, newest, n, within, dirs)
+}
+
+// ReadLatelyTo reads, through filed, the router's files' events Detail's
+// LATELY tells at the end of a past period's last day, until, as
+// AccountLatelyTo takes them, oldest first, each as it last stands: those
+// of the week before until, as pastLatelyFrom has it, and the FactsReach
+// before that their facts are worked out over.
+func ReadLatelyTo(filed Events, until time.Time) []Event {
+	since := pastLatelyFrom(until).Add(-FactsReach)
+	r := EventsRead{since: since, held: make(map[eventKey]Event)}
+	r.file(filed, since, until)
+	return r.Events()
+}
+
+// pastLatelyFrom is when the events Detail's LATELY tells of a past period
+// begin: a week before the end of its last day, until.
+func pastLatelyFrom(until time.Time) time.Time {
+	return until.Add(-weekSpan)
+}
+
+// sideOf is the side Detail's LATELY tells the account with the given id
+// from: every account's for "".
+func sideOf(id string) side {
+	if id == "" {
+		return everyAccount
+	}
+	return accountSide{id: id}.side()
 }
 
 // unnamed are the kinds of events that name no account.
