@@ -57,12 +57,13 @@ type weekDays struct {
 	through int
 }
 
-// weekDaysOf are the days of the n weeks to the one back weeks before now's,
-// from the day weeks start on, of days, which run to today: none to come
-// where they end before today's week.
-func weekDaysOf(days []Day, now time.Time, starts time.Weekday, n, back int) weekDays {
+// weekDaysOf are the days of the n weeks to the one beginning on last, as
+// dayfile.Civil gives a day, now's or one before it, from the day weeks
+// start on, of days, which run to today: none to come where they end before
+// today's week.
+func weekDaysOf(days []Day, now time.Time, starts time.Weekday, n int, last time.Time) weekDays {
 	today := dayfile.CivilOf(now)
-	w := weekDays{first: weeksTo(today, starts, n+back), days: make([]*Day, 7*n)}
+	w := weekDays{first: weeksTo(last, starts, n), days: make([]*Day, 7*n)}
 	w.through = min(w.index(today), len(w.days)-1)
 	for i := range days {
 		if day, ok := dayfile.Civil(days[i].Day); ok && !day.Before(w.first) && w.index(day) <= w.through {
@@ -86,7 +87,7 @@ func (w weekDays) index(day time.Time) int {
 // daysPageOf is Days' page of days, which run to now's day, priced: the eight
 // weeks to now's, from the day weeks start on.
 func daysPageOf(in HistoryInput, days []Day) DaysPage {
-	w := weekDaysOf(days, in.Now, in.WeekStarts, weeksShown, 0)
+	w := weekDaysOf(days, in.Now, in.WeekStarts, weeksShown, weekOf(dayfile.CivilOf(in.Now), in.WeekStarts))
 	return DaysPage{
 		Weeks:   weekDates(w.first, weeksShown),
 		ToCome:  w.toCome(),

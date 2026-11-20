@@ -88,9 +88,10 @@ type AccountsRow struct {
 	// just before that reset taken from the whole, and RanOut the date of the
 	// local day it last reached its week's limit in the week that reset
 	// ended, "" where it didn't, whatever the period's length; of a period
-	// gone, as its last week reset, as leftAt has it: nil, and "", where
-	// none of its weeks ended among the days of the resetWeeks weeks to the
-	// period's last and the week before them, and of every account's.
+	// gone, as its last week reset, as leftAt has it, but where its last
+	// week is this week, as at now: nil, and "", where none of its weeks
+	// ended among the days of the resetWeeks weeks to the period's last and
+	// the week before them, and of every account's.
 	WeekLeft *float64
 	RanOut   string
 	// Days are the days of the page's weeks, from the first, those to come
@@ -168,10 +169,10 @@ func (s periodSpan) heldWeeks(starts time.Weekday) int {
 }
 
 // heldFrom is the first day of the first of the weeks the page holds for
-// Detail over the span, as heldWeeks counts them, weeks starting on the day
-// given, as dayfile.Civil gives a day.
+// Detail over the span, as heldWeeks counts them to its last week, weeks
+// starting on the day given, as dayfile.Civil gives a day.
 func (s periodSpan) heldFrom(starts time.Weekday) time.Time {
-	return weeksTo(s.through(), starts, s.heldWeeks(starts))
+	return weeksTo(s.lastWeek(starts), starts, s.heldWeeks(starts))
 }
 
 // AccountsFrom is when the ledger's days an Accounts page of the period
@@ -179,8 +180,10 @@ func (s periodSpan) heldFrom(starts time.Weekday) time.Time {
 // first local day, as From has a day: lookBack days before the earlier of
 // the period's first day, so its totals know the run that day began in, and
 // the first of the weeks the page holds back from its last week, as
-// heldFrom has it, so each is told by the reset that began it. A period gone
-// reaches as far back from its last day as one at now does from today.
+// heldFrom has it, so each is told by the reset that began it. The page
+// reads every day from there to today, a period gone's too, as the resets
+// after its last week file its weeks' peaks. A period gone reaches as far
+// back from its last day as one at now does from today.
 func (p Period) AccountsFrom(now time.Time, starts time.Weekday) time.Time {
 	s := p.spanAt(dayfile.CivilOf(now), starts)
 	first := score.Earlier(s.first, s.heldFrom(starts))
@@ -243,7 +246,7 @@ func (t AccountTotals) recorded() bool {
 // the page holds to the last week of the period's span s at in's Now, and
 // how many of this week's are still to come, none where they end before it.
 func (page *AccountsPage) byDay(in HistoryInput, days []Day, s periodSpan) {
-	w := weekDaysOf(days, in.Now, in.WeekStarts, s.heldWeeks(in.WeekStarts), s.weeksBack)
+	w := weekDaysOf(days, in.Now, in.WeekStarts, s.heldWeeks(in.WeekStarts), s.lastWeek(in.WeekStarts))
 	page.ToCome = w.toCome()
 	every := make([]DayUsed, len(w.days))
 	for x, a := range in.Accounts {
@@ -279,15 +282,15 @@ func onItsOwnScale(values []float64, limits []int) []StripDay {
 // those the page holds where they're as many.
 func (page *AccountsPage) weeked(in HistoryInput, days []Day, s periodSpan) {
 	past := Past{in: in, days: days}
-	held, reach := s.heldWeeks(in.WeekStarts), page.Period.reachWeeks(s.today, in.WeekStarts)
-	weeks := past.weeksOver(held, s.weeksBack)
+	held, reach, last := s.heldWeeks(in.WeekStarts), page.Period.reachWeeks(s.today, in.WeekStarts), s.lastWeek(in.WeekStarts)
+	weeks := past.weeksOver(held, last)
 	reaching := weeks
 	if reach != held {
-		reaching = past.weeksOver(reach, s.weeksBack)
+		reaching = past.weeksOver(reach, last)
 	}
 	page.reached(in, reaching, s)
 	page.Weeks = weeks.Weeks
-	_, ended := splitAt(days, weeksTo(s.through(), in.WeekStarts, resetWeeks).AddDate(0, 0, -lookBack).Format(time.DateOnly))
+	_, ended := splitAt(days, weeksTo(last, in.WeekStarts, resetWeeks).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	own := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now)
 	for x, a := range in.Accounts {
 		row := &page.Rows[x]
@@ -311,11 +314,11 @@ func (s periodSpan) leftAt(w weekly, days []ledger.AccountDay) (endedRun, bool) 
 	if s.weeksBack == 0 {
 		return lastEnded(days, w.key)
 	}
-	last := weekOf(s.last, w.starts).Format(time.DateOnly)
+	last := s.lastWeek(w.starts).Format(time.DateOnly)
 	var ended ownWeek
 	found := false
 	for _, o := range w.ownWeeksOf(days)[w.key] {
-		if !o.open && w.placedUnder(o) <= last {
+		if w.placedUnder(o) <= last {
 			ended, found = o, true
 		}
 	}

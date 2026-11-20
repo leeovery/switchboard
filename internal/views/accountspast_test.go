@@ -20,7 +20,9 @@ import (
 // its limit in the week of each month's first Monday, reached on its
 // Friday, and at 60% in the rest, side's a tenth and a hundredth for each
 // day of the month its Monday is; this week's so far, work's 34% and side's
-// 78%; and a request of side's each Wednesday.
+// 78%; a request of side's each Wednesday; and work's week risen 20% on
+// Tuesday 22 September, a 5-hour limit hit that day, and 10% on Tuesday 29
+// September.
 func pastWeeks() []ledger.Summary {
 	const weeks = 110
 	peaks := map[string][]float64{"work": make([]float64, weeks), "side": make([]float64, weeks)}
@@ -33,9 +35,16 @@ func pastWeeks() []ledger.Summary {
 			limited = append(limited, monday.AddDate(0, 0, 4).Format(time.DateOnly))
 		}
 	}
+	risen := map[string]windowsDay{
+		"2026-09-22": {rise: map[string]float64{"7d": 0.2}, limits: []ledger.Limit{limit("5h", "2026-09-22", "15:00")}},
+		"2026-09-29": {rise: map[string]float64{"7d": 0.1}},
+	}
 	days := peakingTo(framesNow, peaks)
 	for i, d := range days {
+		rose, ok := risen[d.Day]
 		switch {
+		case ok:
+			days[i].Accounts = append(days[i].Accounts, rose.of("work"))
 		case slices.Contains(limited, d.Day):
 			days[i].Accounts = append(days[i].Accounts, windowsDay{limits: []ledger.Limit{limit("7d", d.Day, "18:00")}}.of("work"))
 		case on(d.Day).Weekday() == time.Wednesday:
@@ -49,18 +58,18 @@ func pastWeeks() []ledger.Summary {
 }
 
 // pastOfWeeks is the Past of the days given, of work and side, at
-// framesNow, weeks starting on Monday.
-func pastOfWeeks(days []ledger.Summary) views.Past {
+// framesNow, weeks starting on the day given.
+func pastOfWeeks(days []ledger.Summary, starts time.Weekday) views.Past {
 	in := input(days)
-	in.Now, in.Accounts = framesNow, workAndSide
+	in.Now, in.Accounts, in.WeekStarts = framesNow, workAndSide, starts
 	return views.NewPast(in, days)
 }
 
 // pastAt is the period of the length given at framesNow, stepped back by
-// the keys given, as pressed has it, weeks starting on Monday.
-func pastAt(t *testing.T, length views.Length, keys string) views.Period {
+// the keys given, as pressed has it, weeks starting on the day given.
+func pastAt(t *testing.T, length views.Length, keys string, starts time.Weekday) views.Period {
 	t.Helper()
-	return pressed(t, length, keys, framesNow, time.Monday, time.Time{})
+	return pressed(t, length, keys, framesNow, starts, time.Time{})
 }
 
 // isOpen reports whether a peak is a week's so far.
@@ -73,73 +82,82 @@ func isOpen(p views.WeekPeak) bool {
 // WEEKS end at its last week, each as now's over as many weeks more as it's
 // back, those more dropped, so every week is whole, at its peak as the reset
 // after it filed it, none so far, none of its days to come, and its weeks
-// not ending at this week.
+// not ending at this week: a day a week back or more among them, as Sunday
+// 27 September, and weeks starting on Sunday as on Monday.
 func TestAPeriodGonesWeeksAreTheTrailingWindowOfTheWeeksAtNow(t *testing.T) {
-	past := pastOfWeeks(pastWeeks())
-	for _, length := range views.Lengths() {
-		for _, keys := range []string{"<", "<<", "<<<"} {
-			period := pastAt(t, length, keys)
-			back := period.SpanOn(framesNow, time.Monday).WeeksBack
-			if back == 0 {
-				continue
-			}
-			t.Run(length.Name()+" "+keys, func(t *testing.T) {
-				page := past.Accounts(period)
-				held, reached := past.WeeksOver(len(page.Weeks)+back), past.WeeksOver(len(page.Reach)+back)
-				if got, want := page.Weeks, held.Weeks[:len(page.Weeks)]; !slices.Equal(got, want) {
-					t.Errorf("the page's weeks are %v, want those at now, but the last %d, %v", got, back, want)
+	days := pastWeeks()
+	for _, starts := range []time.Weekday{time.Monday, time.Sunday} {
+		past := pastOfWeeks(days, starts)
+		for _, length := range views.Lengths() {
+			for _, keys := range []string{"<", "<<", "<<<", "<<<<"} {
+				period := pastAt(t, length, keys, starts)
+				back := period.SpanOn(framesNow, starts).WeeksBack
+				if back == 0 {
+					continue
 				}
-				nows, reachedNow := append(slices.Clone(held.Accounts), held.All), append(slices.Clone(reached.Accounts), reached.All)
-				for i, row := range append(slices.Clone(page.Rows), page.All) {
-					if got, want := row.Peaks, nows[i].Peaks[:len(row.Peaks)]; !reflect.DeepEqual(got, want) {
-						t.Errorf("row %d's peaks are %s, want those at now, %s", i, peaksRead(got), peaksRead(want))
+				t.Run(starts.String()+" "+length.Name()+" "+keys, func(t *testing.T) {
+					page := past.Accounts(period)
+					held, reached := past.WeeksOver(len(page.Weeks)+back), past.WeeksOver(len(page.Reach)+back)
+					if got, want := page.Weeks, held.Weeks[:len(page.Weeks)]; !slices.Equal(got, want) {
+						t.Errorf("the page's weeks are %v, want those at now, but the last %d, %v", got, back, want)
 					}
-					if length != views.LengthTwelveMonths {
-						if got, want := row.Reached, reachedNow[i].Peaks[:len(row.Reached)]; !reflect.DeepEqual(got, want) {
-							t.Errorf("row %d's reach is %s, want the weeks at now's, %s", i, peaksRead(got), peaksRead(want))
+					nows, reachedNow := append(slices.Clone(held.Accounts), held.All), append(slices.Clone(reached.Accounts), reached.All)
+					for i, row := range append(slices.Clone(page.Rows), page.All) {
+						if got, want := row.Peaks, nows[i].Peaks[:len(row.Peaks)]; !reflect.DeepEqual(got, want) {
+							t.Errorf("row %d's peaks are %s, want those at now, %s", i, peaksRead(got), peaksRead(want))
+						}
+						if length != views.LengthTwelveMonths {
+							if got, want := row.Reached, reachedNow[i].Peaks[:len(row.Reached)]; !reflect.DeepEqual(got, want) {
+								t.Errorf("row %d's reach is %s, want the weeks at now's, %s", i, peaksRead(got), peaksRead(want))
+							}
+						}
+						if slices.ContainsFunc(row.Peaks, isOpen) || slices.ContainsFunc(row.Reached, isOpen) {
+							t.Errorf("row %d has a week so far: %s, reached %s", i, peaksRead(row.Peaks), peaksRead(row.Reached))
+						}
+						if len(row.Days) != 7*len(page.Weeks) {
+							t.Errorf("row %d has %d days, want %d weeks' %d", i, len(row.Days), len(page.Weeks), 7*len(page.Weeks))
 						}
 					}
-					if slices.ContainsFunc(row.Peaks, isOpen) || slices.ContainsFunc(row.Reached, isOpen) {
-						t.Errorf("row %d has a week so far: %s, reached %s", i, peaksRead(row.Peaks), peaksRead(row.Reached))
+					if page.ToCome != 0 || page.ThisWeek {
+						t.Errorf("%d days are to come, the weeks end at this week %v, want none to come, and not", page.ToCome, page.ThisWeek)
 					}
-					if len(row.Days) != 7*len(page.Weeks) {
-						t.Errorf("row %d has %d days, want %d weeks' %d", i, len(row.Days), len(page.Weeks), 7*len(page.Weeks))
+					if len(page.Weeks) < page.Reaches || length != views.LengthTwelveMonths && len(page.Weeks) < len(page.Reach) {
+						t.Errorf("the page holds %d weeks, want every one of the %d Detail reaches over and the %d of Compare's reach", len(page.Weeks), page.Reaches, len(page.Reach))
 					}
-				}
-				if page.ToCome != 0 || page.ThisWeek {
-					t.Errorf("%d days are to come, the weeks end at this week %v, want none to come, and not", page.ToCome, page.ThisWeek)
-				}
-				if len(page.Weeks) < page.Reaches || length != views.LengthTwelveMonths && len(page.Weeks) < len(page.Reach) {
-					t.Errorf("the page holds %d weeks, want every one of the %d Detail reaches over and the %d of Compare's reach", len(page.Weeks), page.Reaches, len(page.Reach))
-				}
-			})
+				})
+			}
 		}
 	}
 }
 
 // At Thursday 1 October, the weeks' peaks and facts are each period's:
 // this week, to its own, so far; last week and the week of 14 September,
-// to theirs, each whole; work's facts on Weeks' eight, side's on six, as
-// the weeks they end at have them.
+// to theirs, each whole, and Sunday 27 September, a day of last week, to
+// last week; work's facts on Weeks' eight, side's on six, as the weeks they
+// end at have them.
 func TestAPeriodGonesWeeksAndFactsEndAtItsLastWeek(t *testing.T) {
-	past := pastOfWeeks(pastWeeks())
+	past := pastOfWeeks(pastWeeks(), time.Monday)
 	tests := []struct {
+		length               views.Length
 		keys                 string
 		weeks, work, side    string
 		workFacts, sideFacts string
 		toCome               int
 		thisWeek             bool
 	}{
-		{keys: "", weeks: "24 Aug … 28 Sep", work: "60 60 100 60 60 34…", side: "34 41 17 24 31 78…",
+		{length: views.LengthThisWeek, keys: "", weeks: "24 Aug … 28 Sep", work: "60 60 100 60 60 34…", side: "34 41 17 24 31 78…",
 			workFacts: "1/7 34%", sideFacts: "0/5 71%", toCome: 3, thisWeek: true},
-		{keys: "<", weeks: "17 Aug … 21 Sep", work: "60 60 60 100 60 60", side: "27 34 41 17 24 31",
+		{length: views.LengthThisWeek, keys: "<", weeks: "17 Aug … 21 Sep", work: "60 60 60 100 60 60", side: "27 34 41 17 24 31",
 			workFacts: "2/8 30%", sideFacts: "0/6 71%"},
-		{keys: "<<", weeks: "10 Aug … 14 Sep", work: "60 60 60 60 100 60", side: "20 27 34 41 17 24",
+		{length: views.LengthThisWeek, keys: "<<", weeks: "10 Aug … 14 Sep", work: "60 60 60 60 100 60", side: "20 27 34 41 17 24",
 			workFacts: "2/8 30%", sideFacts: "0/6 73%"},
+		{length: views.LengthToday, keys: "<<<<", weeks: "17 Aug … 21 Sep", work: "60 60 60 100 60 60", side: "27 34 41 17 24 31",
+			workFacts: "2/8 30%", sideFacts: "0/6 71%"},
 	}
 	for _, tt := range tests {
-		t.Run(views.DialOf(pastAt(t, views.LengthThisWeek, tt.keys), framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
-			page := past.Accounts(pastAt(t, views.LengthThisWeek, tt.keys))
+		period := pastAt(t, tt.length, tt.keys, time.Monday)
+		t.Run(views.DialOf(period, framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
+			page := past.Accounts(period)
 			six := lastOf(page.Weeks, 6)
 			got := fmt.Sprintf("%s … %s | %s | %s | %s | %s | %d %v", prose.DayMonth(civilDate(six[0])), prose.DayMonth(civilDate(six[5])),
 				peaksRead(lastOf(page.Rows[0].Peaks, 6)), peaksRead(lastOf(page.Rows[1].Peaks, 6)),
@@ -152,12 +170,44 @@ func TestAPeriodGonesWeeksAndFactsEndAtItsLastWeek(t *testing.T) {
 	}
 }
 
+// BY DAY of a period gone holds its weeks' days as they were and none after
+// them: last week's, and Sunday 27 September's, hold work's week risen 20%
+// on Tuesday 22 September, a 5-hour limit hit that day, but not the 10% it
+// rose on the 29th, which now's holds, its days after today still to come;
+// every account's are theirs together.
+func TestByDayOfAPeriodGoneHoldsItsWeeksDays(t *testing.T) {
+	past := pastOfWeeks(pastWeeks(), time.Monday)
+	quiet, on22, on29 := views.DayUsed{}, views.DayUsed{Used: 0.2, Limits: 1}, views.DayUsed{Used: 0.1}
+	lastWeek := []views.DayUsed{quiet, on22, quiet, quiet, quiet, quiet, quiet}
+	tests := []struct {
+		length views.Length
+		keys   string
+		weeks  []views.DayUsed
+		toCome int
+	}{
+		{views.LengthThisWeek, "", slices.Concat(lastWeek, []views.DayUsed{quiet, on29, quiet, quiet, quiet, quiet, quiet}), 3},
+		{views.LengthThisWeek, "<", slices.Concat(make([]views.DayUsed, 7), lastWeek), 0},
+		{views.LengthToday, "<<<<", slices.Concat(make([]views.DayUsed, 7), lastWeek), 0},
+	}
+	for _, tt := range tests {
+		period := pastAt(t, tt.length, tt.keys, time.Monday)
+		t.Run(views.DialOf(period, framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
+			page := past.Accounts(period)
+			for _, row := range []views.AccountsRow{page.Rows[0], page.All} {
+				if got := lastOf(row.Days, 14); !reflect.DeepEqual(got, tt.weeks) || page.ToCome != tt.toCome {
+					t.Errorf("%q's last two weeks' days are %v, %d to come; want %v, %d", row.Totals.Account, got, page.ToCome, tt.weeks, tt.toCome)
+				}
+			}
+		})
+	}
+}
+
 // A period gone whose last week is this week, a day of it before today's,
 // draws this week as now does: Detail's weeks, BY DAY and Compare's WEEKS
 // are now's, this week so far and its days to come among them; but its
 // worth marks no bucket as now's.
 func TestAPeriodGoneWithinThisWeekDrawsThisWeekAsNow(t *testing.T) {
-	past := pastOfWeeks(pastWeeks())
+	past := pastOfWeeks(pastWeeks(), time.Monday)
 	today := past.Accounts(views.LengthToday.Now())
 	weeks := func(page views.AccountsPage) string {
 		rows := append(slices.Clone(page.Rows), page.All)
@@ -165,7 +215,7 @@ func TestAPeriodGoneWithinThisWeekDrawsThisWeekAsNow(t *testing.T) {
 			rows[1].Peaks, rows[1].Reached, rows[2].Peaks, rows[2].Reached, rows[0].WeekLeft, rows[1].WeekLeft})
 	}
 	for _, keys := range []string{"<", "<<"} {
-		period := pastAt(t, views.LengthToday, keys)
+		period := pastAt(t, views.LengthToday, keys, time.Monday)
 		t.Run(views.DialOf(period, framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
 			page := past.Accounts(period)
 			if got, want := weeks(page), weeks(today); got != want {
@@ -190,7 +240,7 @@ func TestAPeriodGoneWithinThisWeekDrawsThisWeekAsNow(t *testing.T) {
 // work's facts are on the 52 whole weeks beginning in it, its limit hit in
 // 12, the weeks of each month's first Monday.
 func TestAPeriodGonesReachEndsAtItsLastWeek(t *testing.T) {
-	past := pastOfWeeks(pastWeeks())
+	past := pastOfWeeks(pastWeeks(), time.Monday)
 	tests := []struct {
 		length                       views.Length
 		keys                         string
@@ -205,7 +255,7 @@ func TestAPeriodGonesReachEndsAtItsLastWeek(t *testing.T) {
 		{views.LengthTwelveMonths, "<", 13, "Oct", "Oct", "2024-10-01", "2025-10-01"},
 	}
 	for _, tt := range tests {
-		period := pastAt(t, tt.length, tt.keys)
+		period := pastAt(t, tt.length, tt.keys, time.Monday)
 		t.Run(views.DialOf(period, framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
 			reach := past.Accounts(period).Reach
 			got := fmt.Sprintf("%d %s %s %s %s", len(reach), reach[0].Label, reach[len(reach)-1].Label,
@@ -215,7 +265,7 @@ func TestAPeriodGonesReachEndsAtItsLastWeek(t *testing.T) {
 			}
 		})
 	}
-	page := past.Accounts(pastAt(t, views.LengthTwelveMonths, "<"))
+	page := past.Accounts(pastAt(t, views.LengthTwelveMonths, "<", time.Monday))
 	if got, want := peaksRead(page.Rows[1].Reached), "38 35 40 37 34 41 38 36 40 38 35 39 —"; got != want {
 		t.Errorf("12 months back, side's months are %s, want each its last Monday's week, %s", got, want)
 	}
@@ -231,10 +281,10 @@ func TestAPeriodGonesReachEndsAtItsLastWeek(t *testing.T) {
 // to its worth, marking none as now's and counting none as to come,
 // whatever its length; at now, each chart marks its own, as ever.
 func TestAPeriodGonesWorthMarksNoBucketAsNows(t *testing.T) {
-	past := pastOfWeeks(pastWeeks())
+	past := pastOfWeeks(pastWeeks(), time.Monday)
 	for _, length := range views.Lengths() {
 		for _, keys := range []string{"", "<", "<<"} {
-			period := pastAt(t, length, keys)
+			period := pastAt(t, length, keys, time.Monday)
 			gone := keys != ""
 			t.Run(length.Name()+" "+keys, func(t *testing.T) {
 				page := past.Accounts(period)
@@ -286,11 +336,13 @@ func TestADaysHoursChartThatDayAlone(t *testing.T) {
 	}
 }
 
-// resettingWeeks are three accounts' days to framesNow's: work's week
+// resettingWeeks are four accounts' days to framesNow's: work's week
 // resetting at 00:30 each Monday from 7 September, its limit reached on
 // the 11th and the 24th; side's at 10:00 each Thursday from 10 September,
-// its limit reached on the 30th; and spare's, idle but for one that reset
-// on Monday 3 August.
+// its limit reached on the 30th; spare's, idle but for one that reset on
+// Monday 3 August; and personal's at 09:00 each Saturday from 5 September,
+// each own week placed under the calendar week after the one it began in,
+// with weeks from Monday.
 func resettingWeeks() []ledger.Summary {
 	ended := func(id, date, clock string, before float64) ledger.AccountDay {
 		return windowsDay{resets: []ledger.Reset{reset("7d", date, clock, before)}}.of(id)
@@ -300,13 +352,17 @@ func resettingWeeks() []ledger.Summary {
 	}
 	return daysTo("2026-07-27", framesNow,
 		day("2026-08-03", ended("spare", "2026-08-03", "10:00", 0.5)),
+		day("2026-09-05", ended("personal", "2026-09-05", "09:00", 0.5)),
 		day("2026-09-07", ended("work", "2026-09-07", "00:30", 0.5)),
 		day("2026-09-10", ended("side", "2026-09-10", "10:00", 0.4)),
 		day("2026-09-11", limited("work", "2026-09-11")),
+		day("2026-09-12", ended("personal", "2026-09-12", "09:00", 0.8)),
 		day("2026-09-14", ended("work", "2026-09-14", "00:30", 1)),
 		day("2026-09-17", ended("side", "2026-09-17", "10:00", 0.6)),
+		day("2026-09-19", ended("personal", "2026-09-19", "09:00", 0.65)),
 		day("2026-09-21", ended("work", "2026-09-21", "00:30", 0.7)),
 		day("2026-09-24", limited("work", "2026-09-24"), ended("side", "2026-09-24", "10:00", 0.9)),
+		day("2026-09-26", ended("personal", "2026-09-26", "09:00", 0.45)),
 		day("2026-09-28", ended("work", "2026-09-28", "00:30", 1)),
 		day("2026-09-30", limited("side", "2026-09-30")),
 		day("2026-10-01", ended("side", "2026-10-01", "10:00", 1)),
@@ -316,23 +372,26 @@ func resettingWeeks() []ledger.Summary {
 // Left at its last reset, of a period gone, is what the week had left as
 // it reset at the end of the period's last week, the reset that ended the
 // account's own week placed under it, though that came after the period's
-// last day, as work's on the Monday after and side's on the Thursday; and
-// at now, as it last reset. Each is looked for in the six weeks to the
-// period's last week and the week before them: spare's of 3 August is in
-// those of the week of 14 September, and of the week before, but not in
-// last week's or now's.
+// last day, as work's on the Monday after and side's on the Thursday, or
+// came in it, as personal's, its own week placed under the week after the
+// one it began in: so of a period gone it's what the last WEEKS column
+// left, where that column's peak is known. At now, it's as the week last
+// reset. Each is looked for in the six weeks to the period's last week and
+// the week before them: spare's of 3 August is in those of the week of 14
+// September, and of the week before, but not in last week's or now's. With
+// weeks from Sunday, side's own week from Thursday 24 September is placed
+// under this week, so last week's is the one before.
 func TestLeftAtItsLastResetOfAPeriodGoneIsAsItsLastWeekReset(t *testing.T) {
 	days := resettingWeeks()
-	in := input(days)
-	in.Now, in.Accounts = framesNow, config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "spare"}}
-	past := views.NewPast(in, days)
 	tests := []struct {
-		keys, work, side, spare string
+		starts                            time.Weekday
+		keys, work, side, spare, personal string
 	}{
-		{"", "0% ran out 2026-09-24", "0% ran out 2026-09-30", "—"},
-		{"<", "0% ran out 2026-09-24", "0% ran out 2026-09-30", "—"},
-		{"<<", "30%", "10%", "50%"},
-		{"<<<", "0% ran out 2026-09-11", "40%", "50%"},
+		{time.Monday, "", "0% ran out 2026-09-24", "0% ran out 2026-09-30", "—", "55%"},
+		{time.Monday, "<", "0% ran out 2026-09-24", "0% ran out 2026-09-30", "—", "55%"},
+		{time.Monday, "<<", "30%", "10%", "50%", "35%"},
+		{time.Monday, "<<<", "0% ran out 2026-09-11", "40%", "50%", "20%"},
+		{time.Sunday, "<", "0% ran out 2026-09-24", "10%", "—", "55%"},
 	}
 	left := func(row views.AccountsRow) string {
 		if row.RanOut == "" {
@@ -341,12 +400,20 @@ func TestLeftAtItsLastResetOfAPeriodGoneIsAsItsLastWeekReset(t *testing.T) {
 		return shareRead(row.WeekLeft) + " ran out " + row.RanOut
 	}
 	for _, tt := range tests {
-		period := pastAt(t, views.LengthThisWeek, tt.keys)
-		t.Run(views.DialOf(period, framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
-			page := past.Accounts(period)
-			got := [4]string{left(page.Rows[0]), left(page.Rows[1]), left(page.Rows[2]), shareRead(page.All.WeekLeft)}
-			if want := [4]string{tt.work, tt.side, tt.spare, "—"}; got != want {
-				t.Errorf("work, side, spare and every account left %q, want %q", got, want)
+		in := input(days)
+		in.Now, in.WeekStarts = framesNow, tt.starts
+		in.Accounts = config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "spare"}, {ID: "personal"}}
+		period := pastAt(t, views.LengthThisWeek, tt.keys, tt.starts)
+		t.Run(tt.starts.String()+" "+views.DialOf(period, framesNow, tt.starts, time.Time{}).Name(), func(t *testing.T) {
+			page := views.NewPast(in, days).Accounts(period)
+			got := [5]string{left(page.Rows[0]), left(page.Rows[1]), left(page.Rows[2]), left(page.Rows[3]), shareRead(page.All.WeekLeft)}
+			if want := [5]string{tt.work, tt.side, tt.spare, tt.personal, "—"}; got != want {
+				t.Errorf("work, side, spare, personal and every account left %q, want %q", got, want)
+			}
+			for _, row := range page.Rows {
+				if last := row.Peaks[len(row.Peaks)-1]; tt.keys != "" && last.Share != nil && shareRead(row.WeekLeft) != prose.Percent(1-*last.Share) {
+					t.Errorf("%q left %s, want what its last week's peak, %s, left", row.Totals.Account, shareRead(row.WeekLeft), prose.Percent(*last.Share))
+				}
 			}
 		})
 	}
@@ -376,7 +443,7 @@ func TestAccountsFromIsTheFirstDayAPeriodsPageReads(t *testing.T) {
 		{views.LengthTwelveMonths, "<", "2024-09-25"},
 	}
 	for _, tt := range tests {
-		period := pastAt(t, tt.length, tt.keys)
+		period := pastAt(t, tt.length, tt.keys, time.Monday)
 		t.Run(views.DialOf(period, framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
 			from := period.AccountsFrom(framesNow, time.Monday)
 			if got := from.Format(time.DateOnly); got != tt.want || !from.Equal(on(tt.want)) {
@@ -390,14 +457,14 @@ func TestAccountsFromIsTheFirstDayAPeriodsPageReads(t *testing.T) {
 // every day, at now and gone, of every length.
 func TestAnAccountsPageNeedsNoDayBeforeAccountsFrom(t *testing.T) {
 	days := pastWeeks()
-	every := pastOfWeeks(days)
+	every := pastOfWeeks(days, time.Monday)
 	for _, length := range views.Lengths() {
 		for _, keys := range []string{"", "<", "<<"} {
-			period := pastAt(t, length, keys)
+			period := pastAt(t, length, keys, time.Monday)
 			t.Run(length.Name()+" "+keys, func(t *testing.T) {
 				from := dayfile.DateOf(period.AccountsFrom(framesNow, time.Monday))
 				read := slices.DeleteFunc(slices.Clone(days), func(s ledger.Summary) bool { return s.Day < from })
-				if got, want := jsonOf(t, pastOfWeeks(read).Accounts(period)), jsonOf(t, every.Accounts(period)); got != want {
+				if got, want := jsonOf(t, pastOfWeeks(read, time.Monday).Accounts(period)), jsonOf(t, every.Accounts(period)); got != want {
 					t.Errorf("built of the days from %s, the page is\n%s\nwant it as built of every day\n%s", from, got, want)
 				}
 			})

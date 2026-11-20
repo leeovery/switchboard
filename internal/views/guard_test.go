@@ -186,6 +186,7 @@ var (
 		"views.SessionDays.SessionLog", "views.SessionDays.Joined", "views.SessionDays.Without", "views.SessionDays.Owed", "views.SessionDays.Told",
 		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly",
 		"views.DialOf", "views.Period.Back", "views.Period.On", "views.Period.Shorter", "views.Period.Longer",
+		"views.Period.From", "views.Period.AccountsFrom",
 	}
 )
 

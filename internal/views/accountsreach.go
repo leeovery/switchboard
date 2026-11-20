@@ -36,7 +36,7 @@ func (p Period) begunWeeks(today time.Time, starts time.Weekday) int {
 	if begun.Before(s.first) {
 		begun = begun.AddDate(0, 0, 7)
 	}
-	return int(weekOf(s.last, starts).Sub(begun)/(7*24*time.Hour)) + 1
+	return int(s.lastWeek(starts).Sub(begun)/(7*24*time.Hour)) + 1
 }
 
 // through is the last day of the span that's come, as dayfile.Civil gives a
@@ -47,6 +47,13 @@ func (s periodSpan) through() time.Time {
 		return s.today
 	}
 	return s.last
+}
+
+// lastWeek is the first day of the span's last week, as dayfile.Civil gives
+// a day, weeks starting on the day given: this week's at now. Every count of
+// the period's weeks ends at it.
+func (s periodSpan) lastWeek(starts time.Weekday) time.Time {
+	return weekOf(s.last, starts)
 }
 
 // detailWeeks is how many weeks Detail's weeks section reaches over at the
