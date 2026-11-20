@@ -68,7 +68,8 @@ func (m Model) askPastLately() (Model, tea.Cmd) {
 // pastLatelyRead takes in a read for a past period's LATELY, the read no
 // longer under way: held where the dial's period still ends where it read
 // to, else dropped, the dial having stepped past it; then asked again where
-// it was asked for another day as it was under way.
+// it was asked for another day as it was under way, while Detail still
+// shows, as readPastLately reads it.
 func (m Model) pastLatelyRead(msg pastLatelyReadMsg) (Model, tea.Cmd) {
 	again := m.pastLately.again
 	m.pastLately.reading, m.pastLately.again = time.Time{}, false
@@ -76,7 +77,7 @@ func (m Model) pastLatelyRead(msg pastLatelyReadMsg) (Model, tea.Cmd) {
 		m.pastLately = m.pastLately.holding(msg.until, msg.events)
 	}
 	if again {
-		return m.askPastLately()
+		return m.readPastLately()
 	}
 	return m, nil
 }

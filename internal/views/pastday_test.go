@@ -134,6 +134,36 @@ func TestTheDaysNoLongerKeptAreTheLogs(t *testing.T) {
 	}
 }
 
+// The fold a day is charted by tells whether it's the ledger's tail's: the
+// tail's wherever it's of the day, as yesterday's is till the tail's first
+// read after midnight, and today's; else a read of a day gone, which isn't;
+// none of a period of more than a day.
+func TestTheFoldADayIsChartedByTellsWhetherItsTheTails(t *testing.T) {
+	const dir = "/code/switchboard"
+	l := keptFrom(projectAsks(endedInside, dir, dir, "work", september(30, 10, 0))...)
+	read := views.ReadDayFold(l, "2026-09-30", 0, framesNow, views.PoolRead{})
+	turnedFrom := views.ReadSessionDays(l, september(29, 0, 0), september(30, 11, 0), views.PoolRead{}).TodayFold()
+	today := views.ReadSessionDays(l, september(29, 0, 0), framesNow, views.PoolRead{}).TodayFold()
+	yesterday := pastAt(t, views.LengthToday, "<", time.Monday)
+	tests := []struct {
+		name            string
+		period          views.Period
+		tail            views.DayFold
+		charted, tailed bool
+	}{
+		{name: "yesterday, the tail not read since", period: yesterday, tail: turnedFrom, charted: true, tailed: true},
+		{name: "yesterday, the tail read today", period: yesterday, tail: today, charted: true},
+		{name: "today", period: views.LengthToday.Now(), tail: today, charted: true, tailed: true},
+		{name: "this week", period: views.LengthThisWeek.Now(), tail: today},
+	}
+	for _, tt := range tests {
+		chosen := tt.period.HoursFold(framesNow, time.Monday, read, tt.tail)
+		if charted := !reflect.DeepEqual(chosen, views.DayFold{}); charted != tt.charted || chosen.Tailed() != tt.tailed {
+			t.Errorf("%s, charted by the hour %v, the tail's fold %v; want %v, %v", tt.name, charted, chosen.Tailed(), tt.charted, tt.tailed)
+		}
+	}
+}
+
 // A ledger kept as long as no keep says keeps its lines 400 days, as the
 // router keeps them, not for good: a year gone tells the days before then
 // as no longer kept, and counts none of their sessions; kept for good, it

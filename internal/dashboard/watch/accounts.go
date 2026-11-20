@@ -131,11 +131,11 @@ func (m Model) accountsBuilt() Model {
 		m.accounts = m.accounts.awaited()
 		return m
 	}
+	hours := m.hoursFold(now)
 	of := builtOf{
-		held: m.past.held, backs: m.past.backs, period: m.period, day: dayfile.DateOf(now), hours: m.hoursOf(now), hour: todayHour(m.period, now, m.cfg.WeekStarts),
+		held: m.past.held, backs: m.past.backs, period: m.period, day: dayfile.DateOf(now), hours: m.hoursOf(now, hours), hour: todayHour(m.period, now, m.cfg.WeekStarts),
 	}
 	if m.accounts.page == nil || m.accounts.of != of {
-		hours := of.period.HoursFold(now, m.cfg.WeekStarts, m.pastDayHeld(now), m.sessionDays.tailed.TodayFold())
 		page := past.Since(nil, now).Accounts(of.period).Hourly(hours)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
@@ -214,15 +214,16 @@ func (m Model) detailShown() bool {
 // sessionsOn are the ids of the sessions running at the moment mo on the
 // account Detail shows, of those the router listed, sessions, as the request
 // stream s has moved and seen them since, in its SESSIONS' order, as
-// views.RunningOn has them: none of all accounts, which none runs on alone,
-// nor while Accounts shows no Detail, nor in a past period at mo, as none
-// runs in the past, so → and enter don't act there.
+// views.RunningIn has them of the dial's period at mo: none of all
+// accounts, which none runs on alone, nor in a past period, so → and enter
+// don't act there; nor while Accounts shows no Detail.
 func (m Model) sessionsOn(mo status.Moment, sessions []status.Session, s views.Stream) []string {
-	if !m.detailShown() || m.gone(mo.Now) {
+	if !m.detailShown() {
 		return nil
 	}
 	var ids []string
-	for _, r := range views.RunningOn(views.RunningOf(mo, views.ListLive{Running: sessions, Stream: s}, m.held), m.accounts.shown.Account()) {
+	running := views.RunningOf(mo, views.ListLive{Running: sessions, Stream: s}, m.held)
+	for _, r := range views.RunningIn(running, m.accounts.shown.Account(), m.dial(mo.Now)) {
 		ids = append(ids, r.Session)
 	}
 	return ids
