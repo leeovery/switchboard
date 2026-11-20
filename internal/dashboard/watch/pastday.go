@@ -50,16 +50,17 @@ func (m Model) pastDayWanted(now time.Time) (string, bool) {
 // by the hour, as pastDayWanted has it, as a command, one read at a time,
 // once for each day: where none is held of it, or where the one held was
 // read early and the ledger's tail has since read the day's lines it owed,
-// as owed has them, so a fold of yesterday read just after midnight takes
-// in the lines that came in after it; a read of the tail due at once where
-// it does, as daysWaited has one, not at the next look. Each is read at
+// as owed has them, so a fold of yesterday read as the day turns takes in
+// the lines that came in after it. None while the day is charted by the
+// tail's fold, as hoursFold picks it, its page waiting on a read of the
+// tail, as hoursWaited has it, after which it's read once. Each is read at
 // now, keeping the lines as long as the config keeps them, in the pool
 // shown.
 func (m Model) readPastDay() (Model, tea.Cmd) {
 	now := m.now()
 	date, wanted := m.pastDayWanted(now)
 	d := m.pastDay
-	if !wanted || d.reading != "" || m.cfg.Ledger == nil || d.date == date && !d.early {
+	if !wanted || d.reading != "" || m.cfg.Ledger == nil || d.date == date && !d.early || m.hoursFold(now).Tailed() {
 		return m, nil
 	}
 	early := m.owes(date, now)
@@ -68,7 +69,6 @@ func (m Model) readPastDay() (Model, tea.Cmd) {
 	}
 	l, keep, pool := m.cfg.Ledger, m.cfg.LedgerKeep, m.cfg.PoolRead
 	m.pastDay.reading = date
-	m.tail.due = m.tail.due || early && !m.tail.busy()
 	return m, func() tea.Msg {
 		return pastDayReadMsg{date: date, early: early, fold: views.ReadDayFold(l, date, keep, now, pool)}
 	}
@@ -104,20 +104,33 @@ func (m Model) hoursFold(now time.Time) views.DayFold {
 
 // hoursReady reports whether what shows can chart its day by the hour at
 // now: but where it charts a day gone, as pastDayWanted has it, by the
-// tail's fold, as hoursFold picks it, the tail not read today, its fold
-// missing the day's lines filed since it was; or by a read of it yet to
-// land, as before its first read, or as the dial steps to another day gone,
-// its page waiting on it as on the days it's built of. Without a ledger
-// there's nothing to wait on.
+// tail's fold, as hoursFold picks it, which misses the day's lines filed
+// since the tail was last read, there having been no read of it today; or
+// by a read of it yet to land, as before its first read, or as the dial
+// steps to another day gone, its page waiting on it as on the days it's
+// built of. Without a ledger there's nothing to wait on.
 func (m Model) hoursReady(now time.Time) bool {
 	date, wanted := m.pastDayWanted(now)
 	switch {
 	case m.cfg.Ledger == nil || !wanted:
 		return true
 	case m.hoursFold(now).Tailed():
-		return m.tail.readOn(views.Today(now))
+		return false
 	}
 	return m.pastDay.date == date
+}
+
+// hoursWaited is m waiting at now on the hours of the day gone what shows
+// charts, as hoursReady has it: where they wait on the tail's fold, as
+// hoursFold picks it, a read of the tail due at once, not at the next look,
+// where none is under way, as daysWaited has one, at every message till one
+// lands on today, so a read under way as the dial stepped, or one asked
+// before midnight landing after, leaves the page waiting no longer.
+func (m Model) hoursWaited(now time.Time) Model {
+	if _, wanted := m.pastDayWanted(now); wanted && m.hoursFold(now).Tailed() {
+		m.tail.due = m.tail.due || !m.tail.busy()
+	}
+	return m
 }
 
 // pastDayTailed reports whether the hours of the day gone what shows charts,

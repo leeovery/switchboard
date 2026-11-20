@@ -274,8 +274,8 @@ func DayGone(now, t time.Time) string {
 
 // Begun says when t was, before now, in now's time zone, as a session's
 // start is said beside the rules DayGone words: its time of day today, as
-// "14:12"; else after the day as DayGone names it, as "yesterday 15:08",
-// "Tue 09:12" or "Mon 21 Sep 09:12".
+// "14:12"; else after the day as Day names it, never with a year, as
+// "yesterday 15:08", "Tue 09:12" or "Mon 21 Sep 09:12".
 func Begun(now, t time.Time) string {
 	return strings.TrimSpace(dayBefore(now, t, "", Day) + " " + TimeOfDay(now, t))
 }

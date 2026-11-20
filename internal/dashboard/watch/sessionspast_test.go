@@ -99,8 +99,11 @@ func TestAClickOnTheLastSessionKeepsItUnderThePointer(t *testing.T) {
 	last := epsSessions[0]
 	targets := h.targets()
 	at := slices.IndexFunc(targets, func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == last })
+	if at < 0 {
+		t.Fatalf("a row up from the foot, none chosen, the screen reads\n%s\nwant %s on it", h.view(), last)
+	}
 	bottom := slices.IndexFunc(targets, func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Y > targets[at].Y })
-	if at < 0 || bottom >= 0 || strings.Contains(h.view(), unkeptWords) {
+	if bottom >= 0 || strings.Contains(h.view(), unkeptWords) {
 		t.Fatalf("a row up from the foot, none chosen, the screen reads\n%s\nwant %s on the List's bottom row, the words after it out of view", h.view(), last)
 	}
 	target, scroll := targets[at], h.model.scroll
@@ -110,5 +113,9 @@ func TestAClickOnTheLastSessionKeepsItUnderThePointer(t *testing.T) {
 	}
 	if !slices.Contains(h.targets(), target) {
 		t.Errorf("after the click, %s isn't at %+v; want it under the pointer", last, target)
+	}
+	h.keys(downKey)
+	if h.model.sessionsTab.shown.Chosen.Session != last || !strings.Contains(h.view(), unkeptWords) || !onTheList(h, last) {
+		t.Errorf("↓ on %s, chosen at the List's end, chose %s and the screen reads\n%s\nwant it still chosen, in view, and the words after it shown", last, h.model.sessionsTab.shown.Chosen.Session, h.view())
 	}
 }

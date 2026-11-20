@@ -6603,9 +6603,9 @@ each at least its least and at most its natural, but `session`, which grows wher
   its requests and worth the period's alone. A start on another day than the one its rule names,
   and a start of a session that went on, is dated as `prose.PastAt` dates it, `Tue 12:08` within
   the six days before today and `21 Sep 12:08` before them, its year where it isn't now's,
-  `21 Sep 2025 12:08`; one on its rule's day is by the clock alone. ↑ and ↓ onto the last session
-  show the words after it too, where the page holds both; a scroll or a click never moves the List
-  to show them. A past period with no session says so in the table's place, in `text.subtle`, by the
+  `21 Sep 2025 12:08`; one on its rule's day is by the clock alone. ↑ and ↓ onto the last session,
+  or ↓ on it, show the words after it too, where the page holds both; a look or a click keeps the
+  session in view and never moves the List further to show them, which `j` or the wheel does. A past period with no session says so in the table's place, in `text.subtle`, by the
   dial's words: `no sessions yesterday`, `no sessions on Tue 29 Sep`, `no sessions last week`,
   `no sessions in the week of 14 Sep`, `no sessions in the 30 days to 1 Sep`, and so on;
   Projects' SESSIONS and its empty list say it alike. The ledger keeps a day's sessions only as
@@ -11515,7 +11515,8 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 ## Signing
 
 A release's macOS binaries are built, signed with a Developer ID and notarised on the owner's Mac,
-where the certificate and the notary's login live, in its keychain; nothing of either is in GitHub.
+where the certificate and the notary's login live, in its signing keychain; nothing of either is in
+GitHub.
 macOS knows an ad-hoc signed binary, as Go's linker signs one, by the hash of its code alone, which
 every release changes, and a signed one by its identifier and its signer, which stay. So what the
 user allows the router, kept against its copy's path and, for some folders, its signature, holds
@@ -11535,12 +11536,12 @@ binary can't have its ticket stapled, so macOS looks it up online.
   into the checkout for the binaries to embed; a tree from before the app, an older tag built
   again to finish its upload, is built as it was, with no app and no tag. Then switchboard, for
   arm64 and amd64, with the build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
-  signed by `codesign` with the login keychain's Developer ID Application certificate, the
+  signed by `codesign` with the signing keychain's Developer ID Application certificate, the
   hardened runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`,
   the LaunchAgent's label, and run to check it reports that version; the two, with the app, sent
   together to Apple's notary service by
-  `notarytool`, under the keychain profile `notarytool`, the Mac's one login for notarising, made
-  once with `xcrun notarytool store-credentials notarytool`, and waited on until it answers, for
+  `notarytool`, under the keychain profile `notarytool` in the signing keychain, the Mac's one
+  login for notarising, and waited on until it answers, for
   about an hour at most, as mint gives a hook no time limit; then archived and summed under the
   names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
   `switchboard_<version>_checksums.txt`, and kept, with the commit they were built from, in
@@ -11570,11 +11571,12 @@ binary can't have its ticket stapled, so macOS looks it up online.
 - **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
   binary is run to check its version, Xcode 26 or later, chosen with `xcode-select`, for the app's
   `swiftc` and `actool`, which its command line tools alone don't have, and the certificate and the
-  profile. The first run is
-  at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
-  nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
-  profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that
-  dialog, or fails on a locked keychain, before the tag either way.
+  profile, in the signing keychain, `~/Library/Keychains/signing.keychain-db`, a keychain of their
+  own that kit's developer-id and notarytool steps make. It opens with the certificate's `.p12`
+  password, `DEVELOPER_ID_P12_PASSWORD`, which kit writes to `~/.secrets.zsh`, and never locks once
+  unlocked; `scripts/release-build` unlocks it itself before anything signs, and its key lets
+  `codesign` use it with no dialog, so a release asks nothing, at the Mac or over SSH alike.
+  `scripts/release-build 0.0.0-check` signs and notarises and releases nothing, to check it.
 - Each run logs to `~/Library/Logs/switchboard/release-<version>.log`, as mint shows nothing of a
   hook that succeeds and only the stderr of one that fails. mint's dry run runs neither hook. The
   owner's call, 5 November 2026, in place of signing in GitHub's workflow from secrets (built 4

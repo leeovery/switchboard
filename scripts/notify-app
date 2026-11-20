@@ -3,8 +3,14 @@
 # Builds switchboard's notifications' app, Switchboard.app, from
 # internal/notify/app into the folder given: one binary for arm64 and x86_64,
 # its Info.plist carrying the version given and its icon. scripts/release-build
-# runs it, signing with the Developer ID, and embeds the app in each binary.
-# By hand, with no identity, it signs the app ad hoc, for trying it, as
+# runs it, signing with the Developer ID from the signing keychain it names,
+# which release-build has unlocked, and embeds the app in each binary.
+# notify-app never unlocks a keychain, so by hand, with an identity, keychain
+# or not, codesign signs from the signing keychain, first on the keychain
+# search list, only once something has unlocked it: at the Mac, a
+# release-build or security unlock-keychain; over SSH, where each session
+# finds it locked, nothing has, so it doesn't sign. With no identity, it
+# signs the app ad hoc, for trying it, as
 # scripts/notify-app /some/folder 0.0.0, under the bundle identifier
 # io.github.leeovery.switchboard.notify.dev, so opening one never registers a
 # second copy of the real app with Launch Services.
@@ -21,7 +27,7 @@ fail() {
 }
 
 usage() {
-	fail "Usage: scripts/notify-app <out-dir> <version> [<identity>]"
+	fail "Usage: scripts/notify-app <out-dir> <version> [<identity> [<keychain>]]"
 }
 
 # compile builds the app's binary for each arch, joined into $1.
@@ -57,12 +63,14 @@ icon() {
 	[[ -f $1/Assets.car && -f $1/AppIcon.icns ]] || fail "actool made no icon: $out"
 }
 
-# sign signs the app $1 as identity $2, or ad hoc where $2 is empty, under
-# the identifier $3.
+# sign signs the app $1 as identity $2, from the keychain $4 where given, or
+# ad hoc where $2 is empty, under the identifier $3.
 sign() {
 	local args=(--force --options runtime --identifier "$3")
 	if [[ -n $2 ]]; then
-		args+=(--timestamp --sign "$2")
+		args+=(--timestamp)
+		[[ -z $4 ]] || args+=(--keychain "$4")
+		args+=(--sign "$2")
 	else
 		args+=(--sign -)
 	fi
@@ -71,8 +79,8 @@ sign() {
 }
 
 main() {
-	[[ $# -eq 2 || $# -eq 3 ]] || usage
-	local out=$1 version=$2 identity=${3:-}
+	[[ $# -ge 2 && $# -le 4 ]] || usage
+	local out=$1 version=$2 identity=${3:-} keychain=${4:-}
 	[[ -n $version ]] || usage
 	local app=$out/Switchboard.app id=$identifier
 	[[ -n $identity ]] || id=$identifier.dev
@@ -84,7 +92,7 @@ main() {
 	compile "$app/Contents/MacOS/Switchboard"
 	info "$app/Contents/Info.plist" "$version" "$id"
 	icon "$app/Contents/Resources"
-	sign "$app" "$identity" "$id"
+	sign "$app" "$identity" "$id" "$keychain"
 }
 
 main "$@"

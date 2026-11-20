@@ -751,8 +751,8 @@ func (w sessionWords) stateSays(s views.PeriodSession) line {
 // startedSays is when its first request came, in text.muted: by the clock
 // alone where it came on the day the session's grouped under, as one that
 // went on after a period gone is under none; else, at now, as prose.Begun
-// says it, its day as the rules name days, as "yesterday 15:08" or "Mon 21
-// Sep 09:12", and of a period gone, as prose.PastAt says it, as "Tue
+// says it, its day as the rules name days but never with a year, as
+// "yesterday 15:08" or "Mon 21 Sep 09:12", and of a period gone, as prose.PastAt says it, as "Tue
 // 12:08", "21 Sep 12:08" or "21 Sep 2025 12:08"; nothing where that isn't
 // known.
 func (w sessionWords) startedSays(s views.PeriodSession) line {

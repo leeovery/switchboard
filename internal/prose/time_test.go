@@ -296,11 +296,6 @@ func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
 	}
 }
 
-// A day gone, a time lately and a time begun name the day before now, in
-// now's time zone, alike: yesterday; its weekday within the six days before
-// today; else its date, a day gone and a time begun with its weekday, a time
-// begun with its time after the day. Today, a day gone is today, and a time
-// lately and a time begun its time.
 // A day gone named by its date in another year than now's carries its year;
 // one within the week names no date, so no year.
 func TestADayGoneInAnotherYearCarriesItsYear(t *testing.T) {
@@ -321,6 +316,11 @@ func TestADayGoneInAnotherYearCarriesItsYear(t *testing.T) {
 	}
 }
 
+// A day gone, a time lately and a time begun name the day before now, in
+// now's time zone, alike: yesterday; its weekday within the six days before
+// today; else its date, a day gone and a time begun with its weekday, a time
+// begun with its time after the day. Today, a day gone is today, and a time
+// lately and a time begun its time.
 func TestADayGoneAndATimeLatelyNameTheDayBeforeNow(t *testing.T) {
 	zone := time.FixedZone("UTC+1", 60*60)
 	now := time.Date(2026, 11, 19, 16, 0, 0, 0, zone)
