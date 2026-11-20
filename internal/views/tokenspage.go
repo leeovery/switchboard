@@ -9,8 +9,8 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// TokensPeriod is the period a row of Tokens is, as < and > step it: a day, a
-// week, as it opens, or a month.
+// TokensPeriod is the period a row of Tokens is, as the dial's length, which
+// - and + step, has it: a day, a week, as it opens, or a month.
 type TokensPeriod string
 
 const (
@@ -47,7 +47,8 @@ type TokensPage struct {
 // tokens and their worth, what the plans cost for it and the worth against
 // it; then by account, in the config's order, each by model version too, and
 // by model version, with the accounts it ran on. SoFar is set on the period
-// today is in, still running.
+// today is in, still running, and never in a past period, which holds no
+// today.
 type TokenPeriod struct {
 	First    string
 	Versions int
@@ -64,17 +65,17 @@ type TokenPeriod struct {
 // the later day the ledger began on, as tokensFrom counts them; and its
 // Total, the whole period's over the days its rows hold, so its tokens and
 // worth are theirs summed, its versions those they used, each once, and
-// against its price as Accounts' all accounts has it. Over today, one row
-// would only repeat the total, so it has none.
+// against its price as Accounts' all accounts has it, so far at now. Over
+// today, one row would only repeat the total, so it has none.
 func (p Past) TokensOver(period Period) TokensPage {
 	today := dayfile.CivilOf(p.in.Now)
 	span := period.spanAt(today, p.in.WeekStarts)
 	from := p.counted(span.first).Format(time.DateOnly)
-	page, held := p.tokensFrom(from, span.last.Format(time.DateOnly), period.length.Rows())
+	page, held := p.tokensFrom(span, from, period.length.Rows())
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
 	whole := tokenPeriodsOf(held, known, p.in.names(), p.versions(), from, period.shape(today, p.in.WeekStarts))
 	if len(whole) == 1 && len(whole[0].ByAccount) > 0 {
-		whole[0].SoFar = true
+		whole[0].SoFar = !span.gone
 		page.Total = &whole[0]
 	}
 	if period.length == LengthToday {
@@ -84,12 +85,17 @@ func (p Past) TokensOver(period Period) TokensPage {
 }
 
 // tokensFrom is a page of Tokens, its rows the periods given over the days
-// from the one with the date from to the one with the date last, counted
-// from the first of them, as tokenPeriodsOf counts them, newest first, those
-// with nothing recorded in them left out, the one today is in so far; and
-// the days its rows hold, oldest first, those of the rows left out gone.
-func (p Past) tokensFrom(from, last string, rows TokensPeriod) (TokensPage, []Day) {
+// from the one with the date from to the span's last, counted from the first
+// of them, as tokenPeriodsOf counts them, newest first, those with nothing
+// recorded in them left out, the one today is in so far at now; and the days
+// its rows hold, oldest first, those of the rows left out gone. Of a span
+// gone, the row its last day falls part-way through is priced to that day.
+func (p Past) tokensFrom(span periodSpan, from string, rows TokensPeriod) (TokensPage, []Day) {
+	last := span.last.Format(time.DateOnly)
 	by := rows.shape(p.in.WeekStarts)
+	if span.gone {
+		by.end = last
+	}
 	today, _ := by.of(dayfile.DateOf(p.in.Now))
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
 	days := between(p.days, from, last)
@@ -98,7 +104,7 @@ func (p Past) tokensFrom(from, last string, rows TokensPeriod) (TokensPage, []Da
 	shown := make(map[string]bool, len(all))
 	for _, t := range slices.Backward(all) {
 		if len(t.ByAccount) > 0 {
-			t.SoFar = t.First == today
+			t.SoFar = !span.gone && t.First == today
 			periods = append(periods, t)
 			shown[t.First] = true
 		}
@@ -118,12 +124,29 @@ func (p Past) tokensFrom(from, last string, rows TokensPeriod) (TokensPage, []Da
 // periodShape is how Tokens' rows split days into periods: of gives the key
 // of the period the day with the given date falls in, as TokenPeriod's First
 // names it, reporting false for a date that isn't one; dates the dates of a
-// period's first and last days, by its key; and share is the share of a
-// month a whole period costs its plans.
+// period's first and last days, by its key; share is the share of a month a
+// whole period costs its plans; and end, where it's set, the date of the
+// last day any period is priced to, as a past period's last row is.
 type periodShape struct {
 	of    func(date string) (string, bool)
 	dates func(key string) (first, last string)
 	share monthPart
+	end   string
+}
+
+// priced is how the plans over the period with the key given are priced,
+// the days counted beginning on the one with the date from, as pricedOver
+// prices them: whole, but where it runs past the shape's end, as a past 12
+// months' last month, by its days to then, a day each.
+func (by periodShape) priced(key, from string) priced {
+	first, last := by.dates(key)
+	if by.end == "" || last <= by.end {
+		return pricedOver(first, last, from, by.share)
+	}
+	// Both dates are written from days, so they parse.
+	start, _ := dayfile.Civil(first)
+	end, _ := dayfile.Civil(by.end)
+	return pricedOver(first, by.end, from, daysOver(start, end))
 }
 
 // key is the key of the period the day falls in, as spansOf takes it.
