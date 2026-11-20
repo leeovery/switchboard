@@ -301,6 +301,26 @@ func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
 // today; else its date, a day gone and a time begun with its weekday, a time
 // begun with its time after the day. Today, a day gone is today, and a time
 // lately and a time begun its time.
+// A day gone named by its date in another year than now's carries its year;
+// one within the week names no date, so no year.
+func TestADayGoneInAnotherYearCarriesItsYear(t *testing.T) {
+	now := time.Date(2026, 1, 4, 16, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "within the week, last year", t: time.Date(2025, 12, 31, 9, 0, 0, 0, time.UTC), want: "Wed"},
+		{name: "a date of last year", t: time.Date(2025, 9, 21, 9, 0, 0, 0, time.UTC), want: "Sun 21 Sep 2025"},
+		{name: "within the week, this year", t: time.Date(2026, 1, 1, 9, 0, 0, 0, time.UTC), want: "Thu"},
+	}
+	for _, tt := range tests {
+		if got := prose.DayGone(now, tt.t); got != tt.want {
+			t.Errorf("%s: DayGone() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestADayGoneAndATimeLatelyNameTheDayBeforeNow(t *testing.T) {
 	zone := time.FixedZone("UTC+1", 60*60)
 	now := time.Date(2026, 11, 19, 16, 0, 0, 0, zone)

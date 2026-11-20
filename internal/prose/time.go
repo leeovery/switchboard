@@ -266,9 +266,10 @@ const yesterday = "yesterday "
 // DayGone names the day t falls on, before now, in now's time zone, as a
 // rule over what ended that day names it: "today"; "yesterday"; its weekday
 // within the six days before today, as "Tue"; else its weekday and date, as
-// Day names it, "Mon 21 Sep".
+// DayAt names it, "Mon 21 Sep", or in another year than now's, "Sun 21 Sep
+// 2025".
 func DayGone(now, t time.Time) string {
-	return dayBefore(now, t, "today", Day)
+	return dayBefore(now, t, "today", func(d time.Time) string { return DayAt(now, d) })
 }
 
 // Begun says when t was, before now, in now's time zone, as a session's

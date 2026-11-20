@@ -331,14 +331,21 @@ func isSessionRow(row string) bool {
 	return false
 }
 
-// Choosing the last session shows the words after it too, where the page
-// holds both beside its day's rule, held over it, from three rows; and the
-// session alone where it doesn't.
+// A step onto the last session shows the words after it too, where the
+// page holds both beside its day's rule, held over it, from three rows; and
+// the session alone where it doesn't. Kept in view otherwise, as a scroll or
+// a click keeps it, it scrolls no further than shows the session.
 func TestTheLastSessionChosenRevealsTheWordsAfterIt(t *testing.T) {
 	for page, f := range pagedFrames(t, unkeptWeek, 1, 2, 3, 4) {
 		f.SessionsTab.Chosen.Session = "3b17a9d6"
-		f.Scroll = f.ListScroll(framedDoc(nil, nil), routedAt)
-		rows := strings.Join(pageRows(f), "\n")
+		kept := f
+		kept.Scroll = f.ListScroll(framedDoc(nil, nil), routedAt)
+		rows := strings.Join(pageRows(kept), "\n")
+		if !strings.Contains(rows, " 3b17 ") || page == 3 && strings.Contains(rows, unkeptSaid) {
+			t.Errorf("a page of %d, 3b17 kept in view, reads\n%s\nwant 3b17 shown, and on a page of 3 the words after it not", page, rows)
+		}
+		f.Scroll = f.ListStepScroll(framedDoc(nil, nil), routedAt)
+		rows = strings.Join(pageRows(f), "\n")
 		if !strings.Contains(rows, " 3b17 ") {
 			t.Errorf("a page of %d, 3b17 chosen, reads\n%s\nwant 3b17 shown", page, rows)
 		}
@@ -466,6 +473,63 @@ func TestThePeriodLineIsNeverCut(t *testing.T) {
 				if r.width() > width {
 					t.Errorf("%s at %d, %q runs past the width", dial.Name(), width, r.plain())
 				}
+			}
+		}
+	}
+}
+
+// The period line takes the first of its forms whose rows fit whole: of 12
+// months to 1 Oct 2025 with 29 sessions, 5,423 requests and $646.09, at 108
+// all on one row; at 73 broken after the requests; at 52 the name over the
+// rest; narrower, the requests giving way, the sessions after the name, then
+// under it with the worth, then the worth alone under the name. Of no
+// sessions, saying so after the name, or under it.
+func TestThePeriodLineTakesTheFirstFormThatFits(t *testing.T) {
+	dial := views.DialOf(listStepsBack(t, views.LengthTwelveMonths, 1), routedAt, time.Monday, time.Time{})
+	counted := &views.SessionLog{All: views.ProjectTotals{Sessions: 29, Requests: 5423, Worth: worthOf(64609)}}
+	tests := []struct {
+		name  string
+		log   *views.SessionLog
+		width int
+		want  []string
+	}{
+		{name: "one row", log: counted, width: 108, want: []string{"12 months to 1 Oct 2025  29 sessions · 5,423 requests · $646.09 at API prices"}},
+		{name: "broken after the requests", log: counted, width: 73, want: []string{"12 months to 1 Oct 2025  29 sessions · 5,423 requests", "$646.09 at API prices"}},
+		{name: "the name over the rest", log: counted, width: 52, want: []string{"12 months to 1 Oct 2025", "29 sessions · 5,423 requests · $646.09 at API prices"}},
+		{name: "the sessions after the name", log: counted, width: 40, want: []string{"12 months to 1 Oct 2025  29 sessions", "$646.09 at API prices"}},
+		{name: "the sessions under the name", log: counted, width: 35, want: []string{"12 months to 1 Oct 2025", "29 sessions · $646.09 at API prices"}},
+		{name: "the worth alone", log: counted, width: 30, want: []string{"12 months to 1 Oct 2025", "$646.09 at API prices"}},
+		{name: "none, after the name", log: &views.SessionLog{}, width: 52, want: []string{"12 months to 1 Oct 2025  no sessions"}},
+		{name: "none, under the name", log: &views.SessionLog{}, width: 30, want: []string{"12 months to 1 Oct 2025", "no sessions"}},
+	}
+	for _, tt := range tests {
+		var got []string
+		for _, r := range periodLine(*tt.log, dial, tt.width) {
+			got = append(got, r.plain())
+		}
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("%s at %d, the period line reads %q, want %q", tt.name, tt.width, got, tt.want)
+		}
+	}
+}
+
+// A day's rule names a day in another year than now's with its year, at
+// every width, in a period gone as at now.
+func TestADaysRuleInAnotherYearCarriesItsYear(t *testing.T) {
+	ended := listedSession{"5d20c8e3", "~/Code/api", "side", endedAtOn(septemberClock(21, 18, 0).AddDate(-1, 0, 0)), septemberClock(21, 12, 8).AddDate(-1, 0, 0), 4, 40, views.NoMark, 0}
+	for _, width := range pastWidths {
+		for _, gone := range []bool{false, true} {
+			log := &views.SessionLog{Sessions: []views.PeriodSession{ended.logged()}, All: views.ProjectTotals{Sessions: 1}}
+			var f Frame
+			if gone {
+				f = pastFrame(t, width, listStepsBack(t, views.LengthTwelveMonths, 1), log)
+			} else {
+				log.Period = views.LengthTwelveMonths.Now()
+				f = listFrame(t, width, 37, log)
+			}
+			c := f.page(framedDoc(nil, nil), routedAt)
+			if got, want := rowOf(c, f.top()+1), "  ended Sun 21 Sep 2025  ─"; !strings.HasPrefix(got, want) {
+				t.Errorf("at %d, gone %t, the rule reads %q, want it to start %q", width, gone, got, want)
 			}
 		}
 	}
