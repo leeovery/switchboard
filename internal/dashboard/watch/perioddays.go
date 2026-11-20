@@ -22,10 +22,8 @@ import (
 // for its own, as daysFeed has it, and how many reads told otherwise of
 // them; whether a read is under way, and how many were asked, a read
 // another overtook passed over; the date of the day they were last bounded
-// on, or read on, as bounded has it; and where the pool shown's work
-// begins, as begun has it, the reads asking till one tells it.
+// on, or read on, as bounded has it.
 type periodDays struct {
-	begun
 	days    *views.SessionDays
 	from    time.Time
 	read    int
@@ -79,7 +77,7 @@ func (m Model) readDays() (Model, tea.Cmd) {
 	if d.days != nil && !from.Before(d.from) {
 		return m, nil
 	}
-	l, pool, start := m.cfg.Ledger, m.cfg.PoolRead, d.beganAsked(m.ledgerStart())
+	l, pool, start := m.cfg.Ledger, m.cfg.PoolRead, m.begun.beganAsked(m.ledgerStart())
 	m.sessionDays.asked++
 	m.sessionDays.reading = true
 	asked := m.sessionDays.asked
@@ -99,25 +97,24 @@ func (m Model) readDays() (Model, tea.Cmd) {
 // that's known and later, so no page of the sessions' days reads a day
 // before the pool worked, as Accounts' periods begin there.
 func (m Model) daysFrom(now time.Time) time.Time {
-	return score.Later(m.period.From(now, m.cfg.WeekStarts), m.sessionDays.began)
+	return score.Later(m.period.From(now, m.cfg.WeekStarts), m.begun.began)
 }
 
 // daysRead takes in a read of the sessions' days, but one another overtook:
 // held in place of those held before, the days the tail fed letting go of
 // those it stands for, as withoutRead has it, for what's built of them to
 // be built afresh, bounded next on a day after the one it was read on, as
-// bounded has it; and where the pool shown's work begins, as begun's told
-// has it.
+// bounded has it; and where the pool shown's work begins, as learned has
+// it.
 func (m Model) daysRead(msg daysReadMsg) Model {
 	if msg.asked != m.sessionDays.asked {
 		return m
 	}
 	m.sessionDays.reading = false
 	m.sessionDays.days, m.sessionDays.from, m.sessionDays.boundOn = &msg.days, msg.from, msg.on
-	m.sessionDays.begun = m.sessionDays.told(msg.beginning)
 	m.sessionDays.tailed = m.sessionDays.withoutRead(m.sessionDays.tailed)
 	m.sessionDays.read++
-	return m
+	return m.learned(msg.beginning)
 }
 
 // bounded is d holding no more days than the period from from's day draws,
@@ -266,7 +263,7 @@ type periodBuiltOf struct {
 // periodBuiltOf has it, the List's sessions it draws as given.
 func (m Model) daysBuiltOf(now time.Time, listed []runningKey) periodBuiltOf {
 	return periodBuiltOf{
-		read: m.sessionDays.read, fed: m.sessionDays.fed, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now), listed: listed,
+		read: m.sessionDays.read, fed: m.sessionDays.fed, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now, m.cfg.WeekStarts), listed: listed,
 	}
 }
 
@@ -321,6 +318,6 @@ func listingKeys(list views.SessionList, of func(views.ListedSession) bool) []ru
 func (m Model) periodInput(now time.Time, list views.SessionList) views.PeriodInput {
 	return views.PeriodInput{
 		Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
-		Began: m.sessionDays.began, Projects: m.cfg.Projects,
+		Began: m.begun.began, Projects: m.cfg.Projects,
 	}
 }

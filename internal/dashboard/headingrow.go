@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -32,10 +31,9 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // less room; the widest its least form takes as the keys that change what it
 // names step it, whether it shows yet or not; whether it's free text, its
 // length unbounded, as the Log's filter, cut to the room it's left; and at
-// its right, its period or window, which < and > step, or another line, as
-// the Log's count and its f, and that line where the heading is compact,
-// where it has one of its own; the widest form its period takes as < and >
-// step it, the period itself where it's not given; and whether it says its
+// its right, the dial's period, which < and > step, as dialed has it, or
+// another line, as the Log's count and its f, and that line where the
+// heading is compact, where it has one of its own; and whether it says its
 // page is loading.
 type heading struct {
 	name         string
@@ -46,8 +44,7 @@ type heading struct {
 	least        string
 	free         bool
 	reading      bool
-	period       string
-	widest       string
+	period       dialed
 	right        line
 	compactRight line
 }
@@ -137,9 +134,9 @@ func (f Frame) tabHeading() heading {
 	case Accounts:
 		return f.accountsHeading()
 	case Projects:
-		return f.Projects.heading(f.Period)
+		return f.Projects.heading(f.Dial)
 	case Sessions:
-		return f.SessionsTab.heading(f.Period)
+		return f.SessionsTab.heading(f.Dial)
 	case Runway:
 		return f.Runway.heading()
 	case Log:
@@ -220,10 +217,10 @@ func (h heading) under(width int, phone bool) (state, right bool) {
 }
 
 // widestRight are what sits at a compact heading's right at its widest: its
-// period at the widest it takes as < and > step it; else its line.
+// period at the widest it takes, as atWidest has it; else its line.
 func (h heading) widestRight() []piece {
-	if h.period != "" {
-		return periodPieces(cmp.Or(h.widest, h.period))
+	if h.period.shown() {
+		return periodPieces(h.period.atWidest())
 	}
 	return h.rightPieces(true)
 }
@@ -326,7 +323,7 @@ func (h heading) subTab(i int) line {
 // one; else its line; else nothing.
 func (h heading) rightPieces(compact bool) []piece {
 	switch {
-	case h.period != "":
+	case h.period.shown():
 		return periodPieces(h.period)
 	case compact && h.compactRight != nil:
 		return []piece{{line: h.compactRight}}
@@ -349,13 +346,28 @@ func widestOf(forms []string) string {
 	return widest
 }
 
-// periodPieces are the period given between < and >, each a step back and
-// on.
-func periodPieces(period string) []piece {
+// stepOffInk is < or > by the dial's period where it does nothing: faint,
+// and still bold, as the keys beside it are.
+var stepOffInk = ink{token: theme.TextFaint, bold: true}
+
+// periodPieces are the dial's period given between < and >, each a step
+// back and on, faint where it does nothing; the period's name in text.muted,
+// or gone, in accent.attention, so it never reads as now.
+func periodPieces(d dialed) []piece {
+	back, on, name := keyInk, keyInk, mutedInk
+	if d.backOff {
+		back = stepOffInk
+	}
+	if d.onOff {
+		on = stepOffInk
+	}
+	if d.gone {
+		name = warningInk
+	}
 	return []piece{
-		{line: line{{"<", keyInk}}, click: Target{On: OnStep, Step: -1}},
-		{line: line{{" " + period + " ", mutedInk}}},
-		{line: line{{">", keyInk}}, click: Target{On: OnStep, Step: 1}},
+		{line: line{{"<", back}}, click: Target{On: OnStep, Step: -1}},
+		{line: line{{" " + d.name + " ", name}}},
+		{line: line{{">", on}}, click: Target{On: OnStep, Step: 1}},
 	}
 }
 

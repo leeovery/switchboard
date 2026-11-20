@@ -115,7 +115,8 @@ func TestTheProjectsListOfNoSessionsSaysSoAsTheListDoes(t *testing.T) {
 		{views.LengthThirtyDays.Now(), "no sessions in the last 30 days"},
 	} {
 		f := frameOf(108, 30)
-		f.View, f.Period, f.Projects = Projects, tt.period, ProjectsShown{Page: &views.ProjectsPage{Period: tt.period}}
+		f.View, f.Projects = Projects, ProjectsShown{Page: &views.ProjectsPage{Period: tt.period}}
+		f = f.over(tt.period)
 		if got := strings.Join(textOf(f.Draw(threeRouted(), routedAt)), "\n"); !strings.Contains(got, tt.want) {
 			t.Errorf("Projects over %s drew\n%s\nwant %q", tt.period.Length().Name(), got, tt.want)
 		}
@@ -888,18 +889,39 @@ func TestABarOfEighthsEndsInItsLastPartsBlock(t *testing.T) {
 	}
 }
 
-// Projects' help says how its periods run, as Accounts' does, each from
-// where it truly starts, and that it shares the period with Accounts and
-// Sessions' List.
-func TestProjectsHelpSaysHowItsPeriodsRun(t *testing.T) {
-	var said []string
-	for _, p := range projectsHelp() {
-		said = append(said, plainLines(p.says)...)
+// Each help of a tab with the dial says what its keys do: - and + its
+// length, keeping the last day, = as +; < and > back and on in time, to
+// either end; and n back to now; and that the tabs share it. Accounts' and
+// Projects' say how the periods run besides.
+func TestEachDialsHelpSaysWhatItsKeysDo(t *testing.T) {
+	const (
+		periodsRun = "a period is a length and the day it ends on. Today is that day, this week its week, 30 days and 12 " +
+			"months run back from it, and 12 weeks over its week and the 11 before. The period that reaches today is now"
+		steps = "- and + step through today, this week, 30 days, 12 weeks and 12 months, keeping the period's last day, = as " +
+			"+; < and > step back and on in time, a period at a time, < stopping at the ledger's first day and > at now, " +
+			"each faint where it stops; and n goes back to now"
+	)
+	f := frameOf(160, 37)
+	f.Accounts = AccountsShown{Accounts: threeConfigured}
+	tests := []struct {
+		page  string
+		parts []helpPart
+		want  []string
+	}{
+		{page: "Accounts", parts: f.accountsHelp(), want: []string{periodsRun, steps + ", Compare, Detail and Tokens sharing the period, the one Projects and Sessions' List share."}},
+		{page: "Projects", parts: projectsHelp(), want: []string{periodsRun, steps + ", the period Accounts and Sessions' List share."}},
+		{page: "Sessions", parts: f.sessionsHelp(), want: []string{steps + ", the period Accounts and Projects share."}},
 	}
-	all := strings.Join(said, " ")
-	for _, want := range []string{"today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before", "< and > step through today, this week, 30 days, 12 weeks and 12 months, the period Accounts and Sessions' List share."} {
-		if !strings.Contains(all, want) {
-			t.Errorf("Projects' help reads\n%s\nwant %q", all, want)
+	for _, tt := range tests {
+		var said []string
+		for _, p := range tt.parts {
+			said = append(said, plainLines(p.says)...)
+		}
+		all := strings.Join(said, " ")
+		for _, want := range tt.want {
+			if !strings.Contains(all, want) {
+				t.Errorf("%s' help reads\n%s\nwant %q", tt.page, all, want)
+			}
 		}
 	}
 }

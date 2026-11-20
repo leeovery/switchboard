@@ -227,11 +227,11 @@ func (t projectsTab) chosenIn(page views.ProjectsPage) string {
 }
 
 // projectsSteps are the ways Projects' keys move: back, -1, or on, 1.
-var projectsSteps = map[string]int{"<": -1, ">": 1, "left": -1, "right": 1, "up": -1, "down": 1}
+var projectsSteps = map[string]int{"left": -1, "right": 1, "up": -1, "down": 1}
 
 // projectsKey acts on a key of Projects', reporting false for a key it
-// doesn't take, or on another tab, and the command it starts, if any: < and
-// > step the period, as periodStepped has it; ↑ and ↓ choose a project in
+// doesn't take, or on another tab, and the command it starts, if any: the
+// dial's keys step the period, as periodStepped has it; ↑ and ↓ choose a project in
 // the list, or a session in SESSIONS, as Choosing has it; → and ← move
 // between the two, as Moved has it; and enter opens the session selected,
 // in SESSIONS, as openSession opens it. A key that changes what's shown
@@ -240,12 +240,13 @@ func (m Model) projectsKey(key string) (Model, tea.Cmd, bool) {
 	if m.shownView() != dashboard.Projects {
 		return m, nil, false
 	}
+	if stepped, ok := m.periodStepped(key); ok {
+		return stepped, nil, true
+	}
 	s, by := m.projects.shown, projectsSteps[key]
 	var next dashboard.ProjectsShown
 	var changed bool
 	switch key {
-	case "<", ">":
-		return m.periodStepped(by), nil, true
 	case "up", "down":
 		next, changed = s.Choosing(by)
 	case "left", "right":
@@ -325,21 +326,19 @@ func (m Model) projectsClick(t dashboard.Target) (tea.Model, tea.Cmd, bool) {
 // projectsListings are Projects' own keys, each move in a group of its own,
 // as the key line sets them: in the list, ↑↓ through the projects, and →
 // into the chosen one's sessions, where it has any; in SESSIONS, ↑↓ through
-// them, ← back to the list and enter opening the one selected; then < > and
-// the period. A phone's line keeps the moves, → worded sessions, and the
-// period without its name, but in SESSIONS.
-func (m Model) projectsListings() []keyListing {
+// them, ← back to the list and enter opening the one selected; then the
+// dial's keys, of its period as dial says it, as dialListings has them, a
+// phone's line naming < > at now in the list alone. A phone's line keeps
+// the moves, → worded sessions.
+func (m Model) projectsListings(dial views.Dial) []keyListing {
 	shown := m.shownView() == dashboard.Projects
 	s := m.projects.shown
 	list, sessions := shown && !s.InSessions, shown && s.InSessions
-	period := m.periodKey()
-	return []keyListing{
+	return slices.Concat([]keyListing{
 		{Key: dashboard.Key{Key: "↑↓", Does: "project"}, works: list, apart: true},
 		{Key: dashboard.Key{Key: "→", Does: "its sessions"}, works: list && s.Project != nil && len(s.Project.Sessions) > 0, apart: true, phoneDoes: "sessions"},
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: sessions, apart: true},
 		{Key: dashboard.Key{Key: "←", Does: "projects"}, works: sessions, apart: true},
 		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: !s.Opens()}, works: sessions, apart: true},
-		{Key: period, works: list, apart: true, phoneDoes: "period"},
-		{Key: period, works: sessions, apart: true, wide: true},
-	}
+	}, dialListings(dial, shown, list))
 }

@@ -78,7 +78,7 @@ type projectsList struct {
 	width   int
 	look    Look
 	now     time.Time
-	period  views.Period
+	dial    views.Dial
 }
 
 // listedProject is a row of the list: what names it, its totals, and its
@@ -96,7 +96,7 @@ type listedProject struct {
 // row lit where lit says.
 func projectsListOf(f Frame, rows int, lit bool, now time.Time) projectsList {
 	s := f.Projects
-	l := projectsList{rows: s.rows(), chosen: s.chosenAt(), lit: lit, width: f.Width, look: f.Look, now: now, period: f.Period}
+	l := projectsList{rows: s.rows(), chosen: s.chosenAt(), lit: lit, width: f.Width, look: f.Look, now: now, dial: f.Dial}
 	if s.Page != nil {
 		l.all = s.Page.All
 	}
@@ -190,7 +190,7 @@ func (l projectsList) linesShown() int {
 // says it.
 func (l projectsList) draw(c *canvas, y int) int {
 	if len(l.rows) == 0 {
-		c.line(listFrom, y, noSessionsIn(l.period).fit(l.width-listFrom))
+		c.line(listFrom, y, noSessionsIn(l.dial).fit(l.width-listFrom))
 		return y + 1
 	}
 	for _, col := range l.columns {

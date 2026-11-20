@@ -34,4 +34,4 @@ WORTH  at API prices, by day
                            3 Sep 9 Sep 15 Sep 22 Sep 29 Sep 2 Sep 8 Sep 14 Sep 21 Sep 28 Sep 2 Sep 8 Sep 14 Sep 21 Sep 28 Sep  3 Sep 9 Sep 15 Sep 22 Sep 29 Sep
                           peak 2 Sep $99.47                 peak 30 Sep $81.32               peak 30 Sep $108                 peak 30 Sep $212 · its own scale
 ▼ 16 more below · j/k
-tab views   [ ] view    < > period: 30 days    ←→ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    - + period: 30 days    < > back · on    ←→ account  enter its page    p pin    ? help  q quit

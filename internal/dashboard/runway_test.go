@@ -60,8 +60,8 @@ func TestRunwaysHeadingNamesTheDaysSteppedBackToAndNoWindow(t *testing.T) {
 			r := tt.shown
 			r.Timeline = r.TimelineAt(runwayAt(), time.Monday, 160)
 			h := r.heading()
-			if h.name != "RUNWAY" || h.period != "" || h.right != nil || !reflect.DeepEqual(h.state, tt.state) {
-				t.Errorf("heading() = %q, %q, %v, %v, want RUNWAY, no window, nothing at its right, %v", h.name, h.period, h.right, h.state, tt.state)
+			if h.name != "RUNWAY" || h.period.shown() || h.right != nil || !reflect.DeepEqual(h.state, tt.state) {
+				t.Errorf("heading() = %q, %q, %v, %v, want RUNWAY, no window, nothing at its right, %v", h.name, h.period.name, h.right, h.state, tt.state)
 			}
 			c, pieces := laidOn(h, 160, false)
 			if slices.ContainsFunc(pieces, func(p piece) bool { return p.click.On == OnStep }) {

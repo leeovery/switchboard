@@ -25,12 +25,10 @@ type ProjectsShown struct {
 	Measured   SessionsMeasured
 }
 
-// heading is Projects' heading row: its name, and at its right, the period
-// given between < and >, as periodDial has it.
-func (s ProjectsShown) heading(period views.Period) heading {
-	h := heading{name: strings.ToUpper(Projects.Title())}
-	h.period, h.widest = periodDial(period)
-	return h
+// heading is Projects' heading row: its name, and at its right, the dial's
+// period given between < and >, as periodDial has it.
+func (s ProjectsShown) heading(dial views.Dial) heading {
+	return heading{name: strings.ToUpper(Projects.Title()), period: periodDial(dial)}
 }
 
 // rows are the list's rows: none till the page is read.

@@ -131,8 +131,8 @@ type tokensColumns struct {
 
 // tokensTable is Tokens as Accounts draws it: its page; the period each of
 // its rows is, which names them, heads their column and names the unit
-// against its price says; the dial's period, which names its total and its
-// unit; how each row is split; the accounts configured, whose labels the
+// against its price says; the dial's period, whose length names its total's
+// unit, and as it's said, which names its total; how each row is split; the accounts configured, whose labels the
 // names' and the split's columns hold; and the frame's width, its view's
 // rows, and how far it's scrolled. Its rows fill the view to its foot, a row
 // at a time.
@@ -140,6 +140,7 @@ type tokensTable struct {
 	page     *views.TokensPage
 	rows     views.TokensPeriod
 	period   views.Period
+	dial     views.Dial
 	split    TokensSplit
 	accounts config.Accounts
 
@@ -481,8 +482,7 @@ func (t tokensTable) rowsOf(b tokensBlock) []tokensRow {
 	p := b.period
 	name, unit := periodName(p.First, t.rows), t.rows.Name()
 	if b.total {
-		length := t.period.Length()
-		name, unit = length.Name(), length.Unit()
+		name, unit = t.dial.Name(), t.period.Length().Unit()
 	}
 	split := tokensRow{ink: mutedInk, lit: p.SoFar, split: true, total: b.total}
 	rows := []tokensRow{{

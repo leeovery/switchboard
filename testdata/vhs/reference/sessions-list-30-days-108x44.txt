@@ -41,4 +41,4 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
   mobile      6363                     work      sonnet-5-5  ended 13:33  10:08                 308   $35.59
 30 days  162 sessions · 26,469 requests · $3,061.31 at API prices
   ▲ 51 more sessions · ▼ 82 more sessions
-tab views   [ ] view   < > period: 30 days   ↑↓ session   enter its page   p pin   ? help  q quit
+tab views   [ ] view   - + period   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit

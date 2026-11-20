@@ -47,20 +47,20 @@ func TestCompareDrawnWideCutsNoFigure(t *testing.T) {
 }
 
 // comparePeriods is how many periods Compare's cuts are held over: from the
-// earliest, three back with <, to the latest.
+// shortest, three shorter with -, to the longest.
 const comparePeriods = 4
 
 // compareOver is Compare of the fixture named, with nothing open over it,
-// moved back three periods with <, then on period of them with >.
+// three periods shorter with -, then period of them longer with +.
 func compareOver(t *testing.T, name string, period int) watch.Model {
 	t.Helper()
 	f := fixture(t, name)
 	m := withNothingOver(t, f.settle(f.Size), f.Size)
-	for _, k := range keysOf("<", "<", "<") {
+	for _, k := range keysOf("-", "-", "-") {
 		m = deliver(m, k)
 	}
 	for range period {
-		m = deliver(m, keysOf(">")[0])
+		m = deliver(m, keysOf("+")[0])
 	}
 	return m
 }

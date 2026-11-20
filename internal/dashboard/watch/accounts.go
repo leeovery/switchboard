@@ -108,7 +108,7 @@ func (m Model) accountsBuilt() Model {
 		return m
 	}
 	now := m.now()
-	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now)}
+	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now, m.cfg.WeekStarts)}
 	if of.period.Length() == views.LengthToday {
 		of.fed = m.sessionDays.fed
 	}
@@ -278,12 +278,12 @@ func (m Model) sessionsKept(page dashboard.Frame, now time.Time) (Model, dashboa
 }
 
 // accountsSteps are the ways Accounts' keys move: back, -1, or on, 1.
-var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1, "right": 1, "up": -1, "down": 1}
+var accountsSteps = map[string]int{"[": -1, "]": 1, "left": -1, "right": 1, "up": -1, "down": 1}
 
 // accountsKey acts on a key of Accounts', reporting false for a key it
 // doesn't take, or on another tab, and the command it starts, if any: [ and
-// ] turn the sub-tab, as Turned has it, and < and > step the period, as
-// periodStepped has it; ← and → move Compare's focus, or Detail's ↑ and ↓
+// ] turn the sub-tab, as Turned has it, and the dial's keys step the period,
+// as periodStepped has it; ← and → move Compare's focus, or Detail's ↑ and ↓
 // between its list and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
 // has it; enter opens what's focused or selected, as entered has it; esc
 // ends Compare's focus, as Unfocused has it; and v cycles Tokens' split, as
@@ -297,14 +297,15 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	if m.focusless(key) {
 		return m, nil, true
 	}
+	if stepped, ok := m.periodStepped(key); ok {
+		return stepped, nil, true
+	}
 	s, now, by := m.accounts.shown, m.now(), accountsSteps[key]
 	var next dashboard.AccountsShown
 	var changed bool
 	switch key {
 	case "[", "]":
 		next, changed = s.Turned(by)
-	case "<", ">":
-		return m.periodStepped(by), nil, true
 	case "left", "right":
 		next, changed = s.Moved(by, m.running(now))
 	case "up", "down":

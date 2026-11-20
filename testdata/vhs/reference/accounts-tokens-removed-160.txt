@@ -43,4 +43,4 @@ week          models                 input      output cache write    cache read
 
 worth: what the same tokens would cost through the API, at its prices as of 1 Oct 2026
 
-tab views   [ ] view    < > period: 12 weeks    v split: by account    p pin    ? help  q quit
+tab views   [ ] view    - + period: 12 weeks    < > back · on    v split: by account    p pin    ? help  q quit

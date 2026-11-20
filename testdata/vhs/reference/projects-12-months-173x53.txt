@@ -50,4 +50,4 @@ SESSIONS
   7902                                                                                                         personal  haiku-4-5   ended 14:08  12:15           238  $27.43
   ▼ 495 more sessions
 
-tab views   ↑↓ project   → its sessions   < > period: 12 months   p pin   ? help  q quit
+tab views   ↑↓ project   → its sessions   - + period: 12 months   < > back · on   p pin   ? help  q quit

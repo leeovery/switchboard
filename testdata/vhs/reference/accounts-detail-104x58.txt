@@ -55,4 +55,4 @@ Wed 17:10  ✓ open again: its 5-hour window reset
 
 
 
-tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    - + period    < > back · on    ↑↓ account  enter its page    ? help  q quit

@@ -323,7 +323,7 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 	if !ok {
 		return nil
 	}
-	past, held := m.past.reaching(runwayYear(first, now, m.cfg.WeekStarts))
+	past, held := m.past.reaching(runwayYear(first, now, m.cfg.WeekStarts), m.begun.began)
 	if !held {
 		return nil
 	}
@@ -368,7 +368,7 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
-	read.began = m.past.beganAsked(m.ledgerStart())
+	read.began = m.begun.beganAsked(m.ledgerStart())
 	t.reading, t.readingLive = true, read.span.is(live)
 	m.runwayTab = t
 	return m, read.cmd(now)
@@ -434,8 +434,7 @@ func (m Model) runwayRead(msg runwayReadMsg) Model {
 		t.warned = true
 	}
 	m.runwayTab = t
-	m.past = m.past.learned(msg.beginning)
-	return m
+	return m.learned(msg.beginning)
 }
 
 // runwayStepKeys are the ways Runway's ← and → move: back through the weeks
@@ -475,7 +474,7 @@ func (m Model) runwayKey(key string) (Model, bool) {
 func (m Model) runwayReaches(r dashboard.RunwayShown, now time.Time) bool {
 	tl := r.TimelineAt(now, m.cfg.WeekStarts, 0)
 	_, last, named := tl.Named()
-	began := m.past.began
+	began := m.begun.began
 	return !named || !tl.Now.IsZero() || !began.IsZero() && !last.Before(civilOf(began))
 }
 

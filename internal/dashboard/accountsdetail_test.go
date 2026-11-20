@@ -190,7 +190,7 @@ func detailFrame(look Look, configured config.Accounts, chosen, selected string,
 	return Frame{
 		Width: 160, Height: wholeRows, Look: look, View: Accounts, Policy: claudeLike, Sessions: sessions, Stream: stream,
 		Accounts: AccountsShown{Shown: AccountsDetail, Accounts: configured, Chosen: chosen, Selected: selected, InSessions: selected != "", Page: page},
-	}
+	}.over(views.LengthThisWeek.Now())
 }
 
 // rowWith is the first of the rows holding the text given, -1 where none
@@ -854,16 +854,18 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 	}
 }
 
-// THIS WEEK's title names the period.
+// THIS WEEK's title names the period as the dial says it, a past period's
+// by its own words.
 func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff)
+	last, _ := views.LengthThisWeek.Now().Back(now, time.Monday, time.Time{})
 	for period, want := range map[views.Period]string{
 		views.LengthThisWeek.Now(): "THIS WEEK", views.LengthToday.Now(): "TODAY", views.LengthThirtyDays.Now(): "LAST 30 DAYS", views.LengthTwelveWeeks.Now(): "LAST 12 WEEKS",
-		views.LengthTwelveMonths.Now(): "LAST 12 MONTHS",
+		views.LengthTwelveMonths.Now(): "LAST 12 MONTHS", last: "LAST WEEK",
 	} {
 		page := detailsPage(t)
 		page.Period = period
-		rows := textOf(detailFrame(Look{}, framedAccounts, "work", "", page, nil).Draw(doc, routedAt))
+		rows := textOf(detailFrame(Look{}, framedAccounts, "work", "", page, nil).over(period).Draw(doc, routedAt))
 		if y := rowWith(rows, "USAGE"); !strings.HasSuffix(rows[y], want) {
 			t.Errorf("%s: USAGE's row reads %q, want THIS WEEK's title %q", period.Length().Name(), rows[y], want)
 		}
@@ -1225,7 +1227,7 @@ func TestDetailsFactsLineSaysTheFactsAlone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := Frame{
-				Width: tt.width, Height: wholeRows, View: Accounts, Policy: claude.Policy(), Period: tt.period,
+				Width: tt.width, Height: wholeRows, View: Accounts, Policy: claude.Policy(), Period: tt.period, Dial: dialOf(tt.period),
 				Accounts: AccountsShown{Shown: AccountsDetail, Accounts: am.Accounts, Chosen: am.Accounts[0].ID, Page: momentPage(am, tt.period)},
 			}
 			c := f.At(am.Doc, am.Now).page(am.Doc, am.Now)

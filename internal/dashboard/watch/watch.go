@@ -207,9 +207,10 @@ type Config struct {
 	KeepGraphs bool
 	Log        dashboard.LogTicks
 	Prefs      Prefs
-	// Period is the period the entity tabs open counting over: of the length
-	// the preferences keep, as dashboard.LengthKept reads it, which Prefs
-	// keeps as it changes, or the one shown where the pool turns.
+	// Period is the period the entity tabs open counting over: now, of the
+	// length the preferences keep, as dashboard.LengthKept reads it, which
+	// Prefs keeps as it changes; or the one shown where the pool turns, past
+	// or now.
 	Period views.Period
 	// AccountsShown is what the preferences keep Accounts showing, as
 	// dashboard.AccountsKept reads it, SessionsShown Sessions, as
@@ -382,7 +383,7 @@ type Model struct {
 	scroll int
 	readIn scrollRead
 	// period is the period the entity tabs count over, one dial they share,
-	// as < and > step it.
+	// as periodStepped steps it.
 	period views.Period
 	// accounts is what the watch holds of Accounts: what it shows, and its
 	// page, built of the days past holds over the period.
@@ -390,6 +391,10 @@ type Model struct {
 	// past is the ledger's days the watch holds, and the reads of them, which
 	// Accounts, Runway and Trends share.
 	past pastDays
+	// begun is where the pool shown's work of the ledger begins, held once
+	// for every read and page, and the dial's floor, as whichever read asks
+	// first learns it.
+	begun begun
 	// projects is what the watch holds of Projects: what it shows, and its
 	// pages. sessionDays are the sessions' days it's built of, as Sessions'
 	// List is, one read of the period serving both.
@@ -1036,6 +1041,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		VersionNameCells: m.versionNameCells,
 		PlansAtMost:      m.plansAtMost,
 		Period:           m.period,
+		Dial:             m.dial(now),
 		Accounts:         m.accounts.shown,
 		Projects:         m.projects.shown,
 		Runway:           m.runwayTab.shown,

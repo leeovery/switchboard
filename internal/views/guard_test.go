@@ -152,6 +152,11 @@ var (
 		"views.DaySession.Uses":         "views.ProjectsPage",
 		"views.DaySession.FirstRequest": "views.PeriodSession",
 		"views.DaySession.LastRequest":  "views.PeriodSession",
+		// The dial's period said in words, at now by its length's, gone by
+		// its dates, as the heading, the key line and every title name it.
+		"views.Length.Name":   "views.Dial.Name",
+		"views.Length.Title":  "views.Dial.Title",
+		"views.Length.Within": "views.Dial.Within",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.

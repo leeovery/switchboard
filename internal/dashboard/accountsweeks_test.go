@@ -134,7 +134,8 @@ func TestDetailsWeeksReachAtEachPeriodAndWidth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s at %d", tt.period.Length().Name(), tt.width), func(t *testing.T) {
 			f := detailFrame(Look{}, framedAccounts, "work", "", yearPage(t, tt.period, tt.reaches), nil)
-			f.Width, f.Period = tt.width, tt.period
+			f.Width = tt.width
+			f = f.over(tt.period)
 			rows, d := panelOf(f, doc)
 			if d.l.dw != tt.dw || d.weeksShown() != tt.shown {
 				t.Fatalf("its weeks are %d, their days %d cells; want %d, %d cells", d.weeksShown(), d.l.dw, tt.shown, tt.dw)
@@ -218,7 +219,7 @@ func TestDetailOfAllAccountsDrawsBandsWideAndTheTableStacked(t *testing.T) {
 	t.Run("their facts", func(t *testing.T) {
 		am := rereadMoment(t)
 		f := Frame{
-			Width: 173, Height: wholeRows, View: Accounts, Policy: claude.Policy(), Period: views.LengthThisWeek.Now(),
+			Width: 173, Height: wholeRows, View: Accounts, Policy: claude.Policy(), Period: views.LengthThisWeek.Now(), Dial: dialOf(views.LengthThisWeek.Now()),
 			Accounts: AccountsShown{Shown: AccountsDetail, Accounts: am.Accounts, Page: momentPage(am, views.LengthThisWeek.Now())},
 		}
 		d := f.detailDrawn(am.Doc, am.Now, laidIn(f, am.Doc))

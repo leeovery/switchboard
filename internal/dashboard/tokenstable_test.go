@@ -101,7 +101,8 @@ func pastTokens() *views.TokensPage {
 // total, split as given.
 func tokensFrame(width, height int, split TokensSplit) Frame {
 	f := frameOf(width, height)
-	f.View, f.Period = Accounts, views.LengthTwelveWeeks.Now()
+	f.View = Accounts
+	f = f.over(views.LengthTwelveWeeks.Now())
 	f.Accounts = AccountsShown{Shown: AccountsTokens, TokensSplit: split, Tokens: pastTokens()}
 	return f
 }
@@ -290,8 +291,7 @@ func TestTokensNamesEachPeriodAsItIs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.head, func(t *testing.T) {
-			f := tokensFrame(160, 37, TokensUnsplit)
-			f.Period = tt.period
+			f := tokensFrame(160, 37, TokensUnsplit).over(tt.period)
 			f.Accounts.Tokens.Periods = f.Accounts.Tokens.Periods[:1]
 			f.Accounts.Tokens.Periods[0].First = tt.first
 			rows := tokensRowsOf(f)
@@ -882,8 +882,7 @@ func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 		{period: views.LengthTwelveMonths.Now(), cost: 600, widest: "99.9× its $600 month"},
 	}
 	for _, tt := range tests {
-		f := tokensFrame(220, 37, TokensUnsplit)
-		f.Period = tt.period
+		f := tokensFrame(220, 37, TokensUnsplit).over(tt.period)
 		f.Accounts.Tokens.PeriodCost = usd(tt.cost)
 		for i := range f.Accounts.Tokens.Periods {
 			f.Accounts.Tokens.Periods[i].Against = againstAt(*f.Accounts.Tokens.Periods[i].Ratio, tt.cost)

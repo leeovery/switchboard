@@ -117,9 +117,9 @@ func (s AccountsShown) Account() string {
 }
 
 // heading is Accounts' heading row: its name and its sub-tabs drawn, as
-// views has them, the one drawn picked out; and at its right, the period
-// given between < and >, as periodDial has it.
-func (s AccountsShown) heading(period views.Period) heading {
+// views has them, the one drawn picked out; and at its right, the dial's
+// period given between < and >, as periodDial has it.
+func (s AccountsShown) heading(dial views.Dial) heading {
 	h := heading{name: strings.ToUpper(Accounts.Title())}
 	for i, v := range s.views() {
 		h.subTabs = append(h.subTabs, accountsViews[v])
@@ -127,7 +127,7 @@ func (s AccountsShown) heading(period views.Period) heading {
 			h.shown = i
 		}
 	}
-	h.period, h.widest = periodDial(period)
+	h.period = periodDial(dial)
 	return h
 }
 
@@ -135,7 +135,7 @@ func (s AccountsShown) heading(period views.Period) heading {
 // it, and after [ ], on Compare, which of its accounts it shows, in the forms
 // compareState says it in.
 func (f Frame) accountsHeading() heading {
-	h := f.Accounts.heading(f.Period)
+	h := f.Accounts.heading(f.Dial)
 	if f.Accounts.View() != AccountsCompare {
 		return h
 	}

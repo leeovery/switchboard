@@ -151,6 +151,74 @@ func TestAWideKeyLineThatDoesntFitWholeIsLaidOutAsAPhones(t *testing.T) {
 	}
 }
 
+// A wide line that doesn't fit whole takes the first of its narrower forms
+// that does, in their order, the last where none does, before a phone's
+// line takes its place, where even the last is too wide.
+func TestAWideKeyLineGivesWayThroughItsNarrowerForms(t *testing.T) {
+	period, steps := Key{Key: "- +", Does: "period", State: "last week"}, Key{Key: "< >", Does: "back · on"}
+	unnamed := period
+	unnamed.State = ""
+	split, moves := []Key{{Key: "v", Does: "split: by account"}}, []Key{{Key: "↑↓", Does: "account"}, {Key: "enter", Does: "its page"}}
+	l := KeyLine{
+		Groups: [][]Key{{tabViews}, {subTabs}, {period}, {steps}, split, moves, {pin}, helpQuit},
+		Narrower: [][][]Key{
+			{{tabViews}, {subTabs}, {unnamed}, {steps}, split, moves, {pin}, helpQuit},
+			{{tabViews}, {subTabs}, {unnamed}, {steps}, split, moves, nil, helpQuit},
+			{{tabViews}, {subTabs}, nil, {steps}, split, moves, nil, helpQuit},
+		},
+		Lead: 3, Phone: []Key{subTabs}, PhoneKept: []Key{steps}, PhoneHelp: "keys",
+	}
+	const rest = "    v split: by account    ↑↓ account  enter its page"
+	whole := "tab views   [ ] view    - + period: last week    < > back · on" + rest + "    p pin    ? help  q quit"
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{name: "whole where it fits", width: ansi.StringWidth(whole), want: whole},
+		{name: "the first form a cell short of it", width: ansi.StringWidth(whole) - 1, want: "tab views   [ ] view    - + period    < > back · on" + rest + "    p pin    ? help  q quit"},
+		{name: "the second, where the first doesn't fit", width: 125, want: "tab views   [ ] view    - + period    < > back · on" + rest + "    ? help  q quit"},
+		{name: "the last, where the second doesn't fit", width: 115, want: "tab views   [ ] view    < > back · on" + rest + "    ? help  q quit"},
+		{name: "a phone's, where even the last doesn't fit", width: 105, want: "tab views   [ ] view   < > back · on   ? keys   q quit"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lastRow(keyed(tt.width, l)); got != tt.want {
+				t.Errorf("at %d columns, the key line reads %q, want %q", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
+// A phone's line that keeps keys to the last gives way in its own order: the
+// page's keys from the last, then tab views, then the kept from the last; ?
+// keys and q quit always end it.
+func TestAPhonesKeyLineGivesItsKeptKeysWayLast(t *testing.T) {
+	page := []Key{{Key: "↑↓", Does: "session"}, subTabs, {Key: "- +", Does: "period"}}
+	kept := []Key{{Key: "< >", Does: "back · on"}, {Key: "n", Does: "now"}}
+	l := KeyLine{Groups: [][]Key{{tabViews}, helpQuit}, Lead: 3, Phone: page, PhoneKept: kept, PhoneHelp: "keys"}
+	tests := []struct {
+		name  string
+		width int
+		want  string
+	}{
+		{name: "whole where it fits", width: 90, want: "tab views   ↑↓ session   [ ] view   - + period   < > back · on   n now   ? keys   q quit"},
+		{name: "- + period first, the page's last", width: 77, want: "tab views   ↑↓ session   [ ] view   < > back · on   n now   ? keys   q quit"},
+		{name: "then the page's other keys from the last", width: 64, want: "tab views   ↑↓ session   < > back · on   n now   ? keys   q quit"},
+		{name: "every one of them before tab views", width: 63, want: "tab views   < > back · on   n now   ? keys   q quit"},
+		{name: "then tab views, the page's keys gone", width: 50, want: "< > back · on   n now   ? keys   q quit"},
+		{name: "then the kept, from the last", width: 38, want: "< > back · on   ? keys   q quit"},
+		{name: "? keys and q quit always end it", width: 20, want: "? keys   q quit"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := lastRow(keyed(tt.width, l)); got != tt.want {
+				t.Errorf("at %d columns, the key line reads %q, want %q", tt.width, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAPhonesKeyLineWithoutItsHelpIsLaidOutAsAWiderOnes(t *testing.T) {
 	picker := KeyLine{Groups: [][]Key{{{Key: "↑↓", Does: "preview"}, {Key: "enter", Does: "set"}, {Key: "esc", Does: "put back"}}}, Lead: 3}
 	if got, want := lastRow(keyed(52, picker)), "↑↓ preview  enter set  esc put back"; got != want {
