@@ -162,7 +162,7 @@ func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 // startedBefore has it of the days before the period's.
 func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	today := dayfile.CivilOf(in.Now)
-	first := in.Period.first(today, in.WeekStarts).Format(time.DateOnly)
+	first := in.Period.firstDay(today, in.WeekStarts).Format(time.DateOnly)
 	todayDate := today.Format(time.DateOnly)
 	t := projectTallies{
 		all: make(map[string]*projectTally), price: pricing{prices: in.Prices, date: todayDate}, v: versions{table: in.Prices, family: in.Family},

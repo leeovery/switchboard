@@ -126,7 +126,7 @@ func (f Frame) valueHelp() helpPart {
 				"running priced whole, and one the ledger began part-way through priced from its first day." + plans +
 				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
-			said(periodsRun + " `<` and `>` step through " + prose.List(views.PeriodNames()) + shared),
+			said(periodsRun + " `<` and `>` step through " + prose.List(views.LengthNames()) + shared),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},

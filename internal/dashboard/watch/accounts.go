@@ -71,7 +71,7 @@ type builtOf struct {
 // its worth by the hour of the tail's fold: Compare or Detail, never Tokens,
 // which reads the days held alone.
 func (m Model) accountsToday() bool {
-	return m.shownView() == dashboard.Accounts && m.period == views.PeriodToday &&
+	return m.shownView() == dashboard.Accounts && m.period.Length() == views.LengthToday &&
 		m.accounts.shown.View() != dashboard.AccountsTokens
 }
 
@@ -109,7 +109,7 @@ func (m Model) accountsBuilt() Model {
 	}
 	now := m.now()
 	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now)}
-	if of.period == views.PeriodToday {
+	if of.period.Length() == views.LengthToday {
 		of.fed = m.sessionDays.fed
 	}
 	if m.accounts.page == nil || m.accounts.of != of {

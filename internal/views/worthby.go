@@ -151,17 +151,17 @@ const hoursSpanned = 2
 // week and by month.
 func worthCharts(period Period, now time.Time, starts time.Weekday, began time.Time, days dayWorths, hours *[24]Worth) WorthCharts {
 	today := dayfile.CivilOf(now)
-	first, last := begunFrom(period.first(today, starts), began), period.last(today, starts)
+	first, last := begunFrom(period.firstDay(today, starts), began), period.lastDay(today, starts)
 	byDay := days.by(ByDay, dayBuckets(first, last), first, last, today)
-	switch period {
-	case PeriodToday:
+	switch period.length {
+	case LengthToday:
 		if hours != nil {
 			hourly := byHour(*hours, now)
 			return WorthCharts{hourly, byTwoHours(hourly)}
 		}
-	case PeriodThirtyDays, PeriodTwelveWeeks:
+	case LengthThirtyDays, LengthTwelveWeeks:
 		return WorthCharts{byDay, days.by(ByWeek, weekBuckets(first, last, starts), first, last, today)}
-	case PeriodTwelveMonths:
+	case LengthTwelveMonths:
 		return WorthCharts{days.by(ByWeek, weekBuckets(first, last, starts), first, last, today), days.by(ByMonth, monthBuckets(first, last), first, last, today)}
 	}
 	return WorthCharts{byDay}

@@ -390,7 +390,7 @@ func dashboardsPast(t *testing.T, deps cli.Deps, pool string, want time.Time) (b
 // pastPlans are the plans the dashboard's Accounts prices over its 30
 // days, each account's and every account's, as history's JSON gives them.
 func pastPlans(p views.Past) any {
-	page := p.Accounts(views.PeriodThirtyDays)
+	page := p.Accounts(views.LengthThirtyDays.Now())
 	var plans []views.PlanCost
 	for _, row := range page.Rows {
 		plans = append(plans, row.Plan)
@@ -412,7 +412,7 @@ func pastMonths(p views.Past) any {
 // pastTokens are the weeks of Accounts' Tokens over 12 weeks with anything
 // recorded, oldest first, as history's JSON gives them.
 func pastTokens(p views.Past) any {
-	periods := p.TokensOver(views.PeriodTwelveWeeks).Periods
+	periods := p.TokensOver(views.LengthTwelveWeeks.Now()).Periods
 	weeks := make([]views.TokenWeek, 0, len(periods))
 	for _, t := range slices.Backward(periods) {
 		weeks = append(weeks, views.TokenWeek{Week: t.First, Tokens: t.Tokens, Worth: t.Worth, Against: t.Against, ByAccount: t.ByAccount, ByModel: t.ByModel})

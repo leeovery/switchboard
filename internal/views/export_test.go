@@ -127,11 +127,12 @@ func RowOfTold(t Told, now time.Time) RequestRow {
 	return toldRow(t, now)
 }
 
-// Spans are the dates of the period's first day and its last at now, weeks
-// starting on the day given: its last as it's priced to.
-func (p Period) Spans(now time.Time, starts time.Weekday) (first, last string) {
+// Spans are the dates of the first day and the last of the period of the
+// length reaching today at now, weeks starting on the day given: its last
+// as it's priced to.
+func (l Length) Spans(now time.Time, starts time.Weekday) (first, last string) {
 	today := dayfile.CivilOf(now)
-	return p.first(today, starts).Format(time.DateOnly), p.last(today, starts).Format(time.DateOnly)
+	return l.first(today, starts).Format(time.DateOnly), l.last(today, starts).Format(time.DateOnly)
 }
 
 // YearsTwelveMonths are the dates of the first day and the last the Year's

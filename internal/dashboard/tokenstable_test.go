@@ -101,7 +101,7 @@ func pastTokens() *views.TokensPage {
 // total, split as given.
 func tokensFrame(width, height int, split TokensSplit) Frame {
 	f := frameOf(width, height)
-	f.View, f.Period = Accounts, views.PeriodTwelveWeeks
+	f.View, f.Period = Accounts, views.LengthTwelveWeeks.Now()
 	f.Accounts = AccountsShown{Shown: AccountsTokens, TokensSplit: split, Tokens: pastTokens()}
 	return f
 }
@@ -284,9 +284,9 @@ func TestTokensNamesEachPeriodAsItIs(t *testing.T) {
 		first, head string
 		row         string
 	}{
-		{period: views.PeriodTwelveWeeks, first: "2026-09-28", head: "week", row: "28 Sep        2 models"},
-		{period: views.PeriodThirtyDays, first: "2026-10-01", head: "day", row: "Thu 1 Oct     2 models"},
-		{period: views.PeriodTwelveMonths, first: "2026-10", head: "month", row: "Oct 2026      2 models"},
+		{period: views.LengthTwelveWeeks.Now(), first: "2026-09-28", head: "week", row: "28 Sep        2 models"},
+		{period: views.LengthThirtyDays.Now(), first: "2026-10-01", head: "day", row: "Thu 1 Oct     2 models"},
+		{period: views.LengthTwelveMonths.Now(), first: "2026-10", head: "month", row: "Oct 2026      2 models"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.head, func(t *testing.T) {
@@ -298,7 +298,7 @@ func TestTokensNamesEachPeriodAsItIs(t *testing.T) {
 			if !strings.HasPrefix(rows[0], tt.head+" ") || !strings.HasPrefix(rows[2], tt.row) {
 				t.Errorf("Tokens reads %q over %q, want %q over %q", rows[0], rows[2], tt.head, tt.row)
 			}
-			if want := "4.6× its $138 " + tt.period.Rows().Name(); !strings.HasSuffix(rows[2], want) {
+			if want := "4.6× its $138 " + tt.period.Length().Rows().Name(); !strings.HasSuffix(rows[2], want) {
 				t.Errorf("the period reads %q, want it to end %q", rows[2], want)
 			}
 		})
@@ -878,8 +878,8 @@ func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 		cost   float64
 		widest string
 	}{
-		{period: views.PeriodTwelveWeeks, cost: 138, widest: "99.9× its $138 week"},
-		{period: views.PeriodTwelveMonths, cost: 600, widest: "99.9× its $600 month"},
+		{period: views.LengthTwelveWeeks.Now(), cost: 138, widest: "99.9× its $138 week"},
+		{period: views.LengthTwelveMonths.Now(), cost: 600, widest: "99.9× its $600 month"},
 	}
 	for _, tt := range tests {
 		f := tokensFrame(220, 37, TokensUnsplit)
@@ -892,8 +892,8 @@ func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 		for width := 220; width >= 40; width-- {
 			f.Width = width
 			for _, row := range tokensRowsOf(f) {
-				if strings.Contains(row, "× its") && !strings.HasSuffix(row, " "+tt.period.Rows().Name()) {
-					t.Errorf("by %s at %d columns, a period reads %q, want against its price whole", tt.period.Rows().Name(), width, row)
+				if strings.Contains(row, "× its") && !strings.HasSuffix(row, " "+tt.period.Length().Rows().Name()) {
+					t.Errorf("by %s at %d columns, a period reads %q, want against its price whole", tt.period.Length().Rows().Name(), width, row)
 				}
 			}
 			if f.accountsTokens().columns().shows(tokensAgainst) {
@@ -902,7 +902,7 @@ func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 		}
 		f.Width = narrowest
 		if at := f.accountsTokens().columns().at(tokensAgainst); at+ansi.StringWidth(tt.widest) != narrowest {
-			t.Errorf("by %s, against its price shows from %d columns, at %d, want it where %q ends at the edge", tt.period.Name(), narrowest, at, tt.widest)
+			t.Errorf("by %s, against its price shows from %d columns, at %d, want it where %q ends at the edge", tt.period.Length().Name(), narrowest, at, tt.widest)
 		}
 	}
 }
@@ -960,7 +960,7 @@ func TestTokensAgainstItsPriceOfAHundredfoldIsNeverCut(t *testing.T) {
 	for _, split := range []TokensSplit{TokensUnsplit, TokensByModel} {
 		for ratio, said := range map[float64]string{123.4: "123× its $7 day", 1234.5: "1234× its $7 day"} {
 			f := tokensFrame(220, 37, split)
-			f.Period = views.PeriodThirtyDays
+			f.Period = views.LengthThirtyDays.Now()
 			f.Accounts.Accounts = tenConfigured()
 			f.Accounts.Tokens.PeriodCost = usd(7)
 			period := &f.Accounts.Tokens.Periods[0]

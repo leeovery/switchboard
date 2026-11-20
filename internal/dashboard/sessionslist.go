@@ -361,7 +361,7 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 // worth, on one row where it fits; else broken after the requests, the worth
 // on a row of its own. Of no sessions, it says so.
 func periodLine(log views.SessionLog, width int) []line {
-	said, apart := line{{log.Period.Name() + "  ", dimInk}}, line{{" · ", mutedInk}}
+	said, apart := line{{log.Period.Length().Name() + "  ", dimInk}}, line{{" · ", mutedInk}}
 	if log.All.Sessions == 0 {
 		return []line{slices.Concat(said, line{{prose.SessionCount(0), mutedInk}})}
 	}
@@ -389,7 +389,7 @@ func periodWorth(w views.Worth) line {
 // it: "no sessions today", "no sessions this week" or "no sessions in the
 // last 30 days".
 func noSessionsIn(p views.Period) line {
-	return line{{prose.SessionCount(0) + " " + p.Within(), faintInk}}
+	return line{{prose.SessionCount(0) + " " + p.Length().Within(), faintInk}}
 }
 
 // draw draws the List from row top: its heads; its lines in view, as far as

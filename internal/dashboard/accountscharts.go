@@ -55,7 +55,7 @@ func (cp compared) weeksSection(c *canvas, y int, columns []compareColumn) int {
 // at 12 months, the heading of the rows from first.
 func (cp compared) weeksHead(c *canvas, y, first int) {
 	says := compareWeeksSays
-	if cp.page.Period == views.PeriodTwelveMonths {
+	if cp.page.Period.Length() == views.LengthTwelveMonths {
 		says = compareMonthsSays
 	}
 	c.line(0, y, groupHead("WEEKS", says, false))
@@ -82,7 +82,7 @@ func (cp compared) capLine(c *canvas, col compareColumn, floor int, slots []char
 // its mark, in text.secondary, in place of its name, where its columns are
 // weeks: a month's isn't this week's, though its fullest may be.
 func (cp compared) reachNames(row views.AccountsRow) []line {
-	weekly := cp.page.Period != views.PeriodTwelveMonths
+	weekly := cp.page.Period.Length() != views.LengthTwelveMonths
 	names := make([]line, len(cp.page.Reach))
 	for i, b := range cp.page.Reach {
 		names[i] = axisName(b.Axis, i == len(cp.page.Reach)-1)

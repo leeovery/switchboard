@@ -63,9 +63,9 @@ func summedPrice(a, b *ledger.Picodollars) *ledger.Picodollars {
 // this week does with today on the week's first, so a day asked for is
 // priced a day; else the days from asked to today, a day each.
 func askedPeriod(asked, today time.Time, weekStarts time.Weekday) (last time.Time, whole monthPart) {
-	for _, p := range periods {
-		if asked.Equal(p.first(today, weekStarts)) {
-			return p.last(today, weekStarts), p.share()
+	for _, l := range lengths {
+		if asked.Equal(l.first(today, weekStarts)) {
+			return l.last(today, weekStarts), l.share()
 		}
 	}
 	return today, days(int(today.Sub(asked)/(24*time.Hour)) + 1)

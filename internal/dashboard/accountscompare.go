@@ -60,7 +60,7 @@ const (
 // and all, BY MODEL's heading, and the groups' names and their rows'
 // labels, indented. A version's name past it is cut to it.
 var compareLabels = sync.OnceValue(func() int {
-	widest := max(weekLabel(views.PeriodThirtyDays).width(), compareByModelHead(false).width())
+	widest := max(weekLabel(views.LengthThirtyDays.Now()).width(), compareByModelHead(false).width())
 	for _, g := range (compared{page: &views.AccountsPage{}}).groups() {
 		widest = max(widest, ansi.StringWidth(g.name))
 		for _, r := range g.rows {
@@ -274,7 +274,7 @@ func wholeName(n accountName) int {
 // another than this week, as the week is always as it stands.
 func weekLabel(period views.Period) line {
 	label := line{{"WEEK USED", headingInk}}
-	if period != views.PeriodThisWeek {
+	if period.Length() != views.LengthThisWeek {
 		label = append(label, span{"  now", faintInk})
 	}
 	return label

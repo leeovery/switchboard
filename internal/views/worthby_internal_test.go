@@ -15,9 +15,9 @@ func TestEveryPeriodsCoarsestChartHoldsBucketsMostAtMost(t *testing.T) {
 	for day := range 366 {
 		now := time.Date(2026, time.January, 1, 13, 0, 0, 0, time.Local).AddDate(0, 0, day)
 		for starts := time.Sunday; starts <= time.Saturday; starts++ {
-			for _, period := range Periods() {
+			for _, period := range Lengths() {
 				for _, given := range []*[24]Worth{nil, &hours} {
-					n := len(worthCharts(period, now, starts, time.Time{}, dayWorths{}, given).Coarsest().Buckets)
+					n := len(worthCharts(period.Now(), now, starts, time.Time{}, dayWorths{}, given).Coarsest().Buckets)
 					if n > BucketsMost {
 						t.Fatalf("on %s, weeks from %s, %s's coarsest chart has %d buckets, want %d at most", now.Format(time.DateOnly), starts, period.Name(), n, BucketsMost)
 					}

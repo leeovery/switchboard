@@ -56,7 +56,7 @@ func TestHeadingsAreAStepOverTheirLabelsOnTheOverviewDetailCompareASessionsPageA
 	muted, subtle := shadeOf(nord.theme.Colour(theme.TextMuted)), shadeOf(nord.theme.Colour(theme.TextSubtle))
 	overview, sessions, stream := overviewWorld()
 	detail := detailFrame(nord, framedAccounts, "", "", detailsPage(t), nil)
-	compare := compareFrame(t, threeFramed, comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
+	compare := compareFrame(t, threeFramed, comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
 	compare.Look = nord
 	session := pageFrame(t, moved(), 160, 32)
 	session.Look = nord

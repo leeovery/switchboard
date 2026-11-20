@@ -31,7 +31,7 @@ func (p Period) reachWeeks(today time.Time, starts time.Weekday) int {
 // the first that begins on its first day or after, to this one, which it
 // counts whether it begins in the period or not.
 func (p Period) begunWeeks(today time.Time, starts time.Weekday) int {
-	first := p.first(today, starts)
+	first := p.firstDay(today, starts)
 	begun := weekOf(first, starts)
 	if begun.Before(first) {
 		begun = begun.AddDate(0, 0, 7)
@@ -49,18 +49,18 @@ func (p Period) detailWeeks(today time.Time, starts time.Weekday) int {
 	return max(p.begunWeeks(today, starts), detailLeast)
 }
 
-// WeeksLeast is how many weeks Detail's weeks section reaches over at the
-// period at the fewest, as detailWeeks has it, whatever the day and the day
-// weeks start on: the fewest of any day of a week, as each falls on another
-// day of its week, of a year without a 29 February. So six at today, this
-// week and the last 30 days, 12 at the last 12 weeks, and 52 at the last 12
-// months. It's known before any page is read, for Detail to lay its weeks
-// out by, so they hold still as its page is read.
-func (p Period) WeeksLeast() int {
+// WeeksLeast is how many weeks Detail's weeks section reaches over a period
+// of the length at the fewest, as detailWeeks has it, whatever the day and
+// the day weeks start on: the fewest of any day of a week, as each falls on
+// another day of its week, of a year without a 29 February. So six at today,
+// this week and the last 30 days, 12 at the last 12 weeks, and 52 at the
+// last 12 months. It's known before any page is read, for Detail to lay its
+// weeks out by, so they hold still as its page is read.
+func (l Length) WeeksLeast() int {
 	least := math.MaxInt
 	for d := range 7 {
 		day := time.Date(2027, time.March, 1+d, 0, 0, 0, 0, time.UTC)
-		least = min(least, p.detailWeeks(day, time.Monday))
+		least = min(least, l.Now().detailWeeks(day, time.Monday))
 	}
 	return least
 }
@@ -76,9 +76,9 @@ func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 	first, _ := dayfile.Civil(weeks.Weeks[0])
 	page.Reach = weekBuckets(first, today, in.WeekStarts)
 	columns := func(peaks []WeekPeak) []WeekPeak { return peaks }
-	if page.Period == PeriodTwelveMonths {
+	if page.Period.length == LengthTwelveMonths {
 		weekly := page.Reach
-		page.Reach = monthBuckets(page.Period.first(today, in.WeekStarts), today)
+		page.Reach = monthBuckets(page.Period.firstDay(today, in.WeekStarts), today)
 		columns = func(peaks []WeekPeak) []WeekPeak { return fullestIn(page.Reach, weekly, peaks) }
 	}
 	for x := range page.Rows {
@@ -152,16 +152,16 @@ func worthsByDay(days []Day, accounts config.Accounts) []dayWorths {
 // the day.
 func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
 	today := dayfile.DateOf(p.in.Now)
-	if p.Period != PeriodToday || d.today.Date != today {
+	if p.Period.length != LengthToday || d.today.Date != today {
 		return p
 	}
 	byAccount, all := d.held.worthByHour(pricing{prices: p.in.Prices, date: today})
 	p.Rows = slices.Clone(p.Rows)
 	for x, a := range p.in.Accounts {
 		hours := byAccount[a.ID]
-		p.Rows[x].WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hours)
+		p.Rows[x].WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hours)
 	}
-	p.All.WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &all)
+	p.All.WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &all)
 	return p
 }
 

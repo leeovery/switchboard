@@ -236,9 +236,9 @@ func TestViewTabsAreTargetsOverTheirNamesAndACellEitherSide(t *testing.T) {
 		name    string
 		heading heading
 	}{
-		{name: "Accounts' Compare", heading: AccountsShown{Shown: AccountsCompare, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
-		{name: "Accounts' Detail", heading: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
-		{name: "Accounts' Tokens", heading: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
+		{name: "Accounts' Compare", heading: AccountsShown{Shown: AccountsCompare, Accounts: threeConfigured}.heading(views.LengthThisWeek.Now())},
+		{name: "Accounts' Detail", heading: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}.heading(views.LengthThisWeek.Now())},
+		{name: "Accounts' Tokens", heading: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}.heading(views.LengthThisWeek.Now())},
 	}
 	for _, hh := range headings {
 		for _, width := range []int{52, 160} {
@@ -306,10 +306,10 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 		shown func(*Frame)
 		edge  int
 	}{
-		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.PeriodThisWeek), edge: 61},
-		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.PeriodToday), edge: 61},
-		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.PeriodThisWeek), edge: 52},
-		{name: "Accounts' Tokens", view: Accounts, shown: accountsAt(threeConfigured, AccountsTokens, views.PeriodThisWeek), edge: 61},
+		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.LengthThisWeek.Now()), edge: 61},
+		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.LengthToday.Now()), edge: 61},
+		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.LengthThisWeek.Now()), edge: 52},
+		{name: "Accounts' Tokens", view: Accounts, shown: accountsAt(threeConfigured, AccountsTokens, views.LengthThisWeek.Now()), edge: 61},
 	}
 	for _, tt := range tests {
 		for _, width := range []int{tt.edge - 1, tt.edge} {
@@ -358,13 +358,13 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 		s.view, s.forms = view, append(s.forms, form)
 		sweeps[name] = s
 	}
-	for _, period := range views.Periods() {
-		add("Accounts' Compare", Accounts, accountsAt(threeConfigured, AccountsCompare, period))
-		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period))
-		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period))
+	for _, period := range views.Lengths() {
+		add("Accounts' Compare", Accounts, accountsAt(threeConfigured, AccountsCompare, period.Now()))
+		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period.Now()))
+		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period.Now()))
 	}
-	for _, period := range views.Periods() {
-		add("Accounts' Tokens", Accounts, accountsAt(threeConfigured, AccountsTokens, period))
+	for _, period := range views.Lengths() {
+		add("Accounts' Tokens", Accounts, accountsAt(threeConfigured, AccountsTokens, period.Now()))
 	}
 	for name, s := range sweeps {
 		for width := 30; width <= 140; width++ {

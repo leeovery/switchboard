@@ -95,11 +95,11 @@ func TestAccountsHeadingRow(t *testing.T) {
 		want   string
 	}{
 		{name: "Compare, this week", shown: AccountsShown{Accounts: threeConfigured}, picked: 11, other: 20, want: named + rule(103) + "  < this week >"},
-		{name: "Detail, today", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}, period: views.PeriodToday, picked: 20, other: 28, want: named + rule(107) + "  < today >"},
+		{name: "Detail, today", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}, period: views.LengthToday.Now(), picked: 20, other: 28, want: named + rule(107) + "  < today >"},
 		{name: "Tokens, this week", shown: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}, picked: 28, other: 11, want: named + rule(103) + "  < this week >"},
-		{name: "the last 30 days", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodThirtyDays, picked: 11, other: 20, want: named + rule(105) + "  < 30 days >"},
-		{name: "the last 12 weeks", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodTwelveWeeks, picked: 11, other: 20, want: named + rule(104) + "  < 12 weeks >"},
-		{name: "the last 12 months", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodTwelveMonths, picked: 11, other: 20, want: named + rule(103) + "  < 12 months >"},
+		{name: "the last 30 days", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthThirtyDays.Now(), picked: 11, other: 20, want: named + rule(105) + "  < 30 days >"},
+		{name: "the last 12 weeks", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthTwelveWeeks.Now(), picked: 11, other: 20, want: named + rule(104) + "  < 12 weeks >"},
+		{name: "the last 12 months", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthTwelveMonths.Now(), picked: 11, other: 20, want: named + rule(103) + "  < 12 months >"},
 		{name: "one account, Compare gone", shown: AccountsShown{Accounts: threeConfigured[:1]}, picked: 11, other: 19, want: "ACCOUNTS    Detail  Tokens  [ ]  " + rule(112) + "  < this week >"},
 	}
 	for _, tt := range tests {

@@ -169,7 +169,7 @@ func (d detailDrawn) thisWeekFigureCells() int {
 // reaches.
 func (d detailDrawn) thisWeek(c *canvas, y int) {
 	x, cells := d.l.thisWeekAt(), d.thisWeekFigureCells()
-	c.line(x, y, line{{d.page.Period.Title(), headingInk}})
+	c.line(x, y, line{{d.page.Period.Length().Title(), headingInk}})
 	for _, item := range d.thisWeekSaid() {
 		for i, row := range item.rows(cells) {
 			y++

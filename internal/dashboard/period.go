@@ -7,24 +7,26 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// PeriodKept is the period the preferences kept, by its name: where they
-// keep none, the one a build from before the dial was shared kept under
-// Accounts. One that isn't a period, as a later build's, reads as this week.
-func PeriodKept(kept theme.Prefs) views.Period {
-	if period := views.Period(cmp.Or(kept.Period, kept.Accounts.Period)); period.Known() {
-		return period
+// LengthKept is the period's length the preferences kept: where they keep
+// none, the one a build from before the dial was shared kept under Accounts.
+// One that isn't a length, as a later build's, reads as this week.
+func LengthKept(kept theme.Prefs) views.Length {
+	if length := views.Length(cmp.Or(kept.Period, kept.Accounts.Period)); length.Known() {
+		return length
 	}
-	return views.PeriodThisWeek
+	return views.LengthThisWeek
 }
 
-// KeepPeriod has prefs keep period, as PeriodKept reads it back, in place of
-// the one a build from before the dial was shared kept under Accounts.
-func KeepPeriod(prefs *theme.Prefs, period views.Period) {
-	prefs.Period, prefs.Accounts.Period = string(period), ""
+// KeepLength has prefs keep the period's length given, as LengthKept reads
+// it back, in place of the one a build from before the dial was shared kept
+// under Accounts.
+func KeepLength(prefs *theme.Prefs, length views.Length) {
+	prefs.Period, prefs.Accounts.Period = string(length), ""
 }
 
-// periodDial is the dial's period at a heading's right, by its name, and the
-// widest name it can take, which the heading keeps room for as it steps.
+// periodDial is the dial's period at a heading's right, by its length's
+// name, and the widest name it can take, which the heading keeps room for as
+// it steps.
 func periodDial(period views.Period) (name, widest string) {
-	return period.Name(), widestOf(views.PeriodNames())
+	return period.Length().Name(), widestOf(views.LengthNames())
 }

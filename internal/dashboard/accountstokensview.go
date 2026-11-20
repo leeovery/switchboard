@@ -6,7 +6,7 @@ package dashboard
 func (f Frame) accountsTokens() tokensTable {
 	s := f.Accounts
 	return tokensTable{
-		page: s.Tokens, rows: f.Period.Rows(), period: f.Period, split: s.TokensSplit, accounts: s.Accounts,
+		page: s.Tokens, rows: f.Period.Length().Rows(), period: f.Period, split: s.TokensSplit, accounts: s.Accounts,
 		width: f.Width, viewRows: f.viewRows(), scroll: f.Scroll,
 	}
 }

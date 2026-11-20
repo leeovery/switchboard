@@ -8,170 +8,217 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
-// Period is the period the dashboard's entity tabs count their use over, as
-// < and > step it, one dial they share: today, from midnight; this week, as
-// it opens, from the day weeks start on; the last 30 days, today and the 29
-// before it; the last 12 weeks, this week and the 11 before it; or the last
-// 12 months, the days Trends' YEAR counts as LAST 12 MONTHS. Each is
-// rolling, never a billing month, and priced whole while it's still running,
-// but from its first day where the ledger began part-way through it.
-type Period string
+// Length is how long the period the dashboard's entity tabs count their use
+// over runs, as < and > step it, one dial they share: today, from midnight;
+// this week, as it opens, from the day weeks start on; the last 30 days,
+// today and the 29 before it; the last 12 weeks, this week and the 11 before
+// it; or the last 12 months, the days Trends' YEAR counts as LAST 12 MONTHS.
+// Each is rolling, never a billing month, and priced whole while it's still
+// running, but from its first day where the ledger began part-way through
+// it. Its values are what the preferences keep.
+type Length string
 
 const (
-	// PeriodThisWeek is this week, from the day weeks start on.
-	PeriodThisWeek Period = ""
-	// PeriodToday is today, from midnight.
-	PeriodToday Period = "today"
-	// PeriodThirtyDays is today and the 29 days before it.
-	PeriodThirtyDays Period = "30-days"
-	// PeriodTwelveWeeks is this week and the 11 before it.
-	PeriodTwelveWeeks Period = "12-weeks"
-	// PeriodTwelveMonths is today and the days back to the day after its
+	// LengthThisWeek is this week, from the day weeks start on.
+	LengthThisWeek Length = ""
+	// LengthToday is today, from midnight.
+	LengthToday Length = "today"
+	// LengthThirtyDays is today and the 29 days before it.
+	LengthThirtyDays Length = "30-days"
+	// LengthTwelveWeeks is this week and the 11 before it.
+	LengthTwelveWeeks Length = "12-weeks"
+	// LengthTwelveMonths is today and the days back to the day after its
 	// date a year back, as yearAfter has them.
-	PeriodTwelveMonths Period = "12-months"
+	LengthTwelveMonths Length = "12-months"
 )
 
-// periods are the periods in the order < and > step through them, the
+// lengths are the lengths in the order < and > step through them, the
 // shortest first.
-var periods = []Period{PeriodToday, PeriodThisWeek, PeriodThirtyDays, PeriodTwelveWeeks, PeriodTwelveMonths}
+var lengths = []Length{LengthToday, LengthThisWeek, LengthThirtyDays, LengthTwelveWeeks, LengthTwelveMonths}
 
-// periodIs is what a period is: what the heading and the key line call it;
+// lengthIs is what a length is: what the heading and the key line call it;
 // THIS WEEK's title, naming it; the unit against its price names it by; the
 // words Within says it in; the share of a month its plans cost over it; and
 // the period each of Accounts' Tokens' rows is over it.
-type periodIs struct {
+type lengthIs struct {
 	name, title, unit, within string
 	share                     monthPart
 	rows                      TokensPeriod
 }
 
-// periodsAre are each period's words and price.
-var periodsAre = map[Period]periodIs{
-	PeriodToday:        {name: "today", title: "TODAY", unit: "day", within: "today", share: days(1), rows: TokensByDay},
-	PeriodThisWeek:     {name: "this week", title: "THIS WEEK", unit: "week", within: "this week", share: aWeek, rows: TokensByDay},
-	PeriodThirtyDays:   {name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days", share: aMonth, rows: TokensByDay},
-	PeriodTwelveWeeks:  {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks", share: twelveWeeks, rows: TokensByWeek},
-	PeriodTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months", share: aYear, rows: TokensByMonth},
+// lengthsAre are each length's words and price.
+var lengthsAre = map[Length]lengthIs{
+	LengthToday:        {name: "today", title: "TODAY", unit: "day", within: "today", share: days(1), rows: TokensByDay},
+	LengthThisWeek:     {name: "this week", title: "THIS WEEK", unit: "week", within: "this week", share: aWeek, rows: TokensByDay},
+	LengthThirtyDays:   {name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days", share: aMonth, rows: TokensByDay},
+	LengthTwelveWeeks:  {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks", share: twelveWeeks, rows: TokensByWeek},
+	LengthTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months", share: aYear, rows: TokensByMonth},
 }
 
-// Periods are the periods in the order < and > step through them, the
+// Lengths are the lengths in the order < and > step through them, the
 // shortest first.
-func Periods() []Period {
-	return slices.Clone(periods)
+func Lengths() []Length {
+	return slices.Clone(lengths)
 }
 
-// PeriodNames are the periods' names, as Name has them, in the order < and
+// LengthNames are the lengths' names, as Name has them, in the order < and
 // > step through them, the shortest first.
-func PeriodNames() []string {
-	names := make([]string, len(periods))
-	for i, p := range periods {
-		names[i] = p.Name()
+func LengthNames() []string {
+	names := make([]string, len(lengths))
+	for i, l := range lengths {
+		names[i] = l.Name()
 	}
 	return names
 }
 
-// Known reports whether p is one of the periods, as a preference read back
+// Known reports whether l is one of the lengths, as a preference read back
 // may not be.
-func (p Period) Known() bool {
-	_, ok := periodsAre[p]
+func (l Length) Known() bool {
+	_, ok := lengthsAre[l]
 	return ok
 }
 
-// Name is what the heading and the key line call the period: "today", "this
+// Name is what the heading and the key line call the length: "today", "this
 // week", "30 days", "12 weeks" or "12 months".
-func (p Period) Name() string {
-	return periodsAre[p].name
+func (l Length) Name() string {
+	return lengthsAre[l].name
 }
 
-// Title is THIS WEEK's title, naming the period: "TODAY", "THIS WEEK",
+// Title is THIS WEEK's title, naming the length: "TODAY", "THIS WEEK",
 // "LAST 30 DAYS", "LAST 12 WEEKS" or "LAST 12 MONTHS".
-func (p Period) Title() string {
-	return periodsAre[p].title
+func (l Length) Title() string {
+	return lengthsAre[l].title
 }
 
-// Within is the period said after what's in it, as in "no sessions this
+// Within is the length said after what's in it, as in "no sessions this
 // week": "today", "this week", or "in the last 30 days", "in the last 12
 // weeks" or "in the last 12 months".
-func (p Period) Within() string {
-	return periodsAre[p].within
+func (l Length) Within() string {
+	return lengthsAre[l].within
 }
 
-// Unit is what against its price names the period by, after the price, as
+// Unit is what against its price names the length by, after the price, as
 // in "its $46 week": "day", "week", "month", "12 weeks" or "12 months".
-func (p Period) Unit() string {
-	return periodsAre[p].unit
+func (l Length) Unit() string {
+	return lengthsAre[l].unit
 }
 
-// Rows is the period each of Accounts' Tokens' rows is over the period: a
+// Rows is the period each of Accounts' Tokens' rows is over the length: a
 // day over today, this week and 30 days, a week over 12 weeks, and a month
 // over 12 months.
-func (p Period) Rows() TokensPeriod {
-	return periodsAre[p].rows
+func (l Length) Rows() TokensPeriod {
+	return lengthsAre[l].rows
 }
 
-// Stepped is the period < steps to, by -1, a shorter one, or > does, by 1, a
-// longer one. It reports false past either end, where p stays: today, the
+// Stepped is the length < steps to, by -1, a shorter one, or > does, by 1, a
+// longer one. It reports false past either end, where l stays: today, the
 // shortest, and the last 12 months, the longest.
-func (p Period) Stepped(by int) (Period, bool) {
-	i := slices.Index(periods, p) + by
-	if i < 0 || i >= len(periods) {
-		return p, false
+func (l Length) Stepped(by int) (Length, bool) {
+	i := slices.Index(lengths, l) + by
+	if i < 0 || i >= len(lengths) {
+		return l, false
 	}
-	return periods[i], true
+	return lengths[i], true
 }
 
-// From is when the period begins at now, weeks starting on the day given:
-// at the start of its first local day, as dayfile.Day has it, where a read
-// of its days begins, as ReadSessionDays takes it.
-func (p Period) From(now time.Time, starts time.Weekday) time.Time {
-	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
+// From is when the period of the length reaching today begins at now, weeks
+// starting on the day given: at the start of its first local day, as
+// dayfile.Day has it, where a read of its days begins, as ReadSessionDays
+// takes it.
+func (l Length) From(now time.Time, starts time.Weekday) time.Time {
+	start, _, _ := dayfile.Day(l.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
 	return start
 }
 
-// first is the period's first day, today being the day given, as
-// dayfile.Civil gives a day, weeks starting on the day given.
-func (p Period) first(today time.Time, starts time.Weekday) time.Time {
-	switch p {
-	case PeriodToday:
+// first is the first day of the period of the length reaching today, today
+// being the day given, as dayfile.Civil gives a day, weeks starting on the
+// day given.
+func (l Length) first(today time.Time, starts time.Weekday) time.Time {
+	switch l {
+	case LengthToday:
 		return today
-	case PeriodThirtyDays:
+	case LengthThirtyDays:
 		return today.AddDate(0, 0, -29)
-	case PeriodTwelveWeeks:
+	case LengthTwelveWeeks:
 		return weeksTo(today, starts, 12)
-	case PeriodTwelveMonths:
+	case LengthTwelveMonths:
 		return yearAfter(today)
 	}
 	return weekOf(today, starts)
 }
 
-// last is the period's last day, today being the day given, as
-// dayfile.Civil gives a day, weeks starting on the day given: today, of
-// today and the last 30 days and 12 months; this week's last, of this week
-// and the last 12 weeks, as a period still running is priced to its end.
-func (p Period) last(today time.Time, starts time.Weekday) time.Time {
-	switch p {
-	case PeriodToday, PeriodThirtyDays, PeriodTwelveMonths:
+// last is the last day of the period of the length reaching today, today
+// being the day given, as dayfile.Civil gives a day, weeks starting on the
+// day given: today, of today and the last 30 days and 12 months; this
+// week's last, of this week and the last 12 weeks, as a period still running
+// is priced to its end.
+func (l Length) last(today time.Time, starts time.Weekday) time.Time {
+	switch l {
+	case LengthToday, LengthThirtyDays, LengthTwelveMonths:
 		return today
 	}
 	return weekOf(today, starts).AddDate(0, 0, 6)
 }
 
-// shape is the period as one of Tokens' rows, today being the day given, as
-// dayfile.Civil gives a day, weeks starting on the day given: every day from
-// its first to its last one row, by its first day's date, priced as Accounts
-// prices the period, its share of a month whole.
-func (p Period) shape(today time.Time, starts time.Weekday) periodShape {
-	first, last := p.first(today, starts).Format(time.DateOnly), p.last(today, starts).Format(time.DateOnly)
+// shape is the period of the length reaching today as one of Tokens' rows,
+// today being the day given, as dayfile.Civil gives a day, weeks starting on
+// the day given: every day from its first to its last one row, by its first
+// day's date, priced as Accounts prices the period, its share of a month
+// whole.
+func (l Length) shape(today time.Time, starts time.Weekday) periodShape {
+	first, last := l.first(today, starts).Format(time.DateOnly), l.last(today, starts).Format(time.DateOnly)
 	return periodShape{
 		of:    func(date string) (string, bool) { return first, first <= date && date <= last },
 		dates: func(string) (string, string) { return first, last },
-		share: p.share(),
+		share: l.share(),
 	}
 }
 
-// share is the share of a month the plans cost over the period, whole.
-func (p Period) share() monthPart {
-	return periodsAre[p].share
+// share is the share of a month the plans cost over a period of the length,
+// whole.
+func (l Length) share() monthPart {
+	return lengthsAre[l].share
+}
+
+// Period is the period the dashboard's entity tabs count their use over:
+// one of the dial's lengths, reaching today. It's comparable, for what a
+// page was built of to be told alike.
+type Period struct {
+	length Length
+}
+
+// Now is the period of the length reaching today.
+func (l Length) Now() Period {
+	return Period{length: l}
+}
+
+// Length is how long the period runs.
+func (p Period) Length() Length {
+	return p.length
+}
+
+// From is when the period begins at now, weeks starting on the day given,
+// as its length's From has it.
+func (p Period) From(now time.Time, starts time.Weekday) time.Time {
+	return p.length.From(now, starts)
+}
+
+// firstDay is the period's first day, today being the day given, as its
+// length's first has it.
+func (p Period) firstDay(today time.Time, starts time.Weekday) time.Time {
+	return p.length.first(today, starts)
+}
+
+// lastDay is the period's last day, today being the day given, as its
+// length's last has it.
+func (p Period) lastDay(today time.Time, starts time.Weekday) time.Time {
+	return p.length.last(today, starts)
+}
+
+// shape is the period as one of Tokens' rows, today being the day given, as
+// its length's shape has it.
+func (p Period) shape(today time.Time, starts time.Weekday) periodShape {
+	return p.length.shape(today, starts)
 }
 
 // LimitsHitMost are the most times the limit of the window with the key
@@ -197,8 +244,8 @@ func LimitsHitMost(key string) int {
 func longestSpan() time.Duration {
 	day := time.Date(2028, time.March, 1, 0, 0, 0, 0, time.UTC)
 	var longest time.Duration
-	for _, p := range periods {
-		longest = max(longest, p.last(day, time.Monday).AddDate(0, 0, 1).Sub(p.first(day, time.Monday)))
+	for _, l := range lengths {
+		longest = max(longest, l.last(day, time.Monday).AddDate(0, 0, 1).Sub(l.first(day, time.Monday)))
 	}
 	return longest
 }

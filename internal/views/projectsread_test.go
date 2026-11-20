@@ -65,7 +65,7 @@ func scratchWorld(scratched, beside int) []ledger.Held {
 // started in folders beside the scratch root, as temporary folders, a row
 // with no name of a path, as no directory's has none.
 func TestTheSessionsOfAProjectsScratchpadsAreItsOwn(t *testing.T) {
-	in := projectsIn(views.PeriodThisWeek, now)
+	in := projectsIn(views.LengthThisWeek.Now(), now)
 	in.Projects = scratchMachine()
 	page := heldDays(now, scratchWorld(30, 4)...).Projects(in)
 	type row struct {
@@ -128,7 +128,7 @@ func TestTheHeadsOfDaysGoneCountAScratchpadsSessionsAsTheirLinesDo(t *testing.T)
 	}
 	day := dayfile.DateOf(lines[0].At)
 	headed := views.ReadSessionDays(sidedLedger{sides: map[string]json.RawMessage{day: built.Side}}, now.AddDate(-1, 0, 0), now, views.PoolRead{})
-	in := projectsIn(views.PeriodThisWeek, now)
+	in := projectsIn(views.LengthThisWeek.Now(), now)
 	in.Projects = scratchMachine()
 	rowsOf := func(page views.ProjectsPage) []string {
 		var rows []string
@@ -147,7 +147,7 @@ func TestTheHeadsOfDaysGoneCountAScratchpadsSessionsAsTheirLinesDo(t *testing.T)
 // the first, of a Projects that has read every path already.
 func BenchmarkProjectsOfManyScratchpads(b *testing.B) {
 	days := heldDays(now, scratchWorld(3000, 300)...)
-	in := projectsIn(views.PeriodThisWeek, now)
+	in := projectsIn(views.LengthThisWeek.Now(), now)
 	in.Projects = scratchMachine()
 	for b.Loop() {
 		days.Projects(in)
@@ -158,7 +158,7 @@ func BenchmarkProjectsOfManyScratchpads(b *testing.B) {
 // nothing yet, as the first read of the dashboard or a command is.
 func BenchmarkProjectsOfManyScratchpadsReadFirst(b *testing.B) {
 	days := heldDays(now, scratchWorld(3000, 300)...)
-	in := projectsIn(views.PeriodThisWeek, now)
+	in := projectsIn(views.LengthThisWeek.Now(), now)
 	for b.Loop() {
 		in.Projects = scratchMachine()
 		days.Projects(in)
@@ -169,7 +169,7 @@ func BenchmarkProjectsOfManyScratchpadsReadFirst(b *testing.B) {
 // measure the read's cost against.
 func BenchmarkProjectsOfManyScratchpadsReadAsProjectOf(b *testing.B) {
 	days := heldDays(now, scratchWorld(3000, 300)...)
-	in := projectsIn(views.PeriodThisWeek, now)
+	in := projectsIn(views.LengthThisWeek.Now(), now)
 	for b.Loop() {
 		days.Projects(in)
 	}

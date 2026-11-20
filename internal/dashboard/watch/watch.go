@@ -207,9 +207,9 @@ type Config struct {
 	KeepGraphs bool
 	Log        dashboard.LogTicks
 	Prefs      Prefs
-	// Period is the period the preferences keep the entity tabs counting
-	// over, as dashboard.PeriodKept reads it, which Prefs keeps as it
-	// changes.
+	// Period is the period the entity tabs open counting over: of the length
+	// the preferences keep, as dashboard.LengthKept reads it, which Prefs
+	// keeps as it changes, or the one shown where the pool turns.
 	Period views.Period
 	// AccountsShown is what the preferences keep Accounts showing, as
 	// dashboard.AccountsKept reads it, SessionsShown Sessions, as

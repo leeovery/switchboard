@@ -155,7 +155,7 @@ const resetWeeks = 6
 // as many as Compare reaches over at the last 12 months, the most any
 // period reaches over.
 func heldWeeks(today time.Time, starts time.Weekday) int {
-	return PeriodTwelveMonths.reachWeeks(today, starts)
+	return LengthTwelveMonths.Now().reachWeeks(today, starts)
 }
 
 // Accounts is Accounts' page over the period given, as AccountsPage has it,
@@ -163,12 +163,12 @@ func heldWeeks(today time.Time, starts time.Weekday) int {
 func (p Past) Accounts(period Period) AccountsPage {
 	in := p.in
 	today := dayfile.CivilOf(in.Now)
-	first := period.first(today, in.WeekStarts)
+	first := period.firstDay(today, in.WeekStarts)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	totals := accountTotalsOf(before, days, in.Accounts, nil, p.versions())
 	known := plans{accounts: in.Accounts, table: in.Prices}
-	costs := plansOf(days, known, pricedOver(first.Format(time.DateOnly), period.last(today, in.WeekStarts).Format(time.DateOnly), p.counted(first).Format(time.DateOnly), period.share()))
+	costs := plansOf(days, known, pricedOver(first.Format(time.DateOnly), period.lastDay(today, in.WeekStarts).Format(time.DateOnly), p.counted(first).Format(time.DateOnly), period.length.share()))
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, heldWeeks(today, in.WeekStarts)).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
 	worths := worthsByDay(days, in.Accounts)

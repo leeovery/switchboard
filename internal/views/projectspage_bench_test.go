@@ -66,7 +66,7 @@ func BenchmarkReadingAYearOfSessionDays(b *testing.B) {
 func BenchmarkProjectsOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
-	in := projectsIn(views.PeriodTwelveMonths, now)
+	in := projectsIn(views.LengthTwelveMonths.Now(), now)
 	for b.Loop() {
 		page := days.Projects(in)
 		page.Project(page.Rows[0].Path)
@@ -78,7 +78,7 @@ func BenchmarkProjectsOverTwelveMonths(b *testing.B) {
 func BenchmarkSessionLogOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
-	in := projectsIn(views.PeriodTwelveMonths, now)
+	in := projectsIn(views.LengthTwelveMonths.Now(), now)
 	for b.Loop() {
 		days.SessionLog(in)
 	}
@@ -103,7 +103,7 @@ func BenchmarkProjectsLiveOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	lists := busyLists(now)
-	page := days.Projects(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
+	page := days.Projects(projectsIn(views.LengthTwelveMonths.Now(), now, lists[0].Sessions...))
 	project, _ := page.Project(page.Rows[0].Path)
 	i := 0
 	for b.Loop() {
@@ -119,7 +119,7 @@ func BenchmarkSessionLogLiveOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	lists := busyLists(now)
-	log := days.SessionLog(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
+	log := days.SessionLog(projectsIn(views.LengthTwelveMonths.Now(), now, lists[0].Sessions...))
 	i := 0
 	for b.Loop() {
 		i++

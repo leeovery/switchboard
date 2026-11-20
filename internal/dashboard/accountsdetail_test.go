@@ -66,7 +66,7 @@ func (f detailFramed) row() views.AccountsRow {
 // its weeks as many as the rows' peaks, to this one, from Monday 28
 // September.
 func detailPage(t *testing.T, rows ...detailFramed) *views.AccountsPage {
-	page := &views.AccountsPage{Period: views.PeriodThisWeek, Recorded: true, ToCome: 3, Versions: comparedVersions(t)}
+	page := &views.AccountsPage{Period: views.LengthThisWeek.Now(), Recorded: true, ToCome: 3, Versions: comparedVersions(t)}
 	thisWeek := time.Date(2026, time.September, 28, 0, 0, 0, 0, time.UTC)
 	weeks := len(rows[0].peaks)
 	for i := range weeks {
@@ -858,14 +858,14 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff)
 	for period, want := range map[views.Period]string{
-		views.PeriodThisWeek: "THIS WEEK", views.PeriodToday: "TODAY", views.PeriodThirtyDays: "LAST 30 DAYS", views.PeriodTwelveWeeks: "LAST 12 WEEKS",
-		views.PeriodTwelveMonths: "LAST 12 MONTHS",
+		views.LengthThisWeek.Now(): "THIS WEEK", views.LengthToday.Now(): "TODAY", views.LengthThirtyDays.Now(): "LAST 30 DAYS", views.LengthTwelveWeeks.Now(): "LAST 12 WEEKS",
+		views.LengthTwelveMonths.Now(): "LAST 12 MONTHS",
 	} {
 		page := detailsPage(t)
 		page.Period = period
 		rows := textOf(detailFrame(Look{}, framedAccounts, "work", "", page, nil).Draw(doc, routedAt))
 		if y := rowWith(rows, "USAGE"); !strings.HasSuffix(rows[y], want) {
-			t.Errorf("%s: USAGE's row reads %q, want THIS WEEK's title %q", period.Name(), rows[y], want)
+			t.Errorf("%s: USAGE's row reads %q, want THIS WEEK's title %q", period.Length().Name(), rows[y], want)
 		}
 	}
 }
@@ -997,7 +997,7 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
-			f := detailFrame(Look{}, framedAccounts, "work", "", yearPage(t, views.PeriodThisWeek, sixWeeks), nil)
+			f := detailFrame(Look{}, framedAccounts, "work", "", yearPage(t, views.LengthThisWeek.Now(), sixWeeks), nil)
 			f.Width, f.Height = tt.width, 44
 			l := laidIn(f, doc)
 			if l.weeks != tt.weeks || l.gap != tt.gap || l.dw != tt.dw || l.edge() != tt.edge {
@@ -1044,7 +1044,7 @@ func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 	held := heldYear(detailWork).peaks
 	for _, width := range []int{107, 108, 120, 138, 141, 160, 173, 220} {
 		t.Run(strconv.Itoa(width), func(t *testing.T) {
-			f := detailFrame(Look{}, framedAccounts, "work", "", yearPage(t, views.PeriodThisWeek, sixWeeks), nil)
+			f := detailFrame(Look{}, framedAccounts, "work", "", yearPage(t, views.LengthThisWeek.Now(), sixWeeks), nil)
 			f.Width, f.Height = width, 44
 			rows := accountsDrawn(f, doc)
 			for _, words := range whole {
@@ -1213,13 +1213,13 @@ func TestDetailsFactsLineSaysTheFactsAlone(t *testing.T) {
 		width  int
 		want   string
 	}{
-		{name: "eight weeks shown, of the period's six", period: views.PeriodThisWeek, width: 107,
+		{name: "eight weeks shown, of the period's six", period: views.LengthThisWeek.Now(), width: 107,
 			want: "limit hit 3 of the last 7 weeks · 19% left at a reset, on average"},
-		{name: "seven weeks shown, of the period's six", period: views.PeriodThisWeek, width: 160,
+		{name: "seven weeks shown, of the period's six", period: views.LengthThisWeek.Now(), width: 160,
 			want: "limit hit 2 of the last 6 weeks · 22% left at a reset, on average"},
-		{name: "13 weeks shown, of the period's 12, eight whole recorded", period: views.PeriodTwelveWeeks, width: 160,
+		{name: "13 weeks shown, of the period's 12, eight whole recorded", period: views.LengthTwelveWeeks.Now(), width: 160,
 			want: "limit hit 3 of the last 8 weeks · 22% left at a reset, on average"},
-		{name: "stacked on a phone, shorter", period: views.PeriodThisWeek, width: 52, want: "limit hit 2 of 5 weeks · 21% left at a reset"},
+		{name: "stacked on a phone, shorter", period: views.LengthThisWeek.Now(), width: 52, want: "limit hit 2 of 5 weeks · 21% left at a reset"},
 	}
 	verdicts := []string{views.HitsItsLimit, views.PlentyToSpare, views.EndsWithRoom, views.CouldGo, views.BarelyUsed, views.RoomToSpare, views.LittleToSpare}
 	for _, tt := range tests {

@@ -145,30 +145,30 @@ func TestProjectsReadsItsDaysOnceAndAgainOnlyFurtherBack(t *testing.T) {
 	h.keys(tabKey, tabKey)
 	now := h.clock.now
 	from := func(p views.Period) time.Time { return p.From(now, time.Monday) }
-	if h.model.view != dashboard.Projects || h.model.sessionDays.asked != 1 || !h.model.sessionDays.from.Equal(from(views.PeriodThisWeek)) {
-		t.Fatalf("on %s, the days were read %d times, from %v; want Projects, read once from %v", h.model.view, h.model.sessionDays.asked, h.model.sessionDays.from, from(views.PeriodThisWeek))
+	if h.model.view != dashboard.Projects || h.model.sessionDays.asked != 1 || !h.model.sessionDays.from.Equal(from(views.LengthThisWeek.Now())) {
+		t.Fatalf("on %s, the days were read %d times, from %v; want Projects, read once from %v", h.model.view, h.model.sessionDays.asked, h.model.sessionDays.from, from(views.LengthThisWeek.Now()))
 	}
 	steps := []struct {
 		key    string
 		period views.Period
 		asked  int
 	}{
-		{"<", views.PeriodToday, 1},
-		{">", views.PeriodThisWeek, 1},
-		{">", views.PeriodThirtyDays, 2},
-		{"<", views.PeriodThisWeek, 2},
-		{">", views.PeriodThirtyDays, 2},
-		{">", views.PeriodTwelveWeeks, 3},
-		{">", views.PeriodTwelveMonths, 4},
-		{"<", views.PeriodTwelveWeeks, 4},
+		{"<", views.LengthToday.Now(), 1},
+		{">", views.LengthThisWeek.Now(), 1},
+		{">", views.LengthThirtyDays.Now(), 2},
+		{"<", views.LengthThisWeek.Now(), 2},
+		{">", views.LengthThirtyDays.Now(), 2},
+		{">", views.LengthTwelveWeeks.Now(), 3},
+		{">", views.LengthTwelveMonths.Now(), 4},
+		{"<", views.LengthTwelveWeeks.Now(), 4},
 	}
 	for _, s := range steps {
 		h.deliver(h.press(s.key)...)
 		if h.model.period != s.period || h.model.sessionDays.asked != s.asked {
-			t.Fatalf("after %s, %q shown, the days were read %d times; want %q, read %d", s.key, h.model.period.Name(), h.model.sessionDays.asked, s.period.Name(), s.asked)
+			t.Fatalf("after %s, %q shown, the days were read %d times; want %q, read %d", s.key, h.model.period.Length().Name(), h.model.sessionDays.asked, s.period.Length().Name(), s.asked)
 		}
 	}
-	if want := from(views.PeriodTwelveMonths); !h.model.sessionDays.from.Equal(want) {
+	if want := from(views.LengthTwelveMonths.Now()); !h.model.sessionDays.from.Equal(want) {
 		t.Errorf("the days held are from %v, want the furthest back read, %v", h.model.sessionDays.from, want)
 	}
 	h.keys(tabKey, shiftTabKey)
@@ -211,8 +211,8 @@ func TestTheSessionsDaysAskWhereTheLedgerBeginsTillItSays(t *testing.T) {
 		asked        int
 		began, reads time.Time
 	}{
-		{name: "this week", asked: 1, reads: from(views.PeriodThisWeek)},
-		{name: "30 days", asked: 2, reads: from(views.PeriodThirtyDays)},
+		{name: "this week", asked: 1, reads: from(views.LengthThisWeek.Now())},
+		{name: "30 days", asked: 2, reads: from(views.LengthThirtyDays.Now())},
 		{name: "12 weeks", asked: 3, began: began, reads: began},
 		{name: "12 months", asked: 3, began: began, reads: began},
 	}
@@ -394,8 +394,8 @@ func TestProjectsDialStepKeepsTheSelectionScrolledInView(t *testing.T) {
 				t.Fatalf("over 30 days, → and ↓ to the last, then ↑, %s chosen, %s selected, scrolled %d, in view %v; want delta's last but one, still scrolled %d", s.Chosen, s.Selection(), h.model.scroll, selectionInView(h), scrolled)
 			}
 			st.step(h)
-			if s := h.model.projects.shown; h.model.period != views.PeriodTwelveWeeks || s.Chosen != "/code/delta" || !s.InSessions || s.Selection() != deltaSessions[1] || h.model.scroll != scrolled || !selectionInView(h) {
-				t.Errorf("over %s, %s chosen, in sessions %v, %s selected, scrolled %d, in view %v; want 12 weeks, delta's SESSIONS, %s, scrolled %d, in view", h.model.period.Name(), s.Chosen, s.InSessions, s.Selection(), h.model.scroll, selectionInView(h), deltaSessions[1], scrolled)
+			if s := h.model.projects.shown; h.model.period != views.LengthTwelveWeeks.Now() || s.Chosen != "/code/delta" || !s.InSessions || s.Selection() != deltaSessions[1] || h.model.scroll != scrolled || !selectionInView(h) {
+				t.Errorf("over %s, %s chosen, in sessions %v, %s selected, scrolled %d, in view %v; want 12 weeks, delta's SESSIONS, %s, scrolled %d, in view", h.model.period.Length().Name(), s.Chosen, s.InSessions, s.Selection(), h.model.scroll, selectionInView(h), deltaSessions[1], scrolled)
 			}
 		})
 	}
