@@ -3,6 +3,7 @@ package views
 import (
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -82,6 +83,33 @@ func LimitHitOfTheLast(limits, weeks int) status.Words {
 func limitHit(limits int, of string, weeks int) status.Words {
 	return slices.Concat(status.Words{status.Plain("limit hit "), status.Figure(prose.Grouped(limits)), status.Plain(of)},
 		CountedWords(weeks, "week"))
+}
+
+// WeeksShown says the weeks Detail's weeks section shows, n of them, as its
+// rule heads them at now: "the last eight weeks", where they end at this
+// week, as ThisWeek has it, a past day of it among them; else by the last
+// day of the last, as WholeTo has it, "the eight weeks to Sun 27 Sep", as
+// prose.DayAt names it at now.
+func (p AccountsPage) WeeksShown(n int, now time.Time) string {
+	if p.ThisWeek {
+		return "the last " + prose.Number(n) + " weeks"
+	}
+	return "the " + prose.Number(n) + " weeks to " + prose.DayAt(now, p.WholeTo)
+}
+
+// LimitHitOver says how many of the whole weeks given an account hit its
+// limit in, limits of them, as Detail's facts on the page's weeks say it at
+// now, fullest first: at now, as LimitHitOfTheLast and LimitHit say it,
+// "limit hit 3 of the last 7 weeks", then "limit hit 3 of 7 weeks"; in a
+// period gone, by the last day of the last whole week, as WholeTo has it and
+// prose.DayAt names it at now, "limit hit 3 of the 7 weeks to Sun 27 Sep",
+// then "limit hit 3 of 7 weeks to Sun 27 Sep".
+func (p AccountsPage) LimitHitOver(limits, weeks int, now time.Time) (full, short status.Words) {
+	if p.WholeTo.IsZero() {
+		return LimitHitOfTheLast(limits, weeks), LimitHit(limits, weeks)
+	}
+	to := status.Words{status.Plain(" to " + prose.DayAt(now, p.WholeTo))}
+	return slices.Concat(limitHit(limits, " of the ", weeks), to), slices.Concat(LimitHit(limits, weeks), to)
 }
 
 // LimitHitOutOf says how many of an account's weeks it hit its limit in, as

@@ -140,7 +140,7 @@ func (f Frame) quiet(m status.Moment) line {
 	case m.Routed && f.Outdated:
 		return line{{"restart the router for recent events", dimInk}}
 	case m.Routed:
-		return line{{"nothing lately", dimInk}}
+		return nothingLately
 	case !m.Probed:
 		return nil
 	case m.Fallback.Router == status.RouterNotRunning:
@@ -153,6 +153,10 @@ func (f Frame) quiet(m status.Moment) line {
 		return line{{"none while probing, as asked", dimInk}}
 	}
 }
+
+// nothingLately is what LATELY says where it has none to tell, in
+// text.subtle.
+var nothingLately = line{{"nothing lately", dimInk}}
 
 // quietly draws why LATELY lists no events, of the document as m has
 // it, from x along row y until the column end, where it says, and returns

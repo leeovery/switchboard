@@ -273,6 +273,45 @@ func TestAPastPeriodsWeeksRunToTheLastDayOfTheirLastWholeWeek(t *testing.T) {
 	}
 }
 
+// Detail's weeks are said by where they end: its rule, "the last eight
+// weeks" where they end at this week, a past day of it as Tue 29 Sep among
+// them, else by the last day of the last, "the eight weeks to Sun 27 Sep";
+// and its facts, in every period gone, by the last day of the last whole
+// week, "limit hit 3 of the 7 weeks to Sun 27 Sep", in full and short, as
+// at now they're "of the last 7 weeks". A day in another year than now's
+// carries its year.
+func TestDetailsWeeksAreSaidByWhereTheyEnd(t *testing.T) {
+	tests := []struct {
+		name, keys        string
+		length            views.Length
+		at                time.Time
+		rule, full, short string
+	}{
+		{name: "this week at now", length: views.LengthThisWeek, at: framesNow,
+			rule: "the last eight weeks", full: "limit hit 3 of the last 7 weeks", short: "limit hit 3 of 7 weeks"},
+		{name: "Tue 29 Sep", length: views.LengthToday, keys: "<<", at: framesNow,
+			rule: "the last eight weeks", full: "limit hit 3 of the 7 weeks to Sun 27 Sep", short: "limit hit 3 of 7 weeks to Sun 27 Sep"},
+		{name: "last week", length: views.LengthThisWeek, keys: "<", at: framesNow,
+			rule: "the eight weeks to Sun 27 Sep", full: "limit hit 3 of the 7 weeks to Sun 27 Sep", short: "limit hit 3 of 7 weeks to Sun 27 Sep"},
+		{name: "the week of 14 Sep", length: views.LengthThisWeek, keys: "<<", at: framesNow,
+			rule: "the eight weeks to Sun 20 Sep", full: "limit hit 3 of the 7 weeks to Sun 20 Sep", short: "limit hit 3 of 7 weeks to Sun 20 Sep"},
+		{name: "the week of 21 Dec, seen in the new year", length: views.LengthThisWeek, keys: "<<", at: time.Date(2027, time.January, 6, 9, 0, 0, 0, time.Local),
+			rule: "the eight weeks to Sun 27 Dec 2026", full: "limit hit 3 of the 7 weeks to Sun 27 Dec 2026", short: "limit hit 3 of 7 weeks to Sun 27 Dec 2026"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input(nil)
+			in.Now, in.Accounts, in.WeekStarts = tt.at, workAndSide, time.Monday
+			page := views.NewPast(in, nil).Accounts(pressed(t, tt.length, tt.keys, tt.at, time.Monday, time.Time{}))
+			full, short := page.LimitHitOver(3, 7, tt.at)
+			got := []string{page.WeeksShown(8, tt.at), full.String(), short.String()}
+			if want := []string{tt.rule, tt.full, tt.short}; !slices.Equal(got, want) {
+				t.Errorf("the weeks are said %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 // The rows that lead, running or gone on after a period gone, lead, as
 // Leads tells the drawing; those that ended don't.
 func TestTheRowsThatLeadAreTold(t *testing.T) {

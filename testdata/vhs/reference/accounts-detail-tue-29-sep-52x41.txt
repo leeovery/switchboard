@@ -1,0 +1,41 @@
+ SWITCHBOARD                     Thu 1 Oct  14:42:07
+
+ Overview  Accounts  Projects
+ Sessions  Runway  Trends  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+ACCOUNTS   Compare  Detail  Tokens
+                                      < Tue 29 Sep >
+
+◂ work ▸                       ↑↓ an account, or all
+
+TUE 29 SEP
+requests  180             worth     $46
+limits    5-hour ×1       extra use off
+plan      Ultra           against   7.0×
+
+BY MODEL
+● Opus 5.5 35%  ● Opus 5 10%  ● Sonnet 5.5 41%
+● Sonnet 5 4%  ● Fable 5.1 7%  ● Haiku 4.5 3%
+
+BY DAY    ▪▪▪▪▪   ▪▪▪▪▪   ▪▪▪ ▪   ▪▪▪▪▪    ▪▪ ···
+‹ 1 more  31 Aug  7 Sep   14 Sep  21 Sep  28 Sep
+
+WEEKS       94%    100%     81%    100%     34%…
+limit hit 3 of 5 weeks to Sun 27 Sep
+
+WORTH
+
+
+
+
+
+
+  01  03   05  07  09  11   13  15  17  19   21  23
+peak 15:00 $6.07
+
+LATELY
+Tue 22:50  ✓ open again: its 5-hour window reset
+▼ 7 more below · j/k
+tab views   < > back · on   n now   ? keys   q quit

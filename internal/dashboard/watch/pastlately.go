@@ -129,6 +129,13 @@ type pastLatelyBuilt struct {
 	sentences []views.Sentence
 }
 
+// told reports whether Detail's LATELY in a past period is told, of events
+// held, though it may tell none: never while they're read, as the events
+// it's told of are counted from the first held.
+func (b pastLatelyBuilt) told() bool {
+	return b.of.held > 0
+}
+
 // pastLatelyTold is m with Detail's LATELY in the dial's period while it's
 // gone told at now, at the moment of the document then, as
 // views.AccountLatelyTo tells it of the events pastLatelyHeld gives, of the

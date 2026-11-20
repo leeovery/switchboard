@@ -42,7 +42,8 @@ type AccountsPage struct {
 	// counts them, those that don't fit counted out of view. WholeTo is, of
 	// a period gone, the last day of the last whole week they hold, as
 	// dayfile.Civil gives a day, Detail's weeks section naming them by it,
-	// as "the eight weeks to Sun 27 Sep", as wholeTo has it; zero at now.
+	// as "the eight weeks to Sun 27 Sep", as wholeTo has it and WeeksShown
+	// and LimitHitOver say it; zero at now.
 	Weeks    []string
 	ToCome   int
 	ThisWeek bool
