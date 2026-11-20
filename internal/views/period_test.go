@@ -36,8 +36,8 @@ func TestEachPeriodBeginsOnItsFirstDay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.period.From(tt.now, tt.starts); !got.Equal(tt.want) {
-				t.Errorf("%q.From(%v, %v) = %v, want %v", tt.period, tt.now, tt.starts, got, tt.want)
+			if got := tt.period.Now().From(tt.now, tt.starts); !got.Equal(tt.want) {
+				t.Errorf("%q.Now().From(%v, %v) = %v, want %v", tt.period, tt.now, tt.starts, got, tt.want)
 			}
 		})
 	}
@@ -76,18 +76,13 @@ func TestEachPeriodIsNamedTitledAndPriced(t *testing.T) {
 	}
 }
 
-// A length's period now is of that length, each length's its own, and
-// begins where the length does.
+// A length's period now is of that length, each length's its own.
 func TestALengthsPeriodNowIsOfThatLength(t *testing.T) {
-	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.Local)
 	seen := map[views.Period]views.Length{}
 	for _, length := range views.Lengths() {
 		period := length.Now()
 		if got := period.Length(); got != length {
 			t.Errorf("%q.Now() is of %q", length, got)
-		}
-		if got, want := period.From(now, time.Monday), length.From(now, time.Monday); !got.Equal(want) {
-			t.Errorf("%q.Now() begins %v, want %v", length, got, want)
 		}
 		if other, ok := seen[period]; ok {
 			t.Errorf("%q.Now() is %q.Now()", length, other)

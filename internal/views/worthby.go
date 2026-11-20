@@ -160,7 +160,9 @@ type hourWorths struct {
 // begunFrom has it, so no chart shows days before it as days of none, in
 // the buckets WORTH BY may chart it in, the finest first, the coarsest of
 // no more than BucketsMost: a day's by hour and by two hours, where the
-// hours given are its own, as hourly has it, else by the day; this week's
+// hours given are its own, as hourly has it, and the work had begun by it,
+// else by the day, as of a day before the work, none of whose hours are
+// counted; this week's
 // by day; 30 days' and 12 weeks' by day and by week; and 12 months' by week
 // and by month. A period gone's charts are gone, so none of their buckets is
 // now's, and none is to come.
@@ -171,7 +173,7 @@ func worthCharts(period Period, now time.Time, starts time.Weekday, began time.T
 	charts := WorthCharts{days.by(ByDay, dayBuckets(first, last), first, last, today)}
 	switch period.length {
 	case LengthToday:
-		if hours != nil && period.hourly(hours.date, now, starts) {
+		if hours != nil && !first.After(last) && period.hourly(hours.date, now, starts) {
 			hourly := byHour(*hours, now)
 			charts = WorthCharts{hourly, byTwoHours(hourly)}
 		}
@@ -188,10 +190,11 @@ func worthCharts(period Period, now time.Time, starts time.Weekday, began time.T
 
 // hourly reports whether the period's worth is charted by the hour of the
 // day with the date given, at now, weeks starting on the day given: where
-// the period is that day, today or a day gone, as a day's hours are its own
-// alone, so today's hours never chart a day gone.
+// the period is that day, today or a day gone, as Day has it, as a day's
+// hours are its own alone, so today's hours never chart a day gone.
 func (p Period) hourly(date string, now time.Time, starts time.Weekday) bool {
-	return p.length == LengthToday && p.spanAt(dayfile.CivilOf(now), starts).last.Format(time.DateOnly) == date
+	day, _, ok := p.Day(now, starts)
+	return ok && day == date
 }
 
 // byHour is a day's worth by the local hour, as hours hold it, as

@@ -442,7 +442,7 @@ func TestTheDaysHeldAreBoundedToThePeriodAsTheDaysTurn(t *testing.T) {
 		projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at.Add(-time.Hour), 1)...)
 		h.clock.now = at
 		h.read(routerDocument(three()...))
-		first := dayfile.DateOf(views.LengthThisWeek.From(at, time.Monday))
+		first := dayfile.DateOf(views.LengthThisWeek.Now().From(at, time.Monday))
 		if held := heldDates(h); len(held) > 0 && held[0] < first {
 			t.Errorf("on %s, the days held are %v, want none before this week's first, %s", dayfile.DateOf(at), held, first)
 		}

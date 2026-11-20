@@ -510,7 +510,7 @@ func TestTwelveMonthsOfTheDaysReadTellARunBegunBeforeThem(t *testing.T) {
 	held := slices.DeleteFunc(slices.Clone(days), func(s ledger.Summary) bool { return s.Day < read })
 	in := input(days)
 	work := views.NewPast(in, held).Accounts(views.LengthTwelveMonths.Now()).Rows[0].Totals
-	in.From = views.LengthTwelveMonths.From(now, time.Monday)
+	in.From = views.LengthTwelveMonths.Now().From(now, time.Monday)
 	if got, want := jsonOf(t, work), jsonOf(t, views.NewHistory(in).Totals.Accounts[0]); got != want {
 		t.Errorf("over 12 months of the days read from %s, work counts\n%s\nhistory --since\n%s", read, got, want)
 	}

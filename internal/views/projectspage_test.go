@@ -3,6 +3,8 @@ package views_test
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"maps"
 	"math"
 	"reflect"
 	"slices"
@@ -26,6 +28,16 @@ type linesLedger struct {
 
 func (l linesLedger) Day(date string) []ledger.Held {
 	return l.days[date]
+}
+
+// FirstLinesDay is the start of the first day the ledger holds lines of,
+// failing with fs.ErrNotExist where it holds none, as a Follower tells it.
+func (l linesLedger) FirstLinesDay(time.Time) (time.Time, error) {
+	if len(l.days) == 0 {
+		return time.Time{}, fmt.Errorf("no day's lines: %w", fs.ErrNotExist)
+	}
+	start, _, _ := dayfile.Day(slices.Min(slices.Collect(maps.Keys(l.days))))
+	return start, nil
 }
 
 // ledgerOfLines is the ledger of the lines given.

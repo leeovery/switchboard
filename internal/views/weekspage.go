@@ -99,8 +99,9 @@ func (p Past) weeksOver(n int, last time.Time) WeeksPage {
 	this, first := weekOf(dayfile.CivilOf(in.Now), in.WeekStarts), weeksTo(last, in.WeekStarts, n)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
+	lastDate := last.Format(time.DateOnly)
 	placed := slices.DeleteFunc(weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts),
-		func(w placedWeek) bool { return w.week > last.Format(time.DateOnly) })
+		func(w placedWeek) bool { return w.week > lastDate })
 	isWhole := wholeWeek(days, this)
 	pl := plans{accounts: in.Accounts, table: in.Prices}
 	j := judgingOf(placed, isWhole, in.Accounts, pl, in.WeekWindow)

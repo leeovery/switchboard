@@ -2,6 +2,8 @@ package views
 
 import (
 	"cmp"
+	"errors"
+	"io/fs"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -56,9 +58,51 @@ func (o OldestDay) DayBefore(first LedgerDay) (LedgerDay, bool) {
 }
 
 // keeps reports whether the ledger keeps the lines of the day d, to read
-// back to: the oldest day, or one after it; none where it's none known.
+// back to: the oldest day, or one after it, as kept has it; none where it's
+// none known.
 func (o OldestDay) keeps(d LedgerDay) bool {
-	return o.known() && !d.Start.Before(o.Day.Start)
+	return o.known() && o.kept(d.Date)
+}
+
+// kept reports whether the ledger keeps the lines of the day with the given
+// date, and so its sessions and hours: the oldest day, or one after it;
+// every day where it's none known, as none can then be told as no longer
+// kept. It's the one rule of a day no longer kept, the Log's, Projects' and
+// the List's, and of a day's hours.
+func (o OldestDay) kept(date string) bool {
+	return !o.known() || date >= o.Day.Date
+}
+
+// linesBegun is where the ledger's lines began as a read found them, as its
+// FirstLinesDay gives it: first, the start of the first day it held lines
+// of, zero where it held none; and known, false where it couldn't say.
+type linesBegun struct {
+	first time.Time
+	known bool
+}
+
+// linesBegunIn is where the ledger l's lines begin at now, as linesBegun has
+// it.
+func linesBegunIn(l Ledger, now time.Time) linesBegun {
+	first, err := l.FirstLinesDay(now)
+	switch {
+	case err == nil:
+		return linesBegun{first: first, known: true}
+	case errors.Is(err, fs.ErrNotExist):
+		return linesBegun{known: true}
+	}
+	return linesBegun{}
+}
+
+// oldest is the oldest day whose lines the ledger keeps at now, keeping them
+// as long as keep says, as [ledger] keep gives it, as OldestKept has it of
+// where they began, the day the Log reads back to: the zero OldestDay, none
+// known, where where they began isn't known.
+func (b linesBegun) oldest(keep time.Duration, now time.Time) OldestDay {
+	if !b.known {
+		return OldestDay{}
+	}
+	return OldestKept(b.first, keep, now)
 }
 
 // reached reports whether a table spanning the days from first's reaches
