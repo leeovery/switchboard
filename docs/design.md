@@ -5096,7 +5096,8 @@ and Runway when they'll have room; Accounts says who. It has three views, as sub
 a column an account; **Detail**, one account, or all of them, in full; and **Tokens**, its tokens as ccusage reports them,
 over the dial's period, drawn in the Paper file
 *Switchboard · Entities*, page p-2-0, and kept as `accounts-tokens-173x53` and
-`accounts-tokens-73x61`. Compare and Detail are drawn in the Paper
+`accounts-tokens-73x61`; over a past period, signed off on 20 November 2026, as
+`accounts-tokens-30-days-to-1-sep-73x61`, a phone's 30 days to 1 Sep. Compare and Detail are drawn in the Paper
 file *Switchboard · Accounts*, on its page **FINAL · accounts · signed off 5 Oct 2026 · revised 6
 Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `accounts-compare-ten-160`,
 `accounts-compare-month-160`, `accounts-compare-bad-hour-160`, `accounts-detail-all-160`,
@@ -5777,7 +5778,8 @@ way in, its splits and its footnote.
   width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
   read`; `total` and `worth` stay. The names hold their natural until every one of those has left,
   so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
-  never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
+  never shows fewer columns, nor a shorter name, but for a past period's total: where `models`
+  shows again, its name may give way to the dial's short one (see the total below). Where `against its price` has left, worth runs to
   the frame's width. So at 108 and 120 every column shows but `models`, of short labels; by account
   and model, whose names take 2 more, `models` leaves 2 columns sooner than by account, as the names
   come first, where it used to show at the widest the old fixed form needed; and at 73, `cache
@@ -5795,7 +5797,12 @@ way in, its splits and its footnote.
   its $20 day`, `its $138 week`, `its $600 month`: priced whole, but where the 12 months or the
   ledger begin part-way through it, by its days from then, as Against its price says.
 - **The period's total leads:** a row for the whole period, split as the rows are, named by the
-  dial's words, `this week`, or a past period's, `30 days to 1 Sep`, in a row's head's ink. Its
+  dial's words, `this week`, or a past period's, `30 days to 1 Sep`, in a row's head's ink. No
+  column moves for it: a past period's name wider than the names runs on, where `models` has left,
+  into the first count's cells, to a cell before its figure; where it doesn't fit even so, the row
+  is named by the dial's short name (`Dial.Short()`), the heading naming the period in full: the
+  length's name, as `30 days`; `the week` of a week, never `this week`; and a day's own name, as
+  `yesterday`, or in another year its date, as `31 Dec 2025`. Its
   tokens and worth are its rows' summed, and its models count the versions the period used, each
   once, never a sum. Its against its price is
   Compare's all accounts' over the period, the one figure (`views` works it out once), its unit the
