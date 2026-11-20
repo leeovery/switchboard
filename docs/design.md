@@ -6016,7 +6016,8 @@ of stepping back through periods draw it (20 November 2026), `projects-yesterday
   period's, the rest taking the room. `last` is the time of its last request within the period,
   never `now`: the
   time alone where the period is one day, `21:40`; over more, with the weekday where it falls in
-  the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`. WORTH BY over a
+  the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`, with its year
+  where it isn't now's, `21 Aug 2025 21:40`. WORTH BY over a
   past day is by the hour of that day's lines, as Accounts' WORTH charts it, and no chart marks a
   bucket as now's. SESSIONS lists the period's sessions as the List does in a past period (see
   Sessions, The List), and says as it does, once, after its last row, where the period reaches

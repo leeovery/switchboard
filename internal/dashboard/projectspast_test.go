@@ -85,12 +85,13 @@ func TestTheProjectsListOfAPeriodGoneHasNoLiveColumn(t *testing.T) {
 }
 
 // A project's last in a period gone is when its last request came within
-// it, never now, though a session of it is busy: over one day by its time
-// alone; over more, with its weekday in the period's last seven days, else
-// with its date, its year where it isn't now's. Its column is as wide as
-// what it says. At now, a busy project's last is now. Each time is told in
-// the local zone, as the period's days are.
-func TestTheLastOfAPeriodGoneIsATimeNeverNow(t *testing.T) {
+// it: over one day by its time alone; over more, with its weekday in the
+// period's last seven days, else with its date, its year where it isn't
+// now's. Its column is as wide as what it says, and leaves as the list
+// narrows, shown from lastFrom. At now, a busy project's last is
+// now. Each time is told in the local zone, as the period's days are.
+func TestTheLastOfAPeriodGoneIsATimeOfThePeriod(t *testing.T) {
+	const lastFrom = 73
 	today := routedAt.Local()
 	yesterday := time.Date(today.Year(), today.Month(), today.Day()-1, 21, 40, 0, 0, time.Local)
 	tests := []struct {
@@ -111,13 +112,12 @@ func TestTheLastOfAPeriodGoneIsATimeNeverNow(t *testing.T) {
 				for i := range rows {
 					rows[i].Last = tt.last
 				}
-				rows[0].Activity = answering
 				f := overGone(t, projectsFrame(t, width, projectsTall, rows, 0, nil), listStepsBack(t, tt.length, 1))
-				col, ok := projectsColumn(projectsColumnsOf(f), listedLast)
-				if !ok {
-					if width >= 108 {
-						t.Fatalf("%s at %d, the list has no last column, want one", tt.name, width)
-					}
+				col, shown := projectsColumn(projectsColumnsOf(f), listedLast)
+				if want := width >= lastFrom; shown != want {
+					t.Fatalf("%s at %d, the list shows last %t, want %t", tt.name, width, shown, want)
+				}
+				if !shown {
 					return
 				}
 				text := textOf(f.page(framedDoc(nil, nil), routedAt).rows(Look{}))
@@ -337,6 +337,42 @@ func TestSessionsAreMeasuredAsTheDialsPeriodSaysTheirStarts(t *testing.T) {
 	} {
 		if got := MeasureSessions(&page, m, routedAt, tt.dial).widest[started]; got != tt.want {
 			t.Errorf("%s, SESSIONS' starts measure %d cells, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+// With no project of a period gone, the list says what the List says in
+// place of its rows, a row each, from column 2, in text.subtle: the period
+// had no session, by the dial's words; then, where some of its days are no
+// longer kept, so; and where every one is, so, in place of the empty
+// period's words. So at every width.
+func TestTheEmptyListOfAPeriodGoneSaysWhatTheListSays(t *testing.T) {
+	tests := []struct {
+		name   string
+		unkept views.UnkeptDays
+		want   []string
+	}{
+		{name: "none", want: []string{"  no sessions last week"}},
+		{name: "some days no longer kept", unkept: views.UnkeptDays{KeptFrom: civilDay(9, 24)}, want: []string{"  no sessions last week", unkeptSaid}},
+		{name: "every day no longer kept", unkept: views.UnkeptDays{KeptFrom: civilDay(9, 28), Every: true}, want: []string{"  sessions no longer kept"}},
+	}
+	for _, tt := range tests {
+		for _, width := range projectsWidths {
+			t.Run(fmt.Sprintf("%s at %d", tt.name, width), func(t *testing.T) {
+				f := frameOf(width, projectsTall)
+				f.View, f.Projects = Projects, ProjectsShown{Page: &views.ProjectsPage{Period: weekBack(t), Unkept: tt.unkept}}
+				f = overGone(t, f, weekBack(t))
+				c := f.page(framedDoc(nil, nil), routedAt)
+				top := f.top()
+				for i, want := range append(slices.Clone(tt.want), "") {
+					if got := rowOf(c, top+i); got != want {
+						t.Errorf("%s at %d, the list's line %d reads %q, want %q", tt.name, width, i+1, got, want)
+					}
+					if want != "" && c.at(listFrom, top+i).ink != dimInk {
+						t.Errorf("%s at %d, %q is in %+v, want %+v", tt.name, width, want, c.at(listFrom, top+i).ink, dimInk)
+					}
+				}
+			})
 		}
 	}
 }

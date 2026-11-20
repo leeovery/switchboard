@@ -65,8 +65,8 @@ type projectColumn struct {
 // in its look, width cells wide: its rows, the one chosen among them, and
 // every project's; its columns; whether ↑ and ↓ act in it, lighting its
 // chosen row; and how many of its projects it shows from the first shown,
-// as far as it's scrolled to show the one chosen; and the period it counts
-// over.
+// as far as it's scrolled to show the one chosen; the period it counts
+// over; and the days of a period gone whose sessions are no longer kept.
 type projectsList struct {
 	rows    []views.ProjectRow
 	chosen  int
@@ -79,6 +79,7 @@ type projectsList struct {
 	look    Look
 	now     time.Time
 	dial    views.Dial
+	unkept  views.UnkeptDays
 }
 
 // listedProject is a row of the list: what names it, its totals, and its
@@ -98,7 +99,7 @@ func projectsListOf(f Frame, rows int, lit bool, now time.Time) projectsList {
 	s := f.Projects
 	l := projectsList{rows: s.rows(), chosen: s.chosenAt(), lit: lit, width: f.Width, look: f.Look, now: now, dial: f.Dial}
 	if s.Page != nil {
-		l.all = s.Page.All
+		l.all, l.unkept = s.Page.All, s.Page.Unkept
 	}
 	l.columns = l.columnsOf(f.Width)
 	scrolling := projectsScrolling(len(l.rows), rows)
@@ -203,12 +204,16 @@ func (l projectsList) linesShown() int {
 // bar; its projects shown, as row draws each; the line saying how many more
 // there are above and below, as Detail's list says them; the rule across the
 // list, in border.subtle; and every project's row. It returns the row after
-// it. Of no project, it says there's no session of the period, as the List
-// says it.
+// it. Of no project, it says what the List says in place of its rows, as
+// listLines has them, a row each: there's no session of the period, and of
+// a period gone, where its sessions are no longer kept.
 func (l projectsList) draw(c *canvas, y int) int {
 	if len(l.rows) == 0 {
-		c.line(listFrom, y, noSessionsIn(l.dial).fit(l.width-listFrom))
-		return y + 1
+		for _, said := range listLines(nil, l.unkept, l.dial, l.now) {
+			c.line(listFrom, y, said.said.fit(l.width-listFrom))
+			y++
+		}
+		return y
 	}
 	for _, col := range l.columns {
 		if head := projectHeads[col.part]; head != "" {
@@ -314,13 +319,13 @@ func projectNamed(r views.ProjectRow) line {
 	return line{{r.Name, titleInk}}
 }
 
-// lastSays is when the project's last request came, in text.muted: at now,
-// now while a session of it is busy, as its Activity's Busy has it; else as
-// the dial's TimeSaid says it, never now of a period gone; nothing where
+// lastSays is when the project's last request came, in text.muted: now
+// while a session of it is busy, as its Activity's Busy has it, which of a
+// period gone none is; else as the dial's TimeSaid says it; nothing where
 // none came.
 func (l projectsList) lastSays(r views.ProjectRow) line {
 	switch {
-	case l.dial.AtNow() && r.Activity.Busy(l.now):
+	case r.Activity.Busy(l.now):
 		return line{{"now", mutedInk}}
 	case r.Last.IsZero():
 		return nil
