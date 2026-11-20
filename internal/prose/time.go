@@ -254,9 +254,8 @@ func Past(now, t time.Time) string {
 // 12:08", as a start in a period gone is dated. Within the week it names no
 // date, so no year, across a new year too.
 func PastAt(now, t time.Time) string {
-	t = t.In(now.Location())
-	if !WithinWeek(now, t) && t.Year() != now.Year() {
-		return t.Format(pastInYearLayout)
+	if !WithinWeek(now, t) {
+		return DayMonthTimeAt(now, t)
 	}
 	return Past(now, t)
 }
@@ -408,6 +407,15 @@ func DayMonthAt(now, d time.Time) string {
 // zone, such as "21 Aug 21:40".
 func DayMonthTime(now, t time.Time) string {
 	return t.In(now.Location()).Format(pastLayout)
+}
+
+// DayMonthTimeAt shows t as DayMonthTime does in now's year, such as "21 Aug
+// 21:40"; in another, with its year, such as "21 Aug 2025 21:40".
+func DayMonthTimeAt(now, t time.Time) string {
+	if t = t.In(now.Location()); t.Year() != now.Year() {
+		return t.Format(pastInYearLayout)
+	}
+	return t.Format(pastLayout)
 }
 
 // expiresVerb is what TokenEnding says of a token's year before its date:

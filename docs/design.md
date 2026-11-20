@@ -5923,7 +5923,9 @@ is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the
 draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
 `projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
 `projects-108x24`, `projects-12-months-173x53`, `projects-many-114x40` and `projects-104x58`, a
-tall, narrow screen, its SESSIONS filling the width.
+tall, narrow screen, its SESSIONS filling the width; and over a past period, as the Paper frames
+of stepping back through periods draw it (20 November 2026), `projects-yesterday-73x61` and
+`projects-last-week-173x53`.
 
 - **A session's project** is `status.Projects`'. It starts from `status.ProjectOf`: the project
   its lines name, else, of a line from before they named one, its directory's, a Claude Code
@@ -6014,7 +6016,8 @@ tall, narrow screen, its SESSIONS filling the width.
   period's, the rest taking the room. `last` is the time of its last request within the period,
   never `now`: the
   time alone where the period is one day, `21:40`; over more, with the weekday where it falls in
-  the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`. WORTH BY over a
+  the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`, with its year
+  where it isn't now's, `21 Aug 2025 21:40`. WORTH BY over a
   past day is by the hour of that day's lines, as Accounts' WORTH charts it, and no chart marks a
   bucket as now's. SESSIONS lists the period's sessions as the List does in a past period (see
   Sessions, The List), and says as it does, once, after its last row, where the period reaches

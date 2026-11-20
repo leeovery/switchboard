@@ -146,7 +146,8 @@ func (d Dial) Widest() string {
 // prose.Lately says it; gone, never as now, but over a period of one day by
 // its time of day alone, as "21:40"; over more, with its weekday where it
 // falls in the period's last seven days, as "Sun 21:40", else with its date,
-// as "21 Aug 21:40". No period holds a date twice, so a date needs no year.
+// as "21 Aug 21:40", and in a year other than now's with it, as "21 Aug 2025
+// 21:40", as a date carries its year wherever it isn't now's.
 func (d Dial) TimeSaid(t time.Time) string {
 	switch {
 	case !d.span.gone:
@@ -156,5 +157,5 @@ func (d Dial) TimeSaid(t time.Time) string {
 	case d.span.last.Sub(dayfile.CivilOf(t)) < 7*24*time.Hour:
 		return prose.Clock(d.local, t)
 	}
-	return prose.DayMonthTime(d.local, t)
+	return prose.DayMonthTimeAt(d.local, t)
 }

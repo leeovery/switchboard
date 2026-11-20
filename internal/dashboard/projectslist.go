@@ -65,8 +65,8 @@ type projectColumn struct {
 // in its look, width cells wide: its rows, the one chosen among them, and
 // every project's; its columns; whether ↑ and ↓ act in it, lighting its
 // chosen row; and how many of its projects it shows from the first shown,
-// as far as it's scrolled to show the one chosen; and the period it counts
-// over.
+// as far as it's scrolled to show the one chosen; the period it counts
+// over; and the days of a period gone whose sessions are no longer kept.
 type projectsList struct {
 	rows    []views.ProjectRow
 	chosen  int
@@ -79,6 +79,7 @@ type projectsList struct {
 	look    Look
 	now     time.Time
 	dial    views.Dial
+	unkept  views.UnkeptDays
 }
 
 // listedProject is a row of the list: what names it, its totals, and its
@@ -98,7 +99,7 @@ func projectsListOf(f Frame, rows int, lit bool, now time.Time) projectsList {
 	s := f.Projects
 	l := projectsList{rows: s.rows(), chosen: s.chosenAt(), lit: lit, width: f.Width, look: f.Look, now: now, dial: f.Dial}
 	if s.Page != nil {
-		l.all = s.Page.All
+		l.all, l.unkept = s.Page.All, s.Page.Unkept
 	}
 	l.columns = l.columnsOf(f.Width)
 	scrolling := projectsScrolling(len(l.rows), rows)
@@ -138,7 +139,8 @@ func projectsScrolling(n, rows int) Scrolling {
 // and last at their widest. As it narrows, the bar
 // narrows to its least, then requests and last leave, and the name is cut
 // toward projectNameLeast, in the turns above. No natural comes from the
-// rows shown, so the columns hold still as the list scrolls.
+// rows shown, so the columns hold still as the list scrolls. Of a period
+// gone there's no live column, as parts has it.
 func (l projectsList) columnsOf(width int) []projectColumn {
 	listed := append(l.listed(), l.every())
 	widest := func(p projectsPart) int {
@@ -148,17 +150,33 @@ func (l projectsList) columnsOf(width int) []projectColumn {
 		}
 		return cells
 	}
-	kinds := []projectsPart{listedName, listedLive, listedSessions, listedWorth, listedBar, listedRequests, listedLast}
+	kinds := l.parts()
 	parts := make([]flex.Part, len(kinds))
 	for i, p := range kinds {
 		w := widest(p)
 		parts[i] = flex.Part{Least: w, Natural: w, Gap: listGap}
+		switch p {
+		case listedName:
+			parts[i] = flex.Part{Least: projectNameLeast, Natural: w, Narrows: nameNarrows}
+		case listedBar:
+			parts[i] = flex.Part{Least: projectBarLeast, Grows: true, Gap: listGap}
+		case listedRequests:
+			parts[i].Leaves = requestsLeave
+		case listedLast:
+			parts[i].Leaves = lastLeaves
+		}
 	}
-	parts[listedName] = flex.Part{Least: projectNameLeast, Natural: widest(listedName), Narrows: nameNarrows}
-	parts[listedBar] = flex.Part{Least: projectBarLeast, Grows: true, Gap: listGap}
-	parts[listedRequests].Leaves, parts[listedLast].Leaves = requestsLeave, lastLeaves
 	spans, _ := flex.Lay(width-listFrom, parts...)
 	return spannedColumns(spans, kinds, func(p projectsPart, x, width int) projectColumn { return projectColumn{part: p, x: x, width: width} })
+}
+
+// parts are the list's columns, in the row's order: every one, but live of
+// a period gone, as no session of it runs now.
+func (l projectsList) parts() []projectsPart {
+	if l.dial.Gone() {
+		return []projectsPart{listedName, listedSessions, listedWorth, listedBar, listedRequests, listedLast}
+	}
+	return []projectsPart{listedName, listedLive, listedSessions, listedWorth, listedBar, listedRequests, listedLast}
 }
 
 // end is the column after the list's last.
@@ -186,12 +204,16 @@ func (l projectsList) linesShown() int {
 // bar; its projects shown, as row draws each; the line saying how many more
 // there are above and below, as Detail's list says them; the rule across the
 // list, in border.subtle; and every project's row. It returns the row after
-// it. Of no project, it says there's no session of the period, as the List
-// says it.
+// it. Of no project, it says what the List says in place of its rows, as
+// listLines has them, a row each: there's no session of the period, and of
+// a period gone, where its sessions are no longer kept.
 func (l projectsList) draw(c *canvas, y int) int {
 	if len(l.rows) == 0 {
-		c.line(listFrom, y, noSessionsIn(l.dial).fit(l.width-listFrom))
-		return y + 1
+		for _, said := range listLines(nil, l.unkept, l.dial, l.now) {
+			c.line(listFrom, y, said.said.fit(l.width-listFrom))
+			y++
+		}
+		return y
 	}
 	for _, col := range l.columns {
 		if head := projectHeads[col.part]; head != "" {
@@ -298,8 +320,9 @@ func projectNamed(r views.ProjectRow) line {
 }
 
 // lastSays is when the project's last request came, in text.muted: now
-// while a session of it is busy, as its Activity's Busy has it; else as
-// prose.Lately says it; nothing where none came.
+// while a session of it is busy, as its Activity's Busy has it, which of a
+// period gone none is; else as the dial's TimeSaid says it; nothing where
+// none came.
 func (l projectsList) lastSays(r views.ProjectRow) line {
 	switch {
 	case r.Activity.Busy(l.now):
@@ -307,7 +330,7 @@ func (l projectsList) lastSays(r views.ProjectRow) line {
 	case r.Last.IsZero():
 		return nil
 	}
-	return line{{prose.Lately(l.now, r.Last), mutedInk}}
+	return line{{l.dial.TimeSaid(r.Last), mutedInk}}
 }
 
 // targets are the list's projects shown, from row y, a click on which

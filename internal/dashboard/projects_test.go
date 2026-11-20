@@ -521,7 +521,7 @@ func TestSessionsColumnsGiveWayInTheirOrder(t *testing.T) {
 	m := frameOf(173, 53).Moment(framedDoc(nil, nil), routedAt)
 	before := 0
 	for width := 30; width <= 220; width++ {
-		columns := projectSessionsOf(sessionWords{m: m, now: routedAt}, &page, SessionsMeasured{}, width).columns
+		columns := projectSessionsOf(sessionWords{m: m, now: routedAt}, &page, dialOf(views.LengthThisWeek.Now()), SessionsMeasured{}, width).columns
 		shown := map[listPart]listColumn{}
 		for _, c := range columns {
 			shown[c.part] = c
@@ -562,11 +562,11 @@ func TestSessionsFillsTheWidthItsSessionColumnTakingTheSpare(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			words := sessionWords{m: frameOf(173, 53).Moment(doc, routedAt), now: routedAt}
 			widest := map[listPart]int{}
-			for _, c := range projectSessionsOf(words, &page, SessionsMeasured{}, 220).columns {
+			for _, c := range projectSessionsOf(words, &page, dialOf(views.LengthThisWeek.Now()), SessionsMeasured{}, 220).columns {
 				widest[c.part] = c.width
 			}
 			for width := 52; width <= 220; width++ {
-				columns := projectSessionsOf(words, &page, SessionsMeasured{}, width).columns
+				columns := projectSessionsOf(words, &page, dialOf(views.LengthThisWeek.Now()), SessionsMeasured{}, width).columns
 				if last := columns[len(columns)-1]; last.x+last.width != width {
 					t.Errorf("at %d SESSIONS' last column ends at %d, want the frame's edge: %+v", width, last.x+last.width, columns)
 				}
@@ -826,8 +826,8 @@ func TestSessionsMeasuredDrawAsMeasuredAtEachFrame(t *testing.T) {
 	f := projectsFrame(t, 173, 60, projectRows(3), 0, &page)
 	want := textOf(f.page(doc, later).rows(Look{}))
 	for name, measured := range map[string]SessionsMeasured{
-		"measured as built":        MeasureSessions(&page, f.Moment(doc, routedAt), routedAt),
-		"measured of another page": MeasureSessions(&other, f.Moment(doc, routedAt), routedAt),
+		"measured as built":        MeasureSessions(&page, f.Moment(doc, routedAt), routedAt, f.Dial),
+		"measured of another page": MeasureSessions(&other, f.Moment(doc, routedAt), routedAt, f.Dial),
 	} {
 		f.Projects.Measured = measured
 		if got := textOf(f.page(doc, later).rows(Look{})); !slices.Equal(got, want) {
