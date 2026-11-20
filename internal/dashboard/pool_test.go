@@ -87,6 +87,59 @@ func TestThePoolsLabelIsOnItsHueAndTheTabsTargetsFollowIt(t *testing.T) {
 	}
 }
 
+// A click on the pool's label presses P, turning to the next pool: its
+// target takes the cells the label is drawn on, its spaces with them, and
+// no more, at every width, a phone's and a label cut short included; where
+// the title row names no pool, there's none.
+func TestAClickOnThePoolsLabelPressesP(t *testing.T) {
+	tests := []struct {
+		name  string
+		width int
+		pool  status.ShownPool
+		want  string
+	}{
+		{name: "one of two", width: 160, pool: acme, want: " Acme "},
+		{name: "on a phone", width: 73, pool: acme, want: " Acme "},
+		{name: "a long label cut short", width: 100, pool: status.ShownPool{ID: "q7mt", Label: "Acme Corporation Research", Accounts: 1, Pools: 2}, want: " Acme Corporati… "},
+		{name: "the only pool", width: 160, pool: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 1}},
+		{name: "none shown", width: 160, pool: status.ShownPool{Pools: 2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := tt.pool
+			pool.Turn = 120
+			f := Frame{Width: tt.width, Height: 37, View: Overview, Pool: pool, Policy: printPolicy}
+			var pressing []Target
+			for _, target := range f.Targets(routed(), printNow) {
+				if target.On == OnPress && target.Y == 0 {
+					pressing = append(pressing, target)
+				}
+			}
+			if tt.want == "" {
+				if len(pressing) > 0 {
+					t.Errorf("the title row presses %+v, want nothing, as it names no pool", pressing)
+				}
+				return
+			}
+			if len(pressing) != 1 || pressing[0].Key != "P" {
+				t.Fatalf("the title row presses %+v, want P alone", pressing)
+			}
+			c := newCanvas(f.Width, f.Height)
+			f.title(c, now)
+			target, on := pressing[0], poolInk(pool.Turn).on
+			if got := string([]rune(c.rows(Look{})[0])[target.X : target.X+target.Width]); got != tt.want {
+				t.Errorf("the pool's target covers %q, want %q", got, tt.want)
+			}
+			for x := target.X - 1; x <= target.X+target.Width; x++ {
+				inside := x >= target.X && x < target.X+target.Width
+				if got := c.at(x, 0).ink.on == on; got != inside {
+					t.Errorf("column %d is on the pool's hue %v, want %v, as the target takes it", x, got, inside)
+				}
+			}
+		})
+	}
+}
+
 // A pool with no accounts says so on its status line, after how the router
 // stands and the restart it has due, which takes up any the config gives it,
 // in place of how it routes, whichever way the document was read. A pool the
@@ -136,7 +189,8 @@ func TestThePoolWithNoAccountsSaysSoOnItsStatusLine(t *testing.T) {
 // A pool with no accounts draws, on every tab, the page empty-pool-160
 // draws: what doesn't start, how to add an account or move one in, and how
 // long its directories stay fenced; no heading row, no view, nothing to
-// click on but its tabs and its keys, and nothing that scrolls.
+// click on but its tabs, the pool's label and its keys, and nothing that
+// scrolls.
 func TestAPoolWithNoAccountsDrawsItsPageOnEveryTab(t *testing.T) {
 	doc := routed(func(d *status.Document) { d.Accounts, d.Best, d.Sessions = nil, "", 0 })
 	want := []string{
@@ -162,8 +216,8 @@ func TestAPoolWithNoAccountsDrawsItsPageOnEveryTab(t *testing.T) {
 				}
 			}
 			for _, target := range f.Targets(doc, printNow) {
-				if target.On != OnTab && target.On != OnKey {
-					t.Errorf("a click on %+v acts, want only the tabs and the key line's keys to", target)
+				if pools := target.On == OnPress && target.Key == "P" && target.Y == 0; target.On != OnTab && target.On != OnKey && !pools {
+					t.Errorf("a click on %+v acts, want only the tabs, the pool's label and the key line's keys to", target)
 				}
 			}
 			if under := f.Under(doc, printNow, 10, 10); under != UnderNothing {

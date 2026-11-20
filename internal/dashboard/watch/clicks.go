@@ -49,8 +49,8 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // < or > by a period or Runway's week,
 // it presses it; on a key of the key line, it presses it, as pressOf says;
 // on what on the page stands for a key, it presses that key alike, as the
-// Log's ▼ N new presses end, and a Graphs section's heading its key, which
-// hides the section; on an Overview's section's heading, it hides the
+// Log's ▼ N new presses end, a Graphs section's heading its key, which
+// hides the section, and the pool's label P, which turns to the next pool; on an Overview's section's heading, it hides the
 // section, as its key does; on a session's row, it opens its page, as
 // openSession has it; on a turn's row on its page, it acts as clickTurn has
 // it, and on a request's row of its turn open, as clickRequest has it; and
