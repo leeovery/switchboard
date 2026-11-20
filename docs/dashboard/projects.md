@@ -72,6 +72,16 @@ as tells the two apart, at least 4 characters.
 Only the part where `↑` and `↓` act, the list or the sessions, lights its chosen row. The other
 keeps its chosen row bold, marked `▸`.
 
+## A past period: what ran then
+
+Step the dial back to see where last week went, project by project. The dial and its keys work as
+on [Accounts](accounts.md). In a past period:
+
+- the `live` column and the count of sessions running leave;
+- `last` is the time of the last request within the period, never `now`;
+- SESSIONS lists the sessions of the period as the List on [Sessions](sessions.md) does, with
+  those that went on past the period first, marked `went on`.
+
 ## Room by size
 
 **Wide,** WORTH BY sits on the left, with BY MODEL over ON ACCOUNTS on the right. Narrower,
@@ -102,7 +112,9 @@ stack.
 | the wheel, over the list | Chooses the next project as your fingers move down, whichever way your Mac scrolls. |
 | `→` `←` | Moves into the sessions of the chosen project, and back to the list. |
 | `↑` `↓`, then `enter` | In the sessions, chooses a session, and opens [its page](session-page.md). |
-| `<` `>` | Steps the period, shared with [Accounts](accounts.md) and the List on Sessions. |
+| `<` `>` | Steps the period back and on in time, shared with [Accounts](accounts.md) and the List on Sessions. |
+| `-` `+` | Changes the length of the period. |
+| `n` | Goes back to now. |
 
 Keys on every page are on [Every page](every-page.md). If the wheel chooses the project above as
 your fingers move down, see [The wheel on Projects runs against your fingers](../troubleshooting/wheel.md).
