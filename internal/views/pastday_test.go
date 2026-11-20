@@ -312,6 +312,17 @@ func TestDetailsWeeksAreSaidByWhereTheyEnd(t *testing.T) {
 	}
 }
 
+// A page of now says its weeks as the last, rule and facts alike, whatever
+// ThisWeek holds: the two agree on what now is.
+func TestAPageOfNowSaysItsWeeksAsTheLast(t *testing.T) {
+	var page views.AccountsPage
+	full, _ := page.LimitHitOver(3, 7, framesNow)
+	got := []string{page.WeeksShown(8, framesNow), full.String()}
+	if want := []string{"the last eight weeks", "limit hit 3 of the last 7 weeks"}; !slices.Equal(got, want) {
+		t.Errorf("a page of now says its weeks %q, want %q", got, want)
+	}
+}
+
 // The rows that lead, running or gone on after a period gone, lead, as
 // Leads tells the drawing; those that ended don't.
 func TestTheRowsThatLeadAreTold(t *testing.T) {

@@ -23,13 +23,13 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │   limit hit 3 of the 7 weeks to Sun 27 Sep · 9% left at a reset, on average
                     │
                     │   WORTH
-                    │
-                    │
-                    │
-                    │
+                    │                                                                                                         ▇▇▇▇       ▆▆▆▆  ▄▄▄▄ ▃▃▃▃       ▇▇▇▇
+                    │                                                                                                                                     ▅▅▅▅
+                    │                                                                                                                                                ▄▄▄▄
+                    │                                                                                                   ▂▂▂▂
                     │
                     │               00    01   02    03   04    05    06   07    08   09    10    11   12    13    14   15    16   17    18    19   20    21   22    23
-                    │               peak 15:00 $6.07
+                    │               peak 17:00 $0.99
                     │
                     │   LATELY      Tue 22:50  ✓ open again: its 5-hour window reset
                     │               Tue 21:15  ╎ reached its cap: 2 sessions moved to personal

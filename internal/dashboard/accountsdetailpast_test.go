@@ -171,20 +171,33 @@ func pastWorld() status.Document {
 	return usageWorld(extraOff, tokenLeft("work", 21), happened(onAuto()...))
 }
 
+// allChosen chooses all accounts in Detail's frame.
+func allChosen(f *Frame) {
+	f.Accounts.Chosen = ""
+}
+
 // In a past period what tells the moment leaves Detail, wide and stacked:
-// the state the head says, the token's line, the list's states' marks,
-// their cells kept blank, and USAGE; THIS WEEK, titled by the dial, heads on
-// BY MODEL's row, wide, and under the picker, stacked. Where its wide form
-// starts holds as at now, so a step in time never turns it stacked or wide.
-// At now each shows.
+// the state the head says, of an account or counted of all accounts, the
+// token's line, the list's states' marks, their cells kept blank and never
+// picked out as newly changed, and USAGE; THIS WEEK, titled by the dial,
+// heads on BY MODEL's row, wide, and under the picker, stacked. Where its
+// wide form starts holds as at now, so a step in time never turns it stacked
+// or wide. At now each shows.
 func TestAPastDetailsMomentLeaves(t *testing.T) {
 	doc := pastWorld()
 	periods := detailPeriods(t)
+	changed := func(f *Frame) { f.StateChanged = map[string]float64{"work": 0.5} }
 	for _, width := range detailWidths {
 		wideAtNow := drawnOver(width, periods[0], doc).wide
 		for _, dp := range periods {
+			t.Run(fmt.Sprintf("%d %s all accounts", width, dp.name), func(t *testing.T) {
+				p := drawnOver(width, dp, doc, allChosen)
+				if named := p.head() == allAccountsNamed.plain() || p.head() == ""; named != p.f.Dial.Gone() {
+					t.Errorf("the head reads %q; the name alone: %v, want %v", p.head(), named, p.f.Dial.Gone())
+				}
+			})
 			t.Run(fmt.Sprintf("%d %s", width, dp.name), func(t *testing.T) {
-				p := drawnOver(width, dp, doc)
+				p := drawnOver(width, dp, doc, changed)
 				gone, all := p.f.Dial.Gone(), strings.Join(p.rows, "\n")
 				if p.wide != wideAtNow {
 					t.Errorf("drawn wide %v, want %v, as at now", p.wide, wideAtNow)
@@ -208,10 +221,15 @@ func TestAPastDetailsMomentLeaves(t *testing.T) {
 				if !p.wide {
 					return
 				}
-				for i := range framedAccounts {
+				for i, a := range framedAccounts {
 					y := (i + 1) * listApart
-					if marked := p.c.at(p.d.l.dotAt(), y).glyph != " "; marked == gone {
+					dot := p.c.at(p.d.l.dotAt(), y)
+					if marked := dot.glyph != " "; marked == gone {
 						t.Errorf("the list's row %d reads %q; marked %v, want %v", y, p.rows[y], marked, !gone)
+					}
+					_, changing := p.f.StateChanged[a.ID]
+					if cued := dot.ink.on.token == theme.BgAttention; cued != (changing && !gone) {
+						t.Errorf("%s's state mark is picked out: %v, want %v", a.ID, cued, changing && !gone)
 					}
 				}
 			})
@@ -333,26 +351,31 @@ func fewerWeeksMoment(t *testing.T) viewstest.AccountsMoment {
 	return viewstest.AccountsMoment{}
 }
 
-// BY DAY and WORTH mark nothing as now's in a past period, wide and stacked,
-// but this week as now does where it shows: the last week's first day is
-// bold where it's this week, as it is at now and at Tue 29 Sep, and its days
-// to come, where the page has any, "··"; and WORTH's axis names no bucket
-// bold in a period gone, as at now it names now's.
+// BY DAY, all accounts' weeks and WORTH mark nothing as now's in a past
+// period, wide and stacked, but this week as now does where it shows: the
+// last week's first day, heading BY DAY or all accounts' table where it
+// shows a week, is bold where it's this week, as it is at now and at Tue 29
+// Sep, and BY DAY's days to come, where the page has any, "··"; and WORTH's
+// axis names no bucket bold in a period gone, as at now it names now's.
 func TestAPastDetailMarksNothingAsNowsButThisWeekWhereItShows(t *testing.T) {
 	doc := pastWorld()
 	for _, width := range detailWidths {
 		for _, dp := range detailPeriods(t) {
+			t.Run(fmt.Sprintf("%d %s all accounts", width, dp.name), func(t *testing.T) {
+				p := drawnOver(width, dp, doc, allChosen)
+				c, heads, table := p.c, rowWith(p.rows, "WEEKS")+1, p.d.tableFrom(0, p.d.f.edge())
+				if p.wide {
+					c, heads, table = growing(width), 0, p.d.table()
+					p.d.asATable(c, heads, nil)
+				}
+				if table.shown > 0 {
+					lastHeadIsThisWeeks(t, c, heads, dp.page)
+				}
+			})
 			t.Run(fmt.Sprintf("%d %s", width, dp.name), func(t *testing.T) {
 				p := drawnOver(width, dp, doc)
 				days := rowWith(p.rows, "BY DAY")
-				last := prose.DayMonth(civilOf(t, dp.page.Weeks[len(dp.page.Weeks)-1]))
-				x := columnOf(p.rows[days+1], last)
-				if x < 0 {
-					t.Fatalf("no %s under BY DAY in\n%s", last, strings.Join(p.rows, "\n"))
-				}
-				if bold := p.c.at(x, days+1).ink.bold; bold != dp.page.ThisWeek {
-					t.Errorf("%s is bold %v, want %v", last, bold, dp.page.ThisWeek)
-				}
+				lastHeadIsThisWeeks(t, p.c, days+1, dp.page)
 				toCome := slices.ContainsFunc(cellsAlong(p.c, days), func(c *cell) bool { return c.glyph == "·" && c.ink == faintInk })
 				if toCome != (dp.page.ToCome > 0) {
 					t.Errorf("BY DAY reads %q; days to come shown %v, want %v", p.rows[days], toCome, dp.page.ToCome > 0)
@@ -364,6 +387,22 @@ func TestAPastDetailMarksNothingAsNowsButThisWeekWhereItShows(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// lastHeadIsThisWeeks fails the test unless the page's last week's first
+// day, on row y of c, is bold where it's this week, as the page's ThisWeek
+// has it, and only there.
+func lastHeadIsThisWeeks(t *testing.T, c *canvas, y int, page *views.AccountsPage) {
+	t.Helper()
+	rows := textOf(c.rows(Look{}))
+	last := prose.DayMonth(civilOf(t, page.Weeks[len(page.Weeks)-1]))
+	x := columnOf(rows[y], last)
+	if x < 0 {
+		t.Fatalf("no %s on row %d in\n%s", last, y, strings.Join(rows, "\n"))
+	}
+	if bold := c.at(x, y).ink.bold; bold != page.ThisWeek {
+		t.Errorf("%s is bold %v, want %v", last, bold, page.ThisWeek)
 	}
 }
 

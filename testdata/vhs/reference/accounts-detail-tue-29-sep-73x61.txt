@@ -25,13 +25,13 @@ limit hit 3 of 6 weeks to Sun 27 Sep · 6% left at a reset
 
 WORTH
 
-
-
-
-
+                                                 ▇▇    ▆▆ ▄▄ ▃▃    ▇▇
+                                                                ▅▅
+                                                                      ▄▄
+                                              ▂▂
 
 00 01 02 03 04 05 06 07 08 09 10 11  12 13 14 15 16 17 18 19 20 21 22 23
-peak 15:00 $6.07
+peak 17:00 $0.99
 
 LATELY
 Tue 22:50  ✓ open again: its 5-hour window reset
