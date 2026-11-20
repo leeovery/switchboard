@@ -107,12 +107,12 @@ const (
 // and while a past period shows, n now. At now, a phone's line names < >
 // alone, and only where phoned says, as on Projects' list and the List,
 // never Accounts; while a past period shows, it names - +, its name left
-// off, which gives way first, and keeps < > and n to the last, as
-// dashboard.KeyLine's PhoneKept keeps them.
+// off, after the page's other keys, so it gives way first, and keeps < > and
+// n to the last, as dashboard.KeyLine's PhoneKept keeps them.
 func dialListings(d views.Dial, works, phoned bool) []keyListing {
 	gone := d.Gone()
 	return []keyListing{
-		{Key: dashboard.Key{Key: lengthKeys, Does: "period", State: d.Name()}, works: works, apart: true, wide: !gone, phoneDoes: "period"},
+		{Key: dashboard.Key{Key: lengthKeys, Does: "period", State: d.Name()}, works: works, apart: true, wide: !gone, yields: gone, phoneDoes: "period"},
 		{Key: dashboard.Key{Key: stepKeys, Does: "back · on"}, works: works, apart: true, wide: !gone && !phoned, kept: gone},
 		{Key: dashboard.Key{Key: "n", Does: "now"}, works: works && gone, apart: true, kept: true},
 	}

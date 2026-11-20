@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"slices"
@@ -108,9 +109,9 @@ func TestTheDialsKeysStepItsPeriodOnEveryTabItShowsOn(t *testing.T) {
 	}
 }
 
-// At either end a key of the dial's does nothing, and keeps nothing: > and
-// n at now; < on a period holding the ledger's first day; - at today and +
-// at 12 months.
+// At either end a key of the dial's does nothing, keeps nothing and leaves
+// the view scrolled as it was: > and n at now; < on a period holding the
+// ledger's first day; - at today and + at 12 months.
 func TestTheDialsKeysStopAtEitherEnd(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -138,6 +139,11 @@ func TestTheDialsKeysStopAtEitherEnd(t *testing.T) {
 				if h.model.period != period || prefs.updates != 0 {
 					t.Errorf("%s left the period %+v, the preferences updated %d times; want %+v, never updated", tt.key, h.model.period, prefs.updates, period)
 				}
+				scrolled := h.model
+				scrolled.scroll = 2
+				if refused, took := scrolled.periodStepped(tt.key); !took || refused.period != period || refused.scroll != 2 {
+					t.Errorf("%s, scrolled 2 rows, took it: %v, leaving %+v scrolled %d; want it taken, %+v left scrolled 2", tt.key, took, refused.period, refused.scroll, period)
+				}
 			})
 		}
 	}
@@ -162,6 +168,27 @@ func TestLessStepsFreelyTillTheLedgersFirstDayIsKnown(t *testing.T) {
 	h.keyed("< < < <")
 	if got := h.model.dial(h.clock.now); h.model.period != last || !got.Earliest() {
 		t.Errorf("four < from this week stopped at %q, want last week, holding the ledger's first day, %s", got.Name(), dayfile.DateOf(learned.began))
+	}
+}
+
+// The ledger's first day one tab's read learns is the dial's floor on every
+// other: learned by Projects' read of its days, it stops < on Accounts, and
+// no read asks for it again.
+func TestTheLedgersFirstDayOneTabLearnsStopsLessOnAnother(t *testing.T) {
+	h := projectsHarness(t, dashboard.Projects)
+	week := views.LengthThisWeek.Now()
+	last, _ := week.Back(h.clock.now, time.Monday, time.Time{})
+	l := &beginsFlaky{projectsLedger: h.model.cfg.Ledger.(*projectsLedger), began: last.From(h.clock.now, time.Monday)}
+	h.model.cfg.Ledger = l
+	h.start()
+	if h.model.begun.began.IsZero() || l.asked != 1 {
+		t.Fatalf("Projects read its days, the ledger asked %d times, and its first day is %v; want it asked once, and known", l.asked, h.model.begun.began)
+	}
+	h.keys(shiftTabKey)
+	h.tickUntilAsked()
+	h.keyed("< < <")
+	if got := h.model.dial(h.clock.now); h.model.view != dashboard.Accounts || h.model.period != last || !got.Earliest() || l.asked != 1 {
+		t.Errorf("on %s, three < stopped at %q, the ledger asked %d times; want Accounts, last week, holding the ledger's first day, asked once", h.model.view, got.Name(), l.asked)
 	}
 }
 
@@ -294,8 +321,8 @@ func TestAClickOnTheDialsKeysStepsItAsTheKeyDoes(t *testing.T) {
 // past period shows; where the wide line doesn't fit, the name goes, then p
 // pin, then - + period, before a phone's line, which at now names < > as
 // the page's last key, where it names it at all, and while past keeps < >
-// and n, - + going first, then the page's keys from the last, then tab
-// views.
+// and n, - + going first, after the page's other keys, P pool among them,
+// then the page's keys from the last, then tab views.
 func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 	const (
 		ends     = "    p pin    ? help  q quit"
@@ -306,6 +333,7 @@ func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 	tests := []struct {
 		tab   string
 		past  bool
+		pools bool
 		width int
 		want  string
 	}{
@@ -319,6 +347,8 @@ func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 		{tab: "Detail", past: true, width: 104, want: "tab views   [ ] view    < > back · on    n now    " + detail + "    ? help  q quit"},
 		{tab: "Detail", past: true, width: 73, want: "tab views   [ ] view   < > back · on   n now   ? keys   q quit"},
 		{tab: "Detail", past: true, width: 52, want: "tab views   < > back · on   n now   ? keys   q quit"},
+		{tab: "Detail", past: true, pools: true, width: 90, want: "tab views   [ ] view   P pool   - + period   < > back · on   n now   ? keys   q quit"},
+		{tab: "Detail", past: true, pools: true, width: 73, want: "tab views   [ ] view   P pool   < > back · on   n now   ? keys   q quit"},
 		{tab: "Projects", width: 160, want: "tab views   " + project + "- + period: this week   < > back · on   p pin   ? help  q quit"},
 		{tab: "Projects", width: 104, want: "tab views   " + project + "- + period: this week   < > back · on   p pin   ? help  q quit"},
 		{tab: "Projects", width: 100, want: "tab views   " + project + "- + period   < > back · on   p pin   ? help  q quit"},
@@ -328,6 +358,8 @@ func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 		{tab: "Projects", past: true, width: 108, want: "tab views   " + project + "- + period   < > back · on   n now   p pin   ? help  q quit"},
 		{tab: "Projects", past: true, width: 73, want: "tab views   ↑↓ project   < > back · on   n now   ? keys   q quit"},
 		{tab: "Projects", past: true, width: 52, want: "tab views   < > back · on   n now   ? keys   q quit"},
+		{tab: "Projects", past: true, pools: true, width: 90, want: "tab views   ↑↓ project   → sessions   P pool   < > back · on   n now   ? keys   q quit"},
+		{tab: "Projects", past: true, pools: true, width: 73, want: "tab views   ↑↓ project   < > back · on   n now   ? keys   q quit"},
 		{tab: "the List", width: 160, want: "tab views   [ ] view   - + period: this week   < > back · on   " + sessions + "p pin   ? help  q quit"},
 		{tab: "the List", width: 104, want: "tab views   [ ] view   - + period   < > back · on   " + sessions + "p pin   ? help  q quit"},
 		{tab: "the List", width: 73, want: "tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit"},
@@ -336,9 +368,11 @@ func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 		{tab: "the List", past: true, width: 108, want: "tab views   [ ] view   - + period   < > back · on   n now   " + sessions + "? help  q quit"},
 		{tab: "the List", past: true, width: 73, want: "tab views   ↑↓ session   < > back · on   n now   ? keys   q quit"},
 		{tab: "the List", past: true, width: 52, want: "tab views   < > back · on   n now   ? keys   q quit"},
+		{tab: "the List", past: true, pools: true, width: 90, want: "tab views   ↑↓ session   [ ] view   P pool   < > back · on   n now   ? keys   q quit"},
+		{tab: "the List", past: true, pools: true, width: 73, want: "tab views   ↑↓ session   < > back · on   n now   ? keys   q quit"},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%s at %d, past: %t", tt.tab, tt.width, tt.past), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s at %d, past: %t, pools: %t", tt.tab, tt.width, tt.past, tt.pools), func(t *testing.T) {
 			i := slices.IndexFunc(dialTabs, func(tab struct {
 				name string
 				show func(*harness)
@@ -346,6 +380,10 @@ func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 				return tab.name == tt.tab
 			})
 			h := dialHarness(t, dialTabs[i].show, &fakePrefs{})
+			if tt.pools {
+				h.model.cfg.Pool.Pools = 2
+				h.model.cfg.Turn = func(context.Context, string, PoolAsk) (Pooled, error) { return Pooled{}, nil }
+			}
 			h.update(tea.WindowSizeMsg{Width: tt.width, Height: 50})
 			if tt.past {
 				h.keyed("<")
