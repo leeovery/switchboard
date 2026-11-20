@@ -53,8 +53,14 @@ func ReadEvents(filed Events, first, now time.Time) EventsRead {
 // ReadEventsFrom reads, through filed, the router's files' events of the
 // span from since to the end of now's day, each as it last stands.
 func ReadEventsFrom(filed Events, since, now time.Time) EventsRead {
+	return readBetween(filed, since, dayfile.DayStart(now.Local(), 1))
+}
+
+// readBetween reads, through filed, the router's files' events of the span
+// from since up to to, each as it last stands.
+func readBetween(filed Events, since, to time.Time) EventsRead {
 	r := EventsRead{since: since, held: make(map[eventKey]Event)}
-	r.file(filed, since, dayfile.DayStart(now.Local(), 1))
+	r.file(filed, since, to)
 	return r
 }
 

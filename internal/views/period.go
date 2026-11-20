@@ -340,6 +340,19 @@ func (p Period) From(now time.Time, starts time.Weekday) time.Time {
 	return start
 }
 
+// Until is when the period gone ends, weeks starting on the day given,
+// today being now's: at the end of its last local day, as dayfile.Day has
+// it, where what's told of it stops. It reports false while the period
+// reaches today, as what's told of it then runs to now.
+func (p Period) Until(now time.Time, starts time.Weekday) (time.Time, bool) {
+	s := p.spanAt(dayfile.CivilOf(now), starts)
+	if !s.gone {
+		return time.Time{}, false
+	}
+	_, end, _ := dayfile.Day(s.last.Format(time.DateOnly))
+	return end, true
+}
+
 // shape is the period as one of Tokens' rows, on today, as dayfile.Civil
 // gives a day, weeks starting on the day given: every day of its span one
 // row, by its first day's date, priced as Accounts prices the period, its
