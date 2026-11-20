@@ -122,56 +122,70 @@ func (l Length) Stepped(by int) (Length, bool) {
 }
 
 // From is when the period of the length reaching today begins at now, weeks
-// starting on the day given: at the start of its first local day, as
-// dayfile.Day has it, where a read of its days begins, as ReadSessionDays
-// takes it.
+// starting on the day given, as its period now's From has it.
 func (l Length) From(now time.Time, starts time.Weekday) time.Time {
-	start, _, _ := dayfile.Day(l.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
-	return start
+	return l.Now().From(now, starts)
 }
 
-// first is the first day of the period of the length reaching today, today
-// being the day given, as dayfile.Civil gives a day, weeks starting on the
-// day given.
-func (l Length) first(today time.Time, starts time.Weekday) time.Time {
+// first is the first day of the period of the length whose last day is the
+// day given, as dayfile.Civil gives a day, or of a week length, whose last
+// week holds it, weeks starting on the day given.
+func (l Length) first(day time.Time, starts time.Weekday) time.Time {
 	switch l {
 	case LengthToday:
-		return today
+		return day
 	case LengthThirtyDays:
-		return today.AddDate(0, 0, -29)
+		return day.AddDate(0, 0, -29)
 	case LengthTwelveWeeks:
-		return weeksTo(today, starts, 12)
+		return weeksTo(day, starts, 12)
 	case LengthTwelveMonths:
-		return yearAfter(today)
+		return yearAfter(day)
 	}
-	return weekOf(today, starts)
+	return weekOf(day, starts)
 }
 
-// last is the last day of the period of the length reaching today, today
-// being the day given, as dayfile.Civil gives a day, weeks starting on the
-// day given: today, of today and the last 30 days and 12 months; this
-// week's last, of this week and the last 12 weeks, as a period still running
-// is priced to its end.
-func (l Length) last(today time.Time, starts time.Weekday) time.Time {
+// last is the last day of the period of the length whose last day is the
+// day given, as dayfile.Civil gives a day, weeks starting on the day given:
+// that day, of today and the 30 days and 12 months; the last of its week, of
+// this week and the 12 weeks, as a week still running is priced to its end.
+func (l Length) last(day time.Time, starts time.Weekday) time.Time {
 	switch l {
 	case LengthToday, LengthThirtyDays, LengthTwelveMonths:
-		return today
+		return day
 	}
-	return weekOf(today, starts).AddDate(0, 0, 6)
+	return weekOf(day, starts).AddDate(0, 0, 6)
 }
 
-// shape is the period of the length reaching today as one of Tokens' rows,
-// today being the day given, as dayfile.Civil gives a day, weeks starting on
-// the day given: every day from its first to its last one row, by its first
-// day's date, priced as Accounts prices the period, its share of a month
-// whole.
-func (l Length) shape(today time.Time, starts time.Weekday) periodShape {
-	first, last := l.first(today, starts).Format(time.DateOnly), l.last(today, starts).Format(time.DateOnly)
-	return periodShape{
-		of:    func(date string) (string, bool) { return first, first <= date && date <= last },
-		dates: func(string) (string, string) { return first, last },
-		share: l.share(),
+// after is the last day of the period of the length that begins the day
+// after the day given, as dayfile.Civil gives one: a length on, a day, 7
+// days, 30 or 84; or of 12 months, the day before the next day's date a
+// year on. No 12 months begin on the 1 March after a 29 February, as
+// yearAfter begins them: those after one end on the 28th a year on,
+// beginning on the 29th.
+func (l Length) after(day time.Time) time.Time {
+	switch l {
+	case LengthToday:
+		return day.AddDate(0, 0, 1)
+	case LengthThirtyDays:
+		return day.AddDate(0, 0, 30)
+	case LengthTwelveWeeks:
+		return day.AddDate(0, 0, 7*12)
+	case LengthTwelveMonths:
+		return day.AddDate(0, 0, 1).AddDate(1, 0, -1)
 	}
+	return day.AddDate(0, 0, 7)
+}
+
+// endingOn is the period of the length whose last day is the day given, as
+// dayfile.Civil gives one, or of a week length, whose last week holds it,
+// today being the day given, weeks starting on the day given: gone where it
+// ends before today; else now, as is every period that reaches today, a
+// week length's where its last week holds today.
+func (l Length) endingOn(day, today time.Time, starts time.Weekday) Period {
+	if last := l.last(day, starts); last.Before(today) {
+		return Period{length: l, last: last.Format(time.DateOnly)}
+	}
+	return l.Now()
 }
 
 // share is the share of a month the plans cost over a period of the length,
@@ -181,10 +195,14 @@ func (l Length) share() monthPart {
 }
 
 // Period is the period the dashboard's entity tabs count their use over:
-// one of the dial's lengths, reaching today. It's comparable, for what a
-// page was built of to be told alike.
+// one of the dial's lengths, reaching today, or gone, ending before it, as
+// < steps back to one. A period gone keeps its days as the clock moves on.
+// It's comparable, for what a page was built of to be told alike.
 type Period struct {
 	length Length
+	// last is the date of a period gone's last day, as time.DateOnly writes
+	// it, a week length's its last week's last: "" while it reaches today.
+	last string
 }
 
 // Now is the period of the length reaching today.
@@ -197,28 +215,138 @@ func (p Period) Length() Length {
 	return p.length
 }
 
-// From is when the period begins at now, weeks starting on the day given,
-// as its length's From has it.
+// Back is the period < steps back to, today being the day given, as
+// dayfile.Civil gives a day, weeks starting on the day given: the period of
+// its length ending the day before it begins, as from today, yesterday, and
+// from the 12 months, those to today's date a year back, a 29 February's
+// the 28th, as yearAfter begins them. It reports false where the period
+// begins on or before the day the work it counts began, at began, where p
+// stays, as the period holding that day is the earliest < steps to; it
+// steps back freely where began is zero, as where that isn't known.
+func (p Period) Back(today time.Time, starts time.Weekday, began time.Time) (Period, bool) {
+	s := p.spanAt(today, starts)
+	if s.earliest(began) {
+		return p, false
+	}
+	return p.length.endingOn(s.first.AddDate(0, 0, -1), today, starts), true
+}
+
+// On is the period > steps on to, today being the day given, as
+// dayfile.Civil gives a day, weeks starting on the day given: the period of
+// its length a length on, as after has it, now where that reaches today. It
+// reports false at now, where p stays, as nothing's later.
+func (p Period) On(today time.Time, starts time.Weekday) (Period, bool) {
+	s := p.spanAt(today, starts)
+	if !s.gone {
+		return p, false
+	}
+	return p.length.endingOn(p.length.after(s.last), today, starts), true
+}
+
+// Shorter is the period - steps to, today being the day given, as
+// dayfile.Civil gives a day, weeks starting on the day given: of the next
+// length shorter, ending on the period's last day, as endingOn has it, so
+// from last week, its Sunday. It reports false at today, the shortest, where
+// p stays.
+func (p Period) Shorter(today time.Time, starts time.Weekday) (Period, bool) {
+	return p.lengthened(-1, today, starts)
+}
+
+// Longer is the period + steps to, today being the day given, as
+// dayfile.Civil gives a day, weeks starting on the day given: of the next
+// length longer, ending on the period's last day, as endingOn has it, so
+// from last week, the 30 days to its Sunday. It reports false at the 12
+// months, the longest, where p stays.
+func (p Period) Longer(today time.Time, starts time.Weekday) (Period, bool) {
+	return p.lengthened(1, today, starts)
+}
+
+// lengthened is the period of the length Stepped steps the period's to by
+// the count given, ending on the period's last day, as endingOn has it,
+// today being the day given, weeks starting on the day given. It reports
+// false past either end, where p stays.
+func (p Period) lengthened(by int, today time.Time, starts time.Weekday) (Period, bool) {
+	length, ok := p.length.Stepped(by)
+	if !ok {
+		return p, false
+	}
+	return length.endingOn(p.spanAt(today, starts).last, today, starts), true
+}
+
+// at is the period on today, as dayfile.Civil gives a day, weeks starting
+// on the day given: itself, but now where it reaches today, as endingOn has
+// it, as a period gone does where the clock went back.
+func (p Period) at(today time.Time, starts time.Weekday) Period {
+	if last, gone := p.ends(); gone {
+		return p.length.endingOn(last, today, starts)
+	}
+	return p
+}
+
+// ends is the last day of the period gone, as dayfile.Civil gives a day,
+// whatever today is; false while it reaches today.
+func (p Period) ends() (time.Time, bool) {
+	if p.last == "" {
+		return time.Time{}, false
+	}
+	// last is written from a day, so it parses.
+	day, _ := dayfile.Civil(p.last)
+	return day, true
+}
+
+// periodSpan is a period's days on a day, today, as dayfile.Civil gives each:
+// from first to last, a week length's last its last week's last, as a week
+// still running is priced to its end; whether it's gone, ending before today;
+// and how many weeks back its last week is from today's, none at now.
+type periodSpan struct {
+	first, last, today time.Time
+	gone               bool
+	weeksBack          int
+}
+
+// spanAt is the period's span on today, as dayfile.Civil gives a day, weeks
+// starting on the day given: of a period gone, to its last day, but of now
+// where it reaches today, as at has it; of now, to today. Every count of
+// the period's days learns them here.
+func (p Period) spanAt(today time.Time, starts time.Weekday) periodSpan {
+	end, gone := p.at(today, starts).ends()
+	if !gone {
+		end = today
+	}
+	last := p.length.last(end, starts)
+	return periodSpan{
+		first: p.length.first(end, starts), last: last, today: today, gone: gone,
+		weeksBack: int(weekOf(today, starts).Sub(weekOf(last, starts)) / (7 * 24 * time.Hour)),
+	}
+}
+
+// earliest reports whether the span begins on or before the day the work it
+// counts began, at began, as beganOn has it: the earliest < steps back to.
+// It never does where began is zero, as where that isn't known.
+func (s periodSpan) earliest(began time.Time) bool {
+	return !began.IsZero() && s.first.Format(time.DateOnly) <= beganOn(began)
+}
+
+// From is when the period begins, weeks starting on the day given, today
+// being now's: at the start of its first local day, as dayfile.Day has it,
+// where a read of its days begins, as ReadSessionDays takes it.
 func (p Period) From(now time.Time, starts time.Weekday) time.Time {
-	return p.length.From(now, starts)
+	start, _, _ := dayfile.Day(p.spanAt(dayfile.CivilOf(now), starts).first.Format(time.DateOnly))
+	return start
 }
 
-// firstDay is the period's first day, today being the day given, as its
-// length's first has it.
-func (p Period) firstDay(today time.Time, starts time.Weekday) time.Time {
-	return p.length.first(today, starts)
-}
-
-// lastDay is the period's last day, today being the day given, as its
-// length's last has it.
-func (p Period) lastDay(today time.Time, starts time.Weekday) time.Time {
-	return p.length.last(today, starts)
-}
-
-// shape is the period as one of Tokens' rows, today being the day given, as
-// its length's shape has it.
+// shape is the period as one of Tokens' rows, on today, as dayfile.Civil
+// gives a day, weeks starting on the day given: every day of its span one
+// row, by its first day's date, priced as Accounts prices the period, its
+// share of a month whole.
 func (p Period) shape(today time.Time, starts time.Weekday) periodShape {
-	return p.length.shape(today, starts)
+	s := p.spanAt(today, starts)
+	first, last := s.first.Format(time.DateOnly), s.last.Format(time.DateOnly)
+	return periodShape{
+		of:    func(date string) (string, bool) { return first, first <= date && date <= last },
+		dates: func(string) (string, string) { return first, last },
+		share: p.length.share(),
+	}
 }
 
 // LimitsHitMost are the most times the limit of the window with the key

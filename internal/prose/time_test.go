@@ -401,6 +401,65 @@ func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {
 	}
 }
 
+// A day named at now carries its year only where it isn't now's, the year
+// now has in its own time zone.
+func TestADayNamedAtNowCarriesItsYearOnlyWhereItIsntNows(t *testing.T) {
+	tests := []struct {
+		name          string
+		now, d        time.Time
+		day, dayMonth string
+	}{
+		{
+			name: "in now's year", now: time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC), d: time.Date(2026, 9, 29, 0, 0, 0, 0, time.UTC),
+			day: "Tue 29 Sep", dayMonth: "29 Sep",
+		},
+		{
+			name: "in the year before", now: time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC), d: time.Date(2025, 10, 1, 0, 0, 0, 0, time.UTC),
+			day: "Wed 1 Oct 2025", dayMonth: "1 Oct 2025",
+		},
+		{
+			name: "in the year after", now: time.Date(2026, 12, 31, 9, 0, 0, 0, time.UTC), d: time.Date(2027, 1, 3, 0, 0, 0, 0, time.UTC),
+			day: "Sun 3 Jan 2027", dayMonth: "3 Jan 2027",
+		},
+		{
+			name: "now's new year in its own zone, still the old one's in UTC", now: time.Date(2027, 1, 1, 0, 30, 0, 0, time.FixedZone("UTC+1", 60*60)),
+			d: time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC), day: "Fri 1 Jan", dayMonth: "1 Jan",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.DayAt(tt.now, tt.d); got != tt.day {
+				t.Errorf("DayAt(%v, %v) = %q, want %q", tt.now, tt.d, got, tt.day)
+			}
+			if got := prose.DayMonthAt(tt.now, tt.d); got != tt.dayMonth {
+				t.Errorf("DayMonthAt(%v, %v) = %q, want %q", tt.now, tt.d, got, tt.dayMonth)
+			}
+		})
+	}
+}
+
+// A time with its date is told in now's time zone, by its date, month and
+// time, whatever the day.
+func TestDayMonthTimeIsInNowsTimeZone(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "an evening in UTC", t: time.Date(2026, 8, 21, 20, 40, 0, 0, time.UTC), want: "21 Aug 21:40"},
+		{name: "the next day's in now's zone", t: time.Date(2026, 8, 21, 23, 30, 0, 0, time.UTC), want: "22 Aug 00:30"},
+		{name: "a year back", t: time.Date(2025, 10, 3, 8, 0, 0, 0, time.UTC), want: "3 Oct 09:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.DayMonthTime(now, tt.t); got != tt.want {
+				t.Errorf("DayMonthTime(%v, %v) = %q, want %q", now, tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
 // The weeks to a day are counted, then the day named.
 func TestWeeksToCountsTheWeeksThenNamesTheDay(t *testing.T) {
 	last := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)

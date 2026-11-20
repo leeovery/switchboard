@@ -369,6 +369,32 @@ func DayMonthYear(d time.Time) string {
 	return d.Format(dayMonthYearLayout)
 }
 
+// DayAt names the day d as it's named at now: as Day names it, such as "Tue
+// 29 Sep", in now's year; in another, with its year, as DayInYear names it,
+// such as "Mon 29 Sep 2025".
+func DayAt(now, d time.Time) string {
+	if d.Year() != now.Year() {
+		return DayInYear(d)
+	}
+	return Day(d)
+}
+
+// DayMonthAt names the day d as it's named at now: as DayMonth names it, such
+// as "1 Sep", in now's year; in another, with its year, as DayMonthYear names
+// it, such as "1 Oct 2025".
+func DayMonthAt(now, d time.Time) string {
+	if d.Year() != now.Year() {
+		return DayMonthYear(d)
+	}
+	return DayMonth(d)
+}
+
+// DayMonthTime shows t as its date, month and 24-hour time in now's time
+// zone, such as "21 Aug 21:40".
+func DayMonthTime(now, t time.Time) string {
+	return t.In(now.Location()).Format(pastLayout)
+}
+
 // expiresVerb is what TokenEnding says of a token's year before its date:
 // "expires", or "expired" where it's up.
 func expiresVerb(up bool) string {

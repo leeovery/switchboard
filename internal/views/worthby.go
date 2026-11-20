@@ -151,7 +151,8 @@ const hoursSpanned = 2
 // week and by month.
 func worthCharts(period Period, now time.Time, starts time.Weekday, began time.Time, days dayWorths, hours *[24]Worth) WorthCharts {
 	today := dayfile.CivilOf(now)
-	first, last := begunFrom(period.firstDay(today, starts), began), period.lastDay(today, starts)
+	span := period.spanAt(today, starts)
+	first, last := begunFrom(span.first, began), span.last
 	byDay := days.by(ByDay, dayBuckets(first, last), first, last, today)
 	switch period.length {
 	case LengthToday:

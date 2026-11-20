@@ -163,12 +163,13 @@ func heldWeeks(today time.Time, starts time.Weekday) int {
 func (p Past) Accounts(period Period) AccountsPage {
 	in := p.in
 	today := dayfile.CivilOf(in.Now)
-	first := period.firstDay(today, in.WeekStarts)
+	span := period.spanAt(today, in.WeekStarts)
+	first := span.first
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	totals := accountTotalsOf(before, days, in.Accounts, nil, p.versions())
 	known := plans{accounts: in.Accounts, table: in.Prices}
-	costs := plansOf(days, known, pricedOver(first.Format(time.DateOnly), period.lastDay(today, in.WeekStarts).Format(time.DateOnly), p.counted(first).Format(time.DateOnly), period.length.share()))
+	costs := plansOf(days, known, pricedOver(first.Format(time.DateOnly), span.last.Format(time.DateOnly), p.counted(first).Format(time.DateOnly), period.length.share()))
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, heldWeeks(today, in.WeekStarts)).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
 	worths := worthsByDay(days, in.Accounts)

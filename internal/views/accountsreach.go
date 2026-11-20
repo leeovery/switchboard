@@ -31,7 +31,7 @@ func (p Period) reachWeeks(today time.Time, starts time.Weekday) int {
 // the first that begins on its first day or after, to this one, which it
 // counts whether it begins in the period or not.
 func (p Period) begunWeeks(today time.Time, starts time.Weekday) int {
-	first := p.firstDay(today, starts)
+	first := p.spanAt(today, starts).first
 	begun := weekOf(first, starts)
 	if begun.Before(first) {
 		begun = begun.AddDate(0, 0, 7)
@@ -78,7 +78,7 @@ func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 	columns := func(peaks []WeekPeak) []WeekPeak { return peaks }
 	if page.Period.length == LengthTwelveMonths {
 		weekly := page.Reach
-		page.Reach = monthBuckets(page.Period.firstDay(today, in.WeekStarts), today)
+		page.Reach = monthBuckets(page.Period.spanAt(today, in.WeekStarts).first, today)
 		columns = func(peaks []WeekPeak) []WeekPeak { return fullestIn(page.Reach, weekly, peaks) }
 	}
 	for x := range page.Rows {

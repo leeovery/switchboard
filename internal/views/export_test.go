@@ -131,8 +131,24 @@ func RowOfTold(t Told, now time.Time) RequestRow {
 // length reaching today at now, weeks starting on the day given: its last
 // as it's priced to.
 func (l Length) Spans(now time.Time, starts time.Weekday) (first, last string) {
-	today := dayfile.CivilOf(now)
-	return l.first(today, starts).Format(time.DateOnly), l.last(today, starts).Format(time.DateOnly)
+	s := l.Now().SpanOn(dayfile.CivilOf(now), starts)
+	return s.First, s.Last
+}
+
+// SpanOf is a period's span on a day, as spanAt has it: the dates of its
+// first day and its last, whether it's gone, and how many weeks back its
+// last week is.
+type SpanOf struct {
+	First, Last string
+	Gone        bool
+	WeeksBack   int
+}
+
+// SpanOn is the period's span on today, as dayfile.Civil gives a day, weeks
+// starting on the day given, as spanAt has it.
+func (p Period) SpanOn(today time.Time, starts time.Weekday) SpanOf {
+	s := p.spanAt(today, starts)
+	return SpanOf{First: s.first.Format(time.DateOnly), Last: s.last.Format(time.DateOnly), Gone: s.gone, WeeksBack: s.weeksBack}
 }
 
 // YearsTwelveMonths are the dates of the first day and the last the Year's

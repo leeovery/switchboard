@@ -162,7 +162,7 @@ func DaysFrom(year int, now time.Time, weekStarts time.Weekday) time.Time {
 	}
 	today := dayfile.CivilOf(now)
 	for _, l := range lengths {
-		if first := localMidnight(l.first(today, weekStarts).AddDate(0, 0, -lookBack)); first.Before(from) {
+		if first := localMidnight(l.Now().spanAt(today, weekStarts).first.AddDate(0, 0, -lookBack)); first.Before(from) {
 			from = first
 		}
 	}
