@@ -90,14 +90,14 @@ func tokensOf(days []Day, p plans, names status.Names, v versions, from string, 
 // date from, a period each, as the shape given makes them, oldest first,
 // each costing its plans its share of a month as of its first day, the
 // period so far whole, but for the one the days counted begin part-way
-// through, as the one a young ledger began in, as pricedOver prices it. Its
-// accounts are named as names name them.
+// through, as the one a young ledger began in, and the one the shape's end
+// cuts, as the shape's priced prices them. Its accounts are named as names
+// name them.
 func tokenPeriodsOf(days []Day, p plans, names status.Names, v versions, from string, by periodShape) []TokenPeriod {
 	periods := []TokenPeriod{}
 	for _, s := range spansOf(days, by.key) {
 		period := tokenPeriodOf(s, p, names, v)
-		first, last := by.dates(s.key)
-		period.Against = p.against(accountWorths(s.days), pricedOver(first, last, from, by.share))
+		period.Against = p.against(accountWorths(s.days), by.priced(s.key, from))
 		periods = append(periods, period)
 	}
 	return periods
