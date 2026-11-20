@@ -109,14 +109,15 @@ func (m Model) accountsEntered() Model {
 // falls in, as accountsEntered has the tail read. Each look reads today's
 // days afresh, as readPast reads them, so the page follows them from look
 // to look; and past midnight it moves on to the new day before the next
-// look reads it. Where
-// the days the period's page reads, or the fold of the day gone it charts,
-// as hoursReady has it, are still to land, there's no page, as before the
-// first read lands, for it to say it's loading. It's stood at the moment of
-// the message taken in, as views.AccountsPage.At stands it, where it's built
-// afresh, the document or the policy is another, or the page stands
-// otherwise since, as its Until has it: never a frame at a time. Detail's
-// LATELY in a past period is told as pastLatelyTold tells it.
+// look reads it. Where the days the period's page reads, or the hours of
+// the day gone it charts, as hoursReady has it, are still to land, there's
+// no page, as before the first read lands, for it to say it's loading, a
+// read of the tail due where they wait on it, as hoursWaited has it. It's
+// stood at the moment of the message taken in, as views.AccountsPage.At
+// stands it, where it's built afresh, the document or the policy is
+// another, or the page stands otherwise since, as its Until has it: never a
+// frame at a time. Detail's LATELY in a past period is told as
+// pastLatelyTold tells it.
 func (m Model) accountsBuilt() Model {
 	m = m.accountsEntered()
 	if m.view != dashboard.Accounts {
@@ -128,6 +129,7 @@ func (m Model) accountsBuilt() Model {
 	}
 	past, reached := m.past.reaching(m.period.AccountsFrom(now, m.cfg.WeekStarts), m.begun.began)
 	if !reached || m.accountsHourly() && !m.hoursReady(now) {
+		m = m.hoursWaited(now)
 		m.accounts = m.accounts.awaited()
 		return m
 	}

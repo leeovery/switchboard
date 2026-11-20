@@ -54,12 +54,14 @@ func (f DayFold) Tailed() bool {
 // day's hours, of tail, the tail's fold, as TodayFold has it, and read, the
 // fold read of a day gone, as ReadDayFold reads it: tail wherever it's of
 // that day, as each takes the day's sessions of it, so a day's hours and its
-// sessions are of one fold, today's at now, never stood for by a read of
-// it, and the day the tail turned from till its next read; else of a day
-// gone, read where it's of that day, its hours known; the zero DayFold where
-// neither is, as of a period of more than a day, or of a day whose lines
-// are no longer kept, which is charted by the day. It's the one choice of a
-// day's hours, Accounts' and Projects' alike.
+// sessions are of one fold: today's at now, never stood for by a read of
+// it; and the day the tail turned from till its next read, a pick the watch
+// waits past rather than charting, as that fold misses the day's lines
+// filed since the tail was last read; else of a day gone, read where it's
+// of that day, its hours known; the zero DayFold where neither is, as of a
+// period of more than a day, or of a day whose lines are no longer kept,
+// which is charted by the day. It's the one choice of a day's hours,
+// Accounts' and Projects' alike.
 func (p Period) HoursFold(now time.Time, starts time.Weekday, read, tail DayFold) DayFold {
 	date, gone, ok := p.Day(now, starts)
 	switch {
