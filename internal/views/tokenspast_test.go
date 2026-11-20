@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -22,15 +21,20 @@ var usedBackFromTheFrames = daysTo("2024-10-01", framesNow,
 )
 
 // usedOn is the day with the given date, work having used Claude Opus 5.5
-// on it.
+// on it, its input a million tokens.
 func usedOn(date string) ledger.Summary {
 	return day(date, account("work", sent("claude-opus-5-5", 1, inputUsage)))
 }
 
+// million is the input of a request of inputUsage.
+const million = 1_000_000
+
 // tokensRowsSaid are a Tokens page's rows as a test reads them: each row's
-// first day, or month, what its plans cost and whether it's so far.
+// first day, or month, its input tokens, what its plans cost and whether
+// it's so far.
 type tokensRowsSaid struct {
 	first []string
+	input []int
 	costs []string
 	soFar []bool
 }
@@ -40,18 +44,26 @@ func tokensRowsSaidOf(t *testing.T, page views.TokensPage) tokensRowsSaid {
 	t.Helper()
 	var said tokensRowsSaid
 	for _, p := range page.Periods {
-		said.first, said.costs, said.soFar = append(said.first, p.First), append(said.costs, jsonOf(t, p.Cost)), append(said.soFar, p.SoFar)
+		said.first, said.input = append(said.first, p.First), append(said.input, p.Input)
+		said.costs, said.soFar = append(said.costs, jsonOf(t, p.Cost)), append(said.soFar, p.SoFar)
 	}
 	return said
 }
 
+// equal reports whether the rows read are those wanted, so far or not.
+func (s tokensRowsSaid) equal(want tokensRowsSaid) bool {
+	return slices.Equal(s.first, want.first) && slices.Equal(s.input, want.input) &&
+		slices.Equal(s.costs, want.costs) && slices.Equal(s.soFar, want.soFar)
+}
+
 // A past period's rows run over its own days, stopping at its last: a day
 // each over 30 days and last week, a week over 12 weeks, whole weeks to its
-// last, and a month over 12 months, each priced over its period as now
-// prices it, work's $200 and side's $20. A past 12 months' oldest month is
-// priced by its days from its first, 30 of October 2024, and its last by its
-// days to its last, 1 of October 2025, never whole. Its total begins on its
-// first day, and nothing in it is so far, as it holds no today.
+// last, and a month over 12 months, each holding only the period's days, a
+// day's use each, and priced over its period as now prices it, work's $200
+// and side's $20. A past 12 months' oldest month is priced by its days from
+// its first, 30 of October 2024, and its last by its days to its last, 1 of
+// October 2025, never whole. Its total begins on its first day and holds its
+// rows' days alone, and nothing in it is so far, as it holds no today.
 func TestTokensOverAPastPeriodAreItsOwnRowsNoneSoFar(t *testing.T) {
 	aDay, aWeek := "7.232876712328", "50.769230769231"
 	tests := []struct {
@@ -80,43 +92,80 @@ func TestTokensOverAPastPeriodAreItsOwnRowsNoneSoFar(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := pressed(t, tt.length, "<", dayfile.CivilOf(framesNow), time.Monday, time.Time{})
+			p := pressed(t, tt.length, "<", framesNow, time.Monday, time.Time{})
 			if got := views.DialOf(p, framesNow, time.Monday, time.Time{}).Name(); got != tt.name {
 				t.Fatalf("%s one back is %q, want %q", tt.length.Name(), got, tt.name)
 			}
 			in := input(usedBackFromTheFrames)
-			in.Now, in.From = framesNow, on("2024-10-01")
+			in.Now = framesNow
 			page := views.NewPast(in, usedBackFromTheFrames).TokensOver(p)
-			got := tokensRowsSaidOf(t, page)
-			if !slices.Equal(got.first, tt.first) || !slices.Equal(got.costs, tt.costs) {
-				t.Errorf("%s's rows are %q, costing %v; want %q, costing %v", tt.name, got.first, got.costs, tt.first, tt.costs)
+			want := tokensRowsSaid{first: tt.first, costs: tt.costs}
+			for range tt.first {
+				want.input, want.soFar = append(want.input, million), append(want.soFar, false)
 			}
-			if slices.Contains(got.soFar, true) {
-				t.Errorf("%s's rows are so far %v, want none", tt.name, got.soFar)
+			if got := tokensRowsSaidOf(t, page); !got.equal(want) {
+				t.Errorf("%s's rows are %+v; want %+v", tt.name, got, want)
 			}
-			if page.Total == nil || page.Total.First != tt.total || page.Total.SoFar {
-				t.Errorf("%s's total is %+v, want the period from %s, not so far", tt.name, page.Total, tt.total)
+			total := page.Total
+			if total == nil || total.First != tt.total || total.Input != len(tt.first)*million || total.SoFar {
+				t.Errorf("%s's total is %+v, want the period from %s, of %d input, not so far", tt.name, total, tt.total, len(tt.first)*million)
 			}
 		})
 	}
 }
 
-// A past period whose last row is the month today is in never has it so
-// far: on Wednesday 7 October, last week's Sunday, 4 October, lengthened to
-// 12 months, is the 12 months to 4 Oct, its October priced by its 4 days to
-// then, not whole.
-func TestTokensOverAPastPeriodEndingInTodaysMonthHasNothingSoFar(t *testing.T) {
-	p := pressed(t, views.LengthThisWeek, "<+++", dayfile.CivilOf(now), time.Monday, time.Time{})
-	if got, want := views.DialOf(p, now, time.Monday, time.Time{}).Name(), "12 months to 4 Oct"; got != want {
-		t.Fatalf("last week lengthened to 12 months is %q, want %q", got, want)
+// A past 12 months' last month, the one its last day falls in, holds its
+// days to then alone and is priced by them, never whole and never so far,
+// even where it's the month today is in: whole where the period ends on the
+// month's last day, and from the ledger's first day where that's later
+// than the month's.
+func TestTokensOverAPastTwelveMonthsPricesItsLastMonthToItsLastDay(t *testing.T) {
+	tests := []struct {
+		name  string
+		now   time.Time
+		keys  string
+		start views.Length
+		began string
+		days  []ledger.Summary
+		dial  string
+		want  tokensRowsSaid
+	}{
+		{
+			name: "last week lengthened to 12 months, ending in today's month",
+			now:  now, start: views.LengthThisWeek, keys: "<+++", days: usedAcrossTwoMonths, dial: "12 months to 4 Oct",
+			want: tokensRowsSaid{first: []string{"2026-10", "2026-09"}, input: []int{2 * million, million}, costs: []string{"28.931506849315", "220"}, soFar: []bool{false, false}},
+		},
+		{
+			name: "the ledger begun on 3 October",
+			now:  now, start: views.LengthThisWeek, keys: "<+++", began: "2026-10-03", days: usedAcrossTwoMonths, dial: "12 months to 4 Oct",
+			want: tokensRowsSaid{first: []string{"2026-10"}, input: []int{2 * million}, costs: []string{"14.465753424658"}, soFar: []bool{false}},
+		},
+		{
+			name: "ending on the month's last day",
+			now:  time.Date(2026, 10, 31, 14, 42, 0, 0, time.Local), start: views.LengthTwelveMonths, keys: "<", days: usedBackFromTheFrames, dial: "12 months to 31 Oct 2025",
+			want: tokensRowsSaid{first: []string{"2025-10", "2025-03"}, input: []int{2 * million, million}, costs: []string{"220", "220"}, soFar: []bool{false, false}},
+		},
 	}
-	page := views.NewPast(input(usedAcrossTwoMonths), usedAcrossTwoMonths).TokensOver(p)
-	got := tokensRowsSaidOf(t, page)
-	want := tokensRowsSaid{first: []string{"2026-10", "2026-09"}, costs: []string{"28.931506849315", "220"}, soFar: []bool{false, false}}
-	if !slices.Equal(got.first, want.first) || !slices.Equal(got.costs, want.costs) || !slices.Equal(got.soFar, want.soFar) {
-		t.Errorf("the rows are %q, costing %v, so far %v; want %q, costing %v, so far %v", got.first, got.costs, got.soFar, want.first, want.costs, want.soFar)
-	}
-	if page.Total == nil || page.Total.SoFar {
-		t.Errorf("the total is %+v, want one not so far", page.Total)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := pressed(t, tt.start, tt.keys, tt.now, time.Monday, time.Time{})
+			if got := views.DialOf(p, tt.now, time.Monday, time.Time{}).Name(); got != tt.dial {
+				t.Fatalf("%s pressed %q is %q, want %q", tt.start.Name(), tt.keys, got, tt.dial)
+			}
+			in := input(tt.days)
+			in.Now = tt.now
+			asked := tt.days
+			if tt.began != "" {
+				in.Began = on(tt.began)
+				asked = asked[slices.IndexFunc(asked, func(s ledger.Summary) bool { return s.Day >= tt.began }):]
+			}
+			page := views.NewPast(in, asked).TokensOver(p)
+			if got := tokensRowsSaidOf(t, page); !got.equal(tt.want) {
+				t.Errorf("the rows are %+v; want %+v", got, tt.want)
+			}
+			if page.Total == nil || page.Total.SoFar {
+				t.Errorf("the total is %+v, want one not so far", page.Total)
+			}
+		})
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// TokensPeriod is the period a row of Tokens is, as < and > step it: a day, a
-// week, as it opens, or a month.
+// TokensPeriod is the period a row of Tokens is, as the dial's length, which
+// - and + step, has it: a day, a week, as it opens, or a month.
 type TokensPeriod string
 
 const (
@@ -146,7 +146,7 @@ func (by periodShape) priced(key, from string) priced {
 	// Both dates are written from days, so they parse.
 	start, _ := dayfile.Civil(first)
 	end, _ := dayfile.Civil(by.end)
-	return pricedOver(first, by.end, from, days(int(end.Sub(start)/(24*time.Hour))+1))
+	return pricedOver(first, by.end, from, daysOver(start, end))
 }
 
 // key is the key of the period the day falls in, as spansOf takes it.
