@@ -277,3 +277,15 @@ func (f Frame) ProjectsSessionsScroll(doc status.Document, now time.Time, id str
 	}
 	return l.sessions.paged().revealing(f.Scroll, l.sessions.lineOf(id))
 }
+
+// ProjectsSessionsStepScroll is how far Projects' SESSIONS is scrolled once
+// ↑ or ↓ selects the session with the given id, as stepRevealing has it, as
+// the List's ListStepScroll steps. Only a step goes there: a scroll or a
+// click keeps SESSIONS where it was.
+func (f Frame) ProjectsSessionsStepScroll(doc status.Document, now time.Time, id string) int {
+	l := f.projectsLaying(doc, now)
+	if l.project == nil {
+		return f.Scroll
+	}
+	return l.sessions.stepRevealing(l.sessions.paged(), f.Scroll, l.sessions.lineOf(id))
+}

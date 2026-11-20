@@ -129,6 +129,22 @@ func (s sessionsByDay) lineOf(id string) int {
 	return -1
 }
 
+// stepRevealing is how far the sessions, paged as given, scroll from
+// offset once ↑ or ↓ chooses the session of line r, as the List and a
+// project's SESSIONS step: as paged's revealing shows it; but where it's
+// the last session, as far as shows the words after it too, where that
+// still shows it, so a step to the foot shows the foot. Only a step goes
+// there: a scroll or a click keeps the sessions where they were.
+func (s sessionsByDay) stepRevealing(paged rowsPaged, offset, r int) int {
+	offset = paged.revealing(offset, r)
+	if s.lastRow() == r {
+		if after := paged.revealing(offset, len(s.lines)-1); paged.shows(after, r) {
+			return after
+		}
+	}
+	return offset
+}
+
 // lastRow is the index of the line of the last session's row: -1 of none.
 func (s sessionsByDay) lastRow() int {
 	for i, l := range slices.Backward(s.lines) {

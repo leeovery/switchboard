@@ -521,23 +521,14 @@ func (f Frame) ListScroll(doc status.Document, now time.Time) int {
 }
 
 // ListStepScroll is how far Sessions' List is scrolled once ↑ or ↓ chooses
-// a session: as ListScroll has it; but where the session chosen is the last,
-// as far as shows the words after it too, where that still shows the
-// session, so a step to the foot shows the List's foot. Only a step goes
-// there: a scroll or a click keeps the List where it was.
+// a session, as stepRevealing has it of the session chosen. Only a step
+// goes there: a scroll or a click keeps the List where it was.
 func (f Frame) ListStepScroll(doc status.Document, now time.Time) int {
 	l, r, ok := f.listedChosen(doc, now)
 	if !ok {
 		return f.Scroll
 	}
-	paged := l.paged()
-	offset := paged.revealing(f.Scroll, r)
-	if l.lastRow() == r {
-		if after := paged.revealing(offset, len(l.lines)-1); paged.shows(after, r) {
-			return after
-		}
-	}
-	return offset
+	return l.stepRevealing(l.paged(), f.Scroll, r)
 }
 
 // listedChosen is the List of doc at now as listing lays it out, and the
