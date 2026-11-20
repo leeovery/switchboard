@@ -102,8 +102,8 @@ func (d Dial) Earliest() bool {
 }
 
 // Widest is the widest of the lengths' names at now, which the heading keeps
-// room for, so nothing moves it at now and a read never moves it between
-// one row and two. A period gone named wider may, as may a change of length.
+// room for, so nothing moves it at now. A period gone, named wider, may move
+// it between one row and two, whatever its length.
 func (d Dial) Widest() string {
 	widest := ""
 	for _, name := range LengthNames() {
