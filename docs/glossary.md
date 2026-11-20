@@ -34,6 +34,15 @@ part of the record, kept for 400 days unless you set another length.
 **Limit.** The most of a window that Claude lets an account use. An account at a limit can't take
 more requests in that window until it resets.
 
+**Past period.** A period that ends before today: for example `yesterday`, `last week` or
+`30 days to 1 Sep`. `<` steps back to one, and `n` goes back to now. The heading names a past
+period in a colour of its own, and what tells the moment leaves, as
+[Accounts](dashboard/accounts.md) explains.
+
+**Period.** The days that Accounts, Projects and the List on Sessions count over, set by the dial
+at the right of the heading. A period has a length, from today to 12 months, that `-` and `+`
+change. The period that reaches today is now, and every other one is a past period.
+
 **Pin.** Your choice of account for new sessions, or for one running session, in place of the
 router's choice. A pin gives way when its account hits a limit.
 
