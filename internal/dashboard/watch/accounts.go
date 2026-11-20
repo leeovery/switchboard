@@ -113,7 +113,8 @@ func (m Model) accountsBuilt() Model {
 		of.fed = m.sessionDays.fed
 	}
 	if m.accounts.page == nil || m.accounts.of != of {
-		page := m.past.last.past.Since(nil, now).Accounts(of.period).Hourly(m.sessionDays.tailed.TodayFold())
+		hours := of.period.HoursFold(now, m.cfg.WeekStarts, views.DayFold{}, m.sessionDays.tailed.TodayFold())
+		page := m.past.last.past.Since(nil, now).Accounts(of.period).Hourly(hours)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
 	if !m.accounts.at.holds(m.doc, now, m.cfg.Policy) {

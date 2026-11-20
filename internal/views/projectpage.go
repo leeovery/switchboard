@@ -170,8 +170,8 @@ func (s PeriodSession) leads() bool {
 }
 
 // inPeriodOrder orders the sessions of a period: those that lead first, as
-// leads has them, the oldest started first, as the List orders those
-// running; then the rest, by the day each ended, the latest first, as its
+// leads has them, as byStart orders them; then the rest, by the day each
+// ended, the latest first, as its
 // last request's day has it, as of one the stream told of before the router
 // lists it, each day's as the List orders them.
 func inPeriodOrder(a, b PeriodSession) int {
@@ -182,7 +182,7 @@ func inPeriodOrder(a, b PeriodSession) int {
 		}
 		return 1
 	case a.leads():
-		return cmp.Or(startedFirst(a.Started, b.Started), strings.Compare(a.Session, b.Session))
+		return byStart(a.ListedSession, b.ListedSession)
 	}
 	return cmp.Or(strings.Compare(b.EndedOn, a.EndedOn), inListOrder(a.ListedSession, b.ListedSession))
 }

@@ -160,7 +160,8 @@ func worthsByDay(days []Day, accounts config.Accounts) []dayWorths {
 
 // Hourly is the page with its day's worth charted by the hour, where its
 // period is the day the fold given is of, its hours known, as DayFold has
-// them, as worthCharts charts a day's hours: each row's, what the requests
+// them, the fold Period's HoursFold picks of the day's read and the tail's,
+// as worthCharts charts a day's hours: each row's, what the requests
 // the fold holds that went to its account were worth by the local hour each
 // arrived in, those of no session among them, as the day's summary counts
 // them, and all accounts', every one's, those none answered among them,

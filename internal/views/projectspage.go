@@ -21,7 +21,7 @@ import (
 // HeldSessions' List gives it, its sessions running and those of today, as
 // SESSIONS and the log row them at now, as listed has it; Hours, the fold of
 // a day gone the period is, as ReadDayFold reads it, for its pages to chart
-// it by the hour, as hoursFold has it, the zero DayFold where none is read;
+// it by the hour, as HoursFold picks it, the zero DayFold where none is read;
 // what names the accounts, configured and removed; the prices worth is
 // priced by, at now's day's prices, as Past and the List price theirs, a
 // period gone's too, and the version table that names the models; the day
@@ -88,15 +88,17 @@ type ProjectsPage struct {
 	in      PeriodInput
 }
 
-// UnkeptDays are the days of a period gone whose sessions are no longer
-// kept, as the ledger keeps a day's sessions only as long as its lines: their
-// dates, the latest first, as the List's day rules run, each of which says
-// so under its rule in place of its rows; and Every, set where they're every
-// day of the period from the day the work it counts began, so it says so in
-// place of saying it had no session. None of a period at now.
+// UnkeptDays tell of the days of a period gone whose sessions are no longer
+// kept, as the ledger keeps a day's sessions only as long as its lines, as
+// linesKept has it: KeptFrom, the date of the first day whose sessions are
+// kept, the ledger's first day of lines as the days were read, where a day
+// of the period from the day the work it counts began is before it, "" where
+// none is, as of every period at now; and Every, set where every such day
+// is, so the period says so in place of saying it had no session. Where only
+// some are, the List and a project's SESSIONS say so once, after their rows.
 type UnkeptDays struct {
-	Dates []string
-	Every bool
+	KeptFrom string
+	Every    bool
 }
 
 // ProjectsMost are the most of a page's rows any project of the list has:
@@ -198,17 +200,18 @@ func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 // tallied are the projects of in's period, each tallied of the days d holds
 // at in's Now, as each has it, from its first day to its last, or today at
 // now; what each spent by the hour of the period's day, of the fold of it
-// hoursFold gives; with the sessions in's List lists running, at now alone,
-// as listed has it; each session of the period alone, as inPeriod has it.
-// Each session is one project's, the one of where it last ran in the period,
-// as sessionPlaces has it, and started at its first request wherever it
-// fell, as startedBefore has it of the days before the period's. Of a period
-// gone, those that went on after it are told, as wentOnAfter has them, and
-// its days whose sessions are no longer kept, as unkept has them.
+// HoursFold picks of in's Hours and d's fold of the tail; with the sessions
+// in's List lists running, at now alone, as listed has it; each session of
+// the period alone, as inPeriod has it. Each session is one project's, the
+// one of where it last ran in the period, as sessionPlaces has it, and
+// started at its first request wherever it fell, as startedBefore has it of
+// the days before the period's. Of a period gone, those that went on after
+// it are told, as wentOnAfter has them, and its days whose sessions are no
+// longer kept, as unkept has them.
 func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	span := in.span()
 	first := span.first.Format(time.DateOnly)
-	hours := d.hoursFold(in)
+	hours := in.Period.HoursFold(in.Now, in.WeekStarts, in.Hours, d.TodayFold())
 	t := projectTallies{
 		all: make(map[string]*projectTally), price: pricing{prices: in.Prices, date: dayfile.DateOf(in.Now)}, v: versions{table: in.Prices, family: in.Family},
 		projects: in.Projects, hoursOn: hours.hoursOn(), unkept: d.unkept(span, in.Began),
@@ -218,7 +221,10 @@ func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	d.each(span, func(date string, s *foldedSession) {
 		p := t.of(places[s.ID])
 		p.take(date, s.DaySession, t.price, t.v)
-		if folded, ok := hours.held.held[s.ID]; ok && date == t.hoursOn {
+		if date != t.hoursOn {
+			return
+		}
+		if folded, ok := hours.held.held[s.ID]; ok {
 			p.hourly(folded.hours, t.price)
 		}
 	})
@@ -235,20 +241,6 @@ func (d SessionDays) tallied(in PeriodInput) projectTallies {
 		t.wentOn(d.wentOnAfter(span, in.List))
 	}
 	return t
-}
-
-// hoursFold is the fold whose hours in's period is charted by, as hourly
-// has it: in's Hours, where they're the period's day's, as a day gone's
-// read; else d's fold of the tail, where it is, as today's at now; the zero
-// DayFold where neither is, as of a period of more than a day, or of a day
-// whose hours aren't known, which is charted by the day.
-func (d SessionDays) hoursFold(in PeriodInput) DayFold {
-	for _, f := range []DayFold{in.Hours, d.TodayFold()} {
-		if in.Period.hourly(f.hoursOn(), in.Now, in.WeekStarts) {
-			return f
-		}
-	}
-	return DayFold{}
 }
 
 // sessionPlaces are where each session of the span s ran last, by its id,
@@ -284,24 +276,18 @@ func (d SessionDays) wentOnAfter(s periodSpan, list SessionList) map[string]bool
 	return on
 }
 
-// unkept are the days of the span gone given whose sessions d no longer
-// holds, as UnkeptDays has them: those before the first the ledger kept
-// lines of as d was read, as linesFrom has it, from the span's first, or
-// the day the work began at began where that's later. None of a span at
-// now, nor where the day the work began, or where the ledger's lines begin,
-// isn't known, as no day can then be told from one before the work.
+// unkept tells of the days of the span gone given whose sessions d no longer
+// holds, as UnkeptDays has them, the days from its first, or the day the
+// work began at began where that's later, to its last, each kept or not as
+// linesKept has it of where the ledger's lines began as d was read. None of
+// a span at now, nor of one lying before the work began, nor where the day
+// it began isn't known, as no day can then be told from one before it.
 func (d SessionDays) unkept(s periodSpan, began time.Time) UnkeptDays {
-	kept, known := dayfile.Civil(d.linesFrom)
-	if !s.gone || began.IsZero() || !known {
+	first, last := begunFrom(s.first, began).Format(time.DateOnly), s.last.Format(time.DateOnly)
+	if !s.gone || began.IsZero() || first > last || linesKept(first, d.linesFrom) {
 		return UnkeptDays{}
 	}
-	var u UnkeptDays
-	from, through := begunFrom(s.first, began), score.Earlier(s.last, kept.AddDate(0, 0, -1))
-	for day := through; !day.Before(from); day = day.AddDate(0, 0, -1) {
-		u.Dates = append(u.Dates, day.Format(time.DateOnly))
-	}
-	u.Every = len(u.Dates) > 0 && through.Equal(s.last)
-	return u
+	return UnkeptDays{KeptFrom: d.linesFrom, Every: !linesKept(last, d.linesFrom)}
 }
 
 // each hands f each session of each day of the span s d holds, oldest

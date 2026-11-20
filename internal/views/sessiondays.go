@@ -95,6 +95,14 @@ func linesFrom(l Ledger, now time.Time) string {
 	return ""
 }
 
+// linesKept reports whether the ledger keeps the lines of the day with the
+// given date, and so its sessions and hours, the first day it keeps lines of
+// being on the date from, as linesFrom has it: on or after it, or where
+// that isn't known. It's the one rule of a day no longer kept.
+func linesKept(date, from string) bool {
+	return from == "" || date >= from
+}
+
 // begunBefore are the first requests in the pool read p of the sessions
 // that ran into the day after the one day starts, by their ids, as
 // DaySessionsOn reads each day from day's back, while any of them ran on the

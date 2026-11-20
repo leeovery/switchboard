@@ -2,6 +2,9 @@ package views_test
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"reflect"
 	"slices"
 	"testing"
@@ -27,7 +30,7 @@ const (
 	// endedInside ran on Tuesday 22nd alone, in switchboard.
 	endedInside = "b0000000-0000-4000-8000-000000000002"
 	// stillRunning ran in api on Wednesday 23rd and Sunday 27th, and runs
-	// now, sending nothing since.
+	// now in web, sending nothing since.
 	stillRunning = "b0000000-0000-4000-8000-000000000003"
 	// wentOnLater ran in switchboard on Saturday 26th, and again on Tuesday
 	// 29th.
@@ -74,7 +77,8 @@ func instantOf(t time.Time) string {
 // Last week's projects and List are of its days alone, as now's are of its
 // own: each project's sessions, requests and worth those of its days, so
 // every project's together come to the same days' sums; none running, none
-// live, none doing anything, though one runs now; each session's requests
+// live, none doing anything, though one runs now, and is counted where it
+// last ran in the period, not where it runs now; each session's requests
 // and worth the period's, one that went on after it first, by its start,
 // then those that ended in it, by the day they ended; one begun before it
 // started at its first request. The List rows each as its project's
@@ -83,7 +87,7 @@ func TestAPastWeeksProjectsAndListAreOfItsDaysAlone(t *testing.T) {
 	world := pastWeekWorld()
 	days := heldDays(framesNow, world...)
 	lastWeek := pastAt(t, views.LengthThisWeek, "<", time.Monday)
-	in := projectsIn(lastWeek, framesNow, listedRunning(stillRunning, "/code/api", "/code/api"), listedRunning(todayOnly, "/code/web", "/code/web"))
+	in := projectsIn(lastWeek, framesNow, listedRunning(stillRunning, "/code/web", "/code/web"), listedRunning(todayOnly, "/code/web", "/code/web"))
 	page, log := days.Projects(in), days.SessionLog(in)
 
 	type row struct {
@@ -209,16 +213,92 @@ func TestASessionOfAPeriodGoneSitsFirstWhereItWentOnAfterIt(t *testing.T) {
 	}
 }
 
+// Sessions that went on after a period gone sit first by their start, the
+// oldest first, however they ended in the period and whatever their ids,
+// on the List and a project's SESSIONS alike.
+func TestSessionsThatWentOnAfterAPeriodGoneSitByTheirStart(t *testing.T) {
+	const dir = "/code/switchboard"
+	const later, earlier = "b0000000-0000-4000-8000-000000000009", "b0000000-0000-4000-8000-000000000008"
+	tests := []struct {
+		name          string
+		first, second []time.Time
+	}{
+		{
+			name:  "the first started ended last, its id the higher",
+			first: []time.Time{september(22, 10, 0), september(27, 10, 0)}, second: []time.Time{september(24, 10, 0), september(25, 10, 0)},
+		},
+		{
+			name:  "the first started ended first, its id the higher",
+			first: []time.Time{september(22, 10, 0), september(23, 10, 0)}, second: []time.Time{september(24, 10, 0), september(26, 10, 0)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			world := byArrival(slices.Concat(
+				projectAsks(later, dir, dir, "work", append(tt.first, september(29, 10, 0))...),
+				projectAsks(earlier, dir, dir, "work", append(tt.second, september(29, 11, 0))...),
+			))
+			in := projectsIn(pastAt(t, views.LengthThisWeek, "<", time.Monday), framesNow)
+			days := heldDays(framesNow, world...)
+			project, _ := days.Projects(in).Project(dir)
+			for _, c := range []struct {
+				of   string
+				rows []views.PeriodSession
+			}{{"the List", days.SessionLog(in).Sessions}, {"SESSIONS", project.Sessions}} {
+				var ids []string
+				for _, s := range c.rows {
+					ids = append(ids, s.Session)
+				}
+				if want := []string{later, earlier}; !reflect.DeepEqual(ids, want) {
+					t.Errorf("%s rows %v, want the one started first first, %v", c.of, ids, want)
+				}
+			}
+		})
+	}
+}
+
+// keepingLedger is a ledger of the lines given, as ledgerOfLines files them,
+// keeping those of the day with the date from and after alone, as a ledger
+// whose lines before it were pruned, as its FirstLinesDay tells, or failing
+// to tell where err is given.
+type keepingLedger struct {
+	linesLedger
+	from string
+	err  error
+}
+
+func (l keepingLedger) Day(date string) []ledger.Held {
+	if date < l.from {
+		return nil
+	}
+	return l.linesLedger.Day(date)
+}
+
+func (l keepingLedger) FirstLinesDay(time.Time) (time.Time, error) {
+	if l.err != nil {
+		return time.Time{}, l.err
+	}
+	start, _, _ := dayfile.Day(l.from)
+	return start, nil
+}
+
+// keptFrom is a ledger of the lines given keeping those from the 1st of
+// September, as keepingLedger has it.
+func keptFrom(lines ...ledger.Held) keepingLedger {
+	return keepingLedger{linesLedger: ledgerOfLines(lines...), from: "2026-09-01"}
+}
+
 // A day gone is charted by the hour of its own fold, its hours not now's
-// and none to come, on Projects and on Accounts alike; given no fold, or
-// another day's, today's among them, it's charted by the day.
+// and none to come, on Projects and on Accounts alike, the fold chosen as
+// HoursFold chooses it; given no fold, or another day's, today's among them,
+// it's charted by the day.
 func TestADayGoneIsChartedByItsOwnFoldsHoursAlone(t *testing.T) {
 	const dir = "/code/switchboard"
 	world := byArrival(slices.Concat(
 		projectAsks(endedInside, dir, dir, "work", september(30, 22, 0)),
 		projectAsks(todayOnly, dir, dir, "work", october(1, 9, 0)),
 	))
-	l, days := ledgerOfLines(world...), heldDays(framesNow, world...)
+	l, days := keptFrom(world...), heldDays(framesNow, world...)
 	yesterday := pastAt(t, views.LengthToday, "<", time.Monday)
 	hourly := []chartFrom{{views.ByHour, 24, "2026-09-30"}, {views.ByTwoHours, 12, "2026-09-30"}}
 	daily := []chartFrom{{views.ByDay, 1, "2026-09-30"}}
@@ -227,9 +307,9 @@ func TestADayGoneIsChartedByItsOwnFoldsHoursAlone(t *testing.T) {
 		hours views.DayFold
 		want  []chartFrom
 	}{
-		{"its own fold", views.ReadDayFold(l, "2026-09-30", views.PoolRead{}), hourly},
+		{"its own fold", views.ReadDayFold(l, "2026-09-30", framesNow, views.PoolRead{}), hourly},
 		{"no fold", views.DayFold{}, daily},
-		{"another day's fold", views.ReadDayFold(l, "2026-09-29", views.PoolRead{}), daily},
+		{"another day's fold", views.ReadDayFold(l, "2026-09-29", framesNow, views.PoolRead{}), daily},
 		{"today's fold", days.TodayFold(), daily},
 	}
 	for _, tt := range tests {
@@ -242,7 +322,7 @@ func TestADayGoneIsChartedByItsOwnFoldsHoursAlone(t *testing.T) {
 			}
 			accountsIn := input(nil)
 			accountsIn.Now, accountsIn.Accounts = framesNow, workAndSide
-			accounts := views.NewPast(accountsIn, nil).Accounts(yesterday).Hourly(tt.hours)
+			accounts := views.NewPast(accountsIn, nil).Accounts(yesterday).Hourly(yesterday.HoursFold(framesNow, time.Monday, tt.hours, days.TodayFold()))
 			for _, c := range []struct {
 				of     string
 				charts views.WorthCharts
@@ -269,32 +349,96 @@ func TestADayGoneIsChartedByItsOwnFoldsHoursAlone(t *testing.T) {
 	}
 }
 
-// keepingLedger is a ledger of the lines given, as ledgerOfLines files them,
-// keeping those of the day with the date from and after alone, as a ledger
-// whose lines before it were pruned, as its FirstLinesDay tells.
-type keepingLedger struct {
-	linesLedger
-	from string
-}
-
-func (l keepingLedger) Day(date string) []ledger.Held {
-	if date < l.from {
-		return nil
+// One choice of fold charts a day by the hour: at now, the tail's of today
+// alone, a read of today never standing for it; of a day gone, the day's
+// read, its hours known, else the tail's where it's of that day, as till
+// the tail's first read after midnight; none where neither is that day's
+// with its hours known, nor of a period of more than a day.
+func TestOneChoiceOfFoldChartsADayByTheHour(t *testing.T) {
+	const dir = "/code/switchboard"
+	lines := byArrival(slices.Concat(
+		projectAsks(endedInside, dir, dir, "work", september(27, 10, 0), september(30, 22, 0)),
+		projectAsks(todayOnly, dir, dir, "work", october(1, 9, 0)),
+	))
+	l := keptFrom(lines...)
+	read := func(date string) views.DayFold { return views.ReadDayFold(l, date, framesNow, views.PoolRead{}) }
+	todays := heldDays(framesNow, slices.Concat(lines, projectAsks(todayOnly, dir, dir, "work", october(1, 13, 0)))...).TodayFold()
+	yesterdays := heldDays(september(30, 23, 0), lines[:2]...).TodayFold()
+	pruned := views.ReadDayFold(keepingLedger{linesLedger: ledgerOfLines(lines...), from: "2026-10-01"}, "2026-09-30", framesNow, views.PoolRead{})
+	tests := []struct {
+		name             string
+		length           views.Length
+		keys             string
+		read, tail, want views.DayFold
+	}{
+		{name: "today at now, a read of today given", length: views.LengthToday, read: read("2026-10-01"), tail: todays, want: todays},
+		{name: "today at now, the tail's of yesterday", length: views.LengthToday, read: read("2026-10-01"), tail: yesterdays},
+		{name: "yesterday, its read", length: views.LengthToday, keys: "<", read: read("2026-09-30"), tail: todays, want: read("2026-09-30")},
+		{name: "yesterday, no read, the tail's of yesterday", length: views.LengthToday, keys: "<", tail: yesterdays, want: yesterdays},
+		{name: "yesterday, its lines no longer kept", length: views.LengthToday, keys: "<", read: pruned, tail: todays},
+		{name: "last week, a read of its last day", length: views.LengthThisWeek, keys: "<", read: read("2026-09-27"), tail: todays},
 	}
-	return l.linesLedger.Day(date)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pastAt(t, tt.length, tt.keys, time.Monday).HoursFold(framesNow, time.Monday, tt.read, tt.tail); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("the fold chosen is %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+	in := projectsIn(views.LengthToday.Now(), framesNow)
+	in.Hours = read("2026-10-01")
+	days := heldDays(framesNow, slices.Concat(lines, projectAsks(todayOnly, dir, dir, "work", october(1, 13, 0)))...)
+	project, _ := days.Projects(in).Project(dir)
+	if got := project.WorthBy[0].Buckets[13].Worth; !reflect.DeepEqual(got, hoursWorth(1)) {
+		t.Errorf("handed a read of today, today's 13:00 is worth %+v, want the tail's request's, %+v", got, hoursWorth(1))
+	}
 }
 
-func (l keepingLedger) FirstLinesDay(time.Time) (time.Time, error) {
-	start, _, _ := dayfile.Day(l.from)
-	return start, nil
+// A day gone's hours are known where the ledger keeps its lines, as where
+// its lines begin says, a quiet day's too, which is charted by its empty
+// hours; where it no longer keeps them, as where it keeps none at all, the
+// day is charted by the day; where it can't tell where they begin, every
+// day reads as kept.
+func TestADayGonesHoursAreKnownWhereTheLedgerKeepsItsLines(t *testing.T) {
+	const dir = "/code/switchboard"
+	busy := projectAsks(endedInside, dir, dir, "work", september(29, 10, 0), september(30, 22, 0))
+	quiet := busy[:1]
+	tests := []struct {
+		name   string
+		ledger keepingLedger
+		hourly bool
+		worth  views.Worth
+	}{
+		{name: "kept, with a request", ledger: keptFrom(busy...), hourly: true, worth: hoursWorth(1)},
+		{name: "kept and quiet", ledger: keptFrom(quiet...), hourly: true},
+		{name: "no longer kept", ledger: keepingLedger{linesLedger: ledgerOfLines(busy...), from: "2026-10-01"}},
+		{name: "no lines kept at all", ledger: keepingLedger{linesLedger: ledgerOfLines(), err: fmt.Errorf("no lines: %w", fs.ErrNotExist)}},
+		{name: "where its lines begin can't be told", ledger: keepingLedger{linesLedger: ledgerOfLines(busy...), err: errors.New("unlistable")}, hourly: true, worth: hoursWorth(1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			yesterday := pastAt(t, views.LengthToday, "<", time.Monday)
+			in := input(nil)
+			in.Now, in.Accounts = framesNow, workAndSide
+			fold := yesterday.HoursFold(framesNow, time.Monday, views.ReadDayFold(tt.ledger, "2026-09-30", framesNow, views.PoolRead{}), views.DayFold{})
+			by := views.NewPast(in, nil).Accounts(yesterday).Hourly(fold).Rows[0].WorthBy[0]
+			if got := by.Unit == views.ByHour; got != tt.hourly {
+				t.Fatalf("yesterday is charted by %d, by the hour %v; want by the hour %v", by.Unit, got, tt.hourly)
+			}
+			if tt.hourly && !reflect.DeepEqual(by.Buckets[22].Worth, tt.worth) {
+				t.Errorf("its 22:00 is worth %+v, want %+v", by.Buckets[22].Worth, tt.worth)
+			}
+		})
+	}
 }
 
-// The days of a period gone whose sessions are no longer kept, its lines
-// pruned, are told, the latest first, from the period's first, or the day
-// the work began where that's later, alike on Projects, a project's page
-// and the List; and whether they're every day of it from then. None are
-// told at now, nor where the period lies before the work began, nor where
-// when it began isn't known.
+// Where some of a period gone's days are no longer kept, its lines pruned,
+// the first day whose sessions are kept is told, alike on Projects, a
+// project's page and the List, and whether every day of the period from the
+// day the work began is before it. Nothing is told at now, nor where the
+// period's first day counted is kept, nor where the period lies before the
+// work began, nor where when it began, or where the ledger's lines begin,
+// isn't known; where the ledger keeps no lines at all, none is kept.
 func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 	const dir = "/code/switchboard"
 	world := byArrival(slices.Concat(
@@ -305,38 +449,48 @@ func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 		name, keys   string
 		length       views.Length
 		linesFrom    string
+		err          error
 		began        time.Time
 		want         views.UnkeptDays
 		wantSessions int
 	}{
 		{
 			name: "last week, every day gone", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-09-28", began: september(1, 0, 0),
-			want: views.UnkeptDays{Dates: []string{"2026-09-27", "2026-09-26", "2026-09-25", "2026-09-24", "2026-09-23", "2026-09-22", "2026-09-21"}, Every: true},
+			want: views.UnkeptDays{KeptFrom: "2026-09-28", Every: true},
 		},
 		{
-			name: "30 days to 27 Sep, its first kept days gone", length: views.LengthThisWeek, keys: "<+", linesFrom: "2026-09-20", began: september(15, 9, 0),
-			want: views.UnkeptDays{Dates: []string{"2026-09-19", "2026-09-18", "2026-09-17", "2026-09-16", "2026-09-15"}}, wantSessions: 1,
+			name: "30 days to 27 Sep, its first counted days gone", length: views.LengthThisWeek, keys: "<+", linesFrom: "2026-09-20", began: september(15, 9, 0),
+			want: views.UnkeptDays{KeptFrom: "2026-09-20"}, wantSessions: 1,
 		},
+		{name: "last week, kept from its first day", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-09-21", began: september(1, 0, 0), wantSessions: 1},
 		{name: "the week of 7 Sep, before the work began", length: views.LengthThisWeek, keys: "<<<", linesFrom: "2026-09-20", began: september(15, 9, 0)},
 		{name: "last week, the work's start unknown", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-09-28"},
 		{name: "12 months at now", length: views.LengthTwelveMonths, linesFrom: "2026-09-20", began: september(1, 0, 0), wantSessions: 2},
+		{
+			name: "last week, no lines kept at all", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-10-02", err: fmt.Errorf("no lines: %w", fs.ErrNotExist),
+			began: september(1, 0, 0), want: views.UnkeptDays{KeptFrom: "2026-10-01", Every: true},
+		},
+		{
+			name: "last week, where the lines begin can't be told", length: views.LengthThisWeek, keys: "<", err: errors.New("unlistable"),
+			began: september(1, 0, 0), wantSessions: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := keepingLedger{linesLedger: ledgerOfLines(world...), from: tt.linesFrom}
+			l := keepingLedger{linesLedger: ledgerOfLines(world...), from: tt.linesFrom, err: tt.err}
 			days := views.ReadSessionDays(l, framesNow.AddDate(0, -2, 0), framesNow, views.PoolRead{}).
 				Tailed(l.Day(dayfile.DateOf(framesNow)), true, nil, nil, framesNow, views.PoolRead{})
 			in := projectsIn(pastAt(t, tt.length, tt.keys, time.Monday), framesNow)
 			in.Began = tt.began
 			page, log := days.Projects(in), days.SessionLog(in)
-			if !reflect.DeepEqual(page.Unkept, tt.want) || !reflect.DeepEqual(log.Unkept, tt.want) {
+			if page.Unkept != tt.want || log.Unkept != tt.want {
 				t.Errorf("Projects tells %+v no longer kept, the List %+v; want %+v", page.Unkept, log.Unkept, tt.want)
 			}
 			if len(log.Sessions) != tt.wantSessions || page.All.Sessions != tt.wantSessions {
 				t.Errorf("the List rows %d sessions, Projects %d; want %d", len(log.Sessions), page.All.Sessions, tt.wantSessions)
 			}
 			for _, r := range page.Rows {
-				if project, _ := page.Project(r.Path); !reflect.DeepEqual(project.Unkept, tt.want) {
+				if project, _ := page.Project(r.Path); project.Unkept != tt.want {
 					t.Errorf("%s's page tells %+v no longer kept, want %+v", r.Path, project.Unkept, tt.want)
 				}
 			}
@@ -344,9 +498,11 @@ func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 	}
 }
 
-// Where a day's sessions are read from its side but its lines are gone, so
-// its hours aren't known, it's charted by the day, on Projects and on
-// Accounts alike: one bucket, the day's worth.
+// Where a day's sessions are read from its side but the ledger no longer
+// keeps its lines, as where its lines begin says, its hours aren't known,
+// so it's charted by the day, on Projects and on Accounts alike: one
+// bucket, the day's worth. The ledger never keeps a day's side without its
+// lines, but the rule holds of the views whatever it keeps.
 func TestADayWhoseHoursAreGoneButWhoseSideIsKeptIsChartedByTheDay(t *testing.T) {
 	const dir = "/code/switchboard"
 	build := views.Digests{}.Day()
@@ -361,7 +517,7 @@ func TestADayWhoseHoursAreGoneButWhoseSideIsKeptIsChartedByTheDay(t *testing.T) 
 	days := views.ReadSessionDays(l, september(24, 0, 0), framesNow, views.PoolRead{})
 	yesterday := pastAt(t, views.LengthToday, "<", time.Monday)
 	in := projectsIn(yesterday, framesNow)
-	in.Hours = views.ReadDayFold(l, "2026-09-30", views.PoolRead{})
+	in.Hours = views.ReadDayFold(l, "2026-09-30", framesNow, views.PoolRead{})
 	project, ok := days.Projects(in).Project(dir)
 	if !ok || project.Requests != 2 {
 		t.Fatalf("yesterday's %s is %+v, want its side's two requests", dir, project.ProjectRow)
@@ -373,7 +529,7 @@ func TestADayWhoseHoursAreGoneButWhoseSideIsKeptIsChartedByTheDay(t *testing.T) 
 	accountsIn := input(nil)
 	accountsIn.Now, accountsIn.Accounts = framesNow, workAndSide
 	byDay := views.NewPast(accountsIn, nil).Accounts(yesterday)
-	if got := byDay.Hourly(in.Hours); !reflect.DeepEqual(got.Rows[0].WorthBy, byDay.Rows[0].WorthBy) {
+	if got := byDay.Hourly(yesterday.HoursFold(framesNow, time.Monday, in.Hours, days.TodayFold())); !reflect.DeepEqual(got.Rows[0].WorthBy, byDay.Rows[0].WorthBy) {
 		t.Errorf("its hours gone, work's yesterday is charted %+v, want by the day, %+v", chartsFrom(got.Rows[0].WorthBy), chartsFrom(byDay.Rows[0].WorthBy))
 	}
 }
