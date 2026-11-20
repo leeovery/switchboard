@@ -77,7 +77,8 @@ func tokensNumber(n Number) bool {
 // column, or where the split's column has left, run on into the first
 // count's cells, a cell before its figure. Where it doesn't, as at 160
 // columns, or a past 12 months' at 73, it's named by the dial's short name,
-// never cut, and never as now: the week two weeks back at 160.
+// never cut, and never one that says now: the week two weeks back at 160, and
+// a day in another year by its date with its year.
 func TestTokensOverAPastPeriodNameTheTotalByTheDial(t *testing.T) {
 	tests := []struct {
 		length views.Length
@@ -89,6 +90,7 @@ func TestTokensOverAPastPeriodNameTheTotalByTheDial(t *testing.T) {
 		{length: views.LengthTwelveWeeks, back: 1, short: "12 weeks", dialed: map[int]bool{52: true, 73: true}},
 		{length: views.LengthTwelveMonths, back: 1, short: "12 months"},
 		{length: views.LengthThisWeek, back: 2, short: "the week", dialed: map[int]bool{52: true, 73: true, 104: true}},
+		{length: views.LengthToday, back: 271, short: "31 Dec 2025", dialed: map[int]bool{52: true, 73: true, 104: true}},
 	}
 	for _, tt := range tests {
 		period := stepsBack(t, tt.length, tt.back)
@@ -120,6 +122,33 @@ func TestTokensOverAPastPeriodNameTheTotalByTheDial(t *testing.T) {
 				})
 			}
 		}
+	}
+}
+
+// The total's name runs on to a cell before the first count's figure, and
+// no further: at 104 columns, by account, a past 30 days' name fills its room
+// to the cell, and is drawn; a past 12 weeks' is a cell longer, and gives way
+// to the dial's short name.
+func TestTokensPastTotalKeepsACellBeforeTheFigure(t *testing.T) {
+	tests := []struct {
+		length views.Length
+		over   int
+		named  func(views.Dial) string
+	}{
+		{length: views.LengthThirtyDays, over: 0, named: views.Dial.Name},
+		{length: views.LengthTwelveWeeks, over: 1, named: views.Dial.Short},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.length), func(t *testing.T) {
+			f := accountsTokensFrame(104, 61, stepsBack(t, tt.length, 1), TokensByAccount, pastPeriodTokens())
+			room := f.accountsTokens().columns().nameCells(tokensRow{total: true, tokens: pastPeriodTokens().Total.Tokens})
+			if over := len(f.Dial.Name()) - room; over != tt.over {
+				t.Fatalf("%q is %d cells over its room of %d, want %d", f.Dial.Name(), over, room, tt.over)
+			}
+			if rows, want := accountsTokensRows(f), tt.named(f.Dial)+" "; !strings.HasPrefix(rows[2], want) {
+				t.Errorf("the total's row reads %q, want it named %q", rows[2], want)
+			}
+		})
 	}
 }
 

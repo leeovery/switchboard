@@ -30,7 +30,7 @@ func DialOf(period Period, now time.Time, starts time.Weekday, began time.Time) 
 	d := Dial{span: s, local: now.Local(), name: l.Name(), short: l.Name(), title: l.Title(), within: l.Within(), earliest: s.earliest(began)}
 	if s.gone {
 		d.name, d.within = l.goneSaid(s)
-		d.short, d.title = l.goneShort(d.name), strings.ToUpper(d.name)
+		d.short, d.title = l.goneShort(s, d.name), strings.ToUpper(d.name)
 	}
 	return d
 }
@@ -62,12 +62,17 @@ func (l Length) goneSaid(s periodSpan) (name, within string) {
 	return name, "in the " + name
 }
 
-// goneShort is the short name of a period of the length gone, named as given:
-// a day's name itself, as short as any; the week, never this week; and the
-// longer lengths their own name, as 30 days.
-func (l Length) goneShort(name string) string {
+// goneShort is the short name of a period of the length gone, of the span
+// given, named as given: a day in today's year its name itself, as Tue 29
+// Sep, and in another its date with its year, as 31 Dec 2025, without its
+// weekday; the week, never this week; and the longer lengths their own name,
+// as 30 days.
+func (l Length) goneShort(s periodSpan, name string) string {
 	switch l {
 	case LengthToday:
+		if s.last.Year() != s.today.Year() {
+			return prose.DayMonthYear(s.last)
+		}
 		return name
 	case LengthThisWeek:
 		return "the week"
@@ -84,7 +89,8 @@ func (d Dial) Name() string {
 
 // Short is the period's name where its own is too wide, as Tokens' total
 // row names it then, the heading naming it in full: at now its length's
-// name, as Name is; gone, never a name of now: a day's name, as "yesterday";
+// name, as Name is; gone, never one that says now (today, this week): a
+// day's name, as "yesterday", or in another year its date, as "31 Dec 2025";
 // "the week" of a week; and the longer lengths' own names, as "30 days".
 func (d Dial) Short() string {
 	return d.short
