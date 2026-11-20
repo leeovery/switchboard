@@ -370,6 +370,11 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 	if got := week.Hourly(heldDays(now, lines...)); !reflect.DeepEqual(charts(got), charts(week)) {
 		t.Errorf("fed today's fold, this week's page is charted %+v, want it by the day, %+v", charts(got), charts(week))
 	}
+	back, _ := views.LengthToday.Now().Back(in.Now, in.WeekStarts, time.Time{})
+	gone := views.NewPast(in, nil).Accounts(back)
+	if got := gone.Hourly(heldDays(now, lines...)); !reflect.DeepEqual(charts(got), charts(gone)) {
+		t.Errorf("fed today's fold, yesterday's page is charted %+v, want it by the day, %+v", charts(got), charts(gone))
+	}
 }
 
 // Today's hours count every request, as the day's summary does, those of no

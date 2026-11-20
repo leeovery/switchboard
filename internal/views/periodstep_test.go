@@ -24,33 +24,31 @@ func civilDate(date string) time.Time {
 	return day
 }
 
-// press steps the period by the key given, on today, as dayfile.Civil gives
-// a day, weeks starting on starts, the work begun at began: < back, > on, -
-// shorter and + longer.
-func press(p views.Period, key rune, today time.Time, starts time.Weekday, began time.Time) (views.Period, bool) {
+// press steps the period by the key given at now, weeks starting on starts,
+// the work begun at began: < back, > on, - shorter and + longer.
+func press(p views.Period, key rune, now time.Time, starts time.Weekday, began time.Time) (views.Period, bool) {
 	switch key {
 	case '<':
-		return p.Back(today, starts, began)
+		return p.Back(now, starts, began)
 	case '>':
-		return p.On(today, starts)
+		return p.On(now, starts)
 	case '-':
-		return p.Shorter(today, starts)
+		return p.Shorter(now, starts)
 	case '+':
-		return p.Longer(today, starts)
+		return p.Longer(now, starts)
 	}
 	panic("not a key: " + string(key))
 }
 
 // pressed is the period of the length given, now, stepped by each key in
-// turn on today, as press has it, failing the test where one doesn't step
-// it.
-func pressed(t *testing.T, length views.Length, keys string, today time.Time, starts time.Weekday, began time.Time) views.Period {
+// turn at now, as press has it, failing the test where one doesn't step it.
+func pressed(t *testing.T, length views.Length, keys string, now time.Time, starts time.Weekday, began time.Time) views.Period {
 	t.Helper()
 	p := length.Now()
 	for i, key := range keys {
-		next, ok := press(p, key, today, starts, began)
+		next, ok := press(p, key, now, starts, began)
 		if !ok {
-			t.Fatalf("%s pressed %q on %s: %q doesn't step", length.Name(), keys, today.Format(time.DateOnly), keys[:i+1])
+			t.Fatalf("%s pressed %q at %v: %q doesn't step", length.Name(), keys, now, keys[:i+1])
 		}
 		p = next
 	}
@@ -68,7 +66,7 @@ type dialSaid struct {
 // starts, the work begun at began.
 func dialSaidOf(p views.Period, now time.Time, starts time.Weekday, began time.Time) dialSaid {
 	d := views.DialOf(p, now, starts, began)
-	return dialSaid{name: d.Name(), title: d.Title(), within: d.Within(), span: p.SpanOn(dayfile.CivilOf(now), starts)}
+	return dialSaid{name: d.Name(), title: d.Title(), within: d.Within(), span: p.SpanOn(now, starts)}
 }
 
 // Stepping back moves each length's last day back a length at a time, and
@@ -102,7 +100,7 @@ func TestEachLengthStepsBackAndIsNamedAsTheFramesNameIt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.length.Name()+" "+tt.keys, func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, dayfile.CivilOf(framesNow), time.Monday, time.Time{})
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
 			gone := tt.keys != ""
 			want := dialSaid{name: tt.name, title: tt.title, within: tt.within, span: views.SpanOf{First: tt.first, Last: tt.last, Gone: gone, WeeksBack: tt.weeksBack}}
 			if got := dialSaidOf(p, framesNow, time.Monday, time.Time{}); got != want {
@@ -142,7 +140,7 @@ func TestMinusAndPlusKeepThePeriodsLastDay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.length.Name()+" "+tt.keys, func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, dayfile.CivilOf(framesNow), time.Monday, time.Time{})
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
 			got := dialSaidOf(p, framesNow, time.Monday, time.Time{})
 			if got.name != tt.name || got.span.First != tt.first || got.span.Last != tt.last {
 				t.Errorf("%s pressed %q is %q, %s to %s, want %q, %s to %s", tt.length.Name(), tt.keys, got.name, got.span.First, got.span.Last, tt.name, tt.first, tt.last)
@@ -157,7 +155,6 @@ func TestMinusAndPlusKeepThePeriodsLastDay(t *testing.T) {
 // - refuses at today, the shortest, and + at the 12 months, the longest,
 // at now or gone, the period staying as it was.
 func TestMinusAndPlusStopAtTheEnds(t *testing.T) {
-	today := dayfile.CivilOf(framesNow)
 	tests := []struct {
 		length views.Length
 		keys   string
@@ -170,8 +167,8 @@ func TestMinusAndPlusStopAtTheEnds(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.length.Name()+" "+tt.keys+string(tt.key), func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, today, time.Monday, time.Time{})
-			if got, ok := press(p, tt.key, today, time.Monday, time.Time{}); ok || got != p {
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
+			if got, ok := press(p, tt.key, framesNow, time.Monday, time.Time{}); ok || got != p {
 				t.Errorf("%s pressed %q then %q steps to %v, %v; want it to stay", tt.length.Name(), tt.keys, tt.key, got, ok)
 			}
 		})
@@ -181,16 +178,15 @@ func TestMinusAndPlusStopAtTheEnds(t *testing.T) {
 // > steps on a length at a time and stops at now: from one back, now; from
 // two back, one back; at now it refuses, the period staying now.
 func TestOnStepsBackToNowAndStopsThere(t *testing.T) {
-	today := dayfile.CivilOf(framesNow)
 	for _, length := range views.Lengths() {
 		t.Run(length.Name(), func(t *testing.T) {
-			if got := pressed(t, length, "<>", today, time.Monday, time.Time{}); got != length.Now() {
+			if got := pressed(t, length, "<>", framesNow, time.Monday, time.Time{}); got != length.Now() {
 				t.Errorf("%s pressed \"<>\" is %+v, want now", length.Name(), dialSaidOf(got, framesNow, time.Monday, time.Time{}))
 			}
-			if got, want := pressed(t, length, "<<>", today, time.Monday, time.Time{}), pressed(t, length, "<", today, time.Monday, time.Time{}); got != want {
+			if got, want := pressed(t, length, "<<>", framesNow, time.Monday, time.Time{}), pressed(t, length, "<", framesNow, time.Monday, time.Time{}); got != want {
 				t.Errorf("%s pressed \"<<>\" is %+v, want one back, %+v", length.Name(), dialSaidOf(got, framesNow, time.Monday, time.Time{}), dialSaidOf(want, framesNow, time.Monday, time.Time{}))
 			}
-			if got, ok := length.Now().On(today, time.Monday); ok || got != length.Now() {
+			if got, ok := length.Now().On(framesNow, time.Monday); ok || got != length.Now() {
 				t.Errorf("%s at now steps on to %+v", length.Name(), dialSaidOf(got, framesNow, time.Monday, time.Time{}))
 			}
 		})
@@ -217,7 +213,7 @@ func TestWeeksStartingOnSundayStepByTheirWeeks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.length.Name()+" "+tt.keys, func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, dayfile.CivilOf(framesNow), time.Sunday, time.Time{})
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Sunday, time.Time{})
 			got := dialSaidOf(p, framesNow, time.Sunday, time.Time{})
 			if got.name != tt.name || got.span.First != tt.first || got.span.Last != tt.last {
 				t.Errorf("%s pressed %q is %q, %s to %s, want %q, %s to %s", tt.length.Name(), tt.keys, got.name, got.span.First, got.span.Last, tt.name, tt.first, tt.last)
@@ -246,7 +242,7 @@ func TestADateCarriesItsYearOnlyWhereItIsntNows(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.length.Name()+" "+tt.keys, func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, dayfile.CivilOf(now), time.Monday, time.Time{})
+			p := pressed(t, tt.length, tt.keys, now, time.Monday, time.Time{})
 			got := dialSaidOf(p, now, time.Monday, time.Time{})
 			want := dialSaid{name: tt.name, title: strings.ToUpper(tt.name), within: tt.within, span: got.span}
 			if got != want || got.span.First != tt.first || got.span.Last != tt.last {
@@ -280,8 +276,8 @@ func TestTwelveMonthsStepByAYearTheTwentyNinthToTheTwentyEighth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := pressed(t, views.LengthTwelveMonths, tt.keys, dayfile.CivilOf(tt.now), time.Monday, time.Time{})
-			if got, want := p.SpanOn(dayfile.CivilOf(tt.now), time.Monday), (views.SpanOf{First: tt.first, Last: tt.last, Gone: tt.gone}); got.First != want.First || got.Last != want.Last || got.Gone != want.Gone {
+			p := pressed(t, views.LengthTwelveMonths, tt.keys, tt.now, time.Monday, time.Time{})
+			if got, want := p.SpanOn(tt.now, time.Monday), (views.SpanOf{First: tt.first, Last: tt.last, Gone: tt.gone}); got.First != want.First || got.Last != want.Last || got.Gone != want.Gone {
 				t.Errorf("12 months pressed %q at %v span %+v, want %+v", tt.keys, tt.now, got, want)
 			}
 		})
@@ -296,29 +292,30 @@ func TestTwelveMonthsStepByAYearTheTwentyNinthToTheTwentyEighth(t *testing.T) {
 // on any day.
 func TestStepsTileAndStepBackToNow(t *testing.T) {
 	for day := civilDate("2027-01-01"); day.Year() < 2030; day = day.AddDate(0, 0, 1) {
+		now := time.Date(day.Year(), day.Month(), day.Day(), 12, 0, 0, 0, time.Local)
 		for _, starts := range []time.Weekday{time.Monday, time.Sunday, time.Wednesday} {
 			for _, length := range views.Lengths() {
 				p := length.Now()
 				for back := 1; back <= 3; back++ {
-					was := p.SpanOn(day, starts)
-					next, ok := p.Back(day, starts, time.Time{})
-					if got := next.SpanOn(day, starts); !ok || !civilDate(got.Last).AddDate(0, 0, 1).Equal(civilDate(was.First)) {
+					was := p.SpanOn(now, starts)
+					next, ok := p.Back(now, starts, time.Time{})
+					if got := next.SpanOn(now, starts); !ok || !civilDate(got.Last).AddDate(0, 0, 1).Equal(civilDate(was.First)) {
 						t.Fatalf("%s back %d on %s from %s: %s to %s, %v; want it to end the day before %s",
 							length.Name(), back, day.Format(time.DateOnly), starts, got.First, got.Last, ok, was.First)
 					}
 					p = next
 				}
 				for on := 1; on <= 3; on++ {
-					was := p.SpanOn(day, starts)
-					next, ok := p.On(day, starts)
-					if got := next.SpanOn(day, starts); !ok || got.First != beginsAfter(length, was.Last) {
+					was := p.SpanOn(now, starts)
+					next, ok := p.On(now, starts)
+					if got := next.SpanOn(now, starts); !ok || got.First != beginsAfter(length, was.Last) {
 						t.Fatalf("%s on %d on %s from %s: %s to %s, %v; want it to begin %s",
 							length.Name(), on, day.Format(time.DateOnly), starts, got.First, got.Last, ok, beginsAfter(length, was.Last))
 					}
 					p = next
 				}
 				if p != length.Now() {
-					t.Fatalf("%s back 3 then on 3 on %s from %s is %+v, want now", length.Name(), day.Format(time.DateOnly), starts, p.SpanOn(day, starts))
+					t.Fatalf("%s back 3 then on 3 on %s from %s is %+v, want now", length.Name(), day.Format(time.DateOnly), starts, p.SpanOn(now, starts))
 				}
 			}
 		}
@@ -339,7 +336,6 @@ func beginsAfter(length views.Length, last string) string {
 // the period begins on or before that day, the period staying, and the
 // dial says it's the earliest; where that day isn't known, it steps freely.
 func TestBackStopsAtThePeriodHoldingTheFirstDayOfWork(t *testing.T) {
-	today := dayfile.CivilOf(framesNow)
 	tests := []struct {
 		name   string
 		length views.Length
@@ -357,18 +353,18 @@ func TestBackStopsAtThePeriodHoldingTheFirstDayOfWork(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, today, time.Monday, tt.began)
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, tt.began)
 			for i, key := range tt.keys {
-				before := pressed(t, tt.length, tt.keys[:i], today, time.Monday, tt.began)
+				before := pressed(t, tt.length, tt.keys[:i], framesNow, time.Monday, tt.began)
 				if views.DialOf(before, framesNow, time.Monday, tt.began).Earliest() {
 					t.Errorf("%s pressed %q, the work begun %v, is the earliest, though %q steps back", tt.length.Name(), tt.keys[:i], tt.began, string(key))
 				}
 			}
-			if got := p.SpanOn(today, time.Monday).Last; got != tt.last {
+			if got := p.SpanOn(framesNow, time.Monday).Last; got != tt.last {
 				t.Errorf("%s pressed %q ends %s, want %s", tt.length.Name(), tt.keys, got, tt.last)
 			}
-			if got, ok := p.Back(today, time.Monday, tt.began); ok || got != p {
-				t.Errorf("%s pressed %q, the work begun %v, steps back to %+v", tt.length.Name(), tt.keys, tt.began, got.SpanOn(today, time.Monday))
+			if got, ok := p.Back(framesNow, time.Monday, tt.began); ok || got != p {
+				t.Errorf("%s pressed %q, the work begun %v, steps back to %+v", tt.length.Name(), tt.keys, tt.began, got.SpanOn(framesNow, time.Monday))
 			}
 			if !views.DialOf(p, framesNow, time.Monday, tt.began).Earliest() {
 				t.Errorf("%s pressed %q, the work begun %v, isn't the earliest", tt.length.Name(), tt.keys, tt.began)
@@ -377,22 +373,35 @@ func TestBackStopsAtThePeriodHoldingTheFirstDayOfWork(t *testing.T) {
 	}
 }
 
+// A period lying wholly before the day the work began, as a change of pool
+// can leave one held, is at the floor too: < refuses, giving it back, and the
+// dial says it's the earliest.
+func TestAPeriodBeforeTheFirstDayOfWorkIsAtTheFloor(t *testing.T) {
+	began := on("2026-09-25")
+	p := pressed(t, views.LengthThisWeek, "<<", framesNow, time.Monday, time.Time{})
+	if got, ok := p.Back(framesNow, time.Monday, began); ok || got != p {
+		t.Errorf("the week of 14 Sep, the work begun %v, steps back to %+v", began, got.SpanOn(framesNow, time.Monday))
+	}
+	if !views.DialOf(p, framesNow, time.Monday, began).Earliest() {
+		t.Errorf("the week of 14 Sep, the work begun %v, isn't the earliest", began)
+	}
+}
+
 // Where the day the work began isn't known, < steps back freely, more than
 // a year, and the dial never says it's the earliest.
 func TestBackStepsFreelyWhereTheFirstDayOfWorkIsntKnown(t *testing.T) {
-	today := dayfile.CivilOf(framesNow)
 	p := views.LengthThisWeek.Now()
 	for back := range 60 {
 		if views.DialOf(p, framesNow, time.Monday, time.Time{}).Earliest() {
 			t.Fatalf("this week %d back is the earliest", back)
 		}
-		next, ok := p.Back(today, time.Monday, time.Time{})
+		next, ok := p.Back(framesNow, time.Monday, time.Time{})
 		if !ok {
 			t.Fatalf("this week %d back doesn't step back", back)
 		}
 		p = next
 	}
-	if got := p.SpanOn(today, time.Monday).Last; got != "2025-08-10" {
+	if got := p.SpanOn(framesNow, time.Monday).Last; got != "2025-08-10" {
 		t.Errorf("this week 60 back ends %s, want 2025-08-10", got)
 	}
 }
@@ -401,7 +410,6 @@ func TestBackStepsFreelyWhereTheFirstDayOfWorkIsntKnown(t *testing.T) {
 // named by its date the day after. Where the clock goes back to the period
 // or before it, it's now, named as now, and steps from now.
 func TestAPeriodGoneKeepsItsDatesAndIsNowOnceItReachesToday(t *testing.T) {
-	stepped := dayfile.CivilOf(framesNow)
 	tests := []struct {
 		name      string
 		length    views.Length
@@ -421,21 +429,27 @@ func TestAPeriodGoneKeepsItsDatesAndIsNowOnceItReachesToday(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, stepped, time.Monday, time.Time{})
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
 			got := dialSaidOf(p, tt.now, time.Monday, time.Time{})
 			want := views.SpanOf{First: tt.first, Last: tt.last, Gone: tt.gone, WeeksBack: tt.weeksBack}
 			if got.name != tt.said || got.span != want {
 				t.Errorf("%s pressed %q at %v is %q, %+v, want %q, %+v", tt.length.Name(), tt.keys, tt.now, got.name, got.span, tt.said, want)
 			}
-			today := dayfile.CivilOf(tt.now)
-			if _, ok := p.On(today, time.Monday); ok == !tt.gone {
+			if _, ok := p.On(tt.now, time.Monday); ok != tt.gone {
 				t.Errorf("%s pressed %q at %v steps on %v, want %v", tt.length.Name(), tt.keys, tt.now, ok, tt.gone)
 			}
-			if !tt.gone {
-				back, _ := p.Back(today, time.Monday, time.Time{})
-				if want, _ := tt.length.Now().Back(today, time.Monday, time.Time{}); back != want {
-					t.Errorf("%s pressed %q at %v steps back to %+v, want now's one back, %+v", tt.length.Name(), tt.keys, tt.now, back.SpanOn(today, time.Monday), want.SpanOn(today, time.Monday))
-				}
+			if tt.gone {
+				return
+			}
+			if back, _ := p.Back(tt.now, time.Monday, time.Time{}); back != pressed(t, tt.length, "<", tt.now, time.Monday, time.Time{}) {
+				t.Errorf("%s pressed %q at %v steps back to %+v, want now's one back", tt.length.Name(), tt.keys, tt.now, back.SpanOn(tt.now, time.Monday))
+			}
+			// Each step refused gives the period now, never the one held.
+			if got, _ := p.On(tt.now, time.Monday); got != tt.length.Now() {
+				t.Errorf("%s pressed %q at %v, refusing >, gives %+v, want now", tt.length.Name(), tt.keys, tt.now, got)
+			}
+			if got, ok := p.Back(tt.now, time.Monday, tt.now); ok || got != tt.length.Now() {
+				t.Errorf("%s pressed %q at %v, refusing < at the floor, gives %+v, %v, want now", tt.length.Name(), tt.keys, tt.now, got, ok)
 			}
 		})
 	}
@@ -444,7 +458,6 @@ func TestAPeriodGoneKeepsItsDatesAndIsNowOnceItReachesToday(t *testing.T) {
 // A period gone begins where a read of its days begins: at the start of its
 // first local day.
 func TestAPeriodGoneBeginsAtItsFirstDaysStart(t *testing.T) {
-	today := dayfile.CivilOf(framesNow)
 	tests := []struct {
 		length views.Length
 		keys   string
@@ -457,37 +470,30 @@ func TestAPeriodGoneBeginsAtItsFirstDaysStart(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.length.Name()+" "+tt.keys, func(t *testing.T) {
-			if got := pressed(t, tt.length, tt.keys, today, time.Monday, time.Time{}).From(framesNow, time.Monday); !got.Equal(tt.want) {
+			if got := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{}).From(framesNow, time.Monday); !got.Equal(tt.want) {
 				t.Errorf("%s pressed %q begins %v, want %v", tt.length.Name(), tt.keys, got, tt.want)
 			}
 		})
 	}
 }
 
-// The widest name a length takes is the widest it's named at any step:
-// over every day of two years, now and three back, none is wider, and one
-// is as wide; and it's the same at every step, so the heading holds still.
-func TestWidestIsTheWidestNameALengthTakesAtAnyStep(t *testing.T) {
+// The dial keeps room for the widest of the lengths' names at now, whatever
+// the period: every length's name at now fits it, one fills it, and every
+// period, at now or gone, keeps the same.
+func TestWidestIsTheWidestOfTheLengthsNamesAtNow(t *testing.T) {
+	widest := views.DialOf(views.LengthThisWeek.Now(), framesNow, time.Monday, time.Time{}).Widest()
+	most := 0
 	for _, length := range views.Lengths() {
-		t.Run(length.Name(), func(t *testing.T) {
-			widest := views.DialOf(length.Now(), framesNow, time.Monday, time.Time{}).Widest()
-			most := 0
-			for day := civilDate("2026-01-01"); day.Year() < 2028; day = day.AddDate(0, 0, 1) {
-				now := time.Date(day.Year(), day.Month(), day.Day(), 12, 0, 0, 0, time.Local)
-				p := length.Now()
-				for back := range 4 {
-					d := views.DialOf(p, now, time.Monday, time.Time{})
-					if d.Widest() != widest {
-						t.Fatalf("%s %d back at %v is widest %q, want %q", length.Name(), back, now, d.Widest(), widest)
-					}
-					most = max(most, utf8.RuneCountInString(d.Name()))
-					p, _ = p.Back(day, time.Monday, time.Time{})
-				}
+		most = max(most, utf8.RuneCountInString(length.Name()))
+		for back := range 3 {
+			p := pressed(t, length, strings.Repeat("<", back), framesNow, time.Monday, time.Time{})
+			if got := views.DialOf(p, framesNow, time.Monday, time.Time{}).Widest(); got != widest {
+				t.Errorf("%s %d back keeps room for %q, want %q", length.Name(), back, got, widest)
 			}
-			if got := utf8.RuneCountInString(widest); got != most {
-				t.Errorf("%s's widest, %q, is %d wide, want %d, the widest it's named", length.Name(), widest, got, most)
-			}
-		})
+		}
+	}
+	if got := utf8.RuneCountInString(widest); got != most {
+		t.Errorf("the dial keeps room for %q, %d wide, want %d, the widest length's name at now", widest, got, most)
 	}
 }
 
@@ -495,7 +501,6 @@ func TestWidestIsTheWidestNameALengthTakesAtAnyStep(t *testing.T) {
 // prose.Lately says it; gone, never now, over a day by its time alone, over
 // more with its weekday in the period's last seven days, else its date.
 func TestATimeInThePeriodIsSaidByHowFarIntoItItFalls(t *testing.T) {
-	today := dayfile.CivilOf(framesNow)
 	at := func(date string, hour, minute int) time.Time {
 		day := civilDate(date)
 		return time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, time.Local)
@@ -522,7 +527,7 @@ func TestATimeInThePeriodIsSaidByHowFarIntoItItFalls(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := views.DialOf(pressed(t, tt.length, tt.keys, today, time.Monday, time.Time{}), framesNow, time.Monday, time.Time{})
+			d := views.DialOf(pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{}), framesNow, time.Monday, time.Time{})
 			if got := d.TimeSaid(tt.t); got != tt.want {
 				t.Errorf("%s pressed %q says %v as %q, want %q", tt.length.Name(), tt.keys, tt.t, got, tt.want)
 			}
@@ -540,6 +545,68 @@ func TestATimeAtNowIsSaidAsLatelySaysIt(t *testing.T) {
 			if got, want := d.TimeSaid(at), prose.Lately(framesNow, at); got != want {
 				t.Errorf("%s at now says %v as %q, want %q", length.Name(), at, got, want)
 			}
+		}
+	}
+}
+
+// inZone has the local time zone be loc until the test ends, as a process
+// started there has it.
+func inZone(t *testing.T, loc *time.Location) {
+	t.Helper()
+	was := time.Local
+	time.Local = loc
+	t.Cleanup(func() { time.Local = was })
+}
+
+// A period's days are the local zone's, however now's told: its steps, where
+// it begins, its words and the times it tells follow the local day, 10 hours
+// west of UTC and 13 east, half an hour after midnight and before it, now
+// told in UTC, whose day and year differ there.
+func TestAPeriodsDaysAreTheLocalZones(t *testing.T) {
+	tests := []struct {
+		date   string
+		length views.Length
+		keys   string
+		name   string
+		first  string
+	}{
+		{"2026-10-01", views.LengthToday, "<", "yesterday", "2026-09-30"},
+		{"2026-10-01", views.LengthToday, "<<", "Tue 29 Sep", "2026-09-29"},
+		{"2026-10-01", views.LengthThisWeek, "<", "last week", "2026-09-21"},
+		{"2026-10-01", views.LengthThisWeek, "<>", "this week", "2026-09-28"},
+		{"2026-10-01", views.LengthTwelveMonths, "<", "12 months to 1 Oct 2025", "2024-10-02"},
+		{"2027-01-01", views.LengthToday, "<<", "Wed 30 Dec 2026", "2026-12-30"},
+		{"2027-01-01", views.LengthThisWeek, "<<", "week of 14 Dec 2026", "2026-12-14"},
+		{"2027-01-01", views.LengthThirtyDays, "<", "30 days to 2 Dec 2026", "2026-11-03"},
+	}
+	zones := []*time.Location{time.FixedZone("UTC-10", -10*60*60), time.FixedZone("UTC+13", 13*60*60)}
+	for _, zone := range zones {
+		for _, clock := range [][2]int{{0, 30}, {23, 30}} {
+			for _, tt := range tests {
+				day := civilDate(tt.date)
+				local := time.Date(day.Year(), day.Month(), day.Day(), clock[0], clock[1], 0, 0, zone)
+				t.Run(tt.length.Name()+" "+tt.keys+" at "+local.String(), func(t *testing.T) {
+					inZone(t, zone)
+					now := local.UTC()
+					p := pressed(t, tt.length, tt.keys, now, time.Monday, time.Time{})
+					if got := views.DialOf(p, now, time.Monday, time.Time{}).Name(); got != tt.name {
+						t.Errorf("%s pressed %q at %v is %q, want %q", tt.length.Name(), tt.keys, local, got, tt.name)
+					}
+					first := civilDate(tt.first)
+					if got, want := p.From(now, time.Monday), time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, zone); !got.Equal(want) {
+						t.Errorf("%s pressed %q at %v begins %v, want %v", tt.length.Name(), tt.keys, local, got, want)
+					}
+				})
+			}
+			local := time.Date(2026, 10, 1, clock[0], clock[1], 0, 0, zone)
+			t.Run("a time last week at "+local.String(), func(t *testing.T) {
+				inZone(t, zone)
+				now := local.UTC()
+				d := views.DialOf(pressed(t, views.LengthThisWeek, "<", now, time.Monday, time.Time{}), now, time.Monday, time.Time{})
+				if got := d.TimeSaid(time.Date(2026, 9, 27, 21, 40, 0, 0, zone).UTC()); got != "Sun 21:40" {
+					t.Errorf("last week at %v says Sun 27 Sep 21:40 as %q, want \"Sun 21:40\"", local, got)
+				}
+			})
 		}
 	}
 }

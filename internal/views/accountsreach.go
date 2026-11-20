@@ -143,16 +143,16 @@ func worthsByDay(days []Day, accounts config.Accounts) []dayWorths {
 }
 
 // Hourly is the page with today's worth charted by the hour, where its
-// period is today and d's fold of the tail is of today: each row's, what
-// the requests the fold holds that went to its account were worth by the
-// local hour each arrived in, those of no session among them, as the day's
-// summary counts them, and all accounts', every one's, those none answered
-// among them, priced at today's prices, as Projects charts a project's
-// today, worthCharts' one rule. Else it's the page as it is, its today by
-// the day.
+// period is today at now and d's fold of the tail is of today: each row's,
+// what the requests the fold holds that went to its account were worth by
+// the local hour each arrived in, those of no session among them, as the
+// day's summary counts them, and all accounts', every one's, those none
+// answered among them, priced at today's prices, as Projects charts a
+// project's today, worthCharts' one rule. Else it's the page as it is, its
+// day by the day, a day gone's too.
 func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
 	today := dayfile.DateOf(p.in.Now)
-	if p.Period.length != LengthToday || d.today.Date != today {
+	if p.Period.length != LengthToday || p.Period.spanAt(dayfile.CivilOf(p.in.Now), p.in.WeekStarts).gone || d.today.Date != today {
 		return p
 	}
 	byAccount, all := d.held.worthByHour(pricing{prices: p.in.Prices, date: today})

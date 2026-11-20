@@ -80,7 +80,7 @@ func DatedAfar(now, t time.Time) string {
 	if WithinWeek(now, t) && WithinWeek(t.In(now.Location()), now) {
 		return Dated(now, t)
 	}
-	return t.In(now.Location()).Format(pastLayout)
+	return DayMonthTime(now, t)
 }
 
 // RunOut shows t, when a window is projected to run out, in now's time zone:
@@ -111,7 +111,7 @@ func weekOn(now, t time.Time) bool {
 // weekday, such as "5 Nov 15:00".
 func Befell(now, t time.Time) string {
 	if weekBack(now, t) {
-		return t.In(now.Location()).Format(pastLayout)
+		return DayMonthTime(now, t)
 	}
 	return Dated(now, t)
 }
@@ -126,7 +126,8 @@ func weekBack(now, t time.Time) bool {
 // BefellWidth is how many characters the widest time Befell shows takes: as
 // Dated shows one, or a week back, its date of two figures.
 func BefellWidth() int {
-	return max(DatedWidth(), utf8.RuneCountInString(time.Date(2000, time.January, 10, 23, 59, 0, 0, time.UTC).Format(pastLayout)))
+	twoFigures := time.Date(2000, time.January, 10, 23, 59, 0, 0, time.UTC)
+	return max(DatedWidth(), utf8.RuneCountInString(DayMonthTime(twoFigures, twoFigures)))
 }
 
 // RunOutWidth is how many characters the widest time RunOut shows takes: as
@@ -244,7 +245,7 @@ func Past(now, t time.Time) string {
 	case WithinWeek(now, t):
 		return Clock(now, t)
 	}
-	return t.Format(pastLayout)
+	return DayMonthTime(now, t)
 }
 
 // yesterday leads a time on the day before now's, as Past says it.

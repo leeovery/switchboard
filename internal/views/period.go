@@ -9,13 +9,14 @@ import (
 )
 
 // Length is how long the period the dashboard's entity tabs count their use
-// over runs, as < and > step it, one dial they share: today, from midnight;
-// this week, as it opens, from the day weeks start on; the last 30 days,
-// today and the 29 before it; the last 12 weeks, this week and the 11 before
-// it; or the last 12 months, the days Trends' YEAR counts as LAST 12 MONTHS.
-// Each is rolling, never a billing month, and priced whole while it's still
-// running, but from its first day where the ledger began part-way through
-// it. Its values are what the preferences keep.
+// over runs, as - and + step it, one dial they share, by its last day: today,
+// that day from midnight; this week, the week holding it, from the day weeks
+// start on; 30 days, that day and the 29 before it; 12 weeks, its week and
+// the 11 before it; or 12 months, from the day after its date a year back,
+// at now the days Trends' YEAR counts as LAST 12 MONTHS. Each is rolling,
+// never a billing month, and priced whole while it's still running, but from
+// its first day where the ledger began part-way through it. Its values are
+// what the preferences keep.
 type Length string
 
 const (
@@ -32,7 +33,7 @@ const (
 	LengthTwelveMonths Length = "12-months"
 )
 
-// lengths are the lengths in the order < and > step through them, the
+// lengths are the lengths in the order - and + step through them, the
 // shortest first.
 var lengths = []Length{LengthToday, LengthThisWeek, LengthThirtyDays, LengthTwelveWeeks, LengthTwelveMonths}
 
@@ -55,14 +56,14 @@ var lengthsAre = map[Length]lengthIs{
 	LengthTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months", share: aYear, rows: TokensByMonth},
 }
 
-// Lengths are the lengths in the order < and > step through them, the
+// Lengths are the lengths in the order - and + step through them, the
 // shortest first.
 func Lengths() []Length {
 	return slices.Clone(lengths)
 }
 
-// LengthNames are the lengths' names, as Name has them, in the order < and
-// > step through them, the shortest first.
+// LengthNames are the lengths' names, as Name has them, in the order - and
+// + step through them, the shortest first.
 func LengthNames() []string {
 	names := make([]string, len(lengths))
 	for i, l := range lengths {
@@ -110,9 +111,9 @@ func (l Length) Rows() TokensPeriod {
 	return lengthsAre[l].rows
 }
 
-// Stepped is the length < steps to, by -1, a shorter one, or > does, by 1, a
+// Stepped is the length - steps to, by -1, a shorter one, or + does, by 1, a
 // longer one. It reports false past either end, where l stays: today, the
-// shortest, and the last 12 months, the longest.
+// shortest, and 12 months, the longest.
 func (l Length) Stepped(by int) (Length, bool) {
 	i := slices.Index(lengths, l) + by
 	if i < 0 || i >= len(lengths) {
@@ -215,15 +216,17 @@ func (p Period) Length() Length {
 	return p.length
 }
 
-// Back is the period < steps back to, today being the day given, as
-// dayfile.Civil gives a day, weeks starting on the day given: the period of
-// its length ending the day before it begins, as from today, yesterday, and
-// from the 12 months, those to today's date a year back, a 29 February's
-// the 28th, as yearAfter begins them. It reports false where the period
-// begins on or before the day the work it counts began, at began, where p
-// stays, as the period holding that day is the earliest < steps to; it
-// steps back freely where began is zero, as where that isn't known.
-func (p Period) Back(today time.Time, starts time.Weekday, began time.Time) (Period, bool) {
+// Back is the period < steps back to at now, weeks starting on the day
+// given: the period of its length ending the day before it begins, as from
+// today, yesterday, and from 12 months, those to their last day's date a
+// year back, a 29 February's the 28th, as yearAfter begins them. It reports
+// false where the period begins on or before the day the work it counts
+// began, at began, as the period holding that day, or lying before it, is
+// the earliest < steps to; it steps back freely where began is zero, as
+// where that isn't known.
+func (p Period) Back(now time.Time, starts time.Weekday, began time.Time) (Period, bool) {
+	today := dayfile.CivilOf(now)
+	p = p.at(today, starts)
 	s := p.spanAt(today, starts)
 	if s.earliest(began) {
 		return p, false
@@ -231,11 +234,13 @@ func (p Period) Back(today time.Time, starts time.Weekday, began time.Time) (Per
 	return p.length.endingOn(s.first.AddDate(0, 0, -1), today, starts), true
 }
 
-// On is the period > steps on to, today being the day given, as
-// dayfile.Civil gives a day, weeks starting on the day given: the period of
-// its length a length on, as after has it, now where that reaches today. It
-// reports false at now, where p stays, as nothing's later.
-func (p Period) On(today time.Time, starts time.Weekday) (Period, bool) {
+// On is the period > steps on to at now, weeks starting on the day given:
+// the period of its length beginning the day after it ends, as after has
+// it, now where that reaches today. It reports false at now, as nothing's
+// later.
+func (p Period) On(now time.Time, starts time.Weekday) (Period, bool) {
+	today := dayfile.CivilOf(now)
+	p = p.at(today, starts)
 	s := p.spanAt(today, starts)
 	if !s.gone {
 		return p, false
@@ -243,29 +248,28 @@ func (p Period) On(today time.Time, starts time.Weekday) (Period, bool) {
 	return p.length.endingOn(p.length.after(s.last), today, starts), true
 }
 
-// Shorter is the period - steps to, today being the day given, as
-// dayfile.Civil gives a day, weeks starting on the day given: of the next
-// length shorter, ending on the period's last day, as endingOn has it, so
-// from last week, its Sunday. It reports false at today, the shortest, where
-// p stays.
-func (p Period) Shorter(today time.Time, starts time.Weekday) (Period, bool) {
-	return p.lengthened(-1, today, starts)
+// Shorter is the period - steps to at now, weeks starting on the day given:
+// of the next length shorter, ending on the period's last day, as endingOn
+// has it, so from last week, its Sunday. It reports false at today, the
+// shortest.
+func (p Period) Shorter(now time.Time, starts time.Weekday) (Period, bool) {
+	return p.lengthened(-1, dayfile.CivilOf(now), starts)
 }
 
-// Longer is the period + steps to, today being the day given, as
-// dayfile.Civil gives a day, weeks starting on the day given: of the next
-// length longer, ending on the period's last day, as endingOn has it, so
-// from last week, the 30 days to its Sunday. It reports false at the 12
-// months, the longest, where p stays.
-func (p Period) Longer(today time.Time, starts time.Weekday) (Period, bool) {
-	return p.lengthened(1, today, starts)
+// Longer is the period + steps to at now, weeks starting on the day given:
+// of the next length longer, ending on the period's last day, as endingOn
+// has it, so from last week, the 30 days to its Sunday. It reports false at
+// 12 months, the longest.
+func (p Period) Longer(now time.Time, starts time.Weekday) (Period, bool) {
+	return p.lengthened(1, dayfile.CivilOf(now), starts)
 }
 
 // lengthened is the period of the length Stepped steps the period's to by
 // the count given, ending on the period's last day, as endingOn has it,
-// today being the day given, weeks starting on the day given. It reports
-// false past either end, where p stays.
+// today being the day given, as dayfile.Civil gives one, weeks starting on
+// the day given. It reports false past either end.
 func (p Period) lengthened(by int, today time.Time, starts time.Weekday) (Period, bool) {
+	p = p.at(today, starts)
 	length, ok := p.length.Stepped(by)
 	if !ok {
 		return p, false
@@ -275,7 +279,8 @@ func (p Period) lengthened(by int, today time.Time, starts time.Weekday) (Period
 
 // at is the period on today, as dayfile.Civil gives a day, weeks starting
 // on the day given: itself, but now where it reaches today, as endingOn has
-// it, as a period gone does where the clock went back.
+// it, as a period gone does where the clock went back. Every step starts
+// from it, and gives it back where it refuses.
 func (p Period) at(today time.Time, starts time.Weekday) Period {
 	if last, gone := p.ends(); gone {
 		return p.length.endingOn(last, today, starts)
