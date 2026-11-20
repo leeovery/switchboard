@@ -5923,7 +5923,9 @@ is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the
 draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
 `projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
 `projects-108x24`, `projects-12-months-173x53`, `projects-many-114x40` and `projects-104x58`, a
-tall, narrow screen, its SESSIONS filling the width.
+tall, narrow screen, its SESSIONS filling the width; and over a past period, as the Paper frames
+of stepping back through periods draw it (20 November 2026), `projects-yesterday-73x61` and
+`projects-last-week-173x53`.
 
 - **A session's project** is `status.Projects`'. It starts from `status.ProjectOf`: the project
   its lines name, else, of a line from before they named one, its directory's, a Claude Code

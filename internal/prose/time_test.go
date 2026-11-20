@@ -460,6 +460,28 @@ func TestDayMonthTimeIsInNowsTimeZone(t *testing.T) {
 	}
 }
 
+// A time with its date carries its year where that isn't now's, by the
+// calendar in now's time zone.
+func TestDayMonthTimeAtGivesTheYearOfAnotherYear(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 0, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "now's year", t: time.Date(2026, 8, 21, 20, 40, 0, 0, time.UTC), want: "21 Aug 21:40"},
+		{name: "a year back", t: time.Date(2025, 10, 3, 8, 0, 0, 0, time.UTC), want: "3 Oct 2025 09:00"},
+		{name: "last year's last hour in UTC, now's year in now's zone", t: time.Date(2025, 12, 31, 23, 30, 0, 0, time.UTC), want: "1 Jan 00:30"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.DayMonthTimeAt(now, tt.t); got != tt.want {
+				t.Errorf("DayMonthTimeAt(%v, %v) = %q, want %q", now, tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
 // The weeks to a day are counted, then the day named.
 func TestWeeksToCountsTheWeeksThenNamesTheDay(t *testing.T) {
 	last := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)

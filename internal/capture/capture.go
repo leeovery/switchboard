@@ -568,6 +568,8 @@ var pages = []page{
 	{name: "projects-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toProjects()},
 	{name: "projects-sessions-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: append(toProjects(), rightKey)},
 	{name: "projects-108x24", size: watch.Size{Width: 108, Height: 24}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-yesterday-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toProjects("-", "<")},
+	{name: "projects-last-week-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects("<")},
 	{name: "projects-12-months-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects("+", "+", "+")},
 	{name: "projects-many-114x40", size: watch.Size{Width: 114, Height: 40}, world: accountWorlds.manyProjects, keys: toProjects()},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},

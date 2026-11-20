@@ -202,7 +202,7 @@ func (m Model) chosenBuilt(now time.Time) Model {
 	if chosen := (projectOf{page: t.pages, chosen: t.shown.Chosen}); t.projectOf != chosen {
 		t.shown.Project, t.projectOf = nil, chosen
 		if p, ok := t.shown.Page.Project(chosen.chosen); ok {
-			t.shown.Project, t.shown.Measured = &p, dashboard.MeasureSessions(&p, m.moment(now), now)
+			t.shown.Project, t.shown.Measured = &p, dashboard.MeasureSessions(&p, m.moment(now), now, m.dial(now))
 		}
 		t.projects++
 	}

@@ -67,7 +67,7 @@ func (f Frame) projectsLaying(doc status.Document, now time.Time) projectsLaid {
 	g := l.given()
 	l.list = projectsListOf(f, g.list, lit, now)
 	l.project.kept, l.project.chart = g.kept, g.chart
-	l.sessions = projectSessionsOf(sessionWords{m: m, now: now, glyphs: nerdFont(f.NerdFont)}, p, f.Projects.Measured, f.Width)
+	l.sessions = projectSessionsOf(sessionWords{m: m, now: now, glyphs: nerdFont(f.NerdFont)}, p, f.Dial, f.Projects.Measured, f.Width)
 	at := l.sessionsAt()
 	l.sessions = l.sessions.within(at, l.top+f.viewRows()-at)
 	l.sessions.scroll = f.Scroll

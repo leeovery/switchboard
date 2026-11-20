@@ -138,7 +138,8 @@ func projectsScrolling(n, rows int) Scrolling {
 // and last at their widest. As it narrows, the bar
 // narrows to its least, then requests and last leave, and the name is cut
 // toward projectNameLeast, in the turns above. No natural comes from the
-// rows shown, so the columns hold still as the list scrolls.
+// rows shown, so the columns hold still as the list scrolls. Of a period
+// gone there's no live column, as parts has it.
 func (l projectsList) columnsOf(width int) []projectColumn {
 	listed := append(l.listed(), l.every())
 	widest := func(p projectsPart) int {
@@ -148,17 +149,33 @@ func (l projectsList) columnsOf(width int) []projectColumn {
 		}
 		return cells
 	}
-	kinds := []projectsPart{listedName, listedLive, listedSessions, listedWorth, listedBar, listedRequests, listedLast}
+	kinds := l.parts()
 	parts := make([]flex.Part, len(kinds))
 	for i, p := range kinds {
 		w := widest(p)
 		parts[i] = flex.Part{Least: w, Natural: w, Gap: listGap}
+		switch p {
+		case listedName:
+			parts[i] = flex.Part{Least: projectNameLeast, Natural: w, Narrows: nameNarrows}
+		case listedBar:
+			parts[i] = flex.Part{Least: projectBarLeast, Grows: true, Gap: listGap}
+		case listedRequests:
+			parts[i].Leaves = requestsLeave
+		case listedLast:
+			parts[i].Leaves = lastLeaves
+		}
 	}
-	parts[listedName] = flex.Part{Least: projectNameLeast, Natural: widest(listedName), Narrows: nameNarrows}
-	parts[listedBar] = flex.Part{Least: projectBarLeast, Grows: true, Gap: listGap}
-	parts[listedRequests].Leaves, parts[listedLast].Leaves = requestsLeave, lastLeaves
 	spans, _ := flex.Lay(width-listFrom, parts...)
 	return spannedColumns(spans, kinds, func(p projectsPart, x, width int) projectColumn { return projectColumn{part: p, x: x, width: width} })
+}
+
+// parts are the list's columns, in the row's order: every one, but live of
+// a period gone, as no session of it runs now.
+func (l projectsList) parts() []projectsPart {
+	if l.dial.Gone() {
+		return []projectsPart{listedName, listedSessions, listedWorth, listedBar, listedRequests, listedLast}
+	}
+	return []projectsPart{listedName, listedLive, listedSessions, listedWorth, listedBar, listedRequests, listedLast}
 }
 
 // end is the column after the list's last.
@@ -297,17 +314,18 @@ func projectNamed(r views.ProjectRow) line {
 	return line{{r.Name, titleInk}}
 }
 
-// lastSays is when the project's last request came, in text.muted: now
-// while a session of it is busy, as its Activity's Busy has it; else as
-// prose.Lately says it; nothing where none came.
+// lastSays is when the project's last request came, in text.muted: at now,
+// now while a session of it is busy, as its Activity's Busy has it; else as
+// the dial's TimeSaid says it, never now of a period gone; nothing where
+// none came.
 func (l projectsList) lastSays(r views.ProjectRow) line {
 	switch {
-	case r.Activity.Busy(l.now):
+	case l.dial.AtNow() && r.Activity.Busy(l.now):
 		return line{{"now", mutedInk}}
 	case r.Last.IsZero():
 		return nil
 	}
-	return line{{prose.Lately(l.now, r.Last), mutedInk}}
+	return line{{l.dial.TimeSaid(r.Last), mutedInk}}
 }
 
 // targets are the list's projects shown, from row y, a click on which
