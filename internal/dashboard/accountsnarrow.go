@@ -246,19 +246,26 @@ func (f Frame) stackTargets(s stack) []Target {
 // row.
 func (f Frame) turned(doc status.Document, now time.Time) compared {
 	m := f.Moment(doc, now)
-	return compared{f: f, m: m, accounts: m.Configured(f.Accounts.Accounts), now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: f.WeekWindow}
+	return compared{
+		f: f, m: m, accounts: m.Configured(f.Accounts.Accounts), now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts),
+		week: f.WeekWindow, gone: f.Dial.Gone(),
+	}
 }
 
 // turnedWhole is turned Compare drawn whole, laid out as turnedLaid lays
-// it: WEEK USED; then, once the period's page is read, BY MODEL, WEEKS,
-// WORTH, ACTIVITY, LIMITS and VALUE, a blank row before each.
+// it: WEEK USED, but in a past period; then, once the period's page is
+// read, BY MODEL, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank row
+// before each, BY MODEL first in a past period.
 func (cp compared) turnedWhole() stack {
 	c := growing(cp.f.Width)
 	columns := cp.columns()
 	l := cp.turnedLaid(columns)
-	y := cp.turnedWeek(c, 0, l, columns)
+	byModel := 0
+	if !cp.gone {
+		byModel = cp.turnedWeek(c, 0, l, columns) + partsApart
+	}
 	if cp.page != nil {
-		y = cp.turnedByModel(c, y+partsApart, l, columns)
+		y := cp.turnedByModel(c, byModel, l, columns)
 		y = cp.turnedWeeks(c, y+partsApart, l, columns)
 		y = cp.turnedWorth(c, y+partsApart, l, columns)
 		for _, g := range cp.turnedGroups() {

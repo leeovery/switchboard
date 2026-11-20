@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+
+ Overview  Accounts  Projects  Sessions  Runway  Trends  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+ACCOUNTS   Compare  Detail  Tokens                          < last week >
+
+BY MODEL
+
+ work                                                  ● Opus 5.5 51%
+
+ personal  ◆                                           ● Sonnet 5.5 56%
+
+ side                                                  ● Opus 5.5 78%
+
+ all                                                   ● Opus 5.5 51%
+
+WEEKS  each week at its peak
+
+ work        ▆▆▆▆▆┄┄┄     ┄┄┄▂▂▂▂▂┄┄┄        limit hit 3 of 8
+                                             9% left at a reset
+
+
+ ‹ 4 more     94%     100%    81%     100%
+ personal  ◆ ▁▁▁▁▁           ▅▅▅▅▅   ▃▃▃▃▃   limit hit 0 of 8
+                     ▆▆▆▆▆                   27% left at a reset
+
+
+              77%     69%     90%     85%
+ side                                        limit hit 0 of 8
+                     ▁▁▁▁▁           ▃▃▃▃▃   59% left at a reset
+             ▂▂▂▂▂           ▇▇▇▇▇
+
+              30%     52%     47%     60%
+ all                                 ▂▂▂▂▂   short on 3 of 8
+             ▅▅▅▅▅           ▇▇▇▇▇           32% left at a reset
+
+
+              67%     74%     73%     82%
+
+WORTH  at API prices, by day
+
+ work
+             ▅▅▅▅▅▅          ▄▄▄▄▄▄
+                     ▄▄▄▄▄▄                  ▃▃▃▃▃▃
+
+             Mon     Tue     Wed     Thu     Fri     Sat     Sun
+             peak Thu $92.20
+
+ personal  ◆
+                     ▃▃▃▃▃▃  ▅▅▅▅▅▅
+             ▅▅▅▅▅▅                  ▅▅▅▅▅▅  ▁▁▁▁▁▁
+                                                     ▃▃▃▃▃▃
+             Mon     Tue     Wed     Thu     Fri     Sat     Sun
+             peak Wed $60.47
+
+ side
+                             ▃▃▃▃▃▃
+▼ 29 more below · j/k
+tab views   [ ] view   < > back · on   n now   ? keys   q quit

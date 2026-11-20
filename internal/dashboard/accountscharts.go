@@ -78,14 +78,16 @@ func (cp compared) capLine(c *canvas, col compareColumn, floor int, slots []char
 }
 
 // reachNames are the reach's columns' names on WEEKS' axis, as axisName has
-// them, the last now's; but under the row's column of this week, so far,
-// its mark, in text.secondary, in place of its name, where its columns are
-// weeks: a month's isn't this week's, though its fullest may be.
+// them, the last now's where the reach ends at this week, as ThisWeek has
+// it, so a past period's ending before it names none; but under the row's
+// column of this week, so far, its mark, in text.secondary, in place of its
+// name, where its columns are weeks: a month's isn't this week's, though its
+// fullest may be.
 func (cp compared) reachNames(row views.AccountsRow) []line {
 	weekly := cp.page.Period.Length() != views.LengthTwelveMonths
 	names := make([]line, len(cp.page.Reach))
 	for i, b := range cp.page.Reach {
-		names[i] = axisName(b.Axis, i == len(cp.page.Reach)-1)
+		names[i] = axisName(b.Axis, cp.page.ThisWeek && i == len(cp.page.Reach)-1)
 		if weekly && i < len(row.Reached) && row.Reached[i].Open {
 			names[i] = line{{views.PeakSoFar, secondaryInk}}
 		}
