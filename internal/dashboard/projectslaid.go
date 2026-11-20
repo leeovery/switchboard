@@ -279,8 +279,8 @@ func (f Frame) ProjectsSessionsScroll(doc status.Document, now time.Time, id str
 }
 
 // ProjectsSessionsStepScroll is how far Projects' SESSIONS is scrolled once
-// ↑ or ↓ selects the session with the given id, as stepRevealing has it, as
-// the List's ListStepScroll steps. Only a step goes there: a scroll or a
+// ↑ or ↓ selects the session with the given id, or stands on it at an end,
+// as stepRevealing has it, as the List's ListStepScroll steps. Only a step goes there: a scroll or a
 // click keeps SESSIONS where it was.
 func (f Frame) ProjectsSessionsStepScroll(doc status.Document, now time.Time, id string) int {
 	l := f.projectsLaying(doc, now)

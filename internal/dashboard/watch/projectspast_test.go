@@ -75,7 +75,8 @@ func TestAStepOntoAProjectsLastSessionShowsTheWordsAfterIt(t *testing.T) {
 }
 
 // A row up with k from SESSIONS' foot, the last session selected and still
-// in view, holds there, through the looks after it.
+// in view, holds there, through the looks after it; ↓ then shows the words
+// after it again.
 func TestARowUpFromAProjectsFootHoldsWithTheLastSessionSelected(t *testing.T) {
 	h := pastProjectsHarness(t, pastProjectsSize)
 	selectLast(h)
@@ -85,11 +86,12 @@ func TestARowUpFromAProjectsFootHoldsWithTheLastSessionSelected(t *testing.T) {
 	if h.model.scroll != most-1 || !onTheList(h, epsSessions[0]) {
 		t.Errorf("k from the foot, scrolled %d, %s in view %v; want %d, it still in view", h.model.scroll, epsSessions[0], onTheList(h, epsSessions[0]), most-1)
 	}
+	standsOnTheLast(h)
 }
 
 // A click on the last session, on SESSIONS' bottom row, selects it where it
 // is: SESSIONS doesn't scroll from under the pointer to show the words
-// after it.
+// after it; ↓ on it then shows them.
 func TestAClickOnAProjectsLastSessionKeepsItUnderThePointer(t *testing.T) {
 	h := pastProjectsHarness(t, pastProjectsSize)
 	selectLast(h)
@@ -98,8 +100,11 @@ func TestAClickOnAProjectsLastSessionKeepsItUnderThePointer(t *testing.T) {
 	last := epsSessions[0]
 	targets := h.targets()
 	at := slices.IndexFunc(targets, func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == last })
+	if at < 0 {
+		t.Fatalf("a row up from the foot, ↑ and ↓ in the list, the screen reads\n%s\nwant %s on it", h.view(), last)
+	}
 	bottom := slices.IndexFunc(targets, func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Y > targets[at].Y })
-	if at < 0 || bottom >= 0 || strings.Contains(h.view(), unkeptWords) {
+	if bottom >= 0 || strings.Contains(h.view(), unkeptWords) {
 		t.Fatalf("a row up from the foot, ↑ and ↓ in the list, the screen reads\n%s\nwant %s on SESSIONS' bottom row, the words after it out of view", h.view(), last)
 	}
 	target, scroll := targets[at], h.model.scroll
@@ -109,5 +114,18 @@ func TestAClickOnAProjectsLastSessionKeepsItUnderThePointer(t *testing.T) {
 	}
 	if !slices.Contains(h.targets(), target) {
 		t.Errorf("after the click, %s isn't at %+v; want it under the pointer", last, target)
+	}
+	standsOnTheLast(h)
+}
+
+// standsOnTheLast presses ↓ on SESSIONS' last session, selected: the
+// selection stands at the end, and SESSIONS shows the words after it too,
+// as a step onto it does.
+func standsOnTheLast(h *harness) {
+	h.t.Helper()
+	last := epsSessions[0]
+	h.keys(downKey)
+	if h.model.projects.shown.Selection() != last || !strings.Contains(h.view(), unkeptWords) || !onTheList(h, last) {
+		h.t.Errorf("↓ on %s, selected at SESSIONS' end, selected %s and the screen reads\n%s\nwant it still selected, in view, and the words after it shown", last, h.model.projects.shown.Selection(), h.view())
 	}
 }

@@ -521,7 +521,8 @@ func (f Frame) ListScroll(doc status.Document, now time.Time) int {
 }
 
 // ListStepScroll is how far Sessions' List is scrolled once ↑ or ↓ chooses
-// a session, as stepRevealing has it of the session chosen. Only a step
+// a session, or stands on it at an end, as stepRevealing has it of the
+// session chosen. Only a step
 // goes there: a scroll or a click keeps the List where it was.
 func (f Frame) ListStepScroll(doc status.Document, now time.Time) int {
 	l, r, ok := f.listedChosen(doc, now)

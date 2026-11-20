@@ -241,8 +241,9 @@ var projectsSteps = map[string]int{"left": -1, "right": 1, "up": -1, "down": 1}
 // the list, or a session in SESSIONS, as Choosing has it; → and ← move
 // between the two, as Moved has it; and enter opens the session selected,
 // in SESSIONS, as openSession opens it. A key that changes what's shown
-// shows it as showProjects has it; ↑ or ↓ selecting a session in SESSIONS
-// scrolls it as ProjectsSessionsStepScroll has it.
+// shows it as showProjects has it; ↑ or ↓ in SESSIONS scrolls it as
+// ProjectsSessionsStepScroll has it, whether the selection moved or stood
+// at an end.
 func (m Model) projectsKey(key string) (Model, tea.Cmd, bool) {
 	if m.shownView() != dashboard.Projects {
 		return m, nil, false
@@ -252,10 +253,11 @@ func (m Model) projectsKey(key string) (Model, tea.Cmd, bool) {
 	}
 	s, by := m.projects.shown, projectsSteps[key]
 	var next dashboard.ProjectsShown
-	var changed bool
+	var changed, chose bool
 	switch key {
 	case "up", "down":
 		next, changed = s.Choosing(by)
+		chose = true
 	case "left", "right":
 		next, changed = s.Moved(by)
 	case "enter":
@@ -270,7 +272,7 @@ func (m Model) projectsKey(key string) (Model, tea.Cmd, bool) {
 	if changed {
 		m = m.showProjects(next)
 	}
-	if chose := key == "up" || key == "down"; changed && chose && m.projects.shown.InSessions {
+	if chose && m.projects.shown.InSessions {
 		now := m.now()
 		m.scroll = m.frame(now).ProjectsSessionsStepScroll(m.doc, now, m.projects.shown.Selection())
 	}

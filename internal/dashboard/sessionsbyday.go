@@ -130,8 +130,8 @@ func (s sessionsByDay) lineOf(id string) int {
 }
 
 // stepRevealing is how far the sessions, paged as given, scroll from
-// offset once ↑ or ↓ chooses the session of line r, as the List and a
-// project's SESSIONS step: as paged's revealing shows it; but where it's
+// offset once ↑ or ↓ chooses the session of line r, or stands on it at an
+// end, as the List and a project's SESSIONS step: as paged's revealing shows it; but where it's
 // the last session, as far as shows the words after it too, where that
 // still shows it, so a step to the foot shows the foot. Only a step goes
 // there: a scroll or a click keeps the sessions where they were.
