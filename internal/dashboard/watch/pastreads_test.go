@@ -404,12 +404,13 @@ func workedAt(h *harness, hour int) views.Worth {
 	return h.model.accounts.page.All.WorthBy[0].Buckets[hour].Worth
 }
 
-// A fold of yesterday read just after midnight, before the ledger's tail
-// has read the day's lines it owes, is read early, a read of the tail asked
-// at once beside it, and the page waits on that read; once it lands, the
-// fold is read again: the day's last request, its line filed after the
-// first read, is charted in its hour.
-func TestAFoldOfYesterdayReadJustAfterMidnightIsReadAgainOnceTheTailHasItsLines(t *testing.T) {
+// Yesterday, stepped back to just after midnight, before the ledger's tail
+// has read the day's lines it owes, has the tail's fold picked, which misses
+// them: no fold of it is read, a read of the tail is asked at once, and the
+// page waits on it; once it lands, the day's fold is read once, not early,
+// and the page built of it: the day's last request, its line filed after
+// the step, is charted in its hour.
+func TestYesterdayJustAfterMidnightWaitsOnTheTailAndIsReadOnce(t *testing.T) {
 	h := projectsHarness(t, dashboard.Accounts)
 	today := dayfile.DayStart(start.Local(), 0)
 	h.clock.now = today.Add(23*time.Hour + 50*time.Minute)
@@ -422,9 +423,8 @@ func TestAFoldOfYesterdayReadJustAfterMidnightIsReadAgainOnceTheTailHasItsLines(
 	h.clock.now = today.Add(day + 30*time.Second)
 	date := dayfile.DateOf(today)
 	tails, rest := tailReads(h.press("<"))
-	if got := foldsRead(h, rest...); len(tails) != 1 || !slices.Equal(got, []string{date}) || !h.model.pastDay.early {
-		t.Fatalf("stepped back to the day just ended, %d reads of the tail asked, the folds of %v read, early %t; want one asked at once, its own fold read early, the tail owing its lines",
-			len(tails), got, h.model.pastDay.early)
+	if got := foldsRead(h, rest...); len(tails) != 1 || len(got) != 0 {
+		t.Fatalf("stepped back to the day just ended, %d reads of the tail asked, the folds of %v read; want one asked at once, none read", len(tails), got)
 	}
 	if h.model.accounts.page != nil || !h.model.awaiting() {
 		t.Fatalf("the tail's read under way, a page %t, awaiting %t; want none, awaiting it", h.model.accounts.page != nil, h.model.awaiting())
@@ -432,10 +432,10 @@ func TestAFoldOfYesterdayReadJustAfterMidnightIsReadAgainOnceTheTailHasItsLines(
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", today.Add(23*time.Hour+58*time.Minute), 1)...)
 
 	if got := foldsRead(h, tails...); !slices.Equal(got, []string{date}) || h.model.pastDay.early {
-		t.Fatalf("the tail's read landed, the folds of %v read, early %t; want the day's read again, no longer early", got, h.model.pastDay.early)
+		t.Fatalf("the tail's read landed, the folds of %v read, early %t; want the day's read once, not early, so never again", got, h.model.pastDay.early)
 	}
 	if got := workedAt(h, 23); got.Amount == nil || h.model.awaiting() {
-		t.Errorf("read again, 23:00 is charted as nothing, awaiting %t; want the day's last request, nothing awaited", h.model.awaiting())
+		t.Errorf("read, 23:00 is charted as nothing, awaiting %t; want the day's last request, nothing awaited", h.model.awaiting())
 	}
 	if got := foldsKeyed(h, "R"); len(got) != 0 {
 		t.Errorf("a look after, the folds of %v were read, want none", got)
@@ -444,9 +444,9 @@ func TestAFoldOfYesterdayReadJustAfterMidnightIsReadAgainOnceTheTailHasItsLines(
 
 // A day gone the ledger's tail was last read on, nothing having followed it
 // since, is never charted by the tail's fold of it, which misses the lines
-// filed after that read: its page waits on a read of the tail, asked at
-// once, then charts the day by a read of it, the line filed after the
-// tail's last read in its hour.
+// filed after that read: no fold of it is read while its page waits on a
+// read of the tail, asked at once; then the day's fold is read once, not
+// early, and charts the line filed after the tail's last read in its hour.
 func TestADayGoneIsNeverChartedByAStaleTailsFold(t *testing.T) {
 	h := projectsHarness(t, dashboard.Accounts)
 	yesterday := dayfile.DayStart(start.Local(), -1)
@@ -460,17 +460,83 @@ func TestADayGoneIsNeverChartedByAStaleTailsFold(t *testing.T) {
 
 	h.clock.now = start
 	tails, rest := tailReads(h.press(">"))
-	foldsRead(h, rest...)
-	if len(tails) != 1 || h.model.accounts.page != nil || !h.model.awaiting() {
-		t.Fatalf("stepped on to yesterday, %d reads of the tail asked, a page %t, awaiting %t; want one asked at once, no page, awaiting it",
-			len(tails), h.model.accounts.page != nil, h.model.awaiting())
+	if got := foldsRead(h, rest...); len(tails) != 1 || len(got) != 0 || h.model.accounts.page != nil || !h.model.awaiting() {
+		t.Fatalf("stepped on to yesterday, %d reads of the tail asked, the folds of %v read, a page %t, awaiting %t; want one asked at once, none read, no page, awaiting it",
+			len(tails), got, h.model.accounts.page != nil, h.model.awaiting())
 	}
-	foldsRead(h, tails...)
+	if got := foldsRead(h, tails...); !slices.Equal(got, []string{dayfile.DateOf(yesterday)}) || h.model.pastDay.early {
+		t.Fatalf("the tail's read landed, the folds of %v read, early %t; want yesterday's once, not early", got, h.model.pastDay.early)
+	}
 	if h.model.accounts.page == nil || h.model.awaiting() {
-		t.Fatalf("the tail's read landed, a page %t, awaiting %t; want yesterday's, nothing awaited", h.model.accounts.page != nil, h.model.awaiting())
+		t.Fatalf("the fold landed, a page %t, awaiting %t; want yesterday's, nothing awaited", h.model.accounts.page != nil, h.model.awaiting())
 	}
 	if got := workedAt(h, 20); got.Amount == nil {
 		t.Errorf("yesterday charts 20:00 as nothing, want the request filed after the tail's last read")
+	}
+}
+
+// A read of the ledger's tail under way as the dial steps back to the day
+// it's of, asked before midnight, landing after still of that day, leaves
+// the page waiting no longer than it takes: the message it lands with asks
+// the next read of the tail, which charts the day once it lands.
+func TestATailReadUnderWayAsTheDialStepsAsksTheNextAsItLands(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	today := dayfile.DayStart(start.Local(), 0)
+	h.clock.now = today.Add(23 * time.Hour)
+	h.start()
+	h.keyed("-")
+	pending := h.lastTick()
+	h.clock.now, pending.fired = today.Add(23*time.Hour+59*time.Minute), true
+	asked := holdingBack[tailedMsg](h, h.update(pending.msg)...)
+	if len(asked) != 1 {
+		t.Fatalf("a look just before midnight asked %d reads of the tail, want one", len(asked))
+	}
+
+	h.clock.now = today.Add(day + 30*time.Second)
+	if more := holdingBack[tailedMsg](h, h.press("<")...); len(more) != 0 || !h.model.awaiting() {
+		t.Fatalf("stepped back to the day just ended as the tail's read is under way, %d more asked, awaiting %t; want none, one at a time, awaiting it", len(more), h.model.awaiting())
+	}
+	next := holdingBack[tailedMsg](h, asked...)
+	if len(next) != 1 || h.model.tail.readOn(views.Today(h.clock.now)) || !h.model.awaiting() {
+		t.Fatalf("the read landed still of the day before, %d reads of the tail asked, read on today %t, awaiting %t; want the next asked at once, awaiting it",
+			len(next), h.model.tail.readOn(views.Today(h.clock.now)), h.model.awaiting())
+	}
+	if got := foldsRead(h, next...); !slices.Equal(got, []string{dayfile.DateOf(today)}) || !pageOfThePeriod(h) || h.model.awaiting() {
+		t.Errorf("the next read landed, the folds of %v read, the day's page built %t, awaiting %t; want its fold read, the page built, nothing awaited",
+			got, pageOfThePeriod(h), h.model.awaiting())
+	}
+}
+
+// A day gone the ledger's tail hasn't read since the day before it isn't
+// charted by the tail's fold, so its fold is read at once, early, the tail
+// owing its lines, and charts the day; once the tail has read them, at the
+// next look, it's read again: a line of the day filed between is charted.
+func TestAFoldReadEarlyIsReadAgainOnceTheTailHasItsLines(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	today := dayfile.DayStart(start.Local(), 0)
+	h.clock.now = today.Add(-2*day + 13*time.Hour)
+	h.start()
+	h.keyed("-")
+	h.clock.now = start
+	h.model = steppedBack(t, h.model, 1)
+	yesterday := dayfile.DateOf(today.Add(-day))
+	tails, rest := tailReads(h.update(nudgeMsg{}))
+	if got := foldsRead(h, rest...); len(tails) != 0 || !slices.Equal(got, []string{yesterday}) || !h.model.pastDay.early || h.model.awaiting() {
+		t.Fatalf("on yesterday, the tail last read the day before, %d reads of the tail asked, the folds of %v read, early %t, awaiting %t; want its fold read early, charted at once",
+			len(tails), got, h.model.pastDay.early, h.model.awaiting())
+	}
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", today.Add(-day+22*time.Hour), 1)...)
+	if got := workedAt(h, 22); got.Amount != nil {
+		t.Fatalf("before the tail's read, 22:00 is charted as %s, want nothing: the line came after", got.Cents())
+	}
+
+	pending := h.lastTick()
+	h.clock.now, pending.fired = start.Add(interval), true
+	if got := foldsRead(h, h.update(pending.msg)...); !slices.Equal(got, []string{yesterday}) || h.model.pastDay.early {
+		t.Fatalf("the next look read the tail, the folds of %v read, early %t; want yesterday's read again, no longer early", got, h.model.pastDay.early)
+	}
+	if got := workedAt(h, 22); got.Amount == nil {
+		t.Errorf("read again, 22:00 is charted as nothing, want the line filed between")
 	}
 }
 

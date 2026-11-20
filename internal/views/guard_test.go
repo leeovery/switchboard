@@ -158,6 +158,9 @@ var (
 		"views.Length.Name":   "views.Dial.Name",
 		"views.Length.Title":  "views.Dial.Title",
 		"views.Length.Within": "views.Dial.Within",
+		// Detail's SESSIONS over the dial's period, none in a past one, as
+		// none runs in the past.
+		"views.RunningOn": "views.RunningIn",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.

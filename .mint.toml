@@ -25,9 +25,9 @@ diff_exclude = [
 # whose tree scripts/gate recorded as passing every gate, or one that changes
 # only docs and the like since such a tree; anything else runs every gate in
 # full, the tests isolated, as CLAUDE.md requires. Then scripts/release-build
-# builds the binaries, signed with the keychain's Developer ID and notarised,
-# and keeps them, so a failure about the binary, the certificate or Apple's
-# answer stops the release before its tag, with nothing public yet.
+# builds the binaries, signed with the signing keychain's Developer ID and
+# notarised, and keeps them, so a failure about the binary, the certificate or
+# Apple's answer stops the release before its tag, with nothing public yet.
 pre_tag = ['scripts/gated', 'scripts/release-build']
 # Once the tag and the release are up: scripts/release-upload uploads the
 # kept binaries to the release and moves the Homebrew formula on to them.
