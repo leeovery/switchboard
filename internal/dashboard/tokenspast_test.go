@@ -67,20 +67,20 @@ func tokensNumber(n Number) bool {
 		n.Kind == NumberPeriod && strings.HasPrefix(n.Of, "tokens ")
 }
 
-// Over a past period, the total's row is named by the dial, as
-// "30 days to 29 Aug", drawn whole at every width and split, though it's
-// wider than the names otherwise are. Where the split's column has left and
-// the first count's cells leave it room, the name runs on into them, a cell
-// before its figure, every column standing where it does at now; else the
-// names hold it, as at 160 columns, or as a past 12 months' at 73, which the
-// first count's cells don't hold.
+// Over a past period, Tokens' columns stand where they do at now, at every
+// width and split: none leaves and none moves for the dial. The total's row
+// is named by the dial, as "30 days to 29 Aug", where it fits: in the names'
+// column, or where the split's column has left, run on into the first
+// count's cells, a cell before its figure. Where it doesn't, as at 160
+// columns, or a past 12 months' at 73, it's named by the period's length, as
+// at now, never cut.
 func TestTokensOverAPastPeriodNameTheTotalByTheDial(t *testing.T) {
 	tests := []struct {
 		length views.Length
-		runsOn map[int]bool
+		dialed map[int]bool
 	}{
-		{length: views.LengthThirtyDays, runsOn: map[int]bool{52: true, 73: true, 104: true}},
-		{length: views.LengthTwelveWeeks, runsOn: map[int]bool{52: true, 73: true}},
+		{length: views.LengthThirtyDays, dialed: map[int]bool{52: true, 73: true, 104: true}},
+		{length: views.LengthTwelveWeeks, dialed: map[int]bool{52: true, 73: true}},
 		{length: views.LengthTwelveMonths},
 	}
 	for _, tt := range tests {
@@ -90,26 +90,25 @@ func TestTokensOverAPastPeriodNameTheTotalByTheDial(t *testing.T) {
 				t.Run(fmt.Sprintf("%s back at %d columns split %s", tt.length, width, tokensSplitNames[split]), func(t *testing.T) {
 					f := accountsTokensFrame(width, 61, period, split, pastPeriodTokens())
 					rows := accountsTokensRows(f)
-					name := f.Dial.Name()
+					name := tt.length.Name()
+					if strings.HasPrefix(rows[2], f.Dial.Name()+" ") {
+						name = f.Dial.Name()
+					}
 					if !strings.HasPrefix(rows[2], name+" ") {
-						t.Fatalf("the total's row reads %q, want it named %q whole, a cell clear of what follows", rows[2], name)
+						t.Fatalf("the total's row reads %q, want it named %q or %q whole, a cell clear of what follows", rows[2], f.Dial.Name(), tt.length.Name())
 					}
-					if split != TokensByAccount {
-						return
-					}
-					if runsOn := f.accountsTokens().columns().cells(tokensName) < len(name); runsOn != tt.runsOn[width] {
-						t.Fatalf("the name runs on past the names' column: %t, want %t", runsOn, tt.runsOn[width])
-					}
-					if !tt.runsOn[width] {
-						return
+					if dialed := name == f.Dial.Name(); split == TokensByAccount && dialed != tt.dialed[width] {
+						t.Errorf("the total's row reads %q, named by the dial: %t, want %t", rows[2], dialed, tt.dialed[width])
 					}
 					at := accountsTokensFrame(width, 61, tt.length.Now(), split, periodTokens())
 					nowRows := accountsTokensRows(at)
 					if got, want := figuresOf(rows[2], name), figuresOf(nowRows[2], at.Dial.Name()); got != want {
 						t.Errorf("past its name, the total's row reads %q, want %q, where it stands at now", got, want)
 					}
-					if got, want := rows[3], nowRows[3]; got != want {
-						t.Errorf("the first row under the total reads %q, want %q, as at now", got, want)
+					for _, y := range []int{0, 3} {
+						if rows[y] != nowRows[y] {
+							t.Errorf("row %d reads %q, want %q, as at now", y, rows[y], nowRows[y])
+						}
 					}
 				})
 			}

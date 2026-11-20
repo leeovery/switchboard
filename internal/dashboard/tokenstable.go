@@ -149,40 +149,21 @@ type tokensTable struct {
 }
 
 // columns are Tokens' parts, as parts has them, laid out across the frame's
-// width, the names holding the dial's name where it's wider than they
-// otherwise are, as a past period's is. Where the split's column has left
-// all the same, they hold only what the split names, so long as that column
-// stays gone and the total's name, run on past them as nameCells has it,
-// is still drawn whole: so the dial's name costs no column where the first
-// count's cells hold it.
+// width.
 func (t tokensTable) columns() tokensColumns {
-	names, dial := t.namesNatural(), ansi.StringWidth(t.dial.Name())
-	whole := t.laid(max(names, dial))
-	if whole.shows(tokensOf) || dial <= names || t.page == nil || t.page.Total == nil {
-		return whole
-	}
-	narrower := t.laid(names)
-	if narrower.shows(tokensOf) || narrower.nameCells(tokensRow{total: true, tokens: t.page.Total.Tokens}) < dial {
-		return whole
-	}
-	return narrower
-}
-
-// laid are Tokens' parts, the names' natural as given, laid out across the
-// frame's width.
-func (t tokensTable) laid(names int) tokensColumns {
-	spans, _ := flex.Lay(t.width, t.parts(names)...)
+	spans, _ := flex.Lay(t.width, t.parts()...)
 	return tokensColumns{spans: spans, width: t.width}
 }
 
 // parts are Tokens' parts, in their order: the names, from their least,
-// labelsLeast of the natural given, holding it until every column that
-// leaves has left; the split's column, raised toward its natural, as
-// ofNatural has it, before against its price grows; each count's; worth; and
-// against its price, from its least, as againstLeast has it, which takes the
-// rest of the row.
-func (t tokensTable) parts(names int) []flex.Part {
+// labelsLeast of their natural, as namesNatural has it, holding it until
+// every column that leaves has left; the split's column, raised toward its
+// natural, as ofNatural has it, before against its price grows; each
+// count's; worth; and against its price, from its least, as againstLeast has
+// it, which takes the rest of the row.
+func (t tokensTable) parts() []flex.Part {
 	parts := make([]flex.Part, tokensPartsCount)
+	names := t.namesNatural()
 	parts[tokensName] = flex.Part{Least: labelsLeast(names), Natural: names, Narrows: namesNarrow}
 	parts[tokensOf] = flex.Part{Least: tokensOfCells, Natural: t.ofNatural(), Leaves: ofLeaves, Gap: tokensOfGap}
 	for _, count := range tokensCounts {
@@ -197,7 +178,7 @@ func (t tokensTable) parts(names int) []flex.Part {
 
 // namesNatural is the names' natural, of what the split names and what's
 // configured, never of the rows shown: tokensNamesCells, which holds the
-// periods' names, the dial's at now among them, and the versions'; split by
+// periods' names, the lengths' among them, and the versions'; split by
 // account, or by account and model, each account configured, as Tokens names
 // it, after its branch, as labelColumnCells counts it; and by account and
 // model, a version's id nested under its account.
@@ -510,13 +491,13 @@ func (r tokensRow) numbered(column string, parts ...part) []part {
 // rowsOf are the block's rows: its own, then those Tokens splits it into, as
 // the table has it split. A period's is named as periodName names it, and
 // its worth set against the price of a whole period of its kind; the total's
-// is named by the dial's period, its price over that period, as its unit
-// names it.
+// is named as totalName names it, its price over the dial's period, as its
+// unit names it.
 func (t tokensTable) rowsOf(b tokensBlock) []tokensRow {
 	p := b.period
 	name, unit := periodName(p.First, t.rows), t.rows.Name()
 	if b.total {
-		name, unit = t.dial.Name(), t.period.Length().Unit()
+		name, unit = t.totalName(p.Tokens), t.period.Length().Unit()
 	}
 	split := tokensRow{ink: mutedInk, lit: p.SoFar, split: true, total: b.total}
 	rows := []tokensRow{{
@@ -544,6 +525,19 @@ func (t tokensTable) rowsOf(b tokensBlock) []tokensRow {
 		}
 	}
 	return rows
+}
+
+// totalName names the total of the tokens given: by the dial's words, as
+// "30 days to 1 Sep", where they fit the cells its row's name has, as
+// nameCells has them; else by the period's length, as "30 days", as at now,
+// the heading naming the period in full. The columns never move for the
+// dial.
+func (t tokensTable) totalName(tokens views.Tokens) string {
+	name := t.dial.Name()
+	if ansi.StringWidth(name) > t.columns().nameCells(tokensRow{total: true, tokens: tokens}) {
+		return t.period.Length().Name()
+	}
+	return name
 }
 
 // ofAccount is the row, as split, of an account: its name, in text.faint of
