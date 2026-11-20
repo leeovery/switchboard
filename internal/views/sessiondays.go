@@ -29,7 +29,7 @@ type SessionDays struct {
 	folds int
 	first string
 	begun map[string]time.Time
-	lines linesBegun
+	lines Begun
 }
 
 // sessionDay is a day gone's sessions, by its date, and when they were read

@@ -321,6 +321,6 @@ func listingKeys(list views.SessionList, of func(views.ListedSession) bool) []ru
 func (m Model) periodInput(now time.Time, list views.SessionList) views.PeriodInput {
 	return views.PeriodInput{
 		Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
-		Began: m.sessionDays.began, Projects: m.cfg.Projects,
+		Began: m.sessionDays.began, Keep: m.cfg.LedgerKeep, Projects: m.cfg.Projects,
 	}
 }

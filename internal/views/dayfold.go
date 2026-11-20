@@ -21,12 +21,12 @@ type DayFold struct {
 // read p, as DayFold has it, of the day's lines in the pool as ReadDay reads
 // them whole, read once at now: its hours known where the ledger keeps the
 // day's lines at now, keeping them as long as keep says, as [ledger] keep
-// gives it, as OldestDay's kept has it of the oldest day linesBegun's
-// oldest gives, so a day whose lines are no longer kept is charted by the
-// day, as its sessions are told as no longer kept; none of them read where
-// it doesn't.
+// gives it, as OldestDay's kept has it of the oldest day Begun's Oldest
+// gives, so a day whose lines are no longer kept is charted by the day, as
+// its sessions are told as no longer kept; none of them read where it
+// doesn't.
 func ReadDayFold(l Ledger, date string, keep time.Duration, now time.Time, p PoolRead) DayFold {
-	f := DayFold{date: date, held: hourlySessions(), known: linesBegunIn(l, now).oldest(keep, now).kept(date)}
+	f := DayFold{date: date, held: hourlySessions(), known: linesBegunIn(l, now).Oldest(keep, now).kept(date)}
 	if f.known {
 		f.held = f.held.with(ReadDay(l, date, LogFilter{}, p).records)
 	}

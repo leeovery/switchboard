@@ -162,10 +162,9 @@ type hourWorths struct {
 // no more than BucketsMost: a day's by hour and by two hours, where the
 // hours given are its own, as hourly has it, and the work had begun by it,
 // else by the day, as of a day before the work, none of whose hours are
-// counted; this week's
-// by day; 30 days' and 12 weeks' by day and by week; and 12 months' by week
-// and by month. A period gone's charts are gone, so none of their buckets is
-// now's, and none is to come.
+// counted; this week's by day; 30 days' and 12 weeks' by day and by week;
+// and 12 months' by week and by month. A period gone's charts are gone, so
+// none of their buckets is now's, and none is to come.
 func worthCharts(period Period, now time.Time, starts time.Weekday, began time.Time, days dayWorths, hours *hourWorths) WorthCharts {
 	today := dayfile.CivilOf(now)
 	span := period.spanAt(today, starts)

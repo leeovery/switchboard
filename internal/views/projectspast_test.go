@@ -437,10 +437,12 @@ func TestADayGonesHoursAreKnownWhereTheLedgerKeepsItsLines(t *testing.T) {
 // Where some of a period gone's days are no longer kept, its lines pruned,
 // the first day whose sessions are kept is told, alike on Projects, a
 // project's page and the List, and whether every day of the period from the
-// day the work began is before it. Nothing is told at now, nor where the
-// period's first day counted is kept, nor where the period lies before the
-// work began, nor where when it began, or where the ledger's lines begin,
-// isn't known; where the ledger keeps no lines at all, none is kept.
+// day the work began is before it, the ledger's keep applied at now. The
+// days told are the days none of whose sessions is counted, and no others.
+// Nothing is told at now, nor where the period's first day counted is kept,
+// nor where the period lies before the work began, nor where when it began,
+// or where the ledger's lines begin, isn't known: each counts every session
+// held of its days. Where the ledger keeps no lines at all, none is kept.
 func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 	const dir = "/code/switchboard"
 	world := byArrival(slices.Concat(
@@ -452,6 +454,7 @@ func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 		length       views.Length
 		linesFrom    string
 		err          error
+		keep         time.Duration
 		began        time.Time
 		want         views.UnkeptDays
 		wantSessions int
@@ -469,6 +472,15 @@ func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 		{name: "last week, the work's start unknown", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-09-28"},
 		{name: "12 months at now", length: views.LengthTwelveMonths, linesFrom: "2026-09-20", began: september(1, 0, 0), wantSessions: 2},
 		{
+			name: "last week, kept 5 days", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-09-01", keep: 5 * 24 * time.Hour, began: september(1, 0, 0),
+			want: views.UnkeptDays{KeptFrom: civilDate("2026-09-26")},
+		},
+		{
+			name: "last week, kept 5 days, the work's start unknown", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-09-01", keep: 5 * 24 * time.Hour,
+			wantSessions: 1,
+		},
+		{name: "30 days at now, kept 5 days", length: views.LengthThirtyDays, linesFrom: "2026-09-01", keep: 5 * 24 * time.Hour, began: september(1, 0, 0), wantSessions: 2},
+		{
 			name: "last week, no lines kept at all", length: views.LengthThisWeek, keys: "<", linesFrom: "2026-10-02", err: fmt.Errorf("no lines: %w", fs.ErrNotExist),
 			began: september(1, 0, 0), want: views.UnkeptDays{KeptFrom: civilDate("2026-10-01"), Every: true},
 		},
@@ -483,7 +495,7 @@ func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 			days := views.ReadSessionDays(l, framesNow.AddDate(0, -2, 0), framesNow, views.PoolRead{}).
 				Tailed(l.Day(dayfile.DateOf(framesNow)), true, nil, nil, framesNow, views.PoolRead{})
 			in := projectsIn(pastAt(t, tt.length, tt.keys, time.Monday), framesNow)
-			in.Began = tt.began
+			in.Began, in.Keep = tt.began, tt.keep
 			page, log := days.Projects(in), days.SessionLog(in)
 			if !sameUnkept(page.Unkept, tt.want) || !sameUnkept(log.Unkept, tt.want) {
 				t.Errorf("Projects tells %+v no longer kept, the List %+v; want %+v", page.Unkept, log.Unkept, tt.want)
@@ -498,6 +510,14 @@ func TestTheDaysOfAPeriodGoneWhoseSessionsAreNoLongerKeptAreTold(t *testing.T) {
 			}
 		})
 	}
+}
+
+// linelessSides is a ledger of the sides given and no day's lines, as no
+// ledger is: one keeps a day's side only as long as its lines.
+type linelessSides struct{ sidedLedger }
+
+func (linelessSides) FirstLinesDay(time.Time) (time.Time, error) {
+	return time.Time{}, fmt.Errorf("no day's lines: %w", fs.ErrNotExist)
 }
 
 // Where the ledger no longer keeps a day's lines, as where its lines begin
@@ -515,7 +535,7 @@ func TestADayWhoseLinesAreGoneIsGoneThoughItsSideIsRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	l := sidedLedger{sides: map[string]json.RawMessage{"2026-09-30": built.Side}}
+	l := linelessSides{sidedLedger{sides: map[string]json.RawMessage{"2026-09-30": built.Side}}}
 	days := views.ReadSessionDays(l, september(24, 0, 0), framesNow, views.PoolRead{})
 	yesterday := pastAt(t, views.LengthToday, "<", time.Monday)
 	in := projectsIn(yesterday, framesNow)

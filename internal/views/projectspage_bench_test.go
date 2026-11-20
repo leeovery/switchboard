@@ -3,6 +3,9 @@ package views_test
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -21,6 +24,17 @@ type sidedLedger struct {
 func (l sidedLedger) DaySide(date string, _ int) (json.RawMessage, bool) {
 	side, ok := l.sides[date]
 	return side, ok
+}
+
+// FirstLinesDay is the start of the first day the ledger holds a side of,
+// as of its lines, failing with fs.ErrNotExist where it holds none, as a
+// Follower tells it: a ledger keeps a day's side as long as its lines.
+func (l sidedLedger) FirstLinesDay(time.Time) (time.Time, error) {
+	if len(l.sides) == 0 {
+		return time.Time{}, fmt.Errorf("no day's lines: %w", fs.ErrNotExist)
+	}
+	start, _, _ := dayfile.Day(slices.Min(slices.Collect(maps.Keys(l.sides))))
+	return start, nil
 }
 
 // yearOfSides are the sides of each day of the year to now, as the views'

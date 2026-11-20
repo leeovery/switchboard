@@ -187,6 +187,7 @@ var (
 		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly", "views.ReadDayFold", "views.SessionDays.TodayFold", "views.Period.HoursFold", "views.Period.Day",
 		"views.DialOf", "views.Period.Back", "views.Period.On", "views.Period.Shorter", "views.Period.Longer",
 		"views.ReadLatelyTo", "views.Period.From", "views.Period.AccountsFrom",
+		"views.BegunOf", "views.Begun.Known", "views.Begun.Oldest",
 	}
 )
 

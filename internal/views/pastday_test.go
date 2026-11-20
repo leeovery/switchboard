@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -61,9 +62,12 @@ func TestADayBeforeTheWorkBeganIsNeverChartedByTheHour(t *testing.T) {
 		of     string
 		charts views.WorthCharts
 	}{{"the project", project.WorthBy}, {"work", accounts.Rows[0].WorthBy}} {
-		if len(c.charts) != 1 || c.charts[0].Unit != views.ByDay || len(c.charts[0].Buckets) != 0 {
-			t.Errorf("begun today, %s's yesterday is charted %d ways, the first by %d in %d buckets; want by the day, none",
-				c.of, len(c.charts), c.charts[0].Unit, len(c.charts[0].Buckets))
+		if len(c.charts) != 1 {
+			t.Errorf("begun today, %s's yesterday is charted %d ways, want one", c.of, len(c.charts))
+			continue
+		}
+		if c.charts[0].Unit != views.ByDay || len(c.charts[0].Buckets) != 0 {
+			t.Errorf("begun today, %s's yesterday is charted by %d in %d buckets; want by the day, none", c.of, c.charts[0].Unit, len(c.charts[0].Buckets))
 		}
 	}
 }
@@ -127,6 +131,79 @@ func TestTheDaysNoLongerKeptAreTheLogs(t *testing.T) {
 		if got := !reflect.DeepEqual(chosen, views.DayFold{}); got != tt.known {
 			t.Errorf("kept 5 days, %s's hours are known %v, want %v", tt.date, got, tt.known)
 		}
+	}
+}
+
+// A ledger kept as long as no keep says keeps its lines 400 days, as the
+// router keeps them, not for good: a year gone tells the days before then
+// as no longer kept, and counts none of their sessions; kept for good, it
+// counts every session of it.
+func TestAKeepOfNoneKeeps400DaysNotForever(t *testing.T) {
+	const dir = "/code/switchboard"
+	on := func(month time.Month, day int) time.Time { return time.Date(2025, month, day, 10, 0, 0, 0, time.Local) }
+	world := byArrival(slices.Concat(
+		projectAsks(endedInside, dir, dir, "work", on(time.August, 1)),
+		projectAsks(wentOnLater, dir, dir, "work", on(time.September, 15)),
+	))
+	l := keepingLedger{linesLedger: ledgerOfLines(world...), from: "2025-07-01"}
+	days := views.ReadSessionDays(l, framesNow.AddDate(-2, 0, 0), framesNow, views.PoolRead{})
+	tests := []struct {
+		name     string
+		keep     time.Duration
+		want     views.UnkeptDays
+		sessions int
+	}{
+		{name: "no keep given", want: views.UnkeptDays{KeptFrom: civilDate("2025-08-27")}, sessions: 1},
+		{name: "kept for good", keep: dayfile.Forever, sessions: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := projectsIn(pastAt(t, views.LengthTwelveMonths, "<", time.Monday), framesNow)
+			in.Began, in.Keep = on(time.July, 1), tt.keep
+			log := days.SessionLog(in)
+			if !sameUnkept(log.Unkept, tt.want) || len(log.Sessions) != tt.sessions {
+				t.Errorf("the year to 1 Oct 2025 tells %+v no longer kept and rows %d sessions; want %+v, %d", log.Unkept, len(log.Sessions), tt.want, tt.sessions)
+			}
+		})
+	}
+}
+
+// A session counted of a day kept that began on a day held but no longer
+// kept starts at its first request, wherever it fell, though none of that
+// day's requests is counted.
+func TestASessionBegunOnADayNoLongerKeptStartsAtItsFirstRequest(t *testing.T) {
+	const dir = "/code/switchboard"
+	world := projectAsks(wentOnLater, dir, dir, "work", september(24, 10, 0), september(27, 10, 0))
+	days := views.ReadSessionDays(keptFrom(world...), framesNow.AddDate(0, -1, 0), framesNow, views.PoolRead{})
+	in := projectsIn(pastAt(t, views.LengthThisWeek, "<", time.Monday), framesNow)
+	in.Began, in.Keep = september(1, 0, 0), 5*24*time.Hour
+	log := days.SessionLog(in)
+	if want := (views.UnkeptDays{KeptFrom: civilDate("2026-09-26")}); !sameUnkept(log.Unkept, want) {
+		t.Fatalf("kept 5 days, last week tells %+v no longer kept, want %+v", log.Unkept, want)
+	}
+	if len(log.Sessions) != 1 {
+		t.Fatalf("kept 5 days, last week rows %d sessions, want one", len(log.Sessions))
+	}
+	if s, want := log.Sessions[0], september(24, 10, 0); s.Requests != 1 || !s.Started.Equal(want) {
+		t.Errorf("kept 5 days, the session counts %d requests, started %s; want its 27th's alone, started %s", s.Requests, instantOf(s.Started), instantOf(want))
+	}
+}
+
+// A read of the sessions' days made before the ledger held a line, held as
+// the day turns, keeps the day it was read on as where the lines begin: the
+// sessions the tail gained of it are counted a step back, after midnight,
+// and none of its days is told as no longer kept.
+func TestADayReadBeforeItsFirstLineIsKeptAfterTheDayTurns(t *testing.T) {
+	const dir = "/code/switchboard"
+	lines := projectAsks(endedInside, dir, dir, "work", september(30, 10, 0))
+	days := views.ReadSessionDays(ledgerOfLines(), september(1, 0, 0), september(30, 9, 0), views.PoolRead{}).
+		Tailed(lines, true, nil, nil, september(30, 11, 0), views.PoolRead{}).
+		Tailed(nil, true, nil, nil, framesNow, views.PoolRead{})
+	in := projectsIn(pastAt(t, views.LengthToday, "<", time.Monday), framesNow)
+	in.Began = september(30, 10, 0)
+	log := days.SessionLog(in)
+	if !sameUnkept(log.Unkept, views.UnkeptDays{}) || len(log.Sessions) != 1 {
+		t.Errorf("read before its first line, yesterday tells %+v no longer kept and rows %d sessions; want none told, one", log.Unkept, len(log.Sessions))
 	}
 }
 
