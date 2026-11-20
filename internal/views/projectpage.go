@@ -76,7 +76,7 @@ type PeriodSession struct {
 func (p *projectTally) page(row ProjectRow, in PeriodInput) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
 	page := ProjectPage{ProjectRow: row, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
-	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, in.Began, p.days, &p.hours)
+	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, in.Began, p.days, &hourWorths{date: dayfile.DateOf(in.Now), worth: p.hours})
 	page.Sessions = periodRows(p.sessions, in, nil)
 	return page
 }
