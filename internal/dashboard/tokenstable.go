@@ -72,8 +72,8 @@ const (
 // natural at the least, which holds a period's name and a version's id after
 // its branch, └ sonnet-5-5; the split's column's least, two cells after
 // them, running to the first count's cells; total a cell after the column
-// before it; worth, two cells after total; and against its price a cell
-// after worth.
+// before it; worth, two cells after total; against its price a cell after
+// worth; and a name run on past its column, a cell before the figure after it.
 const (
 	tokensNamesCells = 12
 	tokensOfCells    = 18
@@ -82,6 +82,7 @@ const (
 	tokensTotalGap   = 1
 	tokensWorthGap   = 2
 	tokensAgainstGap = 1
+	tokensNameGap    = 1
 )
 
 // tokensRatioMost is the ratio against its price's least is reckoned at:
@@ -148,21 +149,40 @@ type tokensTable struct {
 }
 
 // columns are Tokens' parts, as parts has them, laid out across the frame's
-// width.
+// width, the names holding the dial's name where it's wider than they
+// otherwise are, as a past period's is. Where the split's column has left
+// all the same, they hold only what the split names, so long as that column
+// stays gone and the total's name, run on past them as nameCells has it,
+// is still drawn whole: so the dial's name costs no column where the first
+// count's cells hold it.
 func (t tokensTable) columns() tokensColumns {
-	spans, _ := flex.Lay(t.width, t.parts()...)
+	names, dial := t.namesNatural(), ansi.StringWidth(t.dial.Name())
+	whole := t.laid(max(names, dial))
+	if whole.shows(tokensOf) || dial <= names || t.page == nil || t.page.Total == nil {
+		return whole
+	}
+	narrower := t.laid(names)
+	if narrower.shows(tokensOf) || narrower.nameCells(tokensRow{total: true, tokens: t.page.Total.Tokens}) < dial {
+		return whole
+	}
+	return narrower
+}
+
+// laid are Tokens' parts, the names' natural as given, laid out across the
+// frame's width.
+func (t tokensTable) laid(names int) tokensColumns {
+	spans, _ := flex.Lay(t.width, t.parts(names)...)
 	return tokensColumns{spans: spans, width: t.width}
 }
 
 // parts are Tokens' parts, in their order: the names, from their least,
-// labelsLeast of their natural, as namesNatural has it, holding it until
-// every column that leaves has left; the split's column, raised toward its
-// natural, as ofNatural has it, before against its price grows; each
-// count's; worth; and against its price, from its least, as againstLeast has
-// it, which takes the rest of the row.
-func (t tokensTable) parts() []flex.Part {
+// labelsLeast of the natural given, holding it until every column that
+// leaves has left; the split's column, raised toward its natural, as
+// ofNatural has it, before against its price grows; each count's; worth; and
+// against its price, from its least, as againstLeast has it, which takes the
+// rest of the row.
+func (t tokensTable) parts(names int) []flex.Part {
 	parts := make([]flex.Part, tokensPartsCount)
-	names := t.namesNatural()
 	parts[tokensName] = flex.Part{Least: labelsLeast(names), Natural: names, Narrows: namesNarrow}
 	parts[tokensOf] = flex.Part{Least: tokensOfCells, Natural: t.ofNatural(), Leaves: ofLeaves, Gap: tokensOfGap}
 	for _, count := range tokensCounts {
@@ -177,10 +197,10 @@ func (t tokensTable) parts() []flex.Part {
 
 // namesNatural is the names' natural, of what the split names and what's
 // configured, never of the rows shown: tokensNamesCells, which holds the
-// periods' names, the dial's among them, and the versions'; split by account,
-// or by account and model, each account configured, as Tokens names it,
-// after its branch, as labelColumnCells counts it; and by account and model,
-// a version's id nested under its account.
+// periods' names, the dial's at now among them, and the versions'; split by
+// account, or by account and model, each account configured, as Tokens names
+// it, after its branch, as labelColumnCells counts it; and by account and
+// model, a version's id nested under its account.
 func (t tokensTable) namesNatural() int {
 	natural := tokensNamesCells
 	if t.split == TokensByAccountAndModel {
@@ -402,7 +422,7 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 	if cols.shows(tokensOf) && r.of != nil {
 		c.line(cols.at(tokensOf), y, fitParts(cols.cells(tokensOf), r.numbered(r.ofIs, r.of...)...))
 	}
-	c.line(0, y, fitParts(cols.cells(tokensName), r.name...))
+	c.line(0, y, fitParts(cols.nameCells(r), r.name...))
 	for _, count := range cols.counts() {
 		c.rightFit(cols.countEnd(count), cols.width, y, figurePart(line{{prose.Millions(count.count(r.tokens)), r.ink}}, r.number(count.head)))
 	}
@@ -410,6 +430,20 @@ func (cols tokensColumns) draw(c *canvas, y int, r tokensRow) {
 	if cols.shows(tokensAgainst) && r.against != nil {
 		c.line(cols.at(tokensAgainst), y, fitParts(cols.cells(tokensAgainst), r.numbered("against", r.against...)...))
 	}
+}
+
+// nameCells is how many cells the row's name has: its column's; and the
+// total's own, where the split's column has left, on into the first count's
+// cells, up to a cell before its figure, so the dial's name is drawn whole
+// wherever the row leaves it room.
+func (cols tokensColumns) nameCells(r tokensRow) int {
+	cells := cols.cells(tokensName)
+	if !r.total || r.split || cols.shows(tokensOf) {
+		return cells
+	}
+	first := cols.counts()[0]
+	figure := ansi.StringWidth(prose.Millions(first.count(r.tokens)))
+	return max(cells, min(cols.countEnd(first), cols.width)-figure-tokensNameGap)
 }
 
 // shows reports whether the part shows: all but one that left.

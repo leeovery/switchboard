@@ -557,6 +557,7 @@ var pages = []page{
 	{name: "accounts-detail-all-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]")},
 	{name: "accounts-tokens-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
 	{name: "accounts-tokens-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
+	{name: "accounts-tokens-30-days-to-1-sep-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]", "]", "+", "<")},
 	{name: "accounts-tokens-removed-160", size: wide(46), world: accountWorlds.removedTeam, keys: toAccounts("]", "]", "+", "+")},
 	{name: "accounts-tokens-moved-160", size: wide(46), world: accountWorlds.movedTeam, keys: toAccounts("]", "]", "+", "+"), pool: defaultPool},
 	{name: "projects-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects()},
