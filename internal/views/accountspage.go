@@ -95,9 +95,14 @@ type AccountsRow struct {
 	// gone, as its last week reset, as leftAt has it, but where its last
 	// week is this week, as at now: nil, and "", where none of its weeks
 	// ended among the days of the resetWeeks weeks to the period's last and
-	// the week before them, and of every account's.
+	// the week before them, and of every account's. RanOut isn't for
+	// display: RanOutOn names that day, as Accounts says it, by its weekday
+	// at now, as "Fri"; in a period gone by its date, as "30 Sep", since an
+	// own week placed under its last week can run out after its last day,
+	// which a weekday would name as one in it.
 	WeekLeft *float64
 	RanOut   string
+	RanOutOn string
 	// Days are the days of the page's weeks, from the first, those to come
 	// among them, each as DayUsed has it, for ShadedDays to shade those BY DAY
 	// draws.
@@ -300,9 +305,9 @@ func (page *AccountsPage) weeked(in HistoryInput, days []Day, s periodSpan) {
 	for x, a := range in.Accounts {
 		row := &page.Rows[x]
 		row.Peaks, row.told = weeks.Accounts[x].Peaks, weeks.Accounts[x].told
-		row.WeekLeft, row.RanOut = nil, ""
+		row.WeekLeft, row.RanOut, row.RanOutOn = nil, "", ""
 		if run, ok := s.leftAt(own, accountDays(ended, a.ID)); ok {
-			row.WeekLeft, row.RanOut = &run.left, run.ranOut
+			row.WeekLeft, row.RanOut, row.RanOutOn = &run.left, run.ranOut, s.dayNamed(run.ranOut)
 		}
 	}
 	page.All.Peaks, page.All.told = weeks.All.Peaks, weeks.All.told
@@ -331,6 +336,20 @@ func (s periodSpan) leftAt(w weekly, days []ledger.AccountDay) (endedRun, bool) 
 		return endedRun{}, false
 	}
 	return ranOver(days, w.key, ended.start, ended.end, ended.peak), true
+}
+
+// dayNamed names the day given, as dayfile.Civil reads a date, as RanOutOn
+// does in the span: by its weekday, as "Fri"; of a span gone, by its date,
+// as "30 Sep", as prose.DayMonthAt names it. "" where it isn't a date.
+func (s periodSpan) dayNamed(date string) string {
+	day, ok := dayfile.Civil(date)
+	switch {
+	case !ok:
+		return ""
+	case s.gone:
+		return prose.DayMonthAt(s.today, day)
+	}
+	return prose.Weekday(day.Weekday())
 }
 
 // LimitedWindows are the windows any row of the page records a limit of,

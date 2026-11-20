@@ -420,6 +420,38 @@ func TestLeftAtItsLastResetOfAPeriodGoneIsAsItsLastWeekReset(t *testing.T) {
 	}
 }
 
+// The day a week ran out is named by its weekday at now, and in a period
+// gone by its date, since an own week placed under its last week can run
+// out after its last day: side's, placed under last week, ran out on
+// Wednesday 30 September, which "Wed" would name as last week's. Yesterday
+// is gone too, though its last week is this week.
+func TestTheDayAWeekRanOutIsNamedByItsDateInAPeriodGone(t *testing.T) {
+	days := resettingWeeks()
+	tests := []struct {
+		length     views.Length
+		keys       string
+		work, side string
+	}{
+		{views.LengthThisWeek, "", "Thu", "Wed"},
+		{views.LengthToday, "<", "24 Sep", "30 Sep"},
+		{views.LengthThisWeek, "<", "24 Sep", "30 Sep"},
+		{views.LengthThisWeek, "<<", "", ""},
+		{views.LengthThisWeek, "<<<", "11 Sep", ""},
+	}
+	for _, tt := range tests {
+		in := input(days)
+		in.Now, in.WeekStarts = framesNow, time.Monday
+		in.Accounts = config.Accounts{{ID: "work"}, {ID: "side"}}
+		period := pastAt(t, tt.length, tt.keys, time.Monday)
+		t.Run(views.DialOf(period, framesNow, time.Monday, time.Time{}).Name(), func(t *testing.T) {
+			page := views.NewPast(in, days).Accounts(period)
+			if got, want := [2]string{page.Rows[0].RanOutOn, page.Rows[1].RanOutOn}, [2]string{tt.work, tt.side}; got != want {
+				t.Errorf("work and side ran out on %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 // An Accounts page reads the days from lookBack before the earlier of its
 // period's first day and the first of the weeks it holds, as many as 12
 // months to its last week reach over: at now, those of the 12 months to

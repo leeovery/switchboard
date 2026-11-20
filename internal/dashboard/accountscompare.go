@@ -48,6 +48,9 @@ const (
 	// scrolls: the names, the states, and a blank row; and, where any column
 	// shown tells of its token's year, its row, before the blank.
 	compareHeads = 3
+	// goneHeads are the rows the heads take in a past period: the names and
+	// a blank row, the states and the token's row leaving with the moment.
+	goneHeads = 2
 	// compareByModel is BY MODEL's row under the heads, a blank row after WEEK
 	// USED's; and groupApart is how far each group's heading is from the
 	// row before it, a blank row between.
@@ -287,9 +290,10 @@ var compareOut = outForm{above: " above", below: " below", gap: " · ", keys: "j
 // compared is Compare as a frame lays it out of a moment: the configured
 // accounts, as the moment's Configured has them; the accounts its columns
 // show, from the first shown, then all accounts'; the key of the accounts'
-// own week, as the frame names it, which WEEK USED shows; and, where it's
-// laid out to draw wide, as comparing lays it out, where its parts sit, and
-// its rows drawn whole, once, for every look to share.
+// own week, as the frame names it, which WEEK USED shows; whether the
+// period is gone, where what tells the moment leaves; and, where it's laid
+// out to draw wide, as comparing lays it out, where its parts sit, and its
+// rows drawn whole, once, for every look to share.
 type compared struct {
 	f        Frame
 	m        status.Moment
@@ -299,6 +303,7 @@ type compared struct {
 	first    int
 	shown    int
 	week     string
+	gone     bool
 	laid     compareLayout
 	rows     func() *canvas
 }
@@ -342,7 +347,7 @@ func (f Frame) comparing(doc status.Document, now time.Time) compared {
 	m, laid := f.Moment(doc, now), f.compareLaid()
 	cp := compared{
 		f: f, m: m, accounts: m.Configured(f.Accounts.Accounts), now: now, page: f.Accounts.Page, first: f.compareFirst(), shown: laid.shown(),
-		week: f.WeekWindow, laid: laid,
+		week: f.WeekWindow, gone: f.Dial.Gone(), laid: laid,
 	}
 	cp.rows = sync.OnceValue(func() *canvas { return cp.body(cp.columns()) })
 	return cp
@@ -416,13 +421,13 @@ func (cp compared) columns() []compareColumn {
 
 // column is the column of the configured account at the place given among
 // them, from 0, wherever it's shown: as the moment's Configured has it,
-// whether the moment has it, what's told of its token's year, and its row of
-// the period's page.
+// whether the moment has it, what's told of its token's year, but in a past
+// period, where it leaves with the state, and its row of the period's page.
 func (cp compared) column(i int) compareColumn {
 	a := cp.accounts[i]
 	col := compareColumn{id: a.ID, account: a}
 	_, col.known = cp.m.Account(a.ID)
-	if col.known {
+	if col.known && !cp.gone {
 		col.note, col.noted = views.TokenNoteOf(a)
 	}
 	if cp.page != nil {
@@ -460,7 +465,7 @@ func (cp compared) draw(c *canvas, top int) {
 	body := cp.rows()
 	paged := pagedWhole(body, cp.bodyRows())
 	from, to := paged.shown(cp.f.Scroll)
-	c.paste(body, from, top+headRows(columns), to-from)
+	c.paste(body, from, top+cp.headsOf(columns), to-from)
 	c.line(0, cp.f.Height-underView, outOfView(from, paged.content-to, cp.f.edge(), compareOut))
 }
 
@@ -469,16 +474,20 @@ func (cp compared) bodyRows() int {
 	return max(cp.f.viewRows()-cp.headRows(), 0)
 }
 
-// headRows are the rows Compare's heads take, as headRows has them of its
+// headRows are the rows Compare's heads take, as headsOf has them of its
 // columns.
 func (cp compared) headRows() int {
-	return headRows(cp.columns())
+	return cp.headsOf(cp.columns())
 }
 
-// headRows are the rows the heads of the columns given take: compareHeads,
-// and a row more where any tells of its token's year.
-func headRows(columns []compareColumn) int {
-	if slices.ContainsFunc(columns, func(col compareColumn) bool { return col.noted }) {
+// headsOf are the rows the heads of the columns given take: compareHeads,
+// and a row more where any tells of its token's year; in a past period,
+// goneHeads.
+func (cp compared) headsOf(columns []compareColumn) int {
+	switch {
+	case cp.gone:
+		return goneHeads
+	case slices.ContainsFunc(columns, func(col compareColumn) bool { return col.noted }):
 		return compareHeads + 1
 	}
 	return compareHeads
@@ -504,7 +513,7 @@ func (cp compared) targets() []Target {
 	var targets []Target
 	columns := cp.columns()
 	for _, col := range columns {
-		for y := range headRows(columns) - 1 {
+		for y := range cp.headsOf(columns) - 1 {
 			targets = append(targets, Target{X: col.x, Y: top + y, Width: col.head, On: OnColumn, Account: col.id})
 		}
 	}
@@ -515,7 +524,9 @@ func (cp compared) targets() []Target {
 // Filled has them: every configured account's, shown or scrolled out of
 // view, as the Overview's are, so a column scrolled into view while its bar
 // eases eases from where it stood, by its id and its week's key; and all
-// accounts', by the key alone; none drawn empty.
+// accounts', by the key alone; none drawn empty. A past period fills them
+// too, though it draws none, as they're the moment's: so n, within the ease
+// after a reading lands, doesn't raise them from empty.
 func (cp compared) filled() map[Ref]float64 {
 	filled := make(map[Ref]float64)
 	columns := []compareColumn{cp.allColumn()}
@@ -534,12 +545,12 @@ func (cp compared) filled() map[Ref]float64 {
 // marks, as usage names an account, but for ▲, as Accounts
 // shows no routing, under them its state in a word, and under that what's
 // told of its token's year, where anything is, short, as tokenShortForms
-// fits it; all accounts', its name, and its accounts' states counted;
-// the focused column's on bg.selection, and over it, a state cued as it
-// changes, a warning showing through the focus.
+// fits it; all accounts', its name, and its accounts' states counted; in a
+// past period, the names alone; the focused column's on bg.selection, and
+// over it, a state cued as it changes, a warning showing through the focus.
 func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 	s := cp.f.Accounts
-	rows := headRows(columns)
+	rows := cp.headsOf(columns)
 	for _, col := range columns {
 		c.line(col.x, top, cp.named(col, col.head))
 		stands := cp.stands(col, col.head)
@@ -552,7 +563,9 @@ func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 				c.surface(col.x, top+y, col.head, hue{token: theme.BgSelection})
 			}
 		}
-		cp.f.cueState(c, col.id, col.x, top+1, stands.width())
+		if !cp.gone {
+			cp.f.cueState(c, col.id, col.x, top+1, stands.width())
+		}
 	}
 }
 
@@ -569,9 +582,13 @@ func (cp compared) named(col compareColumn, cells int) line {
 
 // stands is how the column's account stands, in the cells given: its state
 // in a word, as stateWord says it, as StateInAWord has it; all accounts',
-// every configured account's states counted, as CountStatesOf counts them.
+// every configured account's states counted, as CountStatesOf counts them;
+// nothing in a past period, as the state tells the moment.
 func (cp compared) stands(col compareColumn, cells int) line {
-	if col.all {
+	switch {
+	case cp.gone:
+		return nil
+	case col.all:
 		return countedStates(cp.m.CountStatesOf(cp.f.Accounts.Accounts.IDs()), NumberAccountStates, cells)
 	}
 	return stateWord(cp.m.StateInAWord(col.id)).fit(cells)
@@ -598,9 +615,9 @@ func stateMark(s status.AccountState) span {
 }
 
 // body is Compare's rows under its heads, drawn on a canvas of their own:
-// WEEK USED; then, once the period's page is read, BY MODEL and its
-// versions, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank row before
-// each.
+// WEEK USED, but in a past period; then, once the period's page is read, BY
+// MODEL and its versions, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank
+// row before each, BY MODEL first in a past period.
 func (cp compared) body(columns []compareColumn) *canvas {
 	if cp.page == nil {
 		c := newCanvas(cp.f.Width, 1)
@@ -608,13 +625,13 @@ func (cp compared) body(columns []compareColumn) *canvas {
 		return c
 	}
 	groups := cp.groups()
-	rows := compareByModel + 1 + len(cp.page.Versions) + groupApart + compareWeeksUnder + groupApart + compareWorthUnder
+	rows := cp.weekUsedRows() + 1 + len(cp.page.Versions) + groupApart + compareWeeksUnder + groupApart + compareWorthUnder
 	for _, g := range groups {
 		rows += groupApart + len(g.rows)
 	}
 	c := newCanvas(cp.f.Width, rows)
 	cp.weekUsed(c, 0, columns)
-	y := cp.byModel(c, compareByModel, columns)
+	y := cp.byModel(c, cp.weekUsedRows(), columns)
 	y = cp.weeksSection(c, y+groupApart, columns)
 	y = cp.worthSection(c, y+groupApart, columns)
 	for _, g := range groups {
@@ -632,10 +649,24 @@ func (cp compared) body(columns []compareColumn) *canvas {
 	return c
 }
 
+// weekUsedRows are the rows WEEK USED takes atop Compare's rows, BY MODEL
+// starting under them: its row and a blank row; none in a past period,
+// which draws none, as the week is always as it stands.
+func (cp compared) weekUsedRows() int {
+	if cp.gone {
+		return 0
+	}
+	return compareByModel
+}
+
 // weekUsed draws WEEK USED along row y: its label, as weekLabel has it; and
 // each column's week, as weekGauge has it, its bar as the layout has it, a
-// cell, and its percentage, right-aligned in 4, ending with BY MODEL's bar.
+// cell, and its percentage, right-aligned in 4, ending with BY MODEL's bar;
+// nothing in a past period.
 func (cp compared) weekUsed(c *canvas, y int, columns []compareColumn) {
+	if cp.gone {
+		return
+	}
 	c.line(0, y, weekLabel(cp.f.Period))
 	bar := cp.laid.week
 	for _, col := range columns {
