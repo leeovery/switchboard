@@ -301,6 +301,34 @@ func TestPTurnsToTheNextPoolReadingItAfresh(t *testing.T) {
 	}
 }
 
+// A click on the pool's label in the title row turns to the next pool, as P
+// does, and a click again turns on round to the first.
+func TestAClickOnThePoolsLabelTurnsToTheNextPool(t *testing.T) {
+	h, _, pools := pooledHarness(t, acmeAccounts)
+	h.start()
+	clickLabel := func(label string) {
+		t.Helper()
+		i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnPress && t.Key == "P" })
+		if i < 0 {
+			t.Fatalf("the page has no target pressing P among %+v", h.targets())
+		}
+		target := h.targets()[i]
+		if got := string([]rune(h.titleRow())[target.X : target.X+target.Width]); got != " "+label+" " {
+			t.Fatalf("the target pressing P covers %q of the title row, want %q", got, " "+label+" ")
+		}
+		h.click(target.X+target.Width-1, target.Y)
+	}
+
+	clickLabel("Default")
+	if got := h.model.cfg.Pool.ID; got != "q7mt" || !slices.Equal(pools.from, []string{"b2n8"}) {
+		t.Fatalf("after a click on Default, the pool shown is %q, turned from %q; want Acme, turned from Default", got, pools.from)
+	}
+	clickLabel("Acme")
+	if got := h.model.cfg.Pool.ID; got != "b2n8" || !slices.Equal(pools.from, []string{"b2n8", "q7mt"}) {
+		t.Errorf("after a click on Acme, the pool shown is %q, turned from %q; want Default again, turned from Acme", got, pools.from)
+	}
+}
+
 // A turn starts the view afresh, as a router change does: no session's
 // page, scroll, cursor, routing card, alert, held moment or held session
 // of the pool before carries into the next, and its request stream ends.

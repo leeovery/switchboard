@@ -10,7 +10,8 @@ import (
 // cells wide, and what's there, as On says: a tab, Tab; a sub-tab, by its
 // place among them, SubTab; < or > by a period or a window, Step, -1 or 1; a
 // key of the key line, Key, as the line names it; something on the page
-// that presses a key, Key, as a Graphs section's heading presses its own; a
+// that presses a key, Key, as a Graphs section's heading presses its own and
+// the pool's label presses P; a
 // row of the view, Row, by its index; an Overview's section, Section; an
 // account, by its id, Account, or Compare's column of one, "" for all
 // accounts; a session, by its id, Session, and on Sessions' Switchboard, the
@@ -46,8 +47,9 @@ const (
 	OnKey
 	// OnPress is something on the page a click on which presses a key, Key,
 	// as a Graphs section's heading, its key among it, presses its key, which
-	// hides it, and the Log's ▼ N new presses end. Unlike the key line's, it
-	// lies on the page, under the theme picker when it's open.
+	// hides it, the Log's ▼ N new presses end, and the pool's label in the
+	// title row presses P. Unlike the key line's, it lies on the page, so
+	// acts on nothing while the theme picker is open.
 	OnPress
 	// OnRow is a row of the view: of the Log's table shown, a line, by its
 	// place among the table's lines.
@@ -76,7 +78,7 @@ const (
 
 // Targets are the zones of the frame's page of doc at now a click acts on,
 // each over the cells it's drawn on, laid out as the page draws them: its
-// tabs; the heading row's sub-tabs, and < and > by its period or window; a
+// tabs, and the pool's label, as poolTarget has it; the heading row's sub-tabs, and < and > by its period or window; a
 // session's page's, where one is open, as sessionTargets has them, else the
 // Overview's, as overviewTargets has them, Accounts', as accountsTargets
 // has them, Projects', as projectsLaid has them, Sessions', as
@@ -84,7 +86,7 @@ const (
 // graphsTargets has them, or the Log's, as logTargets has them; and the key
 // line's keys, as keyTargets has them.
 func (f Frame) Targets(doc status.Document, now time.Time) []Target {
-	targets := f.tabTargets()
+	targets := append(f.tabTargets(), f.poolTarget()...)
 	for _, p := range f.headingPieces() {
 		if p.click.On != 0 {
 			targets = append(targets, p.target())
@@ -127,6 +129,16 @@ func (f Frame) tabTargets() []Target {
 		targets = append(targets, Target{X: t.x, Y: t.y, Width: f.tab(t.view).width(), On: OnTab, Tab: t.view})
 	}
 	return targets
+}
+
+// poolTarget is the pool's label, as poolName draws it, its spaces with it,
+// which presses P, turning to the next pool; none where it names none.
+func (f Frame) poolTarget() []Target {
+	cells := f.poolNameCells()
+	if cells == 0 {
+		return nil
+	}
+	return []Target{{X: pill.width() + poolGap, Y: 0, Width: cells, On: OnPress, Key: "P"}}
 }
 
 // keyTargets are the key line's keys, as keyLine draws them, but for p pin,

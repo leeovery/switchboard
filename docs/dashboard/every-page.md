@@ -209,6 +209,7 @@ Option in iTerm2 and Terminal.app, and Shift in most others.
 | Click on | Does |
 |---|---|
 | a tab or a sub-tab | Shows it. |
+| the pool label in the title row | Turns to the next pool, as `P` does. After the last pool, turns back to the first. |
 | `<` or `>` by a period | Steps it. |
 | a key on the key line | Does what the key does. For a pair, such as `[ ]` or `< >`, does what the second key does. Doesn't act on `p pin` or `q quit`. |
 | a row that names an account, a project, a session, a line or a turn, or the head of a Compare column | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |

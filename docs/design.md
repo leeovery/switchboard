@@ -3865,7 +3865,8 @@ where none of those fits, and never says less as the width grows.
   the others' for three pools always and for four mostly; more pools each still get their own,
   as close as the band leaves them. Accounts keep their colours by place, as Trends' POOL draws
   them (the owner's call, 19 November 2026). The tabs follow two cells after the label, as they
-  follow the badge without one.
+  follow the badge without one. A click on the label, its spaces included, turns to the next pool,
+  as `P` does (see Clicks).
 - **The tabs,** from two cells after it, a cell apart: ` Overview `, ` Accounts `, ` Projects `,
   ` Sessions `, ` Runway `, ` Trends `, ` Log `. The one shown is bold `text.primary` on
   `bg.selection`; the rest are `text.subtle`. No hint follows them: the tabs are clickable and the
@@ -4034,6 +4035,8 @@ what a key does, where that changes only what's shown (settled in the plan, but 
 Overview's SESSIONS):
 
 - on a tab or a sub-tab, it shows it; on `<` or `>` by a period or a window, it steps it;
+- on the pool's label in the title row, it turns to the next pool, as `P` does, round to the
+  first after the last (the owner's call, 20 November 2026);
 - on a key of the key line, it acts as that key does, but for `p pin` and `q quit`;
 - on a row that names an account, a session, a line or a turn, or a Compare column's head, it
   chooses it, as the arrows would, and on the one already chosen, opens it, as `enter` does; a row
