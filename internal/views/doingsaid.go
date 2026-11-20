@@ -60,6 +60,16 @@ func (a Activity) DayState(now time.Time) string {
 	return a.State(now)
 }
 
+// DayState says what the session did at now as its Activity's DayState says
+// it, as the List's state says it under the day's rule; but "went on" where
+// it went on after a period gone, as WentOn has it, in place of its end.
+func (s PeriodSession) DayState(now time.Time) string {
+	if s.WentOn {
+		return "went on"
+	}
+	return s.Activity.DayState(now)
+}
+
 // WaitingSaid says it waiting, as a session's page ends its newest turn's
 // row in it: "↑ asking" while a request of it waits for its answer, as
 // Waiting says, throttled or refused as well as asking; else "", the row

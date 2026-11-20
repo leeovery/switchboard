@@ -9,11 +9,19 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// sessionLine is a line of sessions by day: a session's row; or the rule
-// over the sessions that ended on a day, by the session first under it.
+// sessionLine is a line of sessions by day: a session's row; the rule over
+// the sessions that ended on a day, by the session first under it; or, of no
+// session, what it says, as the List says its period had none, or that some
+// of its days are no longer kept.
 type sessionLine struct {
 	session *views.PeriodSession
 	ruled   bool
+	said    line
+}
+
+// row reports whether the line is a session's row.
+func (l sessionLine) row() bool {
+	return l.session != nil && !l.ruled
 }
 
 // sessionLines are the lines of the sessions given, in their order: those
@@ -97,21 +105,24 @@ func (s sessionsByDay) drawPage(c *canvas, y int, paged rowsPaged, scroll int) {
 
 // drawLine draws the line l along row y: a day's rule, as the List's ended
 // today is drawn, naming the day as prose.DayGone does, of the first
-// session's end; or the session's row, as the List draws one, lit where it's
-// the one lit.
+// session's end; the session's row, as the List draws one, lit where it's
+// the one lit; or what it says, from listFrom, cut to the rest.
 func (s sessionsByDay) drawLine(c *canvas, y int, l sessionLine) {
-	if l.ruled {
+	switch {
+	case l.ruled:
 		endedRule(c, y, s.width, line{{"ended " + prose.DayGone(s.words.now, cmp.Or(l.session.Ended, s.words.now)), dimInk}})
-		return
+	case l.session == nil:
+		c.line(listFrom, y, l.said.fit(s.width-listFrom))
+	default:
+		s.words.sessionRow(c, y, s.columns, *l.session, s.width, l.session.Session == s.lit)
 	}
-	s.words.sessionRow(c, y, s.columns, *l.session, s.width, l.session.Session == s.lit)
 }
 
 // lineOf is the index of the line of the session with the given id: -1
 // where none is.
 func (s sessionsByDay) lineOf(id string) int {
 	for i, l := range s.lines {
-		if !l.ruled && l.session.Session == id {
+		if l.row() && l.session.Session == id {
 			return i
 		}
 	}
@@ -125,7 +136,7 @@ func (s sessionsByDay) targets(y int, paged rowsPaged, scroll int) []Target {
 	var targets []Target
 	from, to := paged.shown(scroll)
 	for i := paged.top(from, to); i < to; i++ {
-		if l := s.lines[i]; !l.ruled {
+		if l := s.lines[i]; l.row() {
 			targets = append(targets, Target{Y: y + paged.rowOf(from, to, i), Width: s.width, On: OnSession, Session: l.session.Session})
 		}
 	}
@@ -143,7 +154,7 @@ func (s sessionsByDay) outOfView(top, to int) (above, below int) {
 func sessionsAmong(lines []sessionLine) int {
 	n := 0
 	for _, l := range lines {
-		if !l.ruled {
+		if l.row() {
 			n++
 		}
 	}

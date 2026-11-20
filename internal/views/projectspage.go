@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -106,6 +107,21 @@ type UnkeptDays struct {
 	Every    bool
 }
 
+// Said tells of the days no longer kept at now, as the List and a project's
+// SESSIONS say it: "sessions no longer kept" where every day is, in place of
+// saying the period had no session; "sessions before 14 Sep no longer kept"
+// where only some are, by the first day kept, its year where it isn't now's,
+// as prose.DayMonthAt dates it; "" where none is.
+func (u UnkeptDays) Said(now time.Time) string {
+	switch {
+	case u.KeptFrom.IsZero():
+		return ""
+	case u.Every:
+		return "sessions no longer kept"
+	}
+	return "sessions before " + prose.DayMonthAt(now, u.KeptFrom) + " no longer kept"
+}
+
 // ProjectsMost are the most of a page's rows any project of the list has:
 // BY MODEL's versions and ON ACCOUNTS' accounts, as its page has them; and
 // the cells of the widest name BY MODEL gives a version among them; so the
@@ -172,13 +188,15 @@ func (d SessionDays) Projects(in PeriodInput) ProjectsPage {
 // project's, those running first, or of a period gone those that went on
 // after it, then those ended, by the day they ended, the latest first, as
 // periodRows orders them; what they come to together, as every project's
-// together on Projects; and the days of a period gone whose sessions are no
+// together on Projects; whether the period was gone as it was built, as
+// Dial's Gone has it; and the days of a period gone whose sessions are no
 // longer kept, as Projects has them. in is what it was built of, its List
 // as Live tells it afresh.
 type SessionLog struct {
 	Period   Period
 	Sessions []PeriodSession
 	All      ProjectTotals
+	Gone     bool
 	Unkept   UnkeptDays
 
 	in PeriodInput
@@ -199,7 +217,9 @@ func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 			projectNamed[id] = names[p.path]
 		}
 	}
-	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), Unkept: t.unkept, in: in}
+	return SessionLog{
+		Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), Gone: in.span().gone, Unkept: t.unkept, in: in,
+	}
 }
 
 // tallied are the projects of in's period, each tallied of the days d holds
