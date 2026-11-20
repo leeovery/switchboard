@@ -382,7 +382,7 @@ func (g *storeGuard) projectsRead(msg daysReadMsg) {
 	}
 	if !m.readsDays() || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
 		g.t.Errorf("at %s the sessions' days were read from %s on %s, the dial at %s, want a read of the dial's period while Projects or the List shows",
-			at, msg.from.Format(time.DateTime), m.view, m.period.Name())
+			at, msg.from.Format(time.DateTime), m.view, m.period.Length().Name())
 	}
 	if p.days != nil {
 		g.further++

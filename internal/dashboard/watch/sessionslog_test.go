@@ -49,7 +49,7 @@ func TestTheListLogsThePeriodsSessions(t *testing.T) {
 		t.Errorf("over 30 days, the screen reads\n%s\nwant ended today and ended yesterday ruled, and the dial at 30 days", view)
 	}
 	h.keyed("< <")
-	if got, want := loggedIDs(h), []string{betaOnly, alphaSecond, alphaFirst}; h.model.period != views.PeriodToday || !slices.Equal(got, want) {
+	if got, want := loggedIDs(h), []string{betaOnly, alphaSecond, alphaFirst}; h.model.period != views.LengthToday.Now() || !slices.Equal(got, want) {
 		t.Fatalf("today, the List lists %v, want %v", got, want)
 	}
 	var today []string
@@ -105,12 +105,12 @@ func TestTheDialStepsOnTheListAlone(t *testing.T) {
 	h := projectsHarness(t, dashboard.Sessions)
 	h.start()
 	h.keyed(">")
-	if line := h.keyLine(); h.model.period != views.PeriodThisWeek || strings.Contains(line, "< >") {
-		t.Errorf("on the Switchboard, > left %q, the key line reading %q; want this week, no < >", h.model.period.Name(), line)
+	if line := h.keyLine(); h.model.period != views.LengthThisWeek.Now() || strings.Contains(line, "< >") {
+		t.Errorf("on the Switchboard, > left %q, the key line reading %q; want this week, no < >", h.model.period.Length().Name(), line)
 	}
 	h.keyed("] >")
-	if line := h.keyLine(); h.model.period != views.PeriodThirtyDays || !strings.Contains(line, "< > period: 30 days") {
-		t.Errorf("on the List, > left %q, the key line reading %q; want 30 days, < > period: 30 days", h.model.period.Name(), line)
+	if line := h.keyLine(); h.model.period != views.LengthThirtyDays.Now() || !strings.Contains(line, "< > period: 30 days") {
+		t.Errorf("on the List, > left %q, the key line reading %q; want 30 days, < > period: 30 days", h.model.period.Length().Name(), line)
 	}
 }
 
@@ -245,8 +245,8 @@ func TestAStepAwaitingTheDaysReadRevealsTheChosenSessionAsItLands(t *testing.T) 
 		t.Fatalf("stepped to 12 weeks, %d reads held, its log %v; want the read held, no log", len(held), h.model.sessionsTab.shown.Log)
 	}
 	h.deliver(held...)
-	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
-		t.Errorf("the read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	if h.model.period != views.LengthTwelveWeeks.Now() || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
 	}
 }
 
@@ -257,8 +257,8 @@ func TestAStepBackBeforeTheReadLandsLeavesTheListWhereItWas(t *testing.T) {
 	scroll := h.model.scroll
 	holdingBack[daysReadMsg](h, h.press(">")...)
 	h.keyed("<")
-	if h.model.period != views.PeriodThirtyDays || h.model.sessionsTab.shown.Log == nil || h.model.scroll != scroll || h.model.sessionsTab.shown.Chosen.Session != first {
-		t.Errorf("stepped back before the read landed, %q shown, log %v, scroll %d, %s chosen; want 30 days built, scroll %d, %s chosen", h.model.period.Name(), h.model.sessionsTab.shown.Log != nil, h.model.scroll, h.model.sessionsTab.shown.Chosen.Session, scroll, first)
+	if h.model.period != views.LengthThirtyDays.Now() || h.model.sessionsTab.shown.Log == nil || h.model.scroll != scroll || h.model.sessionsTab.shown.Chosen.Session != first {
+		t.Errorf("stepped back before the read landed, %q shown, log %v, scroll %d, %s chosen; want 30 days built, scroll %d, %s chosen", h.model.period.Length().Name(), h.model.sessionsTab.shown.Log != nil, h.model.scroll, h.model.sessionsTab.shown.Chosen.Session, scroll, first)
 	}
 }
 
@@ -272,8 +272,8 @@ func TestTwoStepsAwaitingTheirReadsRevealTheChosenSessionAsTheLogIsBuilt(t *test
 		t.Fatalf("stepped twice, its log %v; want no log while its reads are out", h.model.sessionsTab.shown.Log)
 	}
 	h.deliver(held...)
-	if h.model.period != views.PeriodTwelveMonths || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
-		t.Errorf("the reads landed, %q shown, %s chosen, in view %v; want 12 months, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	if h.model.period != views.LengthTwelveMonths.Now() || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the reads landed, %q shown, %s chosen, in view %v; want 12 months, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
 	}
 }
 
@@ -288,8 +288,8 @@ func TestAStepPastMidnightRevealsTheChosenSessionAsTheTailsReadLands(t *testing.
 		t.Fatalf("stepped past midnight, %d reads of the tail held, its log %v; want the read held, no log", len(held), h.model.sessionsTab.shown.Log)
 	}
 	h.deliver(held...)
-	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
-		t.Errorf("the tail's read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	if h.model.period != views.LengthTwelveWeeks.Now() || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the tail's read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
 	}
 }
 
@@ -313,11 +313,11 @@ func TestASteppedPeriodKeepsTheChosenSessionInView(t *testing.T) {
 		return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == last })
 	}
 	h.keyed(">")
-	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != last || !inView() {
-		t.Errorf("stepped to %q, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, inView(), last)
+	if h.model.period != views.LengthTwelveWeeks.Now() || h.model.sessionsTab.shown.Chosen.Session != last || !inView() {
+		t.Errorf("stepped to %q, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, inView(), last)
 	}
 	h.keyed("< < < <")
-	if h.model.period != views.PeriodToday || h.model.sessionsTab.shown.Chosen != (dashboard.Plug{}) || h.model.scroll != 0 {
-		t.Errorf("stepped to %q, %+v chosen, scrolled %d; want today, none chosen, the List from its top", h.model.period.Name(), h.model.sessionsTab.shown.Chosen, h.model.scroll)
+	if h.model.period != views.LengthToday.Now() || h.model.sessionsTab.shown.Chosen != (dashboard.Plug{}) || h.model.scroll != 0 {
+		t.Errorf("stepped to %q, %+v chosen, scrolled %d; want today, none chosen, the List from its top", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen, h.model.scroll)
 	}
 }

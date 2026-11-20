@@ -225,7 +225,7 @@ func (t tokensTable) againstLeast() int {
 		widest(t.page.PeriodCost, t.rows.Name())
 	}
 	if total := t.page.Total; total != nil && pricedAgainst(total.Against) {
-		widest(total.Cost, t.period.Unit())
+		widest(total.Cost, t.period.Length().Unit())
 	}
 	return least
 }
@@ -481,7 +481,8 @@ func (t tokensTable) rowsOf(b tokensBlock) []tokensRow {
 	p := b.period
 	name, unit := periodName(p.First, t.rows), t.rows.Name()
 	if b.total {
-		name, unit = t.period.Name(), t.period.Unit()
+		length := t.period.Length()
+		name, unit = length.Name(), length.Unit()
 	}
 	split := tokensRow{ink: mutedInk, lit: p.SoFar, split: true, total: b.total}
 	rows := []tokensRow{{

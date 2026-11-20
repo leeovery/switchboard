@@ -191,7 +191,7 @@ func extraOff(d *status.Document) {
 // threeCompared is Compare of the auto world's three accounts this week, as
 // text alone, of a terminal the size given.
 func threeCompared(t *testing.T, width, height int) (Frame, status.Document) {
-	f := compareFrame(t, threeFramed, comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
+	f := compareFrame(t, threeFramed, comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
 	f.Width, f.Height, f.Look = width, height, Look{}
 	return f, usageWorld(extraOff)
 }
@@ -199,7 +199,7 @@ func threeCompared(t *testing.T, width, height int) (Frame, status.Document) {
 // tenOnCompare is Compare of ten accounts this week, as text alone, of a
 // terminal the size given, its columns from the first shown given.
 func tenOnCompare(t *testing.T, width, height, first int) (Frame, status.Document) {
-	f := compareFrame(t, tenFramed, comparedPage(views.PeriodThisWeek, comparedVersions(t), tenRows()...))
+	f := compareFrame(t, tenFramed, comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), tenRows()...))
 	f.Width, f.Height, f.Look = width, height, Look{}
 	f.Accounts.First = first
 	return f, usageWorld(tenCompared, extraOff)
@@ -911,7 +911,7 @@ func TestComparesBarsGrowWithTheirColumnsToTheMost(t *testing.T) {
 // cells after it, and a version's name past it is cut to it.
 func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	f, doc := threeCompared(t, 160, 60)
-	f.Period = views.PeriodThirtyDays
+	f.Period = views.LengthThirtyDays.Now()
 	f.Accounts.Page.Versions[0].Name = "Opus 5.5 with a name long past the most"
 	rows := f.Draw(doc, routedAt)
 	labels := compareLabels()

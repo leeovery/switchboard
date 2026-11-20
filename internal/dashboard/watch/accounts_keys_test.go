@@ -76,12 +76,12 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 			want: head + "←→ account  enter its page  esc unfocus" + ends,
 		},
 		{
-			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured}, period: views.PeriodThirtyDays,
+			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured}, period: views.LengthThirtyDays.Now(),
 			want: "tab views   [ ] view    < > period: 30 days    ←→ account  enter its page" + ends, wantOff: []string{"enter"},
 		},
 		{
 			name: "Detail over the last 12 months", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail},
-			period: views.PeriodTwelveMonths, want: "tab views   [ ] view    < > period: 12 months    ↑↓ account  enter its page" + ends, wantOff: []string{"enter"},
+			period: views.LengthTwelveMonths.Now(), want: "tab views   [ ] view    < > period: 12 months    ↑↓ account  enter its page" + ends, wantOff: []string{"enter"},
 		},
 		{
 			name: "Compare, Detail's SESSIONS left as they were", sessions: true,
@@ -101,7 +101,7 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 		{name: "Tokens, split by account", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsTokens}, want: head + "v split: by account" + ends},
 		{
 			name: "Tokens over 12 weeks, split by model", shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsTokens, TokensSplit: dashboard.TokensByModel},
-			period: views.PeriodTwelveWeeks, want: "tab views   [ ] view    < > period: 12 weeks    v split: by model" + ends,
+			period: views.LengthTwelveWeeks.Now(), want: "tab views   [ ] view    < > period: 12 weeks    v split: by model" + ends,
 		},
 		{
 			name: "one account, sessions running on it", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one},

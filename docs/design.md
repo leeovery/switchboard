@@ -6007,7 +6007,8 @@ tall, narrow screen, its SESSIONS filling the width.
   the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`. WORTH BY over a
   past day is by the hour of that day's lines, as Accounts' WORTH charts it, and no chart marks a
   bucket as now's. SESSIONS lists the period's sessions as the List does in a past period (see
-  Sessions, The List).
+  Sessions, The List), and says as it does, once, after its last row, where the period reaches
+  back before the first day whose sessions are kept: `sessions before 14 Sep no longer kept`.
 - **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
   the hour today, or by two hours, the hours to come counted, by the day this week, by the day and
   by the week over 30 days and 12 weeks, and by the week, or the month, over 12 months, each
@@ -6591,11 +6592,13 @@ each at least its least and at most its natural, but `session`, which grows wher
   alone. A past period with no session says so in the table's place, in `text.subtle`, by the
   dial's words: `no sessions yesterday`, `no sessions on Tue 29 Sep`, `no sessions last week`,
   `no sessions in the week of 14 Sep`, `no sessions in the 30 days to 1 Sep`, and so on;
-  Projects' SESSIONS and its empty list say it alike. A day whose sessions are no longer kept is
-  the one exception to a rule showing with the first session under it or not at all: it keeps its
-  rule, and under it, in place of its rows, `sessions no longer kept`, in `text.subtle`; Projects'
-  SESSIONS says it alike. A past period whose every day is gone shows `sessions no longer kept` in
-  place of the empty period's words. The period line's name is the dial's words, in now's ink,
+  Projects' SESSIONS and its empty list say it alike. The ledger keeps a day's sessions only as
+  long as its lines, so a past period can reach back before the first day it keeps them. Where
+  some of its days are before it, the List says so once, after its last row, in `text.subtle`:
+  `sessions before 14 Sep no longer kept`, by the first day whose sessions are kept, its year only
+  where it isn't now's. No day's rule shows without a session under it. A past period whose every
+  day is gone shows `sessions no longer kept` in place of the empty period's words. Projects'
+  SESSIONS and its empty list say both alike. The period line's name is the dial's words, in now's ink,
   never `accent.attention`: `last week  29 sessions · 5,423 requests · $646.09 at API prices`.
 - **The period line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):

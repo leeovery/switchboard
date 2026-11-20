@@ -114,7 +114,7 @@ func framedList() *views.SessionLog {
 		{"4b0e6c1f", "~/Code/infra", "work", endedAt(0, 31), yesterdayClock(15, 52), 5, 31, views.NoMark, 0},
 		{"8a2c5e7b", "~/Code/docs", "side", endedAt(0, 18), yesterdayClock(16, 55), 9, 63, views.NoMark, 0},
 	}
-	log := views.SessionLog{Period: views.PeriodToday}
+	log := views.SessionLog{Period: views.LengthToday.Now()}
 	for _, s := range sessions {
 		log.Sessions = append(log.Sessions, s.logged())
 	}
@@ -135,13 +135,13 @@ func listFrame(t *testing.T, width, height int, log *views.SessionLog) Frame {
 // listOf is today's log of the sessions given, summing them as its period
 // line does.
 func listOf(sessions ...listedSession) *views.SessionLog {
-	return logOver(views.PeriodToday, sessions...)
+	return logOver(views.LengthToday.Now(), sessions...)
 }
 
 // listedLog is today's log of the sessions given as the List has them, one
 // ended on the day it ended, by routedAt's clock, as logged has it.
 func listedLog(sessions ...views.ListedSession) *views.SessionLog {
-	log := views.SessionLog{Period: views.PeriodToday}
+	log := views.SessionLog{Period: views.LengthToday.Now()}
 	for _, l := range sessions {
 		s := views.PeriodSession{ListedSession: l}
 		if !l.Running {
@@ -155,7 +155,7 @@ func listedLog(sessions ...views.ListedSession) *views.SessionLog {
 
 // placedList is today's log of the sessions given, as placed has them.
 func placedList(sessions ...views.PeriodSession) *views.SessionLog {
-	return &views.SessionLog{Period: views.PeriodToday, Sessions: sessions, All: views.ProjectTotals{Sessions: len(sessions)}}
+	return &views.SessionLog{Period: views.LengthToday.Now(), Sessions: sessions, All: views.ProjectTotals{Sessions: len(sessions)}}
 }
 
 // logOver is the log of the sessions given over the period given, summing
@@ -751,7 +751,7 @@ func TestTheEndedRuleAndTheEmptyListsInks(t *testing.T) {
 func TestThePeriodLine(t *testing.T) {
 	unpriced := listOf(d28cMoved)
 	unpriced.All.Worth = views.Worth{Unpriced: []string{"no_usage"}}
-	week := logOver(views.PeriodThisWeek, d28cMoved)
+	week := logOver(views.LengthThisWeek.Now(), d28cMoved)
 	tests := []struct {
 		name          string
 		width, height int
@@ -1088,7 +1088,7 @@ func TestTheLogGroupsEndedSessionsUnderTheirDaysRules(t *testing.T) {
 	b931 := listedSession{"9b31c4d2", "~/Code/switchboard", "work", endedAtOn(septemberClock(30, 18, 20)), septemberClock(30, 14, 5), 402, 4790, views.NoMark, 0}
 	a904 := listedSession{"9a04e1f7", "~/Code/api", "side", endedAtOn(septemberClock(29, 18, 25)), septemberClock(28, 13, 10), 400, 5500, views.NoMark, 0}
 	f47b := listedSession{"47bf2a90", "~/Code/switchboard", "personal", endedAtOn(septemberClock(21, 18, 22)), septemberClock(20, 23, 0), 240, 2490, views.NoMark, 0}
-	f := listFrame(t, 160, 37, logOver(views.PeriodThirtyDays, d28cMoved, b519, e5d7, b931, a904, f47b))
+	f := listFrame(t, 160, 37, logOver(views.LengthThirtyDays.Now(), d28cMoved, b519, e5d7, b931, a904, f47b))
 	c := f.page(framedDoc(nil, nil), routedAt)
 	top, started := f.top(), strings.Index(rowOf(c, f.top()), "started")
 	tests := []struct {
@@ -1172,7 +1172,7 @@ func daysLog(perDay ...int) *views.SessionLog {
 			n++
 		}
 	}
-	return logOver(views.PeriodThirtyDays, sessions...)
+	return logOver(views.LengthThirtyDays.Now(), sessions...)
 }
 
 // Rows paged a row at a time reveal a row from its place, at the offset
@@ -1323,8 +1323,8 @@ func TestEveryRowTheListScrollsDrawsAnotherPage(t *testing.T) {
 // rule ending two cells before it, and leaves with the Switchboard.
 func TestTheDialShowsOnTheListAlone(t *testing.T) {
 	doc := framedDoc(nil, nil)
-	f := listFrame(t, 160, 37, logOver(views.PeriodThirtyDays))
-	f.Period = views.PeriodThirtyDays
+	f := listFrame(t, 160, 37, logOver(views.LengthThirtyDays.Now()))
+	f.Period = views.LengthThirtyDays.Now()
 	if got := textOf(f.Draw(doc, routedAt))[f.headingY()]; !strings.HasSuffix(got, "─  < 30 days >") {
 		t.Errorf("on the List, the heading reads %q, want it to end with the dial", got)
 	}

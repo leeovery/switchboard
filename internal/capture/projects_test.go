@@ -49,7 +49,7 @@ func figuresOf(t *testing.T, name string, totals views.ProjectTotals) projectFig
 // mobile, all of whose sessions ran yesterday or today, as their lines tell
 // them, what the design gives them besides going to the other four.
 func TestTheProjectsOfThisWeekAreTheDesignsWorld(t *testing.T) {
-	page := projectsOf(autoWorld(), views.PeriodThisWeek)
+	page := projectsOf(autoWorld(), views.LengthThisWeek.Now())
 	var got []projectFigures
 	for _, r := range page.Rows {
 		got = append(got, figuresOf(t, r.Name, r.ProjectTotals))
@@ -70,7 +70,7 @@ func TestTheProjectsOfThisWeekAreTheDesignsWorld(t *testing.T) {
 // directories: three in its worktrees, fix-login, and pools twice, and one
 // in release, whose lines are from before projects.
 func TestSwitchboardsSessionsKeepTheirWorktreesNames(t *testing.T) {
-	page, ok := projectsOf(autoWorld(), views.PeriodThisWeek).Project(switchboardProject)
+	page, ok := projectsOf(autoWorld(), views.LengthThisWeek.Now()).Project(switchboardProject)
 	if !ok {
 		t.Fatal("this week has no switchboard")
 	}
@@ -89,7 +89,7 @@ func TestSwitchboardsSessionsKeepTheirWorktreesNames(t *testing.T) {
 // and $24,736; kit last active on Saturday 13 June, the design's Sunday 14
 // June being a day of no requests, and old-site on 2 March.
 func TestTheProjectsOfTwelveMonthsAreTheDesignsWorld(t *testing.T) {
-	page := projectsOf(autoWorld(), views.PeriodTwelveMonths)
+	page := projectsOf(autoWorld(), views.LengthTwelveMonths.Now())
 	sessions, last := make(map[string]int), make(map[string]string)
 	for _, r := range page.Rows {
 		sessions[r.Name], last[r.Name] = r.Sessions, r.Last.Local().Format(time.DateOnly)

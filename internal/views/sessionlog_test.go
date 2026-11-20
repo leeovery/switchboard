@@ -17,7 +17,7 @@ import (
 // its project's SESSIONS rows it, its project named as Projects names the
 // project's row, and every session's totals as Projects' every project's.
 func TestTheLogRowsEverySessionOfThePeriodAsItsProjectRowsIt(t *testing.T) {
-	in := projectsIn(views.PeriodThisWeek, now, listedRunning(repoSession, "/code/switchboard", "/code/switchboard"))
+	in := projectsIn(views.LengthThisWeek.Now(), now, listedRunning(repoSession, "/code/switchboard", "/code/switchboard"))
 	days := heldDays(now, projectsWorld()...)
 	log, page := days.SessionLog(in), days.Projects(in)
 	var ids []string
@@ -40,7 +40,7 @@ func TestTheLogRowsEverySessionOfThePeriodAsItsProjectRowsIt(t *testing.T) {
 			t.Errorf("the log rows %s as\n%+v\nwant it as its project rows it,\n%+v", s.Session, s, rowed[s.Session])
 		}
 	}
-	if log.Period != views.PeriodThisWeek || !reflect.DeepEqual(log.All, page.All) {
+	if log.Period != views.LengthThisWeek.Now() || !reflect.DeepEqual(log.All, page.All) {
 		t.Errorf("the log is of %q, totalling %+v; want this week, totalling every project's, %+v", log.Period, log.All, page.All)
 	}
 }
@@ -74,7 +74,7 @@ func todaysListAndLog(lines []ledger.Line, running ...status.Session) (views.Ses
 	l := sessionsLedger(lines, now)
 	list := views.ListSessions(views.SessionSources{Running: running, Ledger: l, Prices: ledger.Pricing, Now: now})
 	days := views.ReadSessionDays(l, now.AddDate(0, 0, -40), now, views.PoolRead{}).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now, views.PoolRead{})
-	return list, days.SessionLog(projectsIn(views.PeriodToday, now, list.Sessions...))
+	return list, days.SessionLog(projectsIn(views.LengthToday.Now(), now, list.Sessions...))
 }
 
 // linesOf are the lines the requests given hold.
@@ -128,7 +128,7 @@ func TestASessionAcrossMidnightStartsTheDayBefore(t *testing.T) {
 	}
 	l := sessionsLedger(lines, now)
 	days := views.ReadSessionDays(l, now, now, views.PoolRead{}).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now, views.PoolRead{})
-	page := days.Projects(projectsIn(views.PeriodToday, now, list.Sessions...))
+	page := days.Projects(projectsIn(views.LengthToday.Now(), now, list.Sessions...))
 	project, _ := page.Project("/code/switchboard")
 	if len(project.Sessions) != 1 || !project.Sessions[0].Started.Equal(october(6, 23, 30)) {
 		t.Errorf("its project's SESSIONS is %+v, want it started yesterday at 23:30", project.Sessions)
@@ -147,7 +147,7 @@ func TestASessionNeitherRunningNorEndedIsRuledByItsLastRequestsDay(t *testing.T)
 		projectAsks(worktreeSession, "/code/switchboard", "/code/switchboard", "work", october(7, 8, 0)),
 		projectAsks(clientSession, "/code/client", "/code/client", "work", october(6, 15, 0)),
 	)...)
-	log := days.SessionLog(projectsIn(views.PeriodThisWeek, now, asking))
+	log := days.SessionLog(projectsIn(views.LengthThisWeek.Now(), now, asking))
 	var got []string
 	for _, s := range log.Sessions {
 		got = append(got, s.Session+" "+s.EndedOn)
@@ -168,7 +168,7 @@ func TestProjectsAndTheLogCountTheSameSessionsOfThePeriod(t *testing.T) {
 		heldOf(counted(countOnlySession, "/code/switchboard", october(7, 9, 30)), counted(yesterdaysSession, "/code/client", october(7, 8, 0))),
 		heldOf(counted(ownSession, "/code/own", october(7, 10, 0))),
 	)...)
-	in := projectsIn(views.PeriodToday, now, listedRunning(ownSession, "/code/own", "/code/own"), listedRunning(clientSession, "/code/idle", "/code/idle"))
+	in := projectsIn(views.LengthToday.Now(), now, listedRunning(ownSession, "/code/own", "/code/own"), listedRunning(clientSession, "/code/idle", "/code/idle"))
 	page, log := days.Projects(in), days.SessionLog(in)
 	counts := make(map[string]int)
 	for _, r := range page.Rows {
@@ -212,10 +212,10 @@ func TestLiveTellsWhatASessionRunningDoesAsABuildWould(t *testing.T) {
 	days := heldDays(now, projectsWorld()...)
 	listed := []views.ListedSession{listedRunning(repoSession, "/code/switchboard", "/code/switchboard"), listedRunning(ownSession, "/code/own/api", "/code/own/api")}
 	asking := relisted(listed, repoSession, views.Activity{Doing: views.Asking, Since: october(7, 9, 2), LastSeen: october(7, 9, 2)})
-	built := projectsIn(views.PeriodThisWeek, now, listed...)
+	built := projectsIn(views.LengthThisWeek.Now(), now, listed...)
 	page, log := days.Projects(built), days.SessionLog(built)
 	project, _ := page.Project("/code/switchboard")
-	fresh := projectsIn(views.PeriodThisWeek, now, asking...)
+	fresh := projectsIn(views.LengthThisWeek.Now(), now, asking...)
 	wantPage, wantLog := days.Projects(fresh), days.SessionLog(fresh)
 	wantProject, _ := wantPage.Project("/code/switchboard")
 

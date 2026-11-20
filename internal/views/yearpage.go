@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // YearAsk is what the Year of the last 12 months is asked to show: all use,
@@ -152,19 +153,16 @@ func YearFrom(year int, now time.Time, weekStarts time.Weekday) time.Time {
 // at now, 0 for the last 12 months, else the calendar year Runway's lanes
 // step back into, weeks starting on the day given, at its local midnight:
 // where YearFrom has it; and of the last 12 months, which Accounts' page is
-// built of too, the earlier of that and lookBack days before the first day
-// of any period, so a period counted over them knows the run its first day
-// began in, as history --since does.
+// built of too, the earlier of that and where any length's page at now
+// reads from, as AccountsFrom has it, so a period counted over them knows
+// the run its first day began in, as history --since does.
 func DaysFrom(year int, now time.Time, weekStarts time.Weekday) time.Time {
 	from := YearFrom(year, now, weekStarts)
 	if year != 0 {
 		return from
 	}
-	today := dayfile.CivilOf(now)
-	for _, p := range periods {
-		if first := localMidnight(p.first(today, weekStarts).AddDate(0, 0, -lookBack)); first.Before(from) {
-			from = first
-		}
+	for _, l := range lengths {
+		from = score.Earlier(from, l.Now().AccountsFrom(now, weekStarts))
 	}
 	return from
 }

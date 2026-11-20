@@ -352,13 +352,10 @@ func KeptUntil(date string, now time.Time) string {
 		return "kept for good"
 	}
 	until, ok := dayfile.Civil(date)
-	switch {
-	case !ok:
+	if !ok {
 		return "kept until " + prose.Clean(date)
-	case until.Year() != now.Year():
-		return "kept until " + prose.DayMonthYear(until)
 	}
-	return "kept until " + prose.DayMonth(until)
+	return "kept until " + prose.DayMonthAt(now, until)
 }
 
 // KeptUntilSaidWidest says until when the ledger keeps a day's lines, as

@@ -18,8 +18,10 @@ import (
 // what each session spent by the hour too, and how many times the fold took
 // lines in or began afresh. first is the date of the first day
 // ReadSessionDays read, and begun are the first requests of the sessions
-// that ran into it, by their ids, as it walks back for them. It's a value:
-// each change gives another, sharing nothing it changes with it.
+// that ran into it, by their ids, as it walks back for them; lines, where
+// the ledger's lines began as it read, as linesBegunIn has it, a day's
+// sessions kept only as long as its lines. It's a value: each change gives
+// another, sharing nothing it changes with it.
 type SessionDays struct {
 	days  []sessionDay
 	today LedgerDay
@@ -27,6 +29,7 @@ type SessionDays struct {
 	folds int
 	first string
 	begun map[string]time.Time
+	lines Begun
 }
 
 // sessionDay is a day gone's sessions, by its date, and when they were read
@@ -40,13 +43,12 @@ type sessionDay struct {
 	owed     bool
 }
 
-// todaysSessions is a fold of today's sessions of no line yet, what each
-// spent kept by the hour, and what requests of no session spent, no story
-// told of its requests, as the List tells today's, keeping the keys of the
+// todaysSessions is a fold of today's sessions of no line yet, as
+// hourlySessions has it, as the List tells today's, keeping the keys of the
 // lines it takes, as it takes a read of the tail at a time.
 func todaysSessions() daySessions {
-	d := newDaySessions(false)
-	d.hourly, d.loose, d.keys = true, accountHours{}, make(map[turnKey]int)
+	d := hourlySessions()
+	d.keys = make(map[turnKey]int)
 	return d
 }
 
@@ -61,7 +63,7 @@ const startedBack = 31
 // back from the day before from's, as begunBefore has it, for when the
 // sessions running into the first day began, so a session's start is its
 // first request in the pool wherever it fell. Each day is read whole at
-// now.
+// now, and where the ledger's lines begin, as linesBegunIn has it.
 func ReadSessionDays(l Ledger, from, now time.Time, p PoolRead) SessionDays {
 	d := SessionDays{today: Today(now), held: todaysSessions(), first: dayfile.DateOf(from)}
 	for _, date := range dayfile.Span(from, dayfile.DayStart(now.Local(), -1)) {
@@ -72,6 +74,7 @@ func ReadSessionDays(l Ledger, from, now time.Time, p PoolRead) SessionDays {
 		first = d.days[0].sessions
 	}
 	d.begun = begunBefore(l, p, dayfile.DayStart(score.Earlier(from, now).Local(), -1), first, len(d.days) > 0)
+	d.lines = linesBegunIn(l, now)
 	return d
 }
 

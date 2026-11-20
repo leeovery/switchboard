@@ -339,7 +339,7 @@ func worthParts(row views.AccountsRow, k ink) []part {
 // plans known", then shorter, and the last compact, "4.4× · 2/3".
 func againstForms(page views.AccountsPage, row views.AccountsRow) partForms {
 	a := row.Plan.Against
-	priced := againstPriced(a, page.Period.Unit())
+	priced := againstPriced(a, page.Period.Length().Unit())
 	known := knownForms(a.Plans)
 	if !pricedAgainst(a) || known == nil {
 		return partForms{priced, againstCompact(row)}

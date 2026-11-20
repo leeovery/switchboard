@@ -30,6 +30,12 @@ func days(n int) monthPart {
 	return monthPart{12 * int64(n), 365}
 }
 
+// daysOver is the share of a month the days from first to last are, both
+// counted, as dayfile.Civil gives each.
+func daysOver(first, last time.Time) monthPart {
+	return days(int(last.Sub(first)/(24*time.Hour)) + 1)
+}
+
 // prorate returns the part s of monthly, a plan's monthly price, to the
 // nearest picodollar: nil where it passes what ledger.Picodollars hold.
 func prorate(monthly ledger.Picodollars, s monthPart) *ledger.Picodollars {
@@ -63,12 +69,12 @@ func summedPrice(a, b *ledger.Picodollars) *ledger.Picodollars {
 // this week does with today on the week's first, so a day asked for is
 // priced a day; else the days from asked to today, a day each.
 func askedPeriod(asked, today time.Time, weekStarts time.Weekday) (last time.Time, whole monthPart) {
-	for _, p := range periods {
-		if asked.Equal(p.first(today, weekStarts)) {
-			return p.last(today, weekStarts), p.share()
+	for _, l := range lengths {
+		if asked.Equal(l.first(today, weekStarts)) {
+			return l.last(today, weekStarts), l.share()
 		}
 	}
-	return today, days(int(today.Sub(asked)/(24*time.Hour)) + 1)
+	return today, daysOver(asked, today)
 }
 
 // priced is how a period's plans are priced: at its share of a month, at
@@ -98,7 +104,7 @@ func pricedOver(first, last, from string, uncut monthPart) priced {
 	case end.Before(start):
 		return priced{share: days(0), at: first, none: true}
 	}
-	return priced{share: days(int(end.Sub(start)/(24*time.Hour)) + 1), at: from}
+	return priced{share: daysOver(start, end), at: from}
 }
 
 // weekOf is the first day of the week the day falls in, as dayfile.Civil

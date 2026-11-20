@@ -207,9 +207,9 @@ type Config struct {
 	KeepGraphs bool
 	Log        dashboard.LogTicks
 	Prefs      Prefs
-	// Period is the period the preferences keep the entity tabs counting
-	// over, as dashboard.PeriodKept reads it, which Prefs keeps as it
-	// changes.
+	// Period is the period the entity tabs open counting over: of the length
+	// the preferences keep, as dashboard.LengthKept reads it, which Prefs
+	// keeps as it changes, or the one shown where the pool turns.
 	Period views.Period
 	// AccountsShown is what the preferences keep Accounts showing, as
 	// dashboard.AccountsKept reads it, SessionsShown Sessions, as
@@ -440,10 +440,12 @@ type Model struct {
 	waiting waiting
 	// log is what the watch holds of the Log, and tail today's lines of the
 	// ledger as its readers follow them; events the router's events held for
-	// the Log's Events and Runway's LATELY.
-	log    logTab
-	tail   ledgerTail
-	events heldEvents
+	// the Log's Events and Runway's LATELY; and pastLately those held for
+	// Detail's LATELY in a past period.
+	log        logTab
+	tail       ledgerTail
+	events     heldEvents
+	pastLately pastLately
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -840,6 +842,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.runwayRead(msg), nil
 	case latelyReadMsg:
 		return m.latelyRead(msg), nil
+	case pastLatelyReadMsg:
+		return m.pastLatelyRead(msg)
 	case turnedMsg:
 		return m.turnedTo(msg)
 	}

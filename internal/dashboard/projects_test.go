@@ -110,14 +110,14 @@ func TestTheProjectsListOfNoSessionsSaysSoAsTheListDoes(t *testing.T) {
 		period views.Period
 		want   string
 	}{
-		{views.PeriodToday, "no sessions today"},
-		{views.PeriodThisWeek, "no sessions this week"},
-		{views.PeriodThirtyDays, "no sessions in the last 30 days"},
+		{views.LengthToday.Now(), "no sessions today"},
+		{views.LengthThisWeek.Now(), "no sessions this week"},
+		{views.LengthThirtyDays.Now(), "no sessions in the last 30 days"},
 	} {
 		f := frameOf(108, 30)
 		f.View, f.Period, f.Projects = Projects, tt.period, ProjectsShown{Page: &views.ProjectsPage{Period: tt.period}}
 		if got := strings.Join(textOf(f.Draw(threeRouted(), routedAt)), "\n"); !strings.Contains(got, tt.want) {
-			t.Errorf("Projects over %s drew\n%s\nwant %q", tt.period.Name(), got, tt.want)
+			t.Errorf("Projects over %s drew\n%s\nwant %q", tt.period.Length().Name(), got, tt.want)
 		}
 	}
 }

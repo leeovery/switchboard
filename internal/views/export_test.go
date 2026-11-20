@@ -127,11 +127,28 @@ func RowOfTold(t Told, now time.Time) RequestRow {
 	return toldRow(t, now)
 }
 
-// Spans are the dates of the period's first day and its last at now, weeks
-// starting on the day given: its last as it's priced to.
-func (p Period) Spans(now time.Time, starts time.Weekday) (first, last string) {
-	today := dayfile.CivilOf(now)
-	return p.first(today, starts).Format(time.DateOnly), p.last(today, starts).Format(time.DateOnly)
+// Spans are the dates of the first day and the last of the period of the
+// length reaching today at now, weeks starting on the day given: its last
+// as it's priced to.
+func (l Length) Spans(now time.Time, starts time.Weekday) (first, last string) {
+	s := l.Now().SpanOn(now, starts)
+	return s.First, s.Last
+}
+
+// SpanOf is a period's span on a day, as spanAt has it: the dates of its
+// first day and its last, whether it's gone, and how many weeks back its
+// last week is.
+type SpanOf struct {
+	First, Last string
+	Gone        bool
+	WeeksBack   int
+}
+
+// SpanOn is the period's span at now, weeks starting on the day given, as
+// spanAt has it on now's day.
+func (p Period) SpanOn(now time.Time, starts time.Weekday) SpanOf {
+	s := p.spanAt(dayfile.CivilOf(now), starts)
+	return SpanOf{First: s.first.Format(time.DateOnly), Last: s.last.Format(time.DateOnly), Gone: s.gone, WeeksBack: s.weeksBack}
 }
 
 // YearsTwelveMonths are the dates of the first day and the last the Year's
@@ -193,5 +210,5 @@ func (p AccountsPage) Unfiled(m status.Moment) []string {
 // weeksOver has it, for the tests to hold what Accounts' WEEKS reaches over
 // to what the weeks hold.
 func (p Past) Weeks() WeeksPage {
-	return p.weeksOver(weeksShown)
+	return p.WeeksOver(weeksShown)
 }

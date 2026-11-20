@@ -221,7 +221,7 @@ func TestTheDaysTheTailsDaysOweAreReadThoughNoReaderWantsThem(t *testing.T) {
 	if owed := fed.Owed(turned); len(owed) > 0 {
 		t.Errorf("fed the day gone whole, the days owe %v, want none", owed)
 	}
-	in := views.PeriodInput{Period: views.PeriodThisWeek, Names: status.Names{}, Prices: ledger.Pricing, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: turned}
+	in := views.PeriodInput{Period: views.LengthThisWeek.Now(), Names: status.Names{}, Prices: ledger.Pricing, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: turned}
 	if got := fed.Projects(in).All.Requests; got != 5 {
 		t.Errorf("fed the day gone whole, the days count %d requests, want its 4 and today's 1", got)
 	}
@@ -442,7 +442,7 @@ func TestTheDaysHeldAreBoundedToThePeriodAsTheDaysTurn(t *testing.T) {
 		projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at.Add(-time.Hour), 1)...)
 		h.clock.now = at
 		h.read(routerDocument(three()...))
-		first := dayfile.DateOf(views.PeriodThisWeek.From(at, time.Monday))
+		first := dayfile.DateOf(views.LengthThisWeek.Now().From(at, time.Monday))
 		if held := heldDates(h); len(held) > 0 && held[0] < first {
 			t.Errorf("on %s, the days held are %v, want none before this week's first, %s", dayfile.DateOf(at), held, first)
 		}

@@ -17,10 +17,17 @@ const OpenAgain = "open again"
 // room again.
 var runwayKinds = []string{status.EventCap, status.EventLimit, status.EventRefused, status.EventHeld, status.EventPressure, status.EventRoom}
 
-// RunwayLatelyFrom is when the events Runway's LATELY tells at now begin: a
-// week before now, as long as the live week's span.
+// RunwayLatelyFrom is when the events Runway's LATELY tells at now begin, as
+// latelyFrom has it.
 func RunwayLatelyFrom(now time.Time) time.Time {
-	return now.Add(-weekSpan)
+	return latelyFrom(now)
+}
+
+// latelyFrom is when the events a LATELY tells up to end begin: a week
+// before it, as long as the live week's span, as Runway's tells them up to
+// now, and Detail's of a past period up to the end of its last day.
+func latelyFrom(end time.Time) time.Time {
+	return end.Add(-weekSpan)
 }
 
 // RunwayLately are the router's events held, oldest first, as EventsRead's

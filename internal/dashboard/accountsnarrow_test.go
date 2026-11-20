@@ -35,7 +35,7 @@ var phoneDays = []views.DayUsed{
 // three days to come; and each row's peaks, work's.
 func phonePage(t *testing.T) *views.AccountsPage {
 	t.Helper()
-	page := comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
+	page := comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	page.Weeks = []string{"2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"}
 	page.ToCome, page.Reaches = 3, sixWeeks
 	days := slices.Concat(make([]views.DayUsed, 7*len(page.Weeks)-len(phoneDays)), phoneDays)
@@ -128,7 +128,7 @@ func TestTurnedCompareScrollsByRows(t *testing.T) {
 // now.
 func TestTurnedCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	f := phoneText(t, 52, 49, AccountsCompare, "", nil, nil)
-	f.Period = views.PeriodThirtyDays
+	f.Period = views.LengthThirtyDays.Now()
 	got := rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 10)
 	want := []string{"WEEK USED  now", "", " work", "", " personal  ◆", "", " side", "", " all"}
 	for i, w := range want {
@@ -515,7 +515,7 @@ func TestStackedDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
 // and five again at 12 months, more of them out of view.
 func TestStackedDetailsWEEKSTakesBYDAYsWeeks(t *testing.T) {
 	year := phonePage(t)
-	year.Period, year.Reaches = views.PeriodTwelveMonths, yearWeeks
+	year.Period, year.Reaches = views.LengthTwelveMonths.Now(), yearWeeks
 	for _, tt := range []struct {
 		name         string
 		width        int

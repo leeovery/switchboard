@@ -492,12 +492,12 @@ type stacked struct {
 var stackLayout = detailLayout{into: stackAt, gap: 1}
 
 // stackLaid is the stack's layout in the frame: its days dayCellsWide cells,
-// as MODELS BY DAY's, where the period's own weeks, as views.Period's WeeksLeast
-// has them, fit so across the stretch, else dayCellsNarrow, as daysFitting
-// has it; and as many weeks as fit it.
+// as MODELS BY DAY's, where the period's own weeks, as views.Length's
+// WeeksLeast has them, fit so across the stretch, else dayCellsNarrow, as
+// daysFitting has it; and as many weeks as fit it.
 func (f Frame) stackLaid() detailLayout {
 	l, room := stackLayout, f.stackStretch().Size
-	l.dw = daysFitting(room, f.Period.WeeksLeast(), l.gap)
+	l.dw = daysFitting(room, f.Period.Length().WeeksLeast(), l.gap)
 	l.weeks = weeksFitting(room, 7*l.dw, l.gap)
 	return l
 }
@@ -637,7 +637,7 @@ func (s stacked) usage(c *canvas, y int) int {
 // an item, their labels stackLabels cells in text.subtle, each figure cut a
 // cell short of the next column, or of the frame's edge.
 func (s stacked) thisWeek(c *canvas, y int) int {
-	c.line(0, y, line{{s.page.Period.Title(), headingInk}})
+	c.line(0, y, line{{s.page.Period.Length().Title(), headingInk}})
 	c.heading(y, y+1)
 	halves := s.thisWeekItems()
 	for h, items := range halves {

@@ -188,7 +188,7 @@ func (f Frame) detailLaid(m status.Moment) (detailLayout, bool) {
 		l.names = min(f.listNames(), s[detailNames].Size)
 		room += s[detailNames].Size - l.names
 	}
-	l = l.wideWeeks(room, f.Period.WeeksLeast())
+	l = l.wideWeeks(room, f.Period.Length().WeeksLeast())
 	if l.list {
 		l.names = min(f.listNames(), l.names+room-l.weeksCells())
 		l.panel = l.dotAt() + panelPastDot
@@ -230,7 +230,7 @@ func reachesWhateverTheDays(room, cells int) bool {
 }
 
 // wideWeeks is the layout with its weeks laid out wide in room cells, least
-// of them the period's own, as views.Period's WeeksLeast has them: its days
+// of them the period's own, as views.Length's WeeksLeast has them: its days
 // dayCellsWide cells where least weeks fit so at the least gap, else
 // dayCellsNarrow, as daysFitting has it; then laid as weeksAt lays them.
 func (l detailLayout) wideWeeks(room, least int) detailLayout {

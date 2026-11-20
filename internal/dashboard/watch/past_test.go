@@ -278,7 +278,7 @@ func pricedFromItsBeginning(t *testing.T, h *harness, now, began time.Time, days
 	if got := h.model.trends.year.Numbers; got.Cost == nil || want.Cost == nil || *got.Cost != *want.Cost {
 		t.Errorf("YEAR's plans cost %v, want %v, priced from %s", deref(got.Cost), deref(want.Cost), began)
 	}
-	got, wantWeek := h.model.past.last.past.Accounts(views.PeriodThisWeek).All.Plan.Cost, past.Accounts(views.PeriodThisWeek).All.Plan.Cost
+	got, wantWeek := h.model.past.last.past.Accounts(views.LengthThisWeek.Now()).All.Plan.Cost, past.Accounts(views.LengthThisWeek.Now()).All.Plan.Cost
 	if got == nil || wantWeek == nil || *got != *wantWeek {
 		t.Errorf("Accounts' plans cost %v this week, want %v, priced from %s", deref(got), deref(wantWeek), began)
 	}

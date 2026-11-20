@@ -25,7 +25,7 @@ func projectsHelp() []helpPart {
 					"request came, now while one of them is busy. All projects totals them, a session counted once."),
 				said("`↑` and `↓` choose the project its page under the list shows; the list scrolls with the choice past " +
 					"the rows it shows, up to a third of the view's rows."),
-				said(periodsRun + " `<` and `>` step through " + prose.List(views.PeriodNames()) + ", the period Accounts and Sessions' List share."),
+				said(periodsRun + " `<` and `>` step through " + prose.List(views.LengthNames()) + ", the period Accounts and Sessions' List share."),
 			},
 		},
 		{

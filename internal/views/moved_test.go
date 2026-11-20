@@ -129,7 +129,7 @@ func TestHistorysJSONGivesTheAccountsMovedItsDaysName(t *testing.T) {
 // Accounts' Tokens names an account moved by its label and where it is now,
 // set apart, over any period.
 func TestTokensNamesAnAccountMovedByItsLabelAndWhereItIsNow(t *testing.T) {
-	page := views.NewPast(seenFrom("b2n8", nil), movedDays()).TokensOver(views.PeriodTwelveWeeks)
+	page := views.NewPast(seenFrom("b2n8", nil), movedDays()).TokensOver(views.LengthTwelveWeeks.Now())
 	if page.Total == nil {
 		t.Fatal("Tokens over 12 weeks has no total")
 	}

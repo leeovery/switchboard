@@ -24,7 +24,7 @@ var threeAccounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "personal"
 func accountsPageOf(days []ledger.Summary, configured config.Accounts) views.AccountsPage {
 	in := input(days)
 	in.Accounts = configured
-	return views.NewPast(in, days).Accounts(views.PeriodThisWeek)
+	return views.NewPast(in, days).Accounts(views.LengthThisWeek.Now())
 }
 
 // shareRead reads a share as a whole percentage: "—" where it isn't known.
@@ -164,11 +164,11 @@ func TestFactsAreOnTheWholeWeeksAmongTheLastAsked(t *testing.T) {
 // days, 12 at 12 weeks and 52 at 12 months; and so it does at the fewest
 // whatever the day, before any page is read.
 func TestDetailReachesOverThePeriodsWeeksAtLeastSix(t *testing.T) {
-	want := map[views.Period]int{views.PeriodToday: 6, views.PeriodThisWeek: 6, views.PeriodThirtyDays: 6, views.PeriodTwelveWeeks: 12, views.PeriodTwelveMonths: 52}
-	for _, period := range views.Periods() {
+	want := map[views.Length]int{views.LengthToday: 6, views.LengthThisWeek: 6, views.LengthThirtyDays: 6, views.LengthTwelveWeeks: 12, views.LengthTwelveMonths: 52}
+	for _, period := range views.Lengths() {
 		days := daysFrom("2026-10-07")
 		in := input(days)
-		page := views.NewPast(in, days).Accounts(period)
+		page := views.NewPast(in, days).Accounts(period.Now())
 		if page.Reaches != want[period] || period.WeeksLeast() != want[period] {
 			t.Errorf("at %s, Detail reaches over %d weeks, at the fewest %d, want %d", period.Name(), page.Reaches, period.WeeksLeast(), want[period])
 		}
@@ -301,7 +301,7 @@ func TestByDayIsThePagesWeeksToThisOneItsDaysToComeCounted(t *testing.T) {
 		days := daysTo("2026-10-01", now, day("2026-10-01", rose("work", map[string]float64{"7d": 0.1})))
 		in := input(days)
 		in.Now = now
-		page := views.NewPast(in, days).Accounts(views.PeriodThisWeek)
+		page := views.NewPast(in, days).Accounts(views.LengthThisWeek.Now())
 		weeks, first := 52, "2025-10-13"
 		if i == 0 {
 			weeks, first = 53, "2025-10-06"
@@ -360,8 +360,8 @@ func TestLeftAtItsLastResetIsItsLastWeeksWhateverThePeriod(t *testing.T) {
 			windowsDay{resets: []ledger.Reset{reset("7d", "2026-09-28", "10:00", 0.85)}}.of("side")))
 	in := input(days)
 	in.Accounts = workAndSide
-	for _, period := range []views.Period{views.PeriodToday, views.PeriodThisWeek, views.PeriodTwelveWeeks, views.PeriodTwelveMonths} {
-		t.Run(period.Name(), func(t *testing.T) {
+	for _, period := range []views.Period{views.LengthToday.Now(), views.LengthThisWeek.Now(), views.LengthTwelveWeeks.Now(), views.LengthTwelveMonths.Now()} {
+		t.Run(period.Length().Name(), func(t *testing.T) {
 			page := views.NewPast(in, days).Accounts(period)
 			work, side := page.Rows[0], page.Rows[1]
 			if shareRead(work.WeekLeft) != "0%" || work.RanOut != "2026-09-23" || shareRead(side.WeekLeft) != "15%" || side.RanOut != "" ||
@@ -478,7 +478,7 @@ func TestAccountsOverTwelveMonthsAreTheYearsLastTwelveMonths(t *testing.T) {
 			in := input(days)
 			in.Began = on(tt.began)
 			past := views.NewPast(in, days)
-			all, year := past.Accounts(views.PeriodTwelveMonths).All, past.Year(views.YearAsk{}).Numbers
+			all, year := past.Accounts(views.LengthTwelveMonths.Now()).All, past.Year(views.YearAsk{}).Numbers
 			if all.Totals.Requests != tt.requests || all.Totals.Amount.Dollars() != tt.worth || all.Plan.Cost.GroupedDollars() != tt.cost {
 				t.Errorf("over 12 months, every account's %d requests are worth %s against %s, want %d worth %s against %s",
 					all.Totals.Requests, all.Totals.Amount.Dollars(), all.Plan.Cost.GroupedDollars(), tt.requests, tt.worth, tt.cost)
@@ -509,8 +509,8 @@ func TestTwelveMonthsOfTheDaysReadTellARunBegunBeforeThem(t *testing.T) {
 	read := views.DaysFrom(0, now, time.Monday).Format(time.DateOnly)
 	held := slices.DeleteFunc(slices.Clone(days), func(s ledger.Summary) bool { return s.Day < read })
 	in := input(days)
-	work := views.NewPast(in, held).Accounts(views.PeriodTwelveMonths).Rows[0].Totals
-	in.From = views.PeriodTwelveMonths.From(now, time.Monday)
+	work := views.NewPast(in, held).Accounts(views.LengthTwelveMonths.Now()).Rows[0].Totals
+	in.From = views.LengthTwelveMonths.Now().From(now, time.Monday)
 	if got, want := jsonOf(t, work), jsonOf(t, views.NewHistory(in).Totals.Accounts[0]); got != want {
 		t.Errorf("over 12 months of the days read from %s, work counts\n%s\nhistory --since\n%s", read, got, want)
 	}

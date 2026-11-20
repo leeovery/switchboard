@@ -3,6 +3,9 @@ package views_test
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
@@ -21,6 +24,17 @@ type sidedLedger struct {
 func (l sidedLedger) DaySide(date string, _ int) (json.RawMessage, bool) {
 	side, ok := l.sides[date]
 	return side, ok
+}
+
+// FirstLinesDay is the start of the first day the ledger holds a side of,
+// as of its lines, failing with fs.ErrNotExist where it holds none, as a
+// Follower tells it: a ledger keeps a day's side as long as its lines.
+func (l sidedLedger) FirstLinesDay(time.Time) (time.Time, error) {
+	if len(l.sides) == 0 {
+		return time.Time{}, fmt.Errorf("no day's lines: %w", fs.ErrNotExist)
+	}
+	start, _, _ := dayfile.Day(slices.Min(slices.Collect(maps.Keys(l.sides))))
+	return start, nil
 }
 
 // yearOfSides are the sides of each day of the year to now, as the views'
@@ -66,7 +80,7 @@ func BenchmarkReadingAYearOfSessionDays(b *testing.B) {
 func BenchmarkProjectsOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
-	in := projectsIn(views.PeriodTwelveMonths, now)
+	in := projectsIn(views.LengthTwelveMonths.Now(), now)
 	for b.Loop() {
 		page := days.Projects(in)
 		page.Project(page.Rows[0].Path)
@@ -78,7 +92,7 @@ func BenchmarkProjectsOverTwelveMonths(b *testing.B) {
 func BenchmarkSessionLogOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
-	in := projectsIn(views.PeriodTwelveMonths, now)
+	in := projectsIn(views.LengthTwelveMonths.Now(), now)
 	for b.Loop() {
 		days.SessionLog(in)
 	}
@@ -103,7 +117,7 @@ func BenchmarkProjectsLiveOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	lists := busyLists(now)
-	page := days.Projects(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
+	page := days.Projects(projectsIn(views.LengthTwelveMonths.Now(), now, lists[0].Sessions...))
 	project, _ := page.Project(page.Rows[0].Path)
 	i := 0
 	for b.Loop() {
@@ -119,7 +133,7 @@ func BenchmarkSessionLogLiveOverTwelveMonths(b *testing.B) {
 	now := october(7, 13, 12)
 	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now, views.PoolRead{})
 	lists := busyLists(now)
-	log := days.SessionLog(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
+	log := days.SessionLog(projectsIn(views.LengthTwelveMonths.Now(), now, lists[0].Sessions...))
 	i := 0
 	for b.Loop() {
 		i++

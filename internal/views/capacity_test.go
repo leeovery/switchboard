@@ -18,7 +18,14 @@ import (
 // Monday, its weeks' peaks those given, oldest first, the last of them the
 // week before this one's.
 func peaking(peaks map[string][]float64) []ledger.Summary {
-	this := on("2026-10-05")
+	return peakingTo(now, peaks)
+}
+
+// peakingTo are the days peaking gives, to the day last falls on, this week
+// the one it falls in, from Monday.
+func peakingTo(last time.Time, peaks map[string][]float64) []ledger.Summary {
+	this := on(last.Format(time.DateOnly))
+	this = this.AddDate(0, 0, -(int(this.Weekday())+6)%7)
 	first := this.Format(time.DateOnly)
 	resets := make(map[string][]ledger.AccountDay)
 	for _, id := range slices.Sorted(maps.Keys(peaks)) {
@@ -34,7 +41,7 @@ func peaking(peaks map[string][]float64) []ledger.Summary {
 	for date, accounts := range resets {
 		days = append(days, day(date, accounts...))
 	}
-	return daysFrom(first, days...)
+	return daysTo(first, last, days...)
 }
 
 // The accounts the capacity's tests configure.
