@@ -328,11 +328,12 @@ var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1}
 // sessionsKey acts on a key of Sessions', reporting false for a key it
 // doesn't take, or on another tab, and the command it starts, if any: [ and
 // ] turn the sub-tab, as Turned has it; ↑ and ↓ choose a row, as Choosing
-// has it, on the List scrolled as ListStepScroll has it; enter opens the page of the session chosen, as openSession opens
-// it, and while none is, as the key line draws it faint, says why in the key
-// line's place; esc deselects, as Unchosen has it; and on the List, the
-// dial's keys step the period, as periodStepped has it. A key that changes what's shown
-// shows it as showSessions has it.
+// has it, on the List scrolled as ListStepScroll has it, whether the choice
+// moved or stood at an end; enter opens the page of the session chosen, as
+// openSession opens it, and while none is, as the key line draws it faint,
+// says why in the key line's place; esc deselects, as Unchosen has it; and
+// on the List, the dial's keys step the period, as periodStepped has it. A
+// key that changes what's shown shows it as showSessions has it.
 func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Sessions {
 		return m, nil, false
@@ -344,12 +345,13 @@ func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 		}
 	}
 	var next dashboard.SessionsShown
-	var changed bool
+	var changed, chose bool
 	switch key {
 	case "[", "]":
 		next, changed = s.Turned(sessionsSteps[key], m.boardAccounts())
 	case "up", "down":
 		next, changed = s.Choosing(sessionsSteps[key], m.boardAccounts())
+		chose = true
 	case "enter":
 		if !s.Opens() {
 			noted, cmd := m.noting(noSessionChosen)
@@ -365,7 +367,7 @@ func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 	if changed {
 		m = m.showSessions(next)
 	}
-	if chose := key == "up" || key == "down"; changed && chose && m.listShown() {
+	if chose && m.listShown() {
 		now := m.now()
 		m.scroll = m.frame(now).ListStepScroll(m.doc, now)
 	}

@@ -6600,9 +6600,9 @@ each at least its least and at most its natural, but `session`, which grows wher
   its requests and worth the period's alone. A start on another day than the one its rule names,
   and a start of a session that went on, is dated as `prose.PastAt` dates it, `Tue 12:08` within
   the six days before today and `21 Sep 12:08` before them, its year where it isn't now's,
-  `21 Sep 2025 12:08`; one on its rule's day is by the clock alone. ↑ and ↓ onto the last session
-  show the words after it too, where the page holds both; a scroll or a click never moves the List
-  to show them. A past period with no session says so in the table's place, in `text.subtle`, by the
+  `21 Sep 2025 12:08`; one on its rule's day is by the clock alone. ↑ and ↓ onto the last session,
+  or ↓ on it, show the words after it too, where the page holds both; a look or a click keeps the
+  session in view and never moves the List further to show them, which `j` or the wheel does. A past period with no session says so in the table's place, in `text.subtle`, by the
   dial's words: `no sessions yesterday`, `no sessions on Tue 29 Sep`, `no sessions last week`,
   `no sessions in the week of 14 Sep`, `no sessions in the 30 days to 1 Sep`, and so on;
   Projects' SESSIONS and its empty list say it alike. The ledger keeps a day's sessions only as
