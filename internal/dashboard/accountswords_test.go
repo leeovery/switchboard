@@ -22,7 +22,7 @@ type accountsFramed struct {
 	limits         map[string]int
 	atCap, atLimit int
 	left           *float64
-	ranOut         string
+	ranOutOn       string
 	worth, ratio   float64
 	unknownMinutes bool
 	planKnown      bool
@@ -39,7 +39,7 @@ func (f accountsFramed) row() views.AccountsRow {
 		totals.MinutesAtCap, totals.MinutesAtLimit = nil, nil
 	}
 	row := views.AccountsRow{
-		Label: f.label, Totals: totals, Plan: views.PlanCost{Account: f.id, All: all}, WeekLeft: f.left, RanOut: f.ranOut,
+		Label: f.label, Totals: totals, Plan: views.PlanCost{Account: f.id, All: all}, WeekLeft: f.left, RanOutOn: f.ranOutOn,
 	}
 	if f.planKnown {
 		price, cost := usd(200), usd(46)
@@ -57,7 +57,7 @@ func (f accountsFramed) row() views.AccountsRow {
 // October: work, personal and side, and every account's.
 var (
 	framedWork = accountsFramed{
-		id: "work", off: 3, limits: map[string]int{"5h": 2}, atCap: 150, atLimit: 40, left: new(0.0), ranOut: "2026-09-25",
+		id: "work", off: 3, limits: map[string]int{"5h": 2}, atCap: 150, atLimit: 40, left: new(0.0), ranOutOn: "Fri",
 		worth: 184, ratio: 4.0, planKnown: true,
 	}
 	framedPersonal = accountsFramed{
@@ -110,7 +110,7 @@ func TestAccountsFiguresSayEachForm(t *testing.T) {
 	twoWindows.limits = map[string]int{"7d": 1, "5h": 2}
 	unread := framedWork
 	unread.unknownMinutes = true
-	idle := accountsFramed{id: "spare", left: new(0.15), ranOut: "2026-09-25"}
+	idle := accountsFramed{id: "spare", left: new(0.15), ranOutOn: "Fri"}
 	twoOfThree := framedPage(framedWork, framedSide, accountsFramed{id: "spare", worth: 12}, framedAll)
 	fable := func(key string) string { return map[string]string{"7d_oi": "Fable week"}[key] }
 	tests := []struct {
@@ -180,7 +180,7 @@ func TestAccountsFiguresSayEachForm(t *testing.T) {
 
 // withoutWeek is the row with none of its weeks ended in the six weeks.
 func (f accountsFramed) withoutWeek() accountsFramed {
-	f.left, f.ranOut = nil, ""
+	f.left, f.ranOutOn = nil, ""
 	return f
 }
 

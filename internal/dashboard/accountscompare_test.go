@@ -79,10 +79,11 @@ func (f compareFramed) row() views.AccountsRow {
 	return row
 }
 
-// comparedPage is Accounts' page over the period given of the rows given,
-// the last every account's, using each of the versions given.
+// comparedPage is Accounts' page over the period given at now, its weeks
+// ending at this week, of the rows given, the last every account's, using
+// each of the versions given.
 func comparedPage(period views.Period, versions []ledger.Version, rows ...compareFramed) views.AccountsPage {
-	page := views.AccountsPage{Period: period, Recorded: true, Versions: versions}
+	page := views.AccountsPage{Period: period, Recorded: true, ThisWeek: true, Versions: versions}
 	for _, f := range rows[:len(rows)-1] {
 		page.Rows = append(page.Rows, f.row())
 	}
@@ -707,7 +708,7 @@ func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 			left: "  left at its last reset  0% (limit Fri)                    15%                              40%                              —"},
 		{name: "a fresh install", page: func(p *views.AccountsPage) {
 			for i := range p.Rows {
-				p.Rows[i].WeekLeft, p.Rows[i].RanOut = nil, ""
+				p.Rows[i].WeekLeft, p.Rows[i].RanOutOn = nil, ""
 			}
 		}, left: "  left at its last reset  —                                 —                                —                                —"},
 	}

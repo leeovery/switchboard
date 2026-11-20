@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -205,12 +204,12 @@ func atCapParts(t views.AccountTotals, k ink) []part {
 }
 
 // leftParts say what an account's week had left as it last reset, as
-// leftShort says it, and where it ran out, the day it did, as "0% (limit
-// Fri)".
+// leftShort says it, and where it ran out, the day it did, as RanOutOn
+// names it, "0% (limit Fri)", or in a period gone "0% (limit 30 Sep)".
 func leftParts(row views.AccountsRow, k ink) []part {
 	left := leftShort(row, k)
-	if day, ok := dayfile.Civil(row.RanOut); ok && row.WeekLeft != nil {
-		left = append(left, wordsIn(" (limit "+prose.Weekday(day.Weekday())+")", k))
+	if row.RanOutOn != "" && row.WeekLeft != nil {
+		left = append(left, wordsIn(" (limit "+row.RanOutOn+")", k))
 	}
 	return left
 }

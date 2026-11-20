@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -472,6 +473,40 @@ func TestAPeriodGoneBeginsAtItsFirstDaysStart(t *testing.T) {
 		t.Run(tt.length.Name()+" "+tt.keys, func(t *testing.T) {
 			if got := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{}).From(framesNow, time.Monday); !got.Equal(tt.want) {
 				t.Errorf("%s pressed %q begins %v, want %v", tt.length.Name(), tt.keys, got, tt.want)
+			}
+		})
+	}
+}
+
+// The dial's short name is its length's name at now, as its name is, and
+// gone, never one that says now (today, this week): a day's own name, or in
+// another year its date with its year, the week of a week, and the longer
+// lengths' own names.
+func TestShortIsTheLengthsNameNeverOneThatSaysNowGone(t *testing.T) {
+	tests := []struct {
+		length views.Length
+		keys   string
+		want   string
+	}{
+		{views.LengthToday, "", "today"},
+		{views.LengthToday, "<", "yesterday"},
+		{views.LengthToday, "<<", "Tue 29 Sep"},
+		{views.LengthToday, strings.Repeat("<", 274), "31 Dec 2025"},
+		{views.LengthThisWeek, "", "this week"},
+		{views.LengthThisWeek, "<", "the week"},
+		{views.LengthThisWeek, "<<", "the week"},
+		{views.LengthThirtyDays, "", "30 days"},
+		{views.LengthThirtyDays, "<", "30 days"},
+		{views.LengthTwelveWeeks, "", "12 weeks"},
+		{views.LengthTwelveWeeks, "<<", "12 weeks"},
+		{views.LengthTwelveMonths, "", "12 months"},
+		{views.LengthTwelveMonths, "<", "12 months"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s %d back", tt.length.Name(), len(tt.keys)), func(t *testing.T) {
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
+			if got := views.DialOf(p, framesNow, time.Monday, time.Time{}).Short(); got != tt.want {
+				t.Errorf("%s pressed %q is short %q, want %q", tt.length.Name(), tt.keys, got, tt.want)
 			}
 		})
 	}

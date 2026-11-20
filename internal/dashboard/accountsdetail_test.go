@@ -788,6 +788,34 @@ func TestDetailsTargetsAreItsListsRowsAndItsSessions(t *testing.T) {
 	}
 }
 
+// Detail in a past period draws no SESSIONS, nor a target on any session,
+// though sessions run on the account at now: none runs in the past, as
+// views.RunningIn has it.
+func TestDetailInAPastPeriodDrawsNoSessions(t *testing.T) {
+	doc := usageWorld(extraOff)
+	thisWeek := views.LengthThisWeek.Now()
+	lastWeek, _ := thisWeek.Back(now, time.Monday, time.Time{})
+	tests := []struct {
+		name   string
+		period views.Period
+		listed bool
+	}{
+		{name: "this week", period: thisWeek, listed: true},
+		{name: "last week", period: lastWeek},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sixOnSide()).over(tt.period)
+			f.Scroll = f.Scrolling(doc, routedAt).Most
+			drawn := rowWith(textOf(f.Draw(doc, routedAt)), "SESSIONS") >= 0
+			targeted := slices.ContainsFunc(f.accountsTargets(doc, routedAt), func(target Target) bool { return target.On == OnSession })
+			if drawn != tt.listed || targeted != tt.listed {
+				t.Errorf("over %s, SESSIONS drawn %t, a session targeted %t; want %t", tt.name, drawn, targeted, tt.listed)
+			}
+		})
+	}
+}
+
 // sessionsFrom are the targets of SESSIONS' rows of the sessions given, from
 // row y.
 func sessionsFrom(running []views.Running, y, first int) []Target {

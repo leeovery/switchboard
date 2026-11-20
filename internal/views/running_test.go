@@ -84,8 +84,10 @@ func TestTheSessionsRunningAreGroupedByAccountInTheConfigsOrderTheOneSeenLastFir
 	}
 }
 
-// Detail's SESSIONS of an account are RunningOf's rows on it, in its order:
-// a session on two accounts is on each, one on none is on neither.
+// Detail's SESSIONS of an account are RunningOf's rows on it, in its order,
+// while the dial's period reaches today: a session on two accounts is on
+// each, one on none is on neither. In a past period they're none, as none
+// runs in the past.
 func TestDetailsSessionsAreTheRowsOnTheAccountInTheirOrder(t *testing.T) {
 	sessions := []status.Session{
 		{ID: idler, Assignments: []status.Assignment{seatOn("claude-opus-5-5", "opus", "side", status.ReasonNew, 3*time.Hour, 9*time.Minute, "")}},
@@ -96,24 +98,29 @@ func TestDetailsSessionsAreTheRowsOnTheAccountInTheirOrder(t *testing.T) {
 		}},
 	}
 	all := views.RunningOf(runningDoc().At(now, claude.Policy()), views.ListLive{Running: sessions, Stream: views.Stream{}}, views.HeldSessions{})
-	ids := func(id string) []string {
+	thisWeek := views.LengthThisWeek.Now()
+	lastWeek, _ := thisWeek.Back(now, time.Monday, time.Time{})
+	ids := func(id string, p views.Period) []string {
 		var got []string
-		for _, r := range views.RunningOn(all, id) {
+		for _, r := range views.RunningIn(all, id, views.DialOf(p, now, time.Monday, time.Time{})) {
 			got = append(got, r.Account+" "+status.ShownID(r.Session))
 		}
 		return got
 	}
 	tests := []struct {
 		account string
+		period  views.Period
 		want    []string
 	}{
-		{account: "work", want: []string{"work d28c"}},
-		{account: "personal"},
-		{account: "side", want: []string{"side 41e0", "side d28c", "side 9c2e"}},
+		{account: "work", period: thisWeek, want: []string{"work d28c"}},
+		{account: "personal", period: thisWeek},
+		{account: "side", period: thisWeek, want: []string{"side 41e0", "side d28c", "side 9c2e"}},
+		{account: "work", period: lastWeek},
+		{account: "side", period: lastWeek},
 	}
 	for _, tt := range tests {
-		if got := ids(tt.account); !slices.Equal(got, tt.want) {
-			t.Errorf("SESSIONS of %s lists %v, want %v", tt.account, got, tt.want)
+		if got := ids(tt.account, tt.period); !slices.Equal(got, tt.want) {
+			t.Errorf("SESSIONS of %s over %s lists %v, want %v", tt.account, views.DialOf(tt.period, now, time.Monday, time.Time{}).Name(), got, tt.want)
 		}
 	}
 }

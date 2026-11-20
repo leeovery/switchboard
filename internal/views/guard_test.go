@@ -122,7 +122,8 @@ var (
 		// What an account's week had left as it last reset, and the day it ran
 		// out, as Accounts says them, whatever its period.
 		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
-		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOutOn",
+		"views.AccountsRow.RanOut":        "views.AccountsRow.RanOutOn",
 		// How an account stood at a moment gone, and the holds the router
 		// told of, as Runway's lanes draw the past, live or stepped back to.
 		"status.Moment.Then": "views.Lanes.Look",
@@ -189,7 +190,7 @@ var (
 		"views.HeldPage.On",
 		"views.ReadSessionDays", "views.SessionDays.Tailed", "views.SessionDays.Projects", "views.ProjectsPage.Project",
 		"views.SessionDays.SessionLog", "views.SessionDays.Joined", "views.SessionDays.Without", "views.SessionDays.Owed", "views.SessionDays.Told",
-		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly", "views.ReadDayFold", "views.SessionDays.TodayFold", "views.Period.HoursFold", "views.Period.Day",
+		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly", "views.ReadDayFold", "views.SessionDays.TodayFold", "views.DayFold.Tailed", "views.Period.HoursFold", "views.Period.Day",
 		"views.DialOf", "views.Period.Back", "views.Period.On", "views.Period.Shorter", "views.Period.Longer",
 		"views.ReadLatelyTo", "views.AccountLatelyTo", "views.Period.From", "views.Period.AccountsFrom",
 		"views.BegunOf", "views.Begun.Known", "views.Begun.Oldest",

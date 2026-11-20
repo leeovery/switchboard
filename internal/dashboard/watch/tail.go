@@ -257,13 +257,14 @@ func (m Model) followTail() (Model, tea.Cmd) {
 // folds it, the Log once opened, Sessions' List once held or a session's
 // page open, so each keeps up while another tab shows; Accounts, while it
 // shows today on Compare or Detail, its worth by the hour being the tail's
-// fold's; a day gone's fold read early, as pastDayEarly has it, till the
-// tail has read the day's lines it owed, for it to be read again; the
+// fold's; a day gone whose hours wait on the tail, as pastDayTailed has it,
+// till the tail has read the day's lines it owed, its fold read early to be
+// read again, or the tail's own fold of it to give way to a read; the
 // stream, while it told of a request whose line it awaits, as the traffic
 // lets one go only once a read of the tail has read its line; or the store,
 // while it holds a session, for it to let go of those no reader wants.
 func (m Model) tailFollowed() bool {
-	return m.log.opened || m.sessionsTab.listed || m.session != nil || m.accountsToday() || m.pastDayEarly(m.now()) || m.traffic.awaitsLines() ||
+	return m.log.opened || m.sessionsTab.listed || m.session != nil || m.accountsToday() || m.pastDayTailed(m.now()) || m.traffic.awaitsLines() ||
 		m.held.Len() > 0
 }
 
