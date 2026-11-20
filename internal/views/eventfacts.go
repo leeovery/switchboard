@@ -146,9 +146,16 @@ func holdLifts(events []Event) holdPairs {
 //     the router counts them: each session once, To where they all went to
 //     one account.
 //
-// A limit's, a cap's and a refusal's until, widened as it's reached again or
-// brought forward as it lifts, can't be put back, as the files don't keep
-// what it was: nothing told before until says it.
+// What can't be put back, as the files don't keep what it was, is accepted:
+//   - a limit's, a cap's and a refusal's until, widened as it's reached
+//     again or brought forward as it lifts: nothing told before until says
+//     it;
+//   - a window a limit that named none learned later, as the router notes
+//     when a window joined only an event that named one: it shows, though
+//     learned after until.
+//
+// A hold told late, as at a router's start, filed after until but dated
+// before it from when it began, is told: what it says was true by then.
 func stoodAt(events []Event, until time.Time) []Event {
 	given := make(map[eventKey]bool, len(events))
 	for _, e := range events {

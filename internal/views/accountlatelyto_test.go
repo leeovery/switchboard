@@ -228,6 +228,51 @@ func TestDetailsLATELYOfAPastPeriodTellsEventsAsTheyStoodAtItsEnd(t *testing.T) 
 	}
 }
 
+// A pool's Detail's LATELY of a past period counts the moves recorded in
+// another pool in the event that forced them, as the router counted them:
+// work, moved since from pool a to pool b, reached its cap in a, two of a's
+// sessions moving to side; b shows the cap, from work's side and side's,
+// with the moves it counted, though it shows none of the moves.
+func TestAPoolsPastLATELYCountsTheMovesOfAnotherPool(t *testing.T) {
+	m := status.Document{Source: status.SourceRouter}.At(framesNow, claude.Policy())
+	capAt := framesDay(29, 14, 31)
+	told := []status.Event{
+		{ID: 1, At: capAt, Kind: status.EventCap, Account: "work", Windows: []string{"5h"}},
+		{ID: 2, At: capAt.Add(time.Minute), Kind: status.EventMoved, Session: "d28c0b1e", From: "work", To: "side", ForcedBy: 1, Pool: "a"},
+		{ID: 3, At: capAt.Add(2 * time.Minute), Kind: status.EventMoved, Session: "7f3a5c90", From: "work", To: "side", ForcedBy: 1, Pool: "a"},
+		{ID: 1, At: capAt, Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Count: 2, To: "side"},
+	}
+	lines := make(filedLines, len(told))
+	for i, e := range told {
+		lines[i] = events.Line{Event: e, Run: pastLatelyRun}
+	}
+	inB := func(string) (string, bool) { return "b", true }
+	pool := views.PoolRead{ID: "b", First: "a", PoolOf: inB}
+	until := framesDay(30, 0, 0)
+	held := views.ReadLatelyTo(pool.Filed(lines), until)
+	tests := []struct {
+		id     string
+		lately []string
+	}{
+		{id: "work", lately: []string{"reached its cap: 2 sessions moved to side"}},
+		{id: "side", lately: []string{"2 sessions came from work: work reached its cap"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.id, func(t *testing.T) {
+			if got := fullsOf(views.AccountLatelyTo(m, held, tt.id, until, 12, views.SessionDirs{})); !slices.Equal(got, tt.lately) {
+				t.Errorf("pool b's %s's LATELY to the end of Tuesday tells %q, want %q", tt.id, got, tt.lately)
+			}
+		})
+	}
+	var kept []int
+	for _, e := range held {
+		kept = append(kept, e.Key.ID)
+	}
+	if !slices.Equal(kept, []int{1}) {
+		t.Errorf("pool b's LATELY holds the events %v, want the cap alone, its moves pool a's", kept)
+	}
+}
+
 // Detail's LATELY of a past period tells the week to the end of its last
 // day, whatever it's given: an event a week before the end, and one just
 // before it, told; one at the end, or after it, and one before the week,

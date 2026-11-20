@@ -26,36 +26,40 @@ func AccountLately(m status.Moment, id string, n int, dirs SessionDirs) []Senten
 	return toldFrom(m, given(m), n, sideOf(id), dirs)
 }
 
-// AccountLatelyTo are the router's events held, oldest first, as
-// ReadLatelyTo reads them, as Detail's LATELY tells them of the account
-// with the given id, or every account's for "", at the end of a past
-// period's last day, until, the newest first, n at most: those AccountLately
-// would tell of them had it been until then, of the week before it alone,
-// as latelyFrom has it, each as it stood then, as stoodAt puts it back,
-// their facts worked out over those before it alone, so a hold lifted
-// after it, or a cap whose moves came after it, is told as it stood. Each
-// is told in AccountLately's words at m's Now, as LATELY at now tells them.
+// AccountLatelyTo are the router's events held, oldest first, each as it
+// stood at the end of a past period's last day, until, as ReadLatelyTo
+// reads them, as Detail's LATELY tells them of the account with the given
+// id, or every account's for "", then, the newest first, n at most: those
+// AccountLately would tell of them had it been until then, of the week
+// before it alone, as latelyFrom has it, their facts worked out over those
+// before it alone, so a hold lifted after it, or a cap whose moves came
+// after it, is told as it stood. Each is told in AccountLately's words at
+// m's Now, as LATELY at now tells them.
 func AccountLatelyTo(m status.Moment, held []Event, id string, until time.Time, n int, dirs SessionDirs) []Sentence {
 	since, of := latelyFrom(until), sideOf(id)
 	within := side{tells: func(e status.Event) bool { return !e.At.Before(since) && of.tells(e) }, tell: of.tell}
-	var before []Event
-	for _, e := range held {
+	var newest []Event
+	for _, e := range slices.Backward(held) {
 		if e.Event.At.Before(until) {
-			before = append(before, e)
+			newest = append(newest, e)
 		}
 	}
-	newest := stoodAt(before, until)
-	slices.Reverse(newest)
 	return toldFrom(m, newest, n, within, dirs)
 }
 
 // ReadLatelyTo reads, through filed, the router's files' events Detail's
 // LATELY tells at the end of a past period's last day, until, as
-// AccountLatelyTo takes them, oldest first, each as it last stands: those
-// of the week before until, as latelyFrom has it, and the FactsReach
-// before that their facts are worked out over.
+// AccountLatelyTo takes them, oldest first: those of the week before until,
+// as latelyFrom has it, and the FactsReach before that their facts are
+// worked out over, each as it stood at until, as stoodAt puts it back. Of a
+// pool's read, as PoolRead's Filed makes it, every pool's events are put
+// back, then the pool's kept, as filteredBy has it: a move recorded in
+// another pool still counts in the event that forced it, as the router
+// counted it.
 func ReadLatelyTo(filed Events, until time.Time) []Event {
-	return readBetween(filed, latelyFrom(until).Add(-FactsReach), until).Events()
+	whole, shows := filteredBy(filed)
+	stood := stoodAt(readBetween(whole, latelyFrom(until).Add(-FactsReach), until).Events(), until)
+	return slices.DeleteFunc(stood, func(e Event) bool { return !shows(e.Event) })
 }
 
 // sideOf is the side Detail's LATELY tells the account with the given id
