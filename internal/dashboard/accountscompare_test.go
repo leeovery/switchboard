@@ -708,7 +708,7 @@ func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 			left: "  left at its last reset  0% (limit Fri)                    15%                              40%                              —"},
 		{name: "a fresh install", page: func(p *views.AccountsPage) {
 			for i := range p.Rows {
-				p.Rows[i].WeekLeft, p.Rows[i].RanOut = nil, ""
+				p.Rows[i].WeekLeft, p.Rows[i].RanOutOn = nil, ""
 			}
 		}, left: "  left at its last reset  —                                 —                                —                                —"},
 	}

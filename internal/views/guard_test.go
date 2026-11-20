@@ -122,7 +122,8 @@ var (
 		// What an account's week had left as it last reset, and the day it ran
 		// out, as Accounts says them, whatever its period.
 		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
-		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOutOn",
+		"views.AccountsRow.RanOut":        "views.AccountsRow.RanOutOn",
 		// How an account stood at a moment gone, and the holds the router
 		// told of, as Runway's lanes draw the past, live or stepped back to.
 		"status.Moment.Then": "views.Lanes.Look",

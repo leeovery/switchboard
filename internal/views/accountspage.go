@@ -95,10 +95,11 @@ type AccountsRow struct {
 	// gone, as its last week reset, as leftAt has it, but where its last
 	// week is this week, as at now: nil, and "", where none of its weeks
 	// ended among the days of the resetWeeks weeks to the period's last and
-	// the week before them, and of every account's. RanOutOn names that
-	// day: by its weekday at now, as "Fri"; in a period gone by its date,
-	// as "30 Sep", since an own week placed under its last week can run out
-	// after its last day, which a weekday would name as one in it.
+	// the week before them, and of every account's. RanOut isn't for
+	// display: RanOutOn names that day, as Accounts says it, by its weekday
+	// at now, as "Fri"; in a period gone by its date, as "30 Sep", since an
+	// own week placed under its last week can run out after its last day,
+	// which a weekday would name as one in it.
 	WeekLeft *float64
 	RanOut   string
 	RanOutOn string

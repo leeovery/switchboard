@@ -5380,7 +5380,10 @@ its periods, as Trends has none:
     `3h 10m`, and for `all accounts` their sum; and `left at its last reset`, what its week had left
     as it last reset, `15%`, or `0% (limit Fri)` where the week ran out, naming the day it did, and
     `—` for `all accounts`; in a past period whose last week isn't this week, as it reset at the end
-    of that week.
+    of that week. In a past period, yesterday too, the day is named by its date, `0% (limit
+    30 Sep)`, with its year where it isn't this year's, `0% (limit 3 Oct 2025)`, never a weekday:
+    an own week placed under the period's last week can run out after its last day. Narrow, it
+    falls to `0%`, as at now.
   - **VALUE,** with no description, as its rows say it: `plan`, `Ultra`, and ` · $200/mo` in
     `text.subtle`, and for `all accounts` the plans summed, `$600/mo`, and ` · 3 plans`;
     `extra usage`, `off` in `text.muted`, or `on · billed past its limit` in `accent.attention`, and

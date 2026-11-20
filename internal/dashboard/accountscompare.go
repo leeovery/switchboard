@@ -524,13 +524,11 @@ func (cp compared) targets() []Target {
 // Filled has them: every configured account's, shown or scrolled out of
 // view, as the Overview's are, so a column scrolled into view while its bar
 // eases eases from where it stood, by its id and its week's key; and all
-// accounts', by the key alone; none drawn empty, and none in a past period,
-// which draws no WEEK USED.
+// accounts', by the key alone; none drawn empty. A past period fills them
+// too, though it draws none, as they're the moment's: so n, within the ease
+// after a reading lands, doesn't raise them from empty.
 func (cp compared) filled() map[Ref]float64 {
 	filled := make(map[Ref]float64)
-	if cp.gone {
-		return filled
-	}
 	columns := []compareColumn{cp.allColumn()}
 	for i := range cp.f.Accounts.Accounts {
 		columns = append(columns, cp.column(i))

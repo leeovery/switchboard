@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -123,15 +125,16 @@ func TestAPastComparesMomentLeavesAndBYMODELMovesUp(t *testing.T) {
 	}
 }
 
-// In a past period Compare draws no WEEK USED, so it fills no bar for a
-// watch to ease; at now it fills every account's week.
-func TestAPastCompareFillsNoBar(t *testing.T) {
+// In a past period Compare draws no WEEK USED, but fills its bars as at
+// now, as they're the moment's: so n, within the ease after a reading
+// lands, doesn't raise them from empty.
+func TestAPastCompareFillsWEEKUSEDsBarsAsAtNow(t *testing.T) {
 	for _, width := range comparedWidths {
-		for _, page := range []views.AccountsPage{chartedPage(t), goneCharted(t, lastWeek(t))} {
-			f, doc := comparedOver(t, width, page)
-			if filled, gone := f.Filled(doc, routedAt), f.Dial.Gone(); (len(filled) == 0) != gone {
-				t.Errorf("at %d over %s, Compare fills %v, want bars only at now", width, f.Dial.Name(), filled)
-			}
+		f, doc := comparedOver(t, width, chartedPage(t))
+		gone, _ := comparedOver(t, width, goneCharted(t, lastWeek(t)))
+		atNow, past := f.Filled(doc, routedAt), gone.Filled(doc, routedAt)
+		if len(atNow) == 0 || !maps.Equal(past, atNow) {
+			t.Errorf("at %d, Compare over %s fills %v, want %v, as at now", width, gone.Dial.Name(), past, atNow)
 		}
 	}
 }
@@ -213,6 +216,89 @@ func TestAPastComparesLeftAtItsLastResetNamesTheDayItRanOut(t *testing.T) {
 		work := f.comparing(doc, routedAt).columns()[0]
 		if got, want := strings.TrimSpace(ansi.Cut(rows[left], work.x, work.x+work.width)), "0% (limit 30 Sep)"; got != want {
 			t.Errorf("at %d, work's left at its last reset reads %q, want %q", width, got, want)
+		}
+	}
+}
+
+// A period gone whose last week is this week, as yesterday on any day but
+// a week's first, draws this week as now does: under each column's last
+// week its so far, …, and the last name on the axis bold where no …
+// stands in its place, as of a row whose last week isn't so far.
+func TestAGonePeriodEndingThisWeekDrawsItAsNow(t *testing.T) {
+	yesterday, ok := views.LengthToday.Now().Back(routedAt, time.Monday, time.Time{})
+	if !ok {
+		t.Fatal("today steps back to nothing")
+	}
+	page := chartedPage(t)
+	page.Period = yesterday
+	last := &page.Reach[len(page.Reach)-1]
+	last.Axis = last.Start.Format("Jan")
+	for _, width := range comparedWidths[2:] {
+		f, doc := comparedOver(t, width, page)
+		f.Period, f.Dial = yesterday, views.DialOf(yesterday, routedAt, time.Monday, time.Time{})
+		if !f.Dial.Gone() {
+			t.Fatalf("%s isn't gone at %v", f.Dial.Name(), routedAt)
+		}
+		cp := f.comparing(doc, routedAt)
+		c := cp.rows()
+		rows := textOf(c.rows(Look{}))
+		axis := rowWith(rows, "WEEKS  each week at its peak") + weeksChartRows + 1
+		for _, col := range cp.columns() {
+			slots := compareSlots(col.head, len(page.Reach))
+			at := col.x + slots[len(slots)-1].x
+			if got := cut(rows[axis], at, views.PeakSoFar); got != views.PeakSoFar || inkAt(c, at, axis) != secondaryInk {
+				t.Errorf("at %d, the axis of the column from %d reads %q at %d in %+v, want this week so far, %s", width, col.x, got, at, inkAt(c, at, axis), views.PeakSoFar)
+			}
+		}
+		whole := page.Rows[0]
+		whole.Reached = slices.Clone(whole.Reached)
+		whole.Reached[len(whole.Reached)-1].Open = false
+		if named := cp.reachNames(whole); !slices.Equal(named[len(named)-1], line{{last.Axis, strongInk}}) {
+			t.Errorf("at %d, the last name of a row whose last week isn't so far is %+v, want %s bold", width, named[len(named)-1], last.Axis)
+		}
+	}
+}
+
+// Wide, in a past period, a click on a column's heads is on its name alone:
+// one zone a column shown, on the names' row; the focused column's
+// bg.selection is on that row alone; and the rows scroll from two rows
+// under it, BY MODEL's, the blank row between held.
+func TestAPastComparesHeadsAreOneRow(t *testing.T) {
+	for _, width := range comparedWidths[2:] {
+		f, doc := comparedOver(t, width, goneCharted(t, lastWeek(t)))
+		f.Accounts.Focused, f.Accounts.Focus = true, "personal"
+		top := f.top()
+		cp := f.comparing(doc, routedAt)
+		columns := cp.columns()
+		zones := map[string]int{}
+		for _, target := range f.Targets(doc, routedAt) {
+			if target.On != OnColumn {
+				continue
+			}
+			zones[target.Account]++
+			if target.Y != top {
+				t.Errorf("at %d, %q's head's zone is on row %d, want the names', %d", width, target.Account, target.Y, top)
+			}
+		}
+		for _, col := range columns {
+			if zones[col.id] != 1 {
+				t.Errorf("at %d, %q has %d head zones, want 1", width, col.id, zones[col.id])
+			}
+		}
+		if len(zones) != len(columns) {
+			t.Errorf("at %d, head zones are of %v, want the %d columns shown", width, zones, len(columns))
+		}
+		c := f.At(doc, routedAt).page(doc, routedAt)
+		personal := columns[1]
+		for y := top - 1; y <= top+2; y++ {
+			for x := personal.x; x < personal.x+personal.head; x++ {
+				if selected := c.at(x, y).ink.on.token == theme.BgSelection; selected != (y == top) {
+					t.Errorf("at %d, row %d, column %d on bg.selection: %v, want the names' row alone", width, y, x, selected)
+				}
+			}
+		}
+		if _, y, _, _ := cp.scrolls(); y != top+2 {
+			t.Errorf("at %d, Compare's rows scroll from row %d, want %d, under the names and a blank row", width, y, top+2)
 		}
 	}
 }
