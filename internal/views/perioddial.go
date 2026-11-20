@@ -16,9 +16,9 @@ type Dial struct {
 	// local is now in the local time zone, the one the period's days are
 	// reckoned in, as dayfile.CivilOf reckons them, for its times to be told
 	// on the days they fall on.
-	local               time.Time
-	name, title, within string
-	earliest            bool
+	local                      time.Time
+	name, short, title, within string
+	earliest                   bool
 }
 
 // DialOf is the dial's period given as it's said at now, weeks starting on
@@ -27,10 +27,10 @@ type Dial struct {
 func DialOf(period Period, now time.Time, starts time.Weekday, began time.Time) Dial {
 	s := period.spanAt(dayfile.CivilOf(now), starts)
 	l := period.length
-	d := Dial{span: s, local: now.Local(), name: l.Name(), title: l.Title(), within: l.Within(), earliest: s.earliest(began)}
+	d := Dial{span: s, local: now.Local(), name: l.Name(), short: l.Name(), title: l.Title(), within: l.Within(), earliest: s.earliest(began)}
 	if s.gone {
 		d.name, d.within = l.goneSaid(s)
-		d.title = strings.ToUpper(d.name)
+		d.short, d.title = l.goneShort(d.name), strings.ToUpper(d.name)
 	}
 	return d
 }
@@ -62,11 +62,32 @@ func (l Length) goneSaid(s periodSpan) (name, within string) {
 	return name, "in the " + name
 }
 
+// goneShort is the short name of a period of the length gone, named as given:
+// a day's name itself, as short as any; the week, never this week; and the
+// longer lengths their own name, as 30 days.
+func (l Length) goneShort(name string) string {
+	switch l {
+	case LengthToday:
+		return name
+	case LengthThisWeek:
+		return "the week"
+	}
+	return l.Name()
+}
+
 // Name is what the heading and the key line call the period: at now its
 // length's name, as "this week"; gone, as goneSaid names it, as "last week"
 // or "30 days to 1 Sep".
 func (d Dial) Name() string {
 	return d.name
+}
+
+// Short is the period's name where its own is too wide, as Tokens' total
+// row names it then, the heading naming it in full: at now its length's
+// name, as Name is; gone, never a name of now: a day's name, as "yesterday";
+// "the week" of a week; and the longer lengths' own names, as "30 days".
+func (d Dial) Short() string {
+	return d.short
 }
 
 // Title is the period's name in capitals, as Detail's figures and Tokens'

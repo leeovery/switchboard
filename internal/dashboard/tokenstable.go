@@ -529,13 +529,13 @@ func (t tokensTable) rowsOf(b tokensBlock) []tokensRow {
 
 // totalName names the total of the tokens given: by the dial's words, as
 // "30 days to 1 Sep", where they fit the cells its row's name has, as
-// nameCells has them; else by the period's length, as "30 days", as at now,
-// the heading naming the period in full. The columns never move for the
-// dial.
+// nameCells has them; else by the dial's short name, as "30 days" or "the
+// week", the heading naming the period in full. The columns never move for
+// the dial.
 func (t tokensTable) totalName(tokens views.Tokens) string {
 	name := t.dial.Name()
 	if ansi.StringWidth(name) > t.columns().nameCells(tokensRow{total: true, tokens: tokens}) {
-		return t.period.Length().Name()
+		return t.dial.Short()
 	}
 	return name
 }

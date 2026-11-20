@@ -477,6 +477,38 @@ func TestAPeriodGoneBeginsAtItsFirstDaysStart(t *testing.T) {
 	}
 }
 
+// The dial's short name is its length's name at now, as its name is, and
+// gone, never a name of now: a day's own name, the week of a week, and the
+// longer lengths' own names.
+func TestShortIsTheLengthsNameNeverNowsGone(t *testing.T) {
+	tests := []struct {
+		length views.Length
+		keys   string
+		want   string
+	}{
+		{views.LengthToday, "", "today"},
+		{views.LengthToday, "<", "yesterday"},
+		{views.LengthToday, "<<", "Tue 29 Sep"},
+		{views.LengthThisWeek, "", "this week"},
+		{views.LengthThisWeek, "<", "the week"},
+		{views.LengthThisWeek, "<<", "the week"},
+		{views.LengthThirtyDays, "", "30 days"},
+		{views.LengthThirtyDays, "<", "30 days"},
+		{views.LengthTwelveWeeks, "", "12 weeks"},
+		{views.LengthTwelveWeeks, "<<", "12 weeks"},
+		{views.LengthTwelveMonths, "", "12 months"},
+		{views.LengthTwelveMonths, "<", "12 months"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.length.Name()+" "+tt.keys, func(t *testing.T) {
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
+			if got := views.DialOf(p, framesNow, time.Monday, time.Time{}).Short(); got != tt.want {
+				t.Errorf("%s pressed %q is short %q, want %q", tt.length.Name(), tt.keys, got, tt.want)
+			}
+		})
+	}
+}
+
 // The dial keeps room for the widest of the lengths' names at now, whatever
 // the period: every length's name at now fits it, one fills it, and every
 // period, at now or gone, keeps the same.
