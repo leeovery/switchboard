@@ -189,9 +189,10 @@ var (
 		"views.HeldPage.On",
 		"views.ReadSessionDays", "views.SessionDays.Tailed", "views.SessionDays.Projects", "views.ProjectsPage.Project",
 		"views.SessionDays.SessionLog", "views.SessionDays.Joined", "views.SessionDays.Without", "views.SessionDays.Owed", "views.SessionDays.Told",
-		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly", "views.ReadDayFold", "views.SessionDays.TodayFold", "views.Period.HoursFold",
+		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly", "views.ReadDayFold", "views.SessionDays.TodayFold", "views.Period.HoursFold", "views.Period.Day",
 		"views.DialOf", "views.Period.Back", "views.Period.On", "views.Period.Shorter", "views.Period.Longer",
 		"views.ReadLatelyTo", "views.Period.From", "views.Period.AccountsFrom",
+		"views.BegunOf", "views.Begun.Known", "views.Begun.Oldest",
 	}
 )
 

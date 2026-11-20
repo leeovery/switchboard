@@ -7,6 +7,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // reachLeast are the fewest weeks Compare's WEEKS reaches over, whatever the
@@ -54,6 +55,18 @@ func (s periodSpan) through() time.Time {
 // the period's weeks ends at it.
 func (s periodSpan) lastWeek(starts time.Weekday) time.Time {
 	return weekOf(s.last, starts)
+}
+
+// wholeTo is the last day of the last whole week of the span gone, as
+// dayfile.Civil gives a day, weeks starting on the day given: its last
+// week's, where that's before this one; the week before this one's, where
+// its last week is this one, still running; zero of a span at now, whose
+// weeks run to now.
+func (s periodSpan) wholeTo(starts time.Weekday) time.Time {
+	if !s.gone {
+		return time.Time{}
+	}
+	return score.Earlier(s.lastWeek(starts).AddDate(0, 0, 6), weekOf(s.today, starts).AddDate(0, 0, -1))
 }
 
 // detailWeeks is how many weeks Detail's weeks section reaches over at the

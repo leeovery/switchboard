@@ -153,7 +153,7 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[
 			s = st.listedEnded(price, in.Projects)
 		}
 		row := PeriodSession{ListedSession: s.named(in.Names), WentOn: st.wentOn, ProjectName: projects[st.id]}
-		if !row.leads() {
+		if !row.Leads() {
 			row.EndedOn = dayfile.DateOf(cmp.Or(s.Ended, in.Now))
 		}
 		rows = append(rows, row)
@@ -163,25 +163,25 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[
 	return rows
 }
 
-// leads reports whether the session sits first among the period's, as
+// Leads reports whether the session sits first among the period's, as
 // inPeriodOrder has it: running, or in a period gone, gone on after it.
-func (s PeriodSession) leads() bool {
+func (s PeriodSession) Leads() bool {
 	return s.Running || s.WentOn
 }
 
 // inPeriodOrder orders the sessions of a period: those that lead first, as
-// leads has them, as byStart orders them; then the rest, by the day each
+// Leads has them, as byStart orders them; then the rest, by the day each
 // ended, the latest first, as its
 // last request's day has it, as of one the stream told of before the router
 // lists it, each day's as the List orders them.
 func inPeriodOrder(a, b PeriodSession) int {
 	switch {
-	case a.leads() != b.leads():
-		if a.leads() {
+	case a.Leads() != b.Leads():
+		if a.Leads() {
 			return -1
 		}
 		return 1
-	case a.leads():
+	case a.Leads():
 		return byStart(a.ListedSession, b.ListedSession)
 	}
 	return cmp.Or(strings.Compare(b.EndedOn, a.EndedOn), inListOrder(a.ListedSession, b.ListedSession))

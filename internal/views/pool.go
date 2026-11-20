@@ -389,6 +389,11 @@ func (p PoolRead) Filed(e Events) Events {
 // read's Shows; of any other, every event. A read that must see every
 // pool's events before it keeps a pool's, as ReadLatelyTo does, reads
 // through it.
+//
+// It knows a pool's read only as Filed makes it, poolEvents itself: a reader
+// wrapping one is read as every pool's, and gives only the pool's events, so
+// the moves other pools' events tell are dropped. Unwrap such a reader here
+// before handing it on.
 func filteredBy(filed Events) (Events, func(e status.Event) bool) {
 	if pool, ok := filed.(poolEvents); ok {
 		return pool.Events, pool.read.Shows

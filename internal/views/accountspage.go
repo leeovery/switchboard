@@ -39,11 +39,15 @@ type AccountsPage struct {
 	// at now and in a period gone whose last week holds today, the weeks'
 	// sections drawing it as now's; and Reaches how many of the last of them
 	// Detail's weeks section reaches over at the fewest, as detailWeeks
-	// counts them, those that don't fit counted out of view.
+	// counts them, those that don't fit counted out of view. WholeTo is, of
+	// a period gone, the last day of the last whole week they hold, as
+	// dayfile.Civil gives a day, Detail's weeks section naming them by it,
+	// as "the eight weeks to Sun 27 Sep", as wholeTo has it; zero at now.
 	Weeks    []string
 	ToCome   int
 	ThisWeek bool
 	Reaches  int
+	WholeTo  time.Time
 	// Reach are the columns Compare's WEEKS draws over the period, oldest
 	// first, as reached has them: a week each, those that begin in the
 	// period, its last week last, as reachWeeks counts them; or of 12
@@ -223,14 +227,15 @@ func (p Past) Accounts(period Period) AccountsPage {
 // stand sets all the page tells of its weeks, of the input and days given,
 // as they stand at in's Now, to the period's last week, as its span that
 // day has it: how many Detail reaches over, as detailWeeks counts them;
-// whether they end at this week; and over the weeks the page holds, as
-// heldWeeks counts them, BY DAY's days, as byDay has them, and their peaks,
-// facts and resets, as weeked has them. So a day that changes either count,
-// or the weeks' end, changes all they tell alike.
+// whether they end at this week, and the last day of their last whole week,
+// as wholeTo has it; and over the weeks the page holds, as heldWeeks counts
+// them, BY DAY's days, as byDay has them, and their peaks, facts and
+// resets, as weeked has them. So a day that changes either count, or the
+// weeks' end, changes all they tell alike.
 func (page *AccountsPage) stand(in HistoryInput, days []Day) {
 	s := page.Period.spanAt(dayfile.CivilOf(in.Now), in.WeekStarts)
 	page.Reaches = page.Period.detailWeeks(s.today, in.WeekStarts)
-	page.ThisWeek = s.weeksBack == 0
+	page.ThisWeek, page.WholeTo = s.weeksBack == 0, s.wholeTo(in.WeekStarts)
 	page.byDay(in, days, s)
 	page.weeked(in, days, s)
 }

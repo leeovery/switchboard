@@ -122,12 +122,6 @@ func (l Length) Stepped(by int) (Length, bool) {
 	return lengths[i], true
 }
 
-// From is when the period of the length reaching today begins at now, weeks
-// starting on the day given, as its period now's From has it.
-func (l Length) From(now time.Time, starts time.Weekday) time.Time {
-	return l.Now().From(now, starts)
-}
-
 // first is the first day of the period of the length whose last day is the
 // day given, as dayfile.Civil gives a day, or of a week length, whose last
 // week holds it, weeks starting on the day given.
@@ -318,11 +312,9 @@ func (p Period) spanAt(today time.Time, starts time.Weekday) periodSpan {
 	if !gone {
 		end = today
 	}
-	last := p.length.last(end, starts)
-	return periodSpan{
-		first: p.length.first(end, starts), last: last, today: today, gone: gone,
-		weeksBack: int(weekOf(today, starts).Sub(weekOf(last, starts)) / (7 * 24 * time.Hour)),
-	}
+	s := periodSpan{first: p.length.first(end, starts), last: p.length.last(end, starts), today: today, gone: gone}
+	s.weeksBack = int(weekOf(today, starts).Sub(s.lastWeek(starts)) / (7 * 24 * time.Hour))
+	return s
 }
 
 // after is the span of the days after s's last, to today: none of a span at
@@ -357,6 +349,19 @@ func (p Period) Until(now time.Time, starts time.Weekday) (time.Time, bool) {
 	}
 	_, end, _ := dayfile.Day(s.last.Format(time.DateOnly))
 	return end, true
+}
+
+// Day is the day the period is, where it's of a single day, weeks starting
+// on the day given, today being now's: its date, as time.DateOnly writes
+// it, and whether it's gone, a day before today, today's being now's; false
+// where it's of more than a day. It's the one fact of which day shows, the
+// day whose hours chart it and whose fold is read for them.
+func (p Period) Day(now time.Time, starts time.Weekday) (date string, gone, ok bool) {
+	if p.length != LengthToday {
+		return "", false, false
+	}
+	s := p.spanAt(dayfile.CivilOf(now), starts)
+	return s.last.Format(time.DateOnly), s.gone, true
 }
 
 // shape is the period as one of Tokens' rows, on today, as dayfile.Civil

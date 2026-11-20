@@ -115,8 +115,8 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 // totals are alike.
 func TestOnAWeeksFirstDayHistoryFromTodayIsAccountsTodayNotThisWeek(t *testing.T) {
 	am := accountsMoment(t, onceItsReFiled)
-	from := views.LengthToday.From(am.Now, am.WeekStarts)
-	if !from.Equal(views.LengthThisWeek.From(am.Now, am.WeekStarts)) {
+	from := views.LengthToday.Now().From(am.Now, am.WeekStarts)
+	if !from.Equal(views.LengthThisWeek.Now().From(am.Now, am.WeekStarts)) {
 		t.Fatalf("on %s, today and this week begin apart", am.Now.Weekday())
 	}
 	history := historySince(am, from)
@@ -138,7 +138,7 @@ func TestOnAWeeksFirstDayHistoryFromTodayIsAccountsTodayNotThisWeek(t *testing.T
 // isThisWeeksFirstDay reports whether am is of THIS WEEK on its first day,
 // whose plans history prices as today's.
 func isThisWeeksFirstDay(am viewstest.AccountsMoment) bool {
-	return am.Period == views.LengthThisWeek.Now() && am.Period.From(am.Now, am.WeekStarts).Equal(views.LengthToday.From(am.Now, am.WeekStarts))
+	return am.Period == views.LengthThisWeek.Now() && am.Period.From(am.Now, am.WeekStarts).Equal(views.LengthToday.Now().From(am.Now, am.WeekStarts))
 }
 
 // historySince is history at the moment am, asked for from the time given,
