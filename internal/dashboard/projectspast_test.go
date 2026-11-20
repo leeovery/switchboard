@@ -123,7 +123,7 @@ func TestTheLastOfAPeriodGoneIsATimeOfThePeriod(t *testing.T) {
 				text := textOf(f.page(framedDoc(nil, nil), routedAt).rows(Look{}))
 				for _, name := range []string{"agentic", "project-1"} {
 					y := rowWith(text, name)
-					if got := cellsOf(text[y], col.x, col.width); got != tt.want {
+					if got := trimmedCells(text[y], col.x, col.width); got != tt.want {
 						t.Errorf("%s at %d, %s's last reads %q, want %q", tt.name, width, name, got, tt.want)
 					}
 				}
@@ -138,13 +138,13 @@ func TestTheLastOfAPeriodGoneIsATimeOfThePeriod(t *testing.T) {
 	f := projectsFrame(t, 173, projectsTall, rows, 0, nil)
 	col, _ := projectsColumn(projectsColumnsOf(f), listedLast)
 	text := textOf(f.page(framedDoc(nil, nil), routedAt).rows(Look{}))
-	if got := cellsOf(text[rowWith(text, "agentic")], col.x, col.width); got != "now" {
+	if got := trimmedCells(text[rowWith(text, "agentic")], col.x, col.width); got != "now" {
 		t.Errorf("at now, a busy project's last reads %q, want now", got)
 	}
 }
 
-// cellsOf are the cells of the row from x, n of them, trimmed.
-func cellsOf(row string, x, n int) string {
+// trimmedCells are the cells of the row from x, n of them, trimmed.
+func trimmedCells(row string, x, n int) string {
 	r := []rune(row)
 	return strings.TrimSpace(string(r[min(x, len(r)):min(x+n, len(r))]))
 }
