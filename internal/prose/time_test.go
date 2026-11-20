@@ -527,6 +527,32 @@ func TestPastShowsMoreOfATimeTheFurtherBackItsDayIs(t *testing.T) {
 	}
 }
 
+// PastAt shows a time as Past does, but a date in another year than now's
+// with its year; a time within the week names no date, so no year, though
+// the year turned since.
+func TestPastAtGivesTheYearOfADateInAnotherYear(t *testing.T) {
+	now := time.Date(2027, 1, 2, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		t    time.Time
+		want string
+	}{
+		{name: "yesterday, last year", t: time.Date(2027, 1, 1, 8, 0, 0, 0, time.UTC), want: "yesterday 08:00"},
+		{name: "within the week, last year", t: time.Date(2026, 12, 30, 12, 8, 0, 0, time.UTC), want: "Wed 12:08"},
+		{name: "a date of last year", t: time.Date(2026, 9, 21, 12, 8, 0, 0, time.UTC), want: "21 Sep 2026 12:08"},
+		{name: "today", t: time.Date(2027, 1, 2, 8, 0, 0, 0, time.UTC), want: "08:00"},
+	}
+	for _, tt := range tests {
+		if got := prose.PastAt(now, tt.t); got != tt.want {
+			t.Errorf("%s: PastAt() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+	thisYear := time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC)
+	if got, want := prose.PastAt(thisYear, time.Date(2026, 9, 21, 12, 8, 0, 0, time.UTC)), "21 Sep 12:08"; got != want {
+		t.Errorf("a date of this year: PastAt() = %q, want %q", got, want)
+	}
+}
+
 // A run-out within a day of now reads as Dated has it; further ahead, its
 // weekday alone, in now's time zone, but on now's weekday, which would read
 // as today, its day as Day names it.

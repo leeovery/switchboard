@@ -75,17 +75,17 @@ func (s sessionsByDay) heads() []headed {
 
 // kept are the day rules, each to the line after the last session under
 // it, as a page scrolled past one into its sessions keeps it on its first
-// row.
+// row: never over words after them, so no rule shows without a session
+// under it.
 func (s sessionsByDay) kept() []keptHeading {
 	var kept []keptHeading
 	for i, l := range s.lines {
-		if !l.ruled {
-			continue
+		switch n := len(kept); {
+		case l.ruled:
+			kept = append(kept, keptHeading{at: i, end: i + 1})
+		case l.row() && n > 0:
+			kept[n-1].end = i + 1
 		}
-		if n := len(kept); n > 0 {
-			kept[n-1].end = i
-		}
-		kept = append(kept, keptHeading{at: i, end: len(s.lines)})
 	}
 	return kept
 }
@@ -123,6 +123,16 @@ func (s sessionsByDay) drawLine(c *canvas, y int, l sessionLine) {
 func (s sessionsByDay) lineOf(id string) int {
 	for i, l := range s.lines {
 		if l.row() && l.session.Session == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// lastRow is the index of the line of the last session's row: -1 of none.
+func (s sessionsByDay) lastRow() int {
+	for i, l := range slices.Backward(s.lines) {
+		if l.row() {
 			return i
 		}
 	}

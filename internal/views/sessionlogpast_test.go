@@ -66,3 +66,22 @@ func TestASessionThatWentOnSaysSoInPlaceOfItsEnd(t *testing.T) {
 		}
 	}
 }
+
+// The List's period line tells what the period's sessions come to, but
+// where every day of it is no longer kept, as there's nothing to count.
+func TestThePeriodLineTellsNoCountsWhereEveryDayIsGone(t *testing.T) {
+	tests := []struct {
+		name   string
+		unkept views.UnkeptDays
+		told   bool
+	}{
+		{name: "every day kept", told: true},
+		{name: "some days gone", unkept: views.UnkeptDays{KeptFrom: civilDate("2026-09-24")}, told: true},
+		{name: "every day gone", unkept: views.UnkeptDays{KeptFrom: civilDate("2026-09-28"), Every: true}},
+	}
+	for _, tt := range tests {
+		if got := (views.SessionLog{Unkept: tt.unkept}).CountsTold(); got != tt.told {
+			t.Errorf("%s: CountsTold() = %t, want %t", tt.name, got, tt.told)
+		}
+	}
+}

@@ -202,6 +202,14 @@ type SessionLog struct {
 	in PeriodInput
 }
 
+// CountsTold reports whether the List's period line tells what the period's
+// sessions come to beside its name: not where every day of the period gone
+// is no longer kept, as the List says so in place of its rows, and there's
+// nothing to count, so the line names the period alone.
+func (l SessionLog) CountsTold() bool {
+	return !l.Unkept.Every
+}
+
 // SessionLog is Sessions' List over in's period, as SessionLog has it, of
 // the days d holds at in's Now, each project tallied as tallied has it, so
 // it rows every session alike with Projects' pages, each named by its
