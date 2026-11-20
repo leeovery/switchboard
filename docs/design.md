@@ -5546,7 +5546,10 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   a reset, on average` in `text.muted`, to the weeks' edge; where that doesn't fit, `limit hit 3
   of 7 weeks · 9% left at a reset`, then the limits alone; and `not enough weeks yet`, in
   `text.subtle`, where none is whole. As it fits to the weeks' edge, never the frame's, its form
-  follows the layout alone.
+  follows the layout alone. In a past period whose last week isn't this week, it says the weeks
+  by the rule's words, `limit hit 3 of the 7 weeks to Sun 27 Sep · 9% left at a reset, on
+  average`, its shorter forms as at now; Compare's facts, `limit hit 3 of 7`, are the same in
+  any period.
 - **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
   and as its table in the stack, or in the wide form where not a week of bands fits across.
   `all accounts`' peak of a week is at its cap where any account's peak is. So its marks agree
