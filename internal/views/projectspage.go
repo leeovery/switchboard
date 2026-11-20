@@ -19,18 +19,23 @@ import (
 // PeriodInput is what Projects' page and Sessions' log are built of beside
 // the sessions' days: the period they count over; today's List, as
 // HeldSessions' List gives it, its sessions running and those of today, as
-// SESSIONS and the log row them; what
-// names the accounts, configured and removed; the prices worth is priced by,
-// at now's day's prices, as Past and the List price theirs, and the version
-// table that names the models; the day weeks start on; how a model's family
-// is read from its id, for one the table doesn't name; now; and Began, the
-// start of the first day of the work the days are of, a pool's first day of
-// work of a pool's, as PoolRead's Start tells it, for a page's charts to
-// begin there, as worthCharts has it: zero where it's unknown; and how a
-// session's project is read, as the List reads it.
+// SESSIONS and the log row them at now, as listed has it; Hours, the fold of
+// a day gone the period is, as ReadDayFold reads it, for its pages to chart
+// it by the hour, as hoursFold has it, the zero DayFold where none is read;
+// what names the accounts, configured and removed; the prices worth is
+// priced by, at now's day's prices, as Past and the List price theirs, a
+// period gone's too, and the version table that names the models; the day
+// weeks start on; how a model's family is read from its id, for one the
+// table doesn't name; now; and Began, the start of the first day of the work
+// the days are of, a pool's first day of work of a pool's, as PoolRead's
+// Start tells it, for a page's charts to begin there, as worthCharts has it,
+// and the days whose sessions are no longer kept to be told from those before
+// it, as unkept has them: zero where it's unknown; and how a session's
+// project is read, as the List reads it.
 type PeriodInput struct {
 	Period     Period
 	List       SessionList
+	Hours      DayFold
 	Names      status.Namer
 	Prices     ledger.Table
 	WeekStarts time.Weekday
@@ -40,24 +45,58 @@ type PeriodInput struct {
 	Projects   status.Projects
 }
 
+// span is the period's span at in's Now, weeks starting on in's day.
+func (in PeriodInput) span() periodSpan {
+	return in.Period.spanAt(dayfile.CivilOf(in.Now), in.WeekStarts)
+}
+
+// lists reports whether a page of in's period lists in's List, today's: at
+// now; never of a period gone, as none of its sessions runs, and today's are
+// none of its, so nothing it rows, counts or tells afresh is of now.
+func (in PeriodInput) lists() bool {
+	return !in.span().gone
+}
+
+// listed is in's List as a page of its period lists it, as lists has it:
+// none of a period gone.
+func (in PeriodInput) listed() SessionList {
+	if !in.lists() {
+		return SessionList{}
+	}
+	return in.List
+}
+
 // ProjectsPage is Projects' list, as the dashboard draws it: a row for each
 // project with a session of the period, as inPeriod has it, by its path,
 // the sessions with no directory one row of their own, and those of
 // temporary folders another, the one worth most first; and every project's
 // together. A session's project is the one in's Projects reads of what its
 // lines named, and of what the router lists, of a session running. Project
-// gives each one's page; Most, the most rows any one's page takes.
+// gives each one's page; Most, the most rows any one's page takes; and
+// Unkept, the days of a period gone whose sessions are no longer kept.
 type ProjectsPage struct {
 	Period Period
 	Rows   []ProjectRow
 	All    ProjectTotals
 	Most   ProjectsMost
+	Unkept UnkeptDays
 	// PricesAsOf is the date of the day the price table worth is priced by
 	// was read, as help gives it.
 	PricesAsOf string
 
 	tallies map[string]*projectTally
 	in      PeriodInput
+}
+
+// UnkeptDays are the days of a period gone whose sessions are no longer
+// kept, as the ledger keeps a day's sessions only as long as its lines: their
+// dates, the latest first, as the List's day rules run, each of which says
+// so under its rule in place of its rows; and Every, set where they're every
+// day of the period from the day the work it counts began, so it says so in
+// place of saying it had no session. None of a period at now.
+type UnkeptDays struct {
+	Dates []string
+	Every bool
 }
 
 // ProjectsMost are the most of a page's rows any project of the list has:
@@ -70,9 +109,9 @@ type ProjectsMost struct {
 }
 
 // ProjectTotals are a project's totals over the period, or every project's:
-// its sessions running now; its sessions, each once, however many days it
-// ran on, those running among them; its requests; and what they were worth
-// at API prices, as Worth sums it.
+// its sessions running now, none of a period gone; its sessions, each once,
+// however many days it ran on, those running among them; its requests; and
+// what they were worth at API prices, as Worth sums it.
 type ProjectTotals struct {
 	Live, Sessions, Requests int
 	Worth
@@ -85,8 +124,9 @@ type ProjectTotals struct {
 // "" of either of those; its totals; its share of every project's worth,
 // nil where either is none; its tokens; its worth by model family, in the
 // version table's order of families, as BY MONTH splits a month's; when its
-// last request arrived, in UTC, zero where none did; and what its sessions running are doing, the busiest's,
-// as busiest has it, Idle where none runs, so its last request reads as now
+// last request in the period arrived, in UTC, zero where none did; and what
+// its sessions running are doing, the busiest's, as busiest has it, Idle
+// where none runs, as in a period gone, so its last request reads as now
 // while one of them is busy, as Activity's Busy has it.
 type ProjectRow struct {
 	Path, Name string
@@ -122,16 +162,19 @@ func (d SessionDays) Projects(in PeriodInput) ProjectsPage {
 
 // SessionLog is Sessions' List over the period, as the dashboard draws it:
 // every session of the period, as inPeriod has it, as SESSIONS rows a
-// project's, those running first, then those ended, by the day they ended,
-// the latest first, as periodRows orders them; and what they come to
-// together, as every project's together on Projects. list is the List it
-// was built of, as Live tells it afresh.
+// project's, those running first, or of a period gone those that went on
+// after it, then those ended, by the day they ended, the latest first, as
+// periodRows orders them; what they come to together, as every project's
+// together on Projects; and the days of a period gone whose sessions are no
+// longer kept, as Projects has them. in is what it was built of, its List
+// as Live tells it afresh.
 type SessionLog struct {
 	Period   Period
 	Sessions []PeriodSession
 	All      ProjectTotals
+	Unkept   UnkeptDays
 
-	list SessionList
+	in PeriodInput
 }
 
 // SessionLog is Sessions' List over in's period, as SessionLog has it, of
@@ -149,35 +192,38 @@ func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 			projectNamed[id] = names[p.path]
 		}
 	}
-	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), list: in.List}
+	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), Unkept: t.unkept, in: in}
 }
 
 // tallied are the projects of in's period, each tallied of the days d holds
-// at in's Now, as each has it: the days of the period gone, and the day d's
-// fold of the tail is of, today's or, where the day turned since the tail
-// was last read, the day it turned from; with the sessions in's List lists
-// running; each session of the period alone, as inPeriod has it. Each
-// session is one project's, the one of where it last ran, as sessionPlaces
-// has it, and started at its first request wherever it fell, as
-// startedBefore has it of the days before the period's.
+// at in's Now, as each has it, from its first day to its last, or today at
+// now; what each spent by the hour of the period's day, of the fold of it
+// hoursFold gives; with the sessions in's List lists running, at now alone,
+// as listed has it; each session of the period alone, as inPeriod has it.
+// Each session is one project's, the one of where it last ran in the period,
+// as sessionPlaces has it, and started at its first request wherever it
+// fell, as startedBefore has it of the days before the period's. Of a period
+// gone, those that went on after it are told, as wentOnAfter has them, and
+// its days whose sessions are no longer kept, as unkept has them.
 func (d SessionDays) tallied(in PeriodInput) projectTallies {
-	today := dayfile.CivilOf(in.Now)
-	first := in.Period.spanAt(today, in.WeekStarts).first.Format(time.DateOnly)
-	todayDate := today.Format(time.DateOnly)
+	span := in.span()
+	first := span.first.Format(time.DateOnly)
+	hours := d.hoursFold(in)
 	t := projectTallies{
-		all: make(map[string]*projectTally), price: pricing{prices: in.Prices, date: todayDate}, v: versions{table: in.Prices, family: in.Family},
-		projects: in.Projects,
+		all: make(map[string]*projectTally), price: pricing{prices: in.Prices, date: dayfile.DateOf(in.Now)}, v: versions{table: in.Prices, family: in.Family},
+		projects: in.Projects, hoursOn: hours.hoursOn(), unkept: d.unkept(span, in.Began),
 	}
-	places := d.sessionPlaces(first, todayDate, in.List)
-	d.each(first, todayDate, func(date string, s *foldedSession) {
+	listed := in.listed()
+	places := d.sessionPlaces(span, listed)
+	d.each(span, func(date string, s *foldedSession) {
 		p := t.of(places[s.ID])
 		p.take(date, s.DaySession, t.price, t.v)
-		if date == todayDate {
-			p.hourly(s.hours, t.price)
+		if folded, ok := hours.held.held[s.ID]; ok && date == t.hoursOn {
+			p.hourly(folded.hours, t.price)
 		}
 	})
 	running := make(map[string]bool)
-	for _, s := range in.List.Sessions {
+	for _, s := range listed.Sessions {
 		if s.Running {
 			t.of(places[s.Session]).run(s)
 			running[s.Session] = true
@@ -185,16 +231,33 @@ func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	}
 	t.ofPeriod(running)
 	t.started(d.startedBefore(first))
+	if span.gone {
+		t.wentOn(d.wentOnAfter(span, in.List))
+	}
 	return t
 }
 
-// sessionPlaces are where each session of the period from the date first to
-// the date today ran last, by its id, as sessionPlace's after has it of its days in
-// their order, then of list's listing of it, where it runs.
-func (d SessionDays) sessionPlaces(first, today string, list SessionList) map[string]sessionPlace {
+// hoursFold is the fold whose hours in's period is charted by, as hourly
+// has it: in's Hours, where they're the period's day's, as a day gone's
+// read; else d's fold of the tail, where it is, as today's at now; the zero
+// DayFold where neither is, as of a period of more than a day, or of a day
+// whose hours aren't known, which is charted by the day.
+func (d SessionDays) hoursFold(in PeriodInput) DayFold {
+	for _, f := range []DayFold{in.Hours, d.TodayFold()} {
+		if in.Period.hourly(f.hoursOn(), in.Now, in.WeekStarts) {
+			return f
+		}
+	}
+	return DayFold{}
+}
+
+// sessionPlaces are where each session of the span s ran last, by its id,
+// as sessionPlace's after has it of its days in their order, as each has
+// them, then of list's listing of it, where it runs.
+func (d SessionDays) sessionPlaces(s periodSpan, list SessionList) map[string]sessionPlace {
 	places := make(map[string]sessionPlace)
 	ranIn := func(id string, q sessionPlace) { places[id] = places[id].after(q) }
-	d.each(first, today, func(_ string, s *foldedSession) { ranIn(s.ID, s.place()) })
+	d.each(s, func(_ string, s *foldedSession) { ranIn(s.ID, s.place()) })
 	for _, s := range list.Sessions {
 		if s.Running {
 			ranIn(s.Session, s.place())
@@ -203,19 +266,60 @@ func (d SessionDays) sessionPlaces(first, today string, list SessionList) map[st
 	return places
 }
 
-// each hands f each session of each day of the period from the date first
-// to the date today d holds, oldest first, with its day's date: of the days
-// gone, as their records hold them; and of the day d's fold of the tail is
-// of, as the fold holds them, what they spent by the hour too.
-func (d SessionDays) each(first, today string, f func(date string, s *foldedSession)) {
+// wentOnAfter are the ids of the sessions that went on after the span gone
+// given: those that made a request on a day after its last that d holds, to
+// today, as each has them, and those list lists running now.
+func (d SessionDays) wentOnAfter(s periodSpan, list SessionList) map[string]bool {
+	on := make(map[string]bool)
+	d.each(s.after(), func(_ string, s *foldedSession) {
+		if !s.LastRequest.IsZero() {
+			on[s.ID] = true
+		}
+	})
+	for _, s := range list.Sessions {
+		if s.Running {
+			on[s.Session] = true
+		}
+	}
+	return on
+}
+
+// unkept are the days of the span gone given whose sessions d no longer
+// holds, as UnkeptDays has them: those before the first the ledger kept
+// lines of as d was read, as linesFrom has it, from the span's first, or
+// the day the work began at began where that's later. None of a span at
+// now, nor where the day the work began, or where the ledger's lines begin,
+// isn't known, as no day can then be told from one before the work.
+func (d SessionDays) unkept(s periodSpan, began time.Time) UnkeptDays {
+	kept, known := dayfile.Civil(d.linesFrom)
+	if !s.gone || began.IsZero() || !known {
+		return UnkeptDays{}
+	}
+	var u UnkeptDays
+	from, through := begunFrom(s.first, began), score.Earlier(s.last, kept.AddDate(0, 0, -1))
+	for day := through; !day.Before(from); day = day.AddDate(0, 0, -1) {
+		u.Dates = append(u.Dates, day.Format(time.DateOnly))
+	}
+	u.Every = len(u.Dates) > 0 && through.Equal(s.last)
+	return u
+}
+
+// each hands f each session of each day of the span s d holds, oldest
+// first, with its day's date, from its first day through its last, or
+// today, as through has it: of the days gone, as their records hold them;
+// and of the day d's fold of the tail is of, today's or, where the day
+// turned since the tail was last read, the day it turned from, as the fold
+// holds them, what they spent by the hour too.
+func (d SessionDays) each(s periodSpan, f func(date string, s *foldedSession)) {
+	first, through, today := s.first.Format(time.DateOnly), s.through().Format(time.DateOnly), s.today.Format(time.DateOnly)
 	for _, day := range d.days {
-		if day.date >= first && day.date < today && day.date != d.today.Date {
+		if day.date >= first && day.date <= through && day.date < today && day.date != d.today.Date {
 			for _, s := range day.sessions {
 				f(day.date, &foldedSession{DaySession: s})
 			}
 		}
 	}
-	if d.today.Date >= first && d.today.Date <= today {
+	if d.today.Date >= first && d.today.Date <= through {
 		for _, s := range d.held.held {
 			f(d.today.Date, s)
 		}
@@ -256,17 +360,21 @@ func (p ProjectsPage) Project(path string) (ProjectPage, bool) {
 	if i < 0 {
 		return ProjectPage{}, false
 	}
-	return p.tallies[path].page(p.Rows[i], p.in), true
+	return p.tallies[path].page(p.Rows[i], p.in, p.Unkept), true
 }
 
 // projectTallies are each project's tally, by its path, as the page's days
 // are taken in, priced and named as price and v have them, each session's
-// project read as projects reads it.
+// project read as projects reads it; hoursOn, the date of the day whose
+// hours they take, as tallied has it, "" where none; and unkept, the days of
+// a period gone whose sessions are no longer kept.
 type projectTallies struct {
 	all      map[string]*projectTally
 	price    pricing
 	v        versions
 	projects status.Projects
+	hoursOn  string
+	unkept   UnkeptDays
 }
 
 // of is the tally of the project a session that ran where given is of, as
@@ -276,10 +384,20 @@ func (t projectTallies) of(ran sessionPlace) *projectTally {
 	p, ok := t.all[path]
 	if !ok {
 		p = &projectTally{path: path, sessions: make(map[string]*sessionTally), families: familySums{}, models: modelTally{},
-			accounts: make(map[string]Worth), days: dayWorths{}}
+			accounts: make(map[string]Worth), days: dayWorths{}, hours: hourWorths{date: t.hoursOn}}
 		t.all[path] = p
 	}
 	return p
+}
+
+// wentOn tells each session the tallies hold whose id is among those given
+// as one that went on after the period, as wentOnAfter has them.
+func (t projectTallies) wentOn(on map[string]bool) {
+	for _, p := range t.all {
+		for id, st := range p.sessions {
+			st.wentOn = on[id]
+		}
+	}
 }
 
 // ofPeriod lets go of each session the tallies hold that isn't of the
@@ -325,9 +443,10 @@ func (t projectTallies) names() map[string]string {
 // page is the list of the tallies, as Projects has it.
 func (t projectTallies) page(in PeriodInput) ProjectsPage {
 	names := t.names()
-	page := ProjectsPage{Period: in.Period, All: t.totals(), PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
+	page := ProjectsPage{Period: in.Period, All: t.totals(), Unkept: t.unkept, PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
+	listed := in.listed()
 	for _, p := range t.all {
-		page.Rows = append(page.Rows, p.row(names[p.path], in.List, t.v, page.All))
+		page.Rows = append(page.Rows, p.row(names[p.path], listed, t.v, page.All))
 		byModel := p.byModel(t.v)
 		page.Most.Versions = max(page.Most.Versions, len(byModel))
 		page.Most.Accounts = max(page.Most.Accounts, len(p.accounts))
@@ -360,8 +479,9 @@ func (t projectTallies) totals() ProjectTotals {
 // projectTally is a project's use over the period as it's taken in: its
 // path; its sessions, by their ids; how many of them run now; its requests,
 // their worth and tokens; its worth by family, by model version and by the
-// account it ran on; and by day, by date, and today by the local hour; and
-// when its last request arrived.
+// account it ran on; and by day, by date, and by the local hour of the day
+// the tallies take the hours of, as hoursOn has it; and when its last
+// request arrived.
 type projectTally struct {
 	path     string
 	sessions map[string]*sessionTally
@@ -373,7 +493,7 @@ type projectTally struct {
 	models   modelTally
 	accounts map[string]Worth
 	days     dayWorths
-	hours    [24]Worth
+	hours    hourWorths
 	last     time.Time
 }
 
@@ -382,8 +502,9 @@ type projectTally struct {
 // or a project named them; its requests and their worth; when its first
 // request arrived, wherever it fell, as started has it, its last, and its
 // last line, of those counted toward it; what
-// names it over its days; and its last day, by date, and the moves of each
-// of its models that day.
+// names it over its days; its last day, by date, and the moves of each of
+// its models that day; and, of a period gone, whether it went on after it,
+// as wentOnAfter has it.
 type sessionTally struct {
 	id string
 	sessionPlace
@@ -394,6 +515,7 @@ type sessionTally struct {
 	naming                    naming
 	lastDay                   string
 	moves                     []dayMove
+	wentOn                    bool
 }
 
 // session is the tally of the session with the given id: begun where none
@@ -442,12 +564,13 @@ func (p *projectTally) take(date string, s DaySession, price pricing, v versions
 	}
 }
 
-// hourly takes in what a session of the project's spent today by the local
-// hour, on every account, as hours holds it, priced as price prices it.
+// hourly takes in what a session of the project's spent by the local hour of
+// the day the tallies take the hours of, on every account, as hours holds
+// it, priced as price prices it.
 func (p *projectTally) hourly(hours accountHours, price pricing) {
 	for _, on := range hours {
 		for h := range on {
-			p.hours[h].add(price.worth(on[h]))
+			p.hours.worth[h].add(price.worth(on[h]))
 		}
 	}
 }

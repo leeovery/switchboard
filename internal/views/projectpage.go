@@ -17,7 +17,8 @@ import (
 // shows it over the period: its row, which holds its share of every
 // project's worth and its tokens too; its worth in buckets, WORTH BY; each
 // model version's share of its worth, BY MODEL; each account's, ON
-// ACCOUNTS; and its sessions, SESSIONS.
+// ACCOUNTS; its sessions, SESSIONS; and the days of a period gone whose
+// sessions are no longer kept, as Projects has them, which SESSIONS says.
 type ProjectPage struct {
 	ProjectRow
 	// WorthBy is its worth in each bucket the period charts it in, as
@@ -31,9 +32,10 @@ type ProjectPage struct {
 	// worth most on first.
 	OnAccounts []AccountShare
 	// Sessions are its sessions over the period, in the List's order: those
-	// running first, the oldest started first, then those ended, the latest
-	// ended first.
+	// running first, or of a period gone those that went on after it, the
+	// oldest started first, then those ended, the latest ended first.
 	Sessions []PeriodSession
+	Unkept   UnkeptDays
 }
 
 // VersionShare is a model version's share of a project's worth: the
@@ -57,26 +59,34 @@ type AccountShare struct {
 // SESSIONS row it, in the List's form, so it's drawn in the List's columns:
 // its requests and their worth over the period. EndedOn is the date of the
 // local day it ended on, as its rule groups it, by its last request; ""
-// while it runs. ProjectName names its project, on Sessions' List alone,
-// as Projects names the project's row: "" on a project's SESSIONS, which
-// the project heads, and of a session with no directory or of temporary
-// folders. Twinned is set where another row of its list shows the same
-// project and name, so ShownName gives its id too; and IDCells, where it
-// shows its id beside one that would show alike, is how much of its id
-// tells it apart, 0 for status.IDShown: each as toldApart has them.
+// while it runs, or where it went on. WentOn is set, in a period gone, where
+// it had requests in the period and went on after its last day, as
+// wentOnAfter has it: it sits first, where one running would at now, its
+// state that it went on in place of its end, as it didn't end in the period,
+// and all it's listed by, its requests and worth among them, of the
+// period's days alone, as listedEnded lists one. ProjectName names its
+// project, on Sessions' List alone, as Projects names the project's row: ""
+// on a project's SESSIONS, which the project heads, and of a session with no
+// directory or of temporary folders. Twinned is set where another row of its
+// list shows the same project and name, so ShownName gives its id too; and
+// IDCells, where it shows its id beside one that would show alike, is how
+// much of its id tells it apart, 0 for status.IDShown: each as toldApart has
+// them.
 type PeriodSession struct {
 	ListedSession
 	EndedOn     string
+	WentOn      bool
 	ProjectName string
 	Twinned     bool
 	IDCells     int
 }
 
-// page is the project's page, its row given, the page built of in.
-func (p *projectTally) page(row ProjectRow, in PeriodInput) ProjectPage {
+// page is the project's page, its row given, the page built of in, the days
+// whose sessions are no longer kept given.
+func (p *projectTally) page(row ProjectRow, in PeriodInput, unkept UnkeptDays) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
-	page := ProjectPage{ProjectRow: row, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
-	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, in.Began, p.days, &hourWorths{date: dayfile.DateOf(in.Now), worth: p.hours})
+	page := ProjectPage{ProjectRow: row, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names), Unkept: unkept}
+	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, in.Began, p.days, &p.hours)
 	page.Sessions = periodRows(p.sessions, in, nil)
 	return page
 }
@@ -117,16 +127,19 @@ func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
 }
 
 // periodRows are the sessions given as the List and SESSIONS row them, in
-// the order inPeriodOrder has: each of in's List as the List has it, its
-// requests and worth those of the period, started at the earlier of the
-// List's start and its first request, as the days and the walk back before
-// them found it; each other as listedEnded has it; each named by its project
-// as projects names it, by its id, none for nil; and those that show alike
-// told apart, as toldApart has it. It's the one way a session of the period
-// is rowed, a project's or the List's.
+// the order inPeriodOrder has: each of in's List, as listed has it, as the
+// List has it, its requests and worth those of the period, started at the
+// earlier of the List's start and its first request, as the days and the
+// walk back before them found it; each other as listedEnded has it, of its
+// days in the period alone, as every session of a period gone is, those
+// that went on after it told so; each named by its project as projects
+// names it, by its id, none for nil; and those that show alike told apart,
+// as toldApart has it. It's the one way a session of the period is rowed, a
+// project's or the List's.
 func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[string]string) []PeriodSession {
-	listed := make(map[string]ListedSession, len(in.List.Sessions))
-	for _, s := range in.List.Sessions {
+	list := in.listed()
+	listed := make(map[string]ListedSession, len(list.Sessions))
+	for _, s := range list.Sessions {
 		listed[s.Session] = s
 	}
 	price := pricing{prices: in.Prices, date: dayfile.DateOf(in.Now)}
@@ -139,8 +152,8 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[
 		} else {
 			s = st.listedEnded(price, in.Projects)
 		}
-		row := PeriodSession{ListedSession: s.named(in.Names), ProjectName: projects[st.id]}
-		if !s.Running {
+		row := PeriodSession{ListedSession: s.named(in.Names), WentOn: st.wentOn, ProjectName: projects[st.id]}
+		if !row.leads() {
 			row.EndedOn = dayfile.DateOf(cmp.Or(s.Ended, in.Now))
 		}
 		rows = append(rows, row)
@@ -150,14 +163,26 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput, projects map[
 	return rows
 }
 
-// inPeriodOrder orders the sessions of a period: those running first, as
-// the List orders them; then those it lists as not running, by the day each
-// ended, the latest first, as its last request's day has it, as of one the
-// stream told of before the router lists it, each day's as the List orders
-// them.
+// leads reports whether the session sits first among the period's, as
+// inPeriodOrder has it: running, or in a period gone, gone on after it.
+func (s PeriodSession) leads() bool {
+	return s.Running || s.WentOn
+}
+
+// inPeriodOrder orders the sessions of a period: those that lead first, as
+// leads has them, the oldest started first, as the List orders those
+// running; then the rest, by the day each ended, the latest first, as its
+// last request's day has it, as of one the stream told of before the router
+// lists it, each day's as the List orders them.
 func inPeriodOrder(a, b PeriodSession) int {
-	if a.Running || b.Running {
-		return inListOrder(a.ListedSession, b.ListedSession)
+	switch {
+	case a.leads() != b.leads():
+		if a.leads() {
+			return -1
+		}
+		return 1
+	case a.leads():
+		return cmp.Or(startedFirst(a.Started, b.Started), strings.Compare(a.Session, b.Session))
 	}
 	return cmp.Or(strings.Compare(b.EndedOn, a.EndedOn), inListOrder(a.ListedSession, b.ListedSession))
 }

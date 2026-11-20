@@ -313,7 +313,7 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 	in := input(nil)
 	in.Accounts = workAndSide
 	byDay := views.NewPast(in, nil).Accounts(views.LengthToday.Now())
-	page := byDay.Hourly(heldDays(now, lines...))
+	page := byDay.Hourly(heldDays(now, lines...).TodayFold())
 	type chart struct {
 		unit            views.BucketUnit
 		buckets, toCome int
@@ -363,16 +363,16 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 		return []views.WorthCharts{page.Rows[0].WorthBy, page.Rows[1].WorthBy, page.All.WorthBy}
 	}
 	yesterday := heldDays(october(6, 23, 0), projectAsks(repoSession, "/code/switchboard", "", "work", october(6, 22, 0))...)
-	if got := byDay.Hourly(yesterday); !reflect.DeepEqual(charts(got), charts(byDay)) {
+	if got := byDay.Hourly(yesterday.TodayFold()); !reflect.DeepEqual(charts(got), charts(byDay)) {
 		t.Errorf("fed yesterday's fold, today's page is charted %+v, want it by the day, %+v", charts(got), charts(byDay))
 	}
 	week := views.NewPast(in, nil).Accounts(views.LengthThisWeek.Now())
-	if got := week.Hourly(heldDays(now, lines...)); !reflect.DeepEqual(charts(got), charts(week)) {
+	if got := week.Hourly(heldDays(now, lines...).TodayFold()); !reflect.DeepEqual(charts(got), charts(week)) {
 		t.Errorf("fed today's fold, this week's page is charted %+v, want it by the day, %+v", charts(got), charts(week))
 	}
 	back, _ := views.LengthToday.Now().Back(in.Now, in.WeekStarts, time.Time{})
 	gone := views.NewPast(in, nil).Accounts(back)
-	if got := gone.Hourly(heldDays(now, lines...)); !reflect.DeepEqual(charts(got), charts(gone)) {
+	if got := gone.Hourly(heldDays(now, lines...).TodayFold()); !reflect.DeepEqual(charts(got), charts(gone)) {
 		t.Errorf("fed today's fold, yesterday's page is charted %+v, want it by the day, %+v", charts(got), charts(gone))
 	}
 }
@@ -398,7 +398,7 @@ func TestAccountsTodaysHoursSumToItsWorth(t *testing.T) {
 	days := []ledger.Summary{summary}
 	in := input(days)
 	in.Accounts = workAndSide
-	page := views.NewPast(in, days).Accounts(views.LengthToday.Now()).Hourly(heldDays(now, lines...))
+	page := views.NewPast(in, days).Accounts(views.LengthToday.Now()).Hourly(heldDays(now, lines...).TodayFold())
 	for _, row := range append(slices.Clone(page.Rows), page.All) {
 		var sum views.Worth
 		for _, b := range row.WorthBy[0].Buckets {
@@ -421,7 +421,7 @@ func TestARequestOfNoSessionGivenAgainCountsOnce(t *testing.T) {
 		Tailed(line, true, nil, nil, now, views.PoolRead{}).Tailed(line, false, nil, nil, now, views.PoolRead{})
 	in := input(nil)
 	in.Accounts = workAndSide
-	page := views.NewPast(in, nil).Accounts(views.LengthToday.Now()).Hourly(days)
+	page := views.NewPast(in, nil).Accounts(views.LengthToday.Now()).Hourly(days.TodayFold())
 	if got := page.Rows[0].WorthBy[0].Buckets[10].Worth; !reflect.DeepEqual(got, hoursWorth(1)) {
 		t.Errorf("given twice, work's 10:00 is worth %+v, want the request's once, %+v", got, hoursWorth(1))
 	}

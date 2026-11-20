@@ -159,24 +159,26 @@ func worthsByDay(days []Day, accounts config.Accounts) []dayWorths {
 }
 
 // Hourly is the page with its day's worth charted by the hour, where its
-// period is the day d's fold of the tail is of, as worthCharts charts a
-// day's hours: each row's, what the requests the fold holds that went to its
-// account were worth by the local hour each arrived in, those of no session
-// among them, as the day's summary counts them, and all accounts', every
-// one's, those none answered among them, priced at today's prices, as the
-// days are, as Projects charts a project's day, worthCharts' one rule. Else
-// it's the page as it is, its days by the day, as where it's today and the
-// fold is of the day before, or it's a day gone and the fold is today's.
-func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
-	if !p.Period.hourly(d.today.Date, p.in.Now, p.in.WeekStarts) {
+// period is the day the fold given is of, its hours known, as DayFold has
+// them, as worthCharts charts a day's hours: each row's, what the requests
+// the fold holds that went to its account were worth by the local hour each
+// arrived in, those of no session among them, as the day's summary counts
+// them, and all accounts', every one's, those none answered among them,
+// priced at today's prices, as the days are, as Projects charts a project's
+// day, worthCharts' one rule. Else it's the page as it is, its days by the
+// day, as where it's today and the fold is of the day before, it's a day
+// gone and the fold is today's, or the day's lines are no longer kept.
+func (p AccountsPage) Hourly(f DayFold) AccountsPage {
+	on := f.hoursOn()
+	if !p.Period.hourly(on, p.in.Now, p.in.WeekStarts) {
 		return p
 	}
-	byAccount, all := d.held.worthByHour(pricing{prices: p.in.Prices, date: dayfile.DateOf(p.in.Now)})
+	byAccount, all := f.held.worthByHour(pricing{prices: p.in.Prices, date: dayfile.DateOf(p.in.Now)})
 	p.Rows = slices.Clone(p.Rows)
 	for x, a := range p.in.Accounts {
-		p.Rows[x].WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hourWorths{date: d.today.Date, worth: byAccount[a.ID]})
+		p.Rows[x].WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hourWorths{date: on, worth: byAccount[a.ID]})
 	}
-	p.All.WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hourWorths{date: d.today.Date, worth: all})
+	p.All.WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hourWorths{date: on, worth: all})
 	return p
 }
 

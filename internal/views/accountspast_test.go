@@ -312,22 +312,23 @@ func TestAPeriodGonesWorthMarksNoBucketAsNows(t *testing.T) {
 
 // A day's page fed the fold of that day's lines charts its worth by that
 // day's hours, a day gone's too, none of them now's or to come; fed another
-// day's, it's charted by the day. Projects' page of a day gone, handed
-// today's hours, charts it by the day, as they're not its own.
+// day's, it's charted by the day. Projects' page of a day gone, of its
+// session that day, handed today's hours, charts it by the day, as they're
+// not its own.
 func TestADaysHoursChartThatDayAlone(t *testing.T) {
 	in := input(nil)
 	in.Accounts = workAndSide
 	yesterday, _ := views.LengthToday.Now().Back(now, time.Monday, time.Time{})
 	page := views.NewPast(in, nil).Accounts(yesterday)
 	itsFold := heldDays(october(6, 23, 0), projectAsks(repoSession, "/code/switchboard", "", "work", october(6, 22, 0))...)
-	todays := heldDays(now, projectAsks(repoSession, "/code/switchboard", "", "work", october(7, 9, 0))...)
-	by := page.Hourly(itsFold).Rows[0].WorthBy[0]
+	todays := heldDays(now, projectAsks(repoSession, "/code/switchboard", "", "work", october(6, 22, 0), october(7, 9, 0))...)
+	by := page.Hourly(itsFold.TodayFold()).Rows[0].WorthBy[0]
 	if by.Unit != views.ByHour || dayfile.DateOf(by.Buckets[0].Start) != "2026-10-06" || by.ToCome != 0 || by.Now() != -1 ||
 		!reflect.DeepEqual(by.Buckets[22].Worth, hoursWorth(1)) {
 		t.Errorf("fed its fold, yesterday's work is charted by %d from %v, %d to come, now %d, 22:00 worth %+v; want by the hour of 6 Oct, none now's, 22:00's request",
 			by.Unit, by.Buckets[0].Start, by.ToCome, by.Now(), by.Buckets[22].Worth)
 	}
-	if got := chartsFrom(page.Hourly(todays).Rows[0].WorthBy); !reflect.DeepEqual(got, []chartFrom{{views.ByDay, 1, "2026-10-06"}}) {
+	if got := chartsFrom(page.Hourly(todays.TodayFold()).Rows[0].WorthBy); !reflect.DeepEqual(got, []chartFrom{{views.ByDay, 1, "2026-10-06"}}) {
 		t.Errorf("fed today's fold, yesterday's work is charted %+v, want by the day", got)
 	}
 	project, _ := todays.Projects(projectsIn(yesterday, now)).Project("/code/switchboard")

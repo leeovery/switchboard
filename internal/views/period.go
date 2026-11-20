@@ -325,6 +325,12 @@ func (p Period) spanAt(today time.Time, starts time.Weekday) periodSpan {
 	}
 }
 
+// after is the span of the days after s's last, to today: none of a span at
+// now.
+func (s periodSpan) after() periodSpan {
+	return periodSpan{first: s.last.AddDate(0, 0, 1), last: s.today, today: s.today}
+}
+
 // earliest reports whether the span begins on or before the day the work it
 // counts began, at began, as beganOn has it: the earliest < steps back to.
 // It never does where began is zero, as where that isn't known.
