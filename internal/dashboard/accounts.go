@@ -65,6 +65,10 @@ type AccountsShown struct {
 	// Tokens isn't shown.
 	TokensSplit TokensSplit
 	Tokens      *views.TokensPage
+	// Lately is Detail's LATELY in a past period, the router's events up to
+	// the end of its last day as the watch tells them: none at now, where
+	// Detail tells the document's, nor while they're read.
+	Lately []views.Sentence
 }
 
 // AccountsKept is Accounts as the preferences kept it: the sub-tab and

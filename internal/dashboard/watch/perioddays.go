@@ -165,13 +165,11 @@ type daysFeed struct {
 
 // daysFeed is what a read of the ledger's tail asked at now feeds the
 // sessions' days, as daysFeed has it: the days read again for them those
-// they owe, as Owed has them, and those the tail followed no further, as
-// missed has them.
+// they owe, and those the tail followed no further, as owed has them.
 func (m Model) daysFeed(now time.Time) daysFeed {
 	f := daysFeed{days: m.sessionDays.tailed, keeps: m.sessionDays.asked > 0, pool: m.cfg.PoolRead}
 	if f.keeps {
-		owed := slices.Concat(f.days.Owed(now), m.tail.missed(views.Today(now)))
-		f.owed = slices.Compact(slices.Sorted(slices.Values(owed)))
+		f.owed = m.owed(now)
 	}
 	return f
 }
@@ -247,29 +245,50 @@ func (m Model) joinedDays() views.SessionDays {
 }
 
 // periodBuiltOf is what a page of the sessions' days was built of: the
-// reads of the days landed, and the reads of the ledger's tail that told
-// otherwise of the days it fed; the period; the local day it was built on,
-// and of today, the hour, as todayHour has it; and the sessions of the List
-// it draws, by what's drawn of each, as runningKey keys them.
+// reads of the days landed, the reads of the ledger's tail that told
+// otherwise of the days it fed, and the reads of a day gone's fold landed,
+// as pastDay counts them; the period; the local day it was built on, and of
+// today, the hour, as todayHour has it; and the sessions of the List it
+// draws, by what's drawn of each, as runningKey keys them.
 type periodBuiltOf struct {
-	read, fed int
-	period    views.Period
-	day       string
-	hour      int
-	listed    []runningKey
+	read, fed, folds int
+	period           views.Period
+	day              string
+	hour             int
+	listed           []runningKey
 }
 
-// daysBuiltOf is what a page of the sessions' days built at now is built of, as
-// periodBuiltOf has it, the List's sessions it draws as given.
+// daysBuiltOf is what a page of the sessions' days built at now is built
+// of, as periodBuiltOf has it, the List's sessions it draws as given; of a
+// period gone, those running alone, as wentOn keys them.
 func (m Model) daysBuiltOf(now time.Time, listed []runningKey) periodBuiltOf {
+	if m.gone(now) {
+		listed = wentOn(listed)
+	}
 	return periodBuiltOf{
-		read: m.sessionDays.read, fed: m.sessionDays.fed, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now, m.cfg.WeekStarts), listed: listed,
+		read: m.sessionDays.read, fed: m.sessionDays.fed, folds: m.pastDay.read, period: m.period, day: dayfile.DateOf(now),
+		hour: todayHour(m.period, now, m.cfg.WeekStarts), listed: listed,
 	}
 }
 
 // same reports whether the page was built of what o says.
 func (b periodBuiltOf) same(o periodBuiltOf) bool {
-	return b.read == o.read && b.fed == o.fed && b.period == o.period && b.day == o.day && b.hour == o.hour && slices.Equal(b.listed, o.listed)
+	return b.read == o.read && b.fed == o.fed && b.folds == o.folds && b.period == o.period && b.day == o.day && b.hour == o.hour &&
+		slices.Equal(b.listed, o.listed)
+}
+
+// wentOn are the sessions of those given that run, by their ids alone, as a
+// page of a period gone is built of the List: it lists none of them, nor
+// tells what any does, but a session of the period that runs now went on
+// after it, as views' wentOnAfter has it.
+func wentOn(listed []runningKey) []runningKey {
+	var running []runningKey
+	for _, k := range listed {
+		if k.running {
+			running = append(running, runningKey{id: k.id, running: true})
+		}
+	}
+	return running
 }
 
 // runningKey is a session the List lists, by what of it a page of the
@@ -311,13 +330,14 @@ func listingKeys(list views.SessionList, of func(views.ListedSession) bool) []ru
 }
 
 // periodInput is what a page of the sessions' days is built of at now
-// beside its days: the dial's period, the List given, the accounts' names,
-// the prices, the day weeks start on, how a model's family is read, where
-// the pool shown's work begins, as the days' reads learned it, and how a
-// session's project is read.
+// beside its days: the dial's period, the List given, the fold of a day
+// gone held, as pastDayHeld has it, the accounts' names, the prices, the
+// day weeks start on, how a model's family is read, where the pool shown's
+// work begins, as the days' reads learned it, how long the ledger keeps its
+// lines, and how a session's project is read.
 func (m Model) periodInput(now time.Time, list views.SessionList) views.PeriodInput {
 	return views.PeriodInput{
-		Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
-		Began: m.begun.began, Keep: m.cfg.LedgerKeep, Projects: m.cfg.Projects,
+		Period: m.period, List: list, Hours: m.pastDayHeld(now), Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts,
+		Family: m.cfg.Family, Now: now, Began: m.begun.began, Keep: m.cfg.LedgerKeep, Projects: m.cfg.Projects,
 	}
 }

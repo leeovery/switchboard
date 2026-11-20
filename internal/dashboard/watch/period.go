@@ -19,6 +19,13 @@ func todayHour(period views.Period, now time.Time, starts time.Weekday) int {
 	return now.Local().Hour()
 }
 
+// gone reports whether the dial's period is gone at now, ending before
+// today, as its Until has it.
+func (m Model) gone(now time.Time) bool {
+	_, gone := m.period.Until(now, m.cfg.WeekStarts)
+	return gone
+}
+
 // dial is the dial's period as it's said at now, as views.DialOf says it,
 // its floor where the pool shown's work of the ledger begins, as begun holds
 // it.

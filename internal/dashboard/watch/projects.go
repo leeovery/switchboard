@@ -51,7 +51,10 @@ func runningOf(list views.SessionList) []runningKey {
 // it's built of has changed, as projectsRebuilt has it, else telling what
 // its sessions running are doing, as projectsLive has it, and shown, as
 // projectsShown has it. Where there are no days to build it of, it waits, as
-// projectsWaiting has it. Never a frame at a time, which takes nothing in.
+// projectsWaiting has it; and where the fold of the day gone it charts by
+// the hour is yet to land, as hoursReady has it, it's let go to await it, as
+// projectsAwaited has it, as only a step of the dial to another day leaves
+// it unread. Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame || m.view != dashboard.Projects {
 		return m
@@ -59,6 +62,9 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	now := m.now()
 	if !m.daysReady(now) {
 		return m.projectsWaiting(now)
+	}
+	if !m.hoursReady(now) {
+		return m.projectsAwaited()
 	}
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
 	built := m.projectsRebuilt(now, list)

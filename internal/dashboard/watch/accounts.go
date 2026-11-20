@@ -17,9 +17,10 @@ import (
 // period's page, built of the ledger's days the watch holds, and what it was
 // built of, as builtOf has it; that page stood at a moment, and what it was
 // stood at, as accountsBuilt stands it; Tokens' page, and what it was built
-// of, as tokensBuilt builds it; the sessions Detail's SESSIONS listed last,
-// by id, in their order, for its selection to follow, as followed has it;
-// and where SESSIONS lay when the view was last scrolled to show them, as
+// of, as tokensBuilt builds it; Detail's LATELY in a past period, as
+// pastLatelyTold tells it; the sessions Detail's SESSIONS listed last, by
+// id, in their order, for its selection to follow, as followed has it; and
+// where SESSIONS lay when the view was last scrolled to show them, as
 // sessionsKept has it.
 type accountsTab struct {
 	shown    dashboard.AccountsShown
@@ -29,6 +30,7 @@ type accountsTab struct {
 	at       *stoodAt
 	tokens   *views.TokensPage
 	tokensOf builtOf
+	lately   pastLatelyBuilt
 	running  []string
 	today    bool
 	placed   dashboard.SessionsPlace
@@ -55,24 +57,31 @@ func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy)
 }
 
 // builtOf is what Accounts' page was built of: the days held, as pastDays
-// counts them as they change, the period, and the local day it was built on;
-// and of today, the reads of the ledger's tail that told otherwise of the
-// days it fed, as projectsTab counts them, today's worth by the hour being
-// its fold's, and the hour, as todayHour has it.
+// counts them as they change, those of the last 12 months and those read
+// back, the period, and the local day it was built on; and of a day, the
+// fold it charts by the hour, as hoursOf has it, and of today, the hour, as
+// todayHour has it.
 type builtOf struct {
-	held   int
-	period views.Period
-	day    string
-	fed    int
-	hour   int
+	held, backs int
+	period      views.Period
+	day         string
+	hours       hoursOf
+	hour        int
 }
 
-// accountsToday reports whether Accounts shows today on a view that charts
-// its worth by the hour of the tail's fold: Compare or Detail, never Tokens,
-// which reads the days held alone.
+// accountsToday reports whether Accounts shows today at now on a view that
+// charts its worth by the hour of the tail's fold, as accountsHourly has it:
+// never a day gone, as its period's Day has it, whose hours are its own.
 func (m Model) accountsToday() bool {
-	return m.shownView() == dashboard.Accounts && m.period.Length() == views.LengthToday &&
-		m.accounts.shown.View() != dashboard.AccountsTokens
+	_, gone, day := m.period.Day(m.now(), m.cfg.WeekStarts)
+	return day && !gone && m.accountsHourly()
+}
+
+// accountsHourly reports whether Accounts shows a view that charts its
+// worth by the hour of a day: Compare or Detail, never Tokens, which reads
+// the days held alone.
+func (m Model) accountsHourly() bool {
+	return m.shownView() == dashboard.Accounts && m.accounts.shown.View() != dashboard.AccountsTokens
 }
 
 // accountsEntered is m with a read of the ledger's tail due at once where
@@ -89,32 +98,45 @@ func (m Model) accountsEntered() Model {
 	return m
 }
 
-// accountsBuilt is m with Accounts' page built afresh at now of the last 12
-// months' days held, as views.Past.Accounts builds it over the dial's period,
-// today's worth by the hour of the tail's fold, as its Hourly has it, where
-// those days, the period or the day have changed since it was built, or, of
-// today, the fold has, while Accounts shows: once for each, never a frame at
-// a time, but of today, as its hour turns, too, for its charts to mark the
-// hour now falls in, as accountsEntered has the tail read. Each look reads
-// today's days afresh, as readPast reads them, so the page follows them
-// from look to look; and past midnight it moves on to the new day before
-// the next look reads it. It's stood at the moment of the message taken in,
-// as views.AccountsPage.At stands it, where it's built afresh, the document
-// or the policy is another, or the page stands otherwise since, as its
-// Until has it: never a frame at a time.
+// accountsBuilt is m with Accounts' page built afresh at now of the ledger's
+// days held that reach back as far as it reads, as AccountsFrom has it and
+// reaching has them, as views.Past.Accounts builds it over the dial's
+// period, a day's worth by the hour of the fold HoursFold picks, as its
+// Hourly has it, the tail's of today, a day gone's read, where those days,
+// the period or the day have changed since it was built, or, of a day, the
+// fold has, while Accounts shows: once for each, never a frame at a time,
+// but of today, as its hour turns, too, for its charts to mark the hour now
+// falls in, as accountsEntered has the tail read. Each look reads today's
+// days afresh, as readPast reads them, so the page follows them from look
+// to look; and past midnight it moves on to the new day before the next
+// look reads it. Where
+// the days the period's page reads, or the fold of the day gone it charts,
+// as hoursReady has it, are still to land, there's no page, as before the
+// first read lands, for it to say it's loading. It's stood at the moment of
+// the message taken in, as views.AccountsPage.At stands it, where it's built
+// afresh, the document or the policy is another, or the page stands
+// otherwise since, as its Until has it: never a frame at a time. Detail's
+// LATELY in a past period is told as pastLatelyTold tells it.
 func (m Model) accountsBuilt() Model {
 	m = m.accountsEntered()
-	if m.view != dashboard.Accounts || !m.past.last.held() {
+	if m.view != dashboard.Accounts {
 		return m
 	}
 	now := m.now()
-	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now, m.cfg.WeekStarts)}
-	if of.period.Length() == views.LengthToday {
-		of.fed = m.sessionDays.fed
+	if m = m.pastLatelyTold(now); !m.past.last.held() {
+		return m
+	}
+	past, reached := m.past.reaching(m.period.AccountsFrom(now, m.cfg.WeekStarts), m.begun.began)
+	if !reached || m.accountsHourly() && !m.hoursReady(now) {
+		m.accounts = m.accounts.awaited()
+		return m
+	}
+	of := builtOf{
+		held: m.past.held, backs: m.past.backs, period: m.period, day: dayfile.DateOf(now), hours: m.hoursOf(now), hour: todayHour(m.period, now, m.cfg.WeekStarts),
 	}
 	if m.accounts.page == nil || m.accounts.of != of {
-		hours := of.period.HoursFold(now, m.cfg.WeekStarts, views.DayFold{}, m.sessionDays.tailed.TodayFold())
-		page := m.past.last.past.Since(nil, now).Accounts(of.period).Hourly(hours)
+		hours := of.period.HoursFold(now, m.cfg.WeekStarts, m.pastDayHeld(now), m.sessionDays.tailed.TodayFold())
+		page := past.Since(nil, now).Accounts(of.period).Hourly(hours)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
 	if !m.accounts.at.holds(m.doc, now, m.cfg.Policy) {
@@ -122,20 +144,27 @@ func (m Model) accountsBuilt() Model {
 		m.accounts.stood = new(m.accounts.page.At(mo))
 		m.accounts.at = stoodTill(mo, m.accounts.page.Until(mo))
 	}
-	return m.tokensBuilt(now, builtOf{held: of.held, period: of.period, day: of.day})
+	return m.tokensBuilt(now, past, builtOf{held: of.held, backs: of.backs, period: of.period, day: of.day})
+}
+
+// awaited is t with no page, stood or of Tokens, to be built afresh once
+// what it's built of lands, as before the first read lands.
+func (t accountsTab) awaited() accountsTab {
+	t.page, t.stood, t.at, t.tokens = nil, nil, nil, nil
+	return t
 }
 
 // tokensBuilt is m with Accounts' Tokens' page built afresh at now of the
-// last 12 months' days held, as views.Past.TokensOver builds it over the
-// dial's period, where what it's built of, of, those days, the period and
-// the day, has changed since it was built, while Tokens shows: once for
-// each, never a frame at a time.
-func (m Model) tokensBuilt(now time.Time, of builtOf) Model {
+// days given, those Accounts' page reads, as views.Past.TokensOver builds
+// it over the dial's period, where what it's built of, of, those days, the
+// period and the day, has changed since it was built, while Tokens shows:
+// once for each, never a frame at a time.
+func (m Model) tokensBuilt(now time.Time, past views.Past, of builtOf) Model {
 	if m.accounts.shown.View() != dashboard.AccountsTokens {
 		return m
 	}
 	if m.accounts.tokens == nil || m.accounts.tokensOf != of {
-		page := m.past.last.past.Since(nil, now).TokensOver(of.period)
+		page := past.Since(nil, now).TokensOver(of.period)
 		m.accounts.tokens, m.accounts.tokensOf = &page, of
 	}
 	return m
@@ -143,13 +172,14 @@ func (m Model) tokensBuilt(now time.Time, of builtOf) Model {
 
 // standing is Accounts as the frame f shows it: its page as accountsBuilt
 // last stood it, and Tokens' as tokensBuilt last built it, none till the
-// days are read; Compare's columns scrolled to show its focus at f's size,
-// as CompareFirst has them, and Detail's list to show the account it shows,
-// as DetailListScroll has it, each from as far along as it was left, so a
+// days are read; Detail's LATELY in a past period as pastLatelyTold last
+// told it; Compare's columns scrolled to show its focus at f's size, as
+// CompareFirst has them, and Detail's list to show the account it shows, as
+// DetailListScroll has it, each from as far along as it was left, so a
 // frame smaller than the one it was scrolled in still shows it.
 func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 	s := t.shown
-	s.Page, s.Tokens = t.stood, t.tokens
+	s.Page, s.Tokens, s.Lately = t.stood, t.tokens, t.lately.sentences
 	s.First, s.ListScroll = f.CompareFirst(s.Focus), f.DetailListScroll(s.Account())
 	return s
 }
@@ -185,9 +215,10 @@ func (m Model) detailShown() bool {
 // account Detail shows, of those the router listed, sessions, as the request
 // stream s has moved and seen them since, in its SESSIONS' order, as
 // views.RunningOn has them: none of all accounts, which none runs on alone,
-// nor while Accounts shows no Detail.
+// nor while Accounts shows no Detail, nor in a past period at mo, as none
+// runs in the past, so → and enter don't act there.
 func (m Model) sessionsOn(mo status.Moment, sessions []status.Session, s views.Stream) []string {
-	if !m.detailShown() {
+	if !m.detailShown() || m.gone(mo.Now) {
 		return nil
 	}
 	var ids []string
@@ -349,14 +380,14 @@ func (m Model) focusless(key string) bool {
 // entered is m with enter pressed on Accounts, running being the sessions
 // running on the account Detail shows, by id, in its SESSIONS' order: where
 // Opens says there's nothing to open, as the key line draws enter faint, it
-// says why in the key line's place, as unopened has it; else on Compare, the
-// column focused opened in Detail, as Opened has it, and on Detail, from its
-// list as from its SESSIONS, the page of the session selected, as Selection
-// has it, opened as openSession opens it.
+// says why in the key line's place, as unopened has it of the dial's period
+// at now; else on Compare, the column focused opened in Detail, as Opened
+// has it, and on Detail, from its list as from its SESSIONS, the page of
+// the session selected, as Selection has it, opened as openSession opens it.
 func (m Model) entered(running []string) (Model, tea.Cmd) {
 	s := m.accounts.shown
 	if !s.Opens(running) {
-		if why := unopened(s); why != "" {
+		if why := unopened(s, m.gone(m.now())); why != "" {
 			return m.noting(why)
 		}
 		return m, nil
@@ -367,17 +398,21 @@ func (m Model) entered(running []string) (Model, tea.Cmd) {
 	return m.openSession(s.Selection(running))
 }
 
-// unopened is why enter opens nothing on Accounts as s shows it, where it
-// doesn't: no column of Compare focused; all accounts chosen in Detail's
-// list, which no session runs on alone; or an account no session runs on.
-// It's "" with one account, whose key line has no enter while none runs on
-// it, and on Tokens, whose key line has none.
-func unopened(s dashboard.AccountsShown) string {
+// unopened is why enter opens nothing on Accounts as s shows it, in a past
+// period where gone says, where it doesn't: no column of Compare focused;
+// Detail in a past period, whose SESSIONS lists none, as none runs in the
+// past; all accounts chosen in Detail's list, which no session runs on
+// alone; or an account no session runs on. It's "" with one account, whose
+// key line has no enter while none runs on it, and on Tokens, whose key
+// line has none.
+func unopened(s dashboard.AccountsShown, gone bool) string {
 	switch {
 	case s.View() == dashboard.AccountsCompare:
 		return "no account is focused"
 	case s.Alone(), s.View() == dashboard.AccountsTokens:
 		return ""
+	case gone:
+		return "no sessions in a past period"
 	case s.Account() == "":
 		return "all accounts lists no sessions"
 	}

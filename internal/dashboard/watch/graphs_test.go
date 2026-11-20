@@ -361,7 +361,7 @@ func TestWhenYouWorksWeeksMoveOnAtMidnightBeforeTheLook(t *testing.T) {
 // with WHEN YOU WORK hidden, nothing waits on it, and nothing says so.
 func TestGraphsSaysItsLoadingWhileWhenYouWorksReadTakesAWhile(t *testing.T) {
 	h, _ := whenHarness(t, "pool", "when")
-	unread := holdingBack[yearReadMsg](h, h.init()...)
+	unread := holdingBack[pastReadMsg](h, h.init()...)
 	loading, ok := h.pending(loadingMsg{})
 	if len(unread) == 0 || !ok {
 		t.Fatalf("the ledger's read held back %d, its loading armed %t; want the read held, its loading armed", len(unread), ok)
@@ -376,7 +376,7 @@ func TestGraphsSaysItsLoadingWhileWhenYouWorksReadTakesAWhile(t *testing.T) {
 	}
 
 	h, _ = whenHarness(t)
-	if unread := holdingBack[yearReadMsg](h, h.init()...); len(unread) != 0 {
+	if unread := holdingBack[pastReadMsg](h, h.init()...); len(unread) != 0 {
 		t.Errorf("WHEN YOU WORK hidden, %d reads of the ledger's days were asked for, want none", len(unread))
 	}
 	if _, ok := h.pending(loadingMsg{}); ok {
