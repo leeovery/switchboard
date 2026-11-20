@@ -510,17 +510,24 @@ func (l listed) draw(c *canvas, top int) {
 // ListScroll is how far Sessions' List is scrolled, by rows, to show the
 // session chosen, as listing lays it out of doc at now: as far as the
 // frame's Scroll has it, where that shows it, else as little further as
-// shows it, as its rows' places have it, and of the last session, as far
-// as shows the words after it too, where that still shows the session; as
-// far as Scroll has it where there's no log, or the session chosen isn't in
-// it.
+// shows it, as its rows' places have it; as far as Scroll has it where
+// there's no log, or the session chosen isn't in it.
 func (f Frame) ListScroll(doc status.Document, now time.Time) int {
-	if f.SessionsTab.Log == nil {
+	l, r, ok := f.listedChosen(doc, now)
+	if !ok {
 		return f.Scroll
 	}
-	l := f.listing(doc, now)
-	r := l.lineOf(f.SessionsTab.Chosen.Session)
-	if r < 0 {
+	return l.paged().revealing(f.Scroll, r)
+}
+
+// ListStepScroll is how far Sessions' List is scrolled once ↑ or ↓ chooses
+// a session: as ListScroll has it; but where the session chosen is the last,
+// as far as shows the words after it too, where that still shows the
+// session, so a step to the foot shows the List's foot. Only a step goes
+// there: a scroll or a click keeps the List where it was.
+func (f Frame) ListStepScroll(doc status.Document, now time.Time) int {
+	l, r, ok := f.listedChosen(doc, now)
+	if !ok {
 		return f.Scroll
 	}
 	paged := l.paged()
@@ -531,6 +538,18 @@ func (f Frame) ListScroll(doc status.Document, now time.Time) int {
 		}
 	}
 	return offset
+}
+
+// listedChosen is the List of doc at now as listing lays it out, and the
+// line of the session chosen in it: false where there's no log, or the
+// session chosen isn't in it.
+func (f Frame) listedChosen(doc status.Document, now time.Time) (listed, int, bool) {
+	if f.SessionsTab.Log == nil {
+		return listed{}, 0, false
+	}
+	l := f.listing(doc, now)
+	r := l.lineOf(f.SessionsTab.Chosen.Session)
+	return l, r, r >= 0
 }
 
 // paged is how the List's lines page in its rows, a row at a time, each

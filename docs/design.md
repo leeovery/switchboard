@@ -6586,7 +6586,8 @@ each at least its least and at most its natural, but `session`, which grows wher
   router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells,
   and a rule of `─` in `border` to the last column. The rules read `ended today`, `ended yesterday`,
   the weekday within the six days before today, `ended Tue`, and the weekday and date beyond,
-  `ended Mon 21 Sep`, as Projects' SESSIONS reads them. The order stays still, never reshuffled by
+  `ended Mon 21 Sep`, its year where it isn't now's, `ended Sun 21 Sep 2025`, as Projects'
+  SESSIONS reads them. The order stays still, never reshuffled by
   activity, as rows would slide from under the cursor: a row moves only as its session ends, from
   running to the top of ended, or as it asks again, back to its place by start among the running. A
   rule shows with the first session under it or not at all, so a List of one row, at its least,
@@ -6597,9 +6598,11 @@ each at least its least and at most its natural, but `session`, which grows wher
   that had requests in the period and went on after its last day sits first, where the running
   would, in the order they started, its state `went on` in `text.muted` in place of `ended …`,
   its requests and worth the period's alone. A start on another day than the one its rule names,
-  and a start of a session that went on, is dated as `prose.Past` dates it, `Tue 12:08` within the
-  six days before today and `21 Sep 12:08` before them; one on its rule's day is by the clock
-  alone. A past period with no session says so in the table's place, in `text.subtle`, by the
+  and a start of a session that went on, is dated as `prose.PastAt` dates it, `Tue 12:08` within
+  the six days before today and `21 Sep 12:08` before them, its year where it isn't now's,
+  `21 Sep 2025 12:08`; one on its rule's day is by the clock alone. ↑ and ↓ onto the last session
+  show the words after it too, where the page holds both; a scroll or a click never moves the List
+  to show them. A past period with no session says so in the table's place, in `text.subtle`, by the
   dial's words: `no sessions yesterday`, `no sessions on Tue 29 Sep`, `no sessions last week`,
   `no sessions in the week of 14 Sep`, `no sessions in the 30 days to 1 Sep`, and so on;
   Projects' SESSIONS and its empty list say it alike. The ledger keeps a day's sessions only as
@@ -6607,18 +6610,27 @@ each at least its least and at most its natural, but `session`, which grows wher
   some of its days are before it, the List says so once, after its last row, in `text.subtle`:
   `sessions before 14 Sep no longer kept`, by the first day whose sessions are kept, its year only
   where it isn't now's. No day's rule shows without a session under it. A past period whose every
-  day is gone shows `sessions no longer kept` in place of the empty period's words. Projects'
-  SESSIONS and its empty list say both alike. The period line's name is the dial's words, in now's ink,
-  never `accent.attention`: `last week  29 sessions · 5,423 requests · $646.09 at API prices`.
+  day is gone shows `sessions no longer kept` in place of the empty period's words, and its
+  period line names the period alone, with nothing to count. Projects' SESSIONS and its empty
+  list say both alike. The period line's name is the dial's words, in now's ink, never
+  `accent.attention`: `last week  29 sessions · 5,423 requests · $646.09 at API prices`.
 - **The period line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
   `30 days  150 sessions · 33,010 requests · $3,257.86 at API prices`, the period's name in
   `text.subtle`, as `today` over today, the counts in `text.secondary`, the worth bold
   `text.secondary`, its thousands set apart, and the rest in `text.muted`. It sums the period's
   sessions, running and ended, their requests in it and their worth, as Projects' every project's
-  row does, so it carries the period's worth where `worth` has left. Where it doesn't fit its row,
-  it breaks after `requests`, the worth on the row under the rest; the view's least, three rows,
-  always leaves the table a row over the two, so the worth never gives way. The sessions run down
+  row does, so it carries the period's worth where `worth` has left. It's never cut: it takes the
+  first of these forms whose rows fit whole, in two rows at most:
+  1. all on one row;
+  2. broken after `requests`, the worth on the row under the rest;
+  3. the name alone, the rest on the row under it;
+  4. the requests given way, the name and the sessions, the worth under them;
+  5. the name, the sessions and the worth under it;
+  6. the name, the worth under it.
+
+  The worth never gives way. Of no sessions, `no sessions` follows the name, or sits under it. The
+  view's least, three rows, always leaves the table a row over the two. The sessions run down
   to it; where they fit, the rows left over lie between the last session and it: every session
   shows, and nothing folds.
 - **Past a screen,** the table scrolls a row at a time, its heads held, and the row over the key
