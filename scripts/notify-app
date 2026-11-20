@@ -4,9 +4,11 @@
 # internal/notify/app into the folder given: one binary for arm64 and x86_64,
 # its Info.plist carrying the version given and its icon. scripts/release-build
 # runs it, signing with the Developer ID from the signing keychain it names,
-# and embeds the app in each binary. By hand, with an identity and no
-# keychain, codesign finds the identity in the keychains macOS searches; with
-# no identity, it signs the app ad hoc, for trying it, as
+# which release-build has unlocked (notify-app never unlocks one), and embeds
+# the app in each binary. By hand, with an identity and no keychain, codesign
+# finds the identity in the keychains macOS searches, so only while one of
+# them holds it: the login keychain's copy is due to go. With no identity, it
+# signs the app ad hoc, for trying it, as
 # scripts/notify-app /some/folder 0.0.0, under the bundle identifier
 # io.github.leeovery.switchboard.notify.dev, so opening one never registers a
 # second copy of the real app with Launch Services.
