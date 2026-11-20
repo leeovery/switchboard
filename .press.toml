@@ -1,0 +1,30 @@
+# How press builds, signs and ships switchboard: `press prepare` before mint
+# tags a release, `press upload` after (.mint.toml's hooks).
+name = "switchboard"
+
+# The notifications' app, embedded in each binary: scripts/notify-app lays it
+# out unsigned under its real bundle identifier; press signs it, then zips it
+# into the tree before the binaries build. Apple notarises it beside them.
+[[app]]
+path = "Switchboard.app"
+identifier = "io.github.leeovery.switchboard.notify"
+build = ["scripts/notify-app {dir} {version} --release"]
+embed = "internal/notify/app/Switchboard.app.zip"
+
+# Built with notifyapp, which embeds the app: press checks each binary carries
+# exactly that tag. Its identifier is the LaunchAgent's label.
+[binary]
+identifier = "io.github.leeovery.switchboard"
+targets = ["darwin/arm64", "darwin/amd64"]
+build = 'go build -trimpath -tags notifyapp -ldflags "-s -w -X main.version={version}" -o {out} ./cmd/switchboard'
+tags = ["notifyapp"]
+version = "switchboard version {version}"
+
+[package]
+name = "switchboard_{version}_{os}_{arch}.tar.gz"
+checksums = "switchboard_{version}_checksums.txt"
+
+# The formula in leeovery/homebrew-tools, moved on to each release that is
+# the latest and no pre-release.
+[tap]
+kind = "formula"
