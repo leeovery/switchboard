@@ -210,5 +210,5 @@ func (p AccountsPage) Unfiled(m status.Moment) []string {
 // weeksOver has it, for the tests to hold what Accounts' WEEKS reaches over
 // to what the weeks hold.
 func (p Past) Weeks() WeeksPage {
-	return p.weeksOver(weeksShown)
+	return p.WeeksOver(weeksShown)
 }

@@ -36,13 +36,15 @@ type Bucket struct {
 
 // WorthBy is worth over a period in buckets, oldest first, as WORTH BY
 // draws it: what each spans; each bucket; the index of the one worth most,
-// the first of any that tie, -1 where none is worth anything; and how many
-// of the last are still to come, as a week's days after today are.
+// the first of any that tie, -1 where none is worth anything; how many of
+// the last are still to come, as a week's days after today are; and whether
+// the period is gone, ending before today, so none is now's.
 type WorthBy struct {
 	Unit    BucketUnit
 	Buckets []WorthBucket
 	Peak    int
 	ToCome  int
+	Gone    bool
 }
 
 // WorthBucket is a bucket of WORTH BY, and what the requests in it were
@@ -90,8 +92,12 @@ func (by WorthBy) named(label string) int {
 }
 
 // Now is the index of the bucket now falls in, the last of those not still
-// to come, as the axis picks its name out: -1 where all are to come.
+// to come, as the axis picks its name out: -1 where all are to come, or
+// the period is gone, as none of its buckets is now's.
 func (by WorthBy) Now() int {
+	if by.Gone {
+		return -1
+	}
 	return len(by.Buckets) - 1 - by.ToCome
 }
 
@@ -140,46 +146,71 @@ const BucketsMost = 13
 // hoursSpanned are the hours a bucket ByTwoHours spans.
 const hoursSpanned = 2
 
-// worthCharts are the worth of days, and of today's hours, where they're
+// hourWorths are what a local day's requests were worth each hour, as a
+// fold of its lines has them: the day's date, and each local hour's worth,
+// from midnight.
+type hourWorths struct {
+	date  string
+	worth [24]Worth
+}
+
+// worthCharts are the worth of days, and of a day's hours, where they're
 // given, over the period at now, weeks starting on the day given, from the
 // day the work they're of began at began, where that's within it, as
 // begunFrom has it, so no chart shows days before it as days of none, in
 // the buckets WORTH BY may chart it in, the finest first, the coarsest of
-// no more than BucketsMost: today's by hour and by two hours, or where the
-// hours aren't given, by the day; this week's by day; the last 30 days'
-// and the last 12 weeks' by day and by week; and the last 12 months' by
-// week and by month.
-func worthCharts(period Period, now time.Time, starts time.Weekday, began time.Time, days dayWorths, hours *[24]Worth) WorthCharts {
+// no more than BucketsMost: a day's by hour and by two hours, where the
+// hours given are its own, as hourly has it, else by the day; this week's
+// by day; 30 days' and 12 weeks' by day and by week; and 12 months' by week
+// and by month. A period gone's charts are gone, so none of their buckets is
+// now's, and none is to come.
+func worthCharts(period Period, now time.Time, starts time.Weekday, began time.Time, days dayWorths, hours *hourWorths) WorthCharts {
 	today := dayfile.CivilOf(now)
 	span := period.spanAt(today, starts)
 	first, last := begunFrom(span.first, began), span.last
-	byDay := days.by(ByDay, dayBuckets(first, last), first, last, today)
+	charts := WorthCharts{days.by(ByDay, dayBuckets(first, last), first, last, today)}
 	switch period.length {
 	case LengthToday:
-		if hours != nil {
+		if hours != nil && period.hourly(hours.date, now, starts) {
 			hourly := byHour(*hours, now)
-			return WorthCharts{hourly, byTwoHours(hourly)}
+			charts = WorthCharts{hourly, byTwoHours(hourly)}
 		}
 	case LengthThirtyDays, LengthTwelveWeeks:
-		return WorthCharts{byDay, days.by(ByWeek, weekBuckets(first, last, starts), first, last, today)}
+		charts = append(charts, days.by(ByWeek, weekBuckets(first, last, starts), first, last, today))
 	case LengthTwelveMonths:
-		return WorthCharts{days.by(ByWeek, weekBuckets(first, last, starts), first, last, today), days.by(ByMonth, monthBuckets(first, last), first, last, today)}
+		charts = WorthCharts{days.by(ByWeek, weekBuckets(first, last, starts), first, last, today), days.by(ByMonth, monthBuckets(first, last), first, last, today)}
 	}
-	return WorthCharts{byDay}
+	for i := range charts {
+		charts[i].Gone = span.gone
+	}
+	return charts
 }
 
-// byHour is today's worth by the local hour, now given, hours holding each
-// hour's, as hourBuckets names them.
-func byHour(hours [24]Worth, now time.Time) WorthBy {
-	heads := hourBuckets(now)
-	by := WorthBy{Unit: ByHour, Buckets: make([]WorthBucket, len(heads)), ToCome: len(heads) - 1 - now.Local().Hour()}
+// hourly reports whether the period's worth is charted by the hour of the
+// day with the date given, at now, weeks starting on the day given: where
+// the period is that day, today or a day gone, as a day's hours are its own
+// alone, so today's hours never chart a day gone.
+func (p Period) hourly(date string, now time.Time, starts time.Weekday) bool {
+	return p.length == LengthToday && p.spanAt(dayfile.CivilOf(now), starts).last.Format(time.DateOnly) == date
+}
+
+// byHour is a day's worth by the local hour, as hours hold it, as
+// hourBuckets names them, now given: those starting after now still to
+// come, as today's are, and none of a day gone.
+func byHour(hours hourWorths, now time.Time) WorthBy {
+	on, _, _ := dayfile.Day(hours.date)
+	heads := hourBuckets(on)
+	by := WorthBy{Unit: ByHour, Buckets: make([]WorthBucket, len(heads))}
 	for h, b := range heads {
-		by.Buckets[h] = WorthBucket{Bucket: b, Worth: hours[h]}
+		by.Buckets[h] = WorthBucket{Bucket: b, Worth: hours.worth[h]}
+		if b.Start.After(now) {
+			by.ToCome++
+		}
 	}
 	return peaked(by)
 }
 
-// byTwoHours is today's worth by hour, as byHour has it, by two hours from
+// byTwoHours is a day's worth by hour, as byHour has it, by two hours from
 // midnight: each pair's worth together, starting as its first hour does
 // and named as it is.
 func byTwoHours(hourly WorthBy) WorthBy {
@@ -228,15 +259,15 @@ func peaked(by WorthBy) WorthBy {
 	return by
 }
 
-// hourBuckets are today's hours, now given, each named, on the axis too,
-// "00" to "23", each starting as today's clocks first read it, or went
-// forward over it, as dayfile.TimeOfDay has it, so an hour a clock change
-// repeats is one bucket, and one it skips starts with the next.
-func hourBuckets(now time.Time) []Bucket {
+// hourBuckets are the hours of the local day t falls on, each named, on the
+// axis too, "00" to "23", each starting as the day's clocks first read it,
+// or went forward over it, as dayfile.TimeOfDay has it, so an hour a clock
+// change repeats is one bucket, and one it skips starts with the next.
+func hourBuckets(t time.Time) []Bucket {
 	heads := make([]Bucket, 24)
 	for h := range heads {
 		named := prose.HourNamed(h)
-		heads[h] = Bucket{Start: dayfile.TimeOfDay(now.Local(), h, 0), Label: named, Axis: named}
+		heads[h] = Bucket{Start: dayfile.TimeOfDay(t.Local(), h, 0), Label: named, Axis: named}
 	}
 	return heads
 }

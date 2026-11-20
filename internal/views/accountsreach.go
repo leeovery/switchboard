@@ -18,7 +18,7 @@ const (
 
 // reachWeeks is how many weeks Compare's WEEKS reaches over at the period,
 // today being the day given, as dayfile.Civil gives a day, weeks starting on
-// the day given: the weeks that begin in the period, to this one, as
+// the day given: the weeks that begin in the period, to its last week, as
 // begunWeeks counts them, but never fewer than reachLeast. So eight at
 // today, this week and the last 30 days, 12 at the last 12 weeks, and 52 at
 // the last 12 months.
@@ -28,15 +28,32 @@ func (p Period) reachWeeks(today time.Time, starts time.Weekday) int {
 
 // begunWeeks is how many weeks begin in the period, today being the day
 // given, as dayfile.Civil gives a day, weeks starting on the day given: from
-// the first that begins on its first day or after, to this one, which it
-// counts whether it begins in the period or not.
+// the first that begins on its first day or after, to its last week, this
+// one at now, which it counts whether it begins in the period or not.
 func (p Period) begunWeeks(today time.Time, starts time.Weekday) int {
-	first := p.spanAt(today, starts).first
-	begun := weekOf(first, starts)
-	if begun.Before(first) {
+	s := p.spanAt(today, starts)
+	begun := weekOf(s.first, starts)
+	if begun.Before(s.first) {
 		begun = begun.AddDate(0, 0, 7)
 	}
-	return int(weekOf(today, starts).Sub(begun)/(7*24*time.Hour)) + 1
+	return int(s.lastWeek(starts).Sub(begun)/(7*24*time.Hour)) + 1
+}
+
+// through is the last day of the span that's come, as dayfile.Civil gives a
+// day: its last, but today where its last is still to come, as a week still
+// running's is.
+func (s periodSpan) through() time.Time {
+	if s.last.After(s.today) {
+		return s.today
+	}
+	return s.last
+}
+
+// lastWeek is the first day of the span's last week, as dayfile.Civil gives
+// a day, weeks starting on the day given: this week's at now. Every count of
+// the period's weeks ends at it.
+func (s periodSpan) lastWeek(starts time.Weekday) time.Time {
+	return weekOf(s.last, starts)
 }
 
 // detailWeeks is how many weeks Detail's weeks section reaches over at the
@@ -67,18 +84,17 @@ func (l Length) WeeksLeast() int {
 
 // reached sets the page's reach and each row's peaks in it and Weeks'
 // verdict on it, as weeks gives them, Weeks over the weeks the reach is of,
-// at in: a column a week, as weekBuckets names them; or of the last 12
-// months, a column a month, the months they fall in, as monthBuckets names
-// them, each as full as its fullest week got, at its cap where any of its
-// weeks was, as fullestIn has them.
-func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
-	today := dayfile.CivilOf(in.Now)
+// to the last week of the period's span s, at in: a column a week, as
+// weekBuckets names them; or of 12 months, a column a month, the months
+// they touch, as monthBuckets names them, each as full as its fullest week
+// got, at its cap where any of its weeks was, as fullestIn has them.
+func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage, s periodSpan) {
 	first, _ := dayfile.Civil(weeks.Weeks[0])
-	page.Reach = weekBuckets(first, today, in.WeekStarts)
+	page.Reach = weekBuckets(first, s.through(), in.WeekStarts)
 	columns := func(peaks []WeekPeak) []WeekPeak { return peaks }
 	if page.Period.length == LengthTwelveMonths {
 		weekly := page.Reach
-		page.Reach = monthBuckets(page.Period.spanAt(today, in.WeekStarts).first, today)
+		page.Reach = monthBuckets(s.first, s.through())
 		columns = func(peaks []WeekPeak) []WeekPeak { return fullestIn(page.Reach, weekly, peaks) }
 	}
 	for x := range page.Rows {
@@ -142,26 +158,25 @@ func worthsByDay(days []Day, accounts config.Accounts) []dayWorths {
 	return worths
 }
 
-// Hourly is the page with today's worth charted by the hour, where its
-// period is today at now and d's fold of the tail is of today: each row's,
-// what the requests the fold holds that went to its account were worth by
-// the local hour each arrived in, those of no session among them, as the
-// day's summary counts them, and all accounts', every one's, those none
-// answered among them, priced at today's prices, as Projects charts a
-// project's today, worthCharts' one rule. Else it's the page as it is, its
-// day by the day, a day gone's too.
+// Hourly is the page with its day's worth charted by the hour, where its
+// period is the day d's fold of the tail is of, as worthCharts charts a
+// day's hours: each row's, what the requests the fold holds that went to its
+// account were worth by the local hour each arrived in, those of no session
+// among them, as the day's summary counts them, and all accounts', every
+// one's, those none answered among them, priced at today's prices, as the
+// days are, as Projects charts a project's day, worthCharts' one rule. Else
+// it's the page as it is, its days by the day, as where it's today and the
+// fold is of the day before, or it's a day gone and the fold is today's.
 func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
-	today := dayfile.DateOf(p.in.Now)
-	if p.Period.length != LengthToday || p.Period.spanAt(dayfile.CivilOf(p.in.Now), p.in.WeekStarts).gone || d.today.Date != today {
+	if !p.Period.hourly(d.today.Date, p.in.Now, p.in.WeekStarts) {
 		return p
 	}
-	byAccount, all := d.held.worthByHour(pricing{prices: p.in.Prices, date: today})
+	byAccount, all := d.held.worthByHour(pricing{prices: p.in.Prices, date: dayfile.DateOf(p.in.Now)})
 	p.Rows = slices.Clone(p.Rows)
 	for x, a := range p.in.Accounts {
-		hours := byAccount[a.ID]
-		p.Rows[x].WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hours)
+		p.Rows[x].WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hourWorths{date: d.today.Date, worth: byAccount[a.ID]})
 	}
-	p.All.WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &all)
+	p.All.WorthBy = worthCharts(p.Period, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hourWorths{date: d.today.Date, worth: all})
 	return p
 }
 

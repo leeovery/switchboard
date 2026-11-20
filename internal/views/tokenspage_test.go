@@ -270,16 +270,31 @@ func TestTokensOverTotalIsItsRowsSummedAndItsVersionsCountedOnce(t *testing.T) {
 }
 
 // The period's total is set against what the plans cost over the period
-// whole, as Accounts' all accounts is, the two agreeing at every period.
+// whole, as Accounts' all accounts is, the two agreeing at every period,
+// now and a step back: the days usedAcrossTwoMonths holds, and before them
+// a request on Tuesday 6 October, 20 August, 5 May and 10 March 2025, one
+// in each period a step back.
 func TestTokensOverTotalIsAgainstItsPriceAsAccountsHasIt(t *testing.T) {
-	past := views.NewPast(input(usedAcrossTwoMonths), usedAcrossTwoMonths)
-	for _, period := range views.Lengths() {
-		t.Run(period.Name(), func(t *testing.T) {
-			got, want := jsonOf(t, past.TokensOver(period.Now()).Total.Against), jsonOf(t, past.Accounts(period.Now()).All.Plan.Against)
-			if got != want {
-				t.Errorf("the total is against %s, Accounts' all accounts %s", got, want)
-			}
-		})
+	days := daysFrom("2024-10-01", slices.Concat(usedAcrossTwoMonths, []ledger.Summary{
+		day("2025-03-10", account("side", sent("claude-opus-5-5", 2, inputUsage))),
+		day("2026-05-05", account("work", sent("claude-haiku-4-5", 1, inputUsage))),
+		day("2026-08-20", account("side", sent("claude-opus-5-5", 1, inputUsage))),
+		day("2026-10-06", account("work", sent("claude-opus-5-5", 1, inputUsage))),
+	})...)
+	past := views.NewPast(input(days), days)
+	for _, length := range views.Lengths() {
+		back, _ := length.Now().Back(now, time.Monday, time.Time{})
+		for _, period := range []views.Period{length.Now(), back} {
+			t.Run(views.DialOf(period, now, time.Monday, time.Time{}).Name(), func(t *testing.T) {
+				total := past.TokensOver(period).Total
+				if total == nil {
+					t.Fatal("the period has no total, want one of its request's")
+				}
+				if got, want := jsonOf(t, total.Against), jsonOf(t, past.Accounts(period).All.Plan.Against); got != want {
+					t.Errorf("the total is against %s, Accounts' all accounts %s", got, want)
+				}
+			})
+		}
 	}
 }
 
