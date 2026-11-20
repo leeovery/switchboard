@@ -245,15 +245,16 @@ type LogMeasured struct {
 	project, name, marked int
 }
 
-// MeasureLog measures the ended sessions of the log given at now, as
-// LogMeasured has them.
+// MeasureLog measures the sessions of the log given at now that hold still,
+// as sessionStill has them, as LogMeasured has them, said as the log's
+// period, at now or gone, has them said.
 func MeasureLog(log *views.SessionLog, now time.Time) LogMeasured {
-	words := sessionWords{now: now}
+	words := sessionWords{now: now, gone: log.Gone}
 	return LogMeasured{
-		of: log, model: words.widest(listModel, log.Sessions, sessionEnded),
-		started: words.widest(listStarted, log.Sessions, sessionEnded), worth: words.widest(listWorth, log.Sessions, sessionEnded),
-		project: widestSaid(log.Sessions, sessionEnded, projectCells),
-		name:    widestSaid(log.Sessions, sessionEnded, nameCells(false)), marked: widestSaid(log.Sessions, sessionEnded, nameCells(true)),
+		of: log, model: words.widest(listModel, log.Sessions, sessionStill),
+		started: words.widest(listStarted, log.Sessions, sessionStill), worth: words.widest(listWorth, log.Sessions, sessionStill),
+		project: widestSaid(log.Sessions, sessionStill, projectCells),
+		name:    widestSaid(log.Sessions, sessionStill, nameCells(false)), marked: widestSaid(log.Sessions, sessionStill, nameCells(true)),
 	}
 }
 
@@ -333,7 +334,8 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 // LogMeasured's naturals has them, of measured where it's of the log.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
-	log, words := f.SessionsTab.Log, sessionWords{m: m, now: now, glyphs: nerdFont(f.NerdFont)}
+	log := f.SessionsTab.Log
+	words := sessionWords{m: m, now: now, gone: log.Gone, glyphs: nerdFont(f.NerdFont)}
 	measured := f.SessionsTab.Measured
 	if measured.of != log {
 		measured = MeasureLog(log, now)
@@ -345,7 +347,7 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 	l := listed{
 		f: f, top: f.top(), foot: periodLine(*log, f.Dial, f.Width),
 		words: words, columns: columns,
-		lines: sessionLines(log.Sessions), width: f.Width, lit: f.SessionsTab.Chosen.Session,
+		lines: listLines(log.Sessions, log.Unkept, f.Dial, now), width: f.Width, lit: f.SessionsTab.Chosen.Session,
 	}
 	l.page = rows - len(l.foot)
 	if l.marked = len(l.lines) > l.page && l.page > 1; l.marked {
@@ -356,20 +358,90 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 }
 
 // periodLine is the List's period line, width cells wide, its rows top to
-// bottom: the dial's period's name, then its sessions, their requests and
-// their worth, on one row where it fits; else broken after the requests, the
-// worth on a row of its own. Of no sessions, it says so.
+// bottom: the dial's period's name, in text.subtle, then what its sessions
+// come to, as periodForms lays them, in the first form whose rows fit whole,
+// so nothing of it is cut where a form fits; the period's name alone where
+// the log tells no counts, as CountsTold has it.
 func periodLine(log views.SessionLog, dial views.Dial, width int) []line {
-	said, apart := line{{dial.Name() + "  ", dimInk}}, line{{" · ", mutedInk}}
-	if log.All.Sessions == 0 {
-		return []line{slices.Concat(said, line{{prose.SessionCount(0), mutedInk}})}
+	name := line{{dial.Name(), dimInk}}
+	if !log.CountsTold() {
+		return []line{name.fit(width)}
 	}
-	counts := slices.Concat(said, logCounted(log.All.Sessions, "session", secondaryInk), apart, logCounted(log.All.Requests, "request", secondaryInk))
-	worth := periodWorth(log.All.Worth)
-	if whole := slices.Concat(counts, apart, worth); whole.width() <= width {
-		return []line{whole}
+	parts := []line{{{prose.SessionCount(0), mutedInk}}}
+	forms := emptyPeriodForms
+	if log.All.Sessions > 0 {
+		parts = []line{
+			logCounted(log.All.Sessions, "session", secondaryInk), logCounted(log.All.Requests, "request", secondaryInk),
+			periodWorth(log.All.Worth),
+		}
+		forms = periodForms
 	}
-	return []line{counts.fit(width), worth.fit(width)}
+	var rows []line
+	for _, form := range forms {
+		if rows = form.rows(name, parts); rowsFit(rows, width) {
+			return rows
+		}
+	}
+	for i := range rows {
+		rows[i] = rows[i].fit(width)
+	}
+	return rows
+}
+
+// periodForm is a form of the period line: the parts on its first row,
+// after the period's name, and those on its second, by their place among
+// the parts, none on a second row of a line of one row.
+type periodForm struct {
+	first, second []int
+}
+
+// The forms of the period line, the first first, of a period's sessions, its
+// requests and its worth: all on one row; broken after the requests, the
+// worth on a row of its own; the name alone over the rest; then, the
+// requests given way, the sessions after the name and the worth under it;
+// the name over the sessions and the worth; and the name over the worth,
+// which never gives way. Of no sessions, saying so after the name, or under
+// it.
+var (
+	periodForms = []periodForm{
+		{first: []int{0, 1, 2}}, {first: []int{0, 1}, second: []int{2}}, {second: []int{0, 1, 2}},
+		{first: []int{0}, second: []int{2}}, {second: []int{0, 2}}, {second: []int{2}},
+	}
+	emptyPeriodForms = []periodForm{{first: []int{0}}, {second: []int{0}}}
+)
+
+// rows are the form's rows of the parts given, after the period's name,
+// each row's parts " · " apart, in text.muted, the name two cells before
+// those on its row.
+func (f periodForm) rows(name line, parts []line) []line {
+	joined := func(at []int) line {
+		var said line
+		for i, p := range at {
+			if i > 0 {
+				said = append(said, span{" · ", mutedInk})
+			}
+			said = append(said, parts[p]...)
+		}
+		return said
+	}
+	first := slices.Clone(name)
+	if len(f.first) > 0 {
+		first = slices.Concat(first, line{{"  ", dimInk}}, joined(f.first))
+	}
+	if len(f.second) == 0 {
+		return []line{first}
+	}
+	return []line{first, joined(f.second)}
+}
+
+// rowsFit reports whether every row given fits width cells whole.
+func rowsFit(rows []line, width int) bool {
+	for _, r := range rows {
+		if r.width() > width {
+			return false
+		}
+	}
+	return true
 }
 
 // periodWorth is what the period's sessions were worth, to the cent, its
@@ -383,25 +455,44 @@ func periodWorth(w views.Worth) line {
 	return append(said, span{" at API prices", mutedInk})
 }
 
+// listLines are the lines of the sessions given of the dial's period at
+// now, as the List and a project's SESSIONS list them: their own, as
+// sessionLines has them, or of none, the words saying the period had none,
+// as noSessionsIn says them, but where every day of it is no longer kept, as
+// unkept tells; then, where any is, the words saying so, as unkept says
+// them, in text.subtle.
+func listLines(sessions []views.PeriodSession, unkept views.UnkeptDays, dial views.Dial, now time.Time) []sessionLine {
+	lines := sessionLines(sessions)
+	if len(lines) == 0 && !unkept.Every {
+		lines = append(lines, sessionLine{said: noSessionsIn(dial)})
+	}
+	if said := unkept.Said(now); said != "" {
+		lines = append(lines, sessionLine{said: line{{said, dimInk}}})
+	}
+	return lines
+}
+
 // noSessionsIn are the List's words, and Projects', where it has no session
 // of the dial's period to list, in place of its rows, the period as its
 // Within says it: "no sessions today", "no sessions this week", "no sessions
-// in the last 30 days" or "no sessions on Tue 29 Sep".
+// in the last 30 days" or "no sessions on Tue 29 Sep"; in text.faint at now,
+// and in text.subtle of a period gone.
 func noSessionsIn(dial views.Dial) line {
-	return line{{prose.SessionCount(0) + " " + dial.Within(), faintInk}}
+	said := prose.SessionCount(0) + " " + dial.Within()
+	if dial.Gone() {
+		return line{{said, dimInk}}
+	}
+	return line{{said, faintInk}}
 }
 
 // draw draws the List from row top: its heads; its lines in view, as far as
 // the frame has them scrolled, a day's rule kept on the first row while its
-// sessions scroll under it, the session chosen lit across the width, or the
-// words saying there's none; its period line from column 0, as the key line
+// sessions scroll under it, the session chosen lit across the width, as
+// listLines has them; its period line from column 0, as the key line
 // is, held over it; and where they show, how many sessions are out of view,
 // on the row over the key line.
 func (l listed) draw(c *canvas, top int) {
 	columnHeads(c, top, l.columns)
-	if len(l.lines) == 0 {
-		c.line(listFrom, top+1, noSessionsIn(l.f.Dial).fit(l.f.Width-listFrom))
-	}
 	paged := l.paged()
 	l.drawPage(c, top+1, paged, l.f.Scroll)
 	at := l.f.stateRow() - len(l.foot) + 1
@@ -422,15 +513,35 @@ func (l listed) draw(c *canvas, top int) {
 // shows it, as its rows' places have it; as far as Scroll has it where
 // there's no log, or the session chosen isn't in it.
 func (f Frame) ListScroll(doc status.Document, now time.Time) int {
-	if f.SessionsTab.Log == nil {
-		return f.Scroll
-	}
-	l := f.listing(doc, now)
-	r := l.lineOf(f.SessionsTab.Chosen.Session)
-	if r < 0 {
+	l, r, ok := f.listedChosen(doc, now)
+	if !ok {
 		return f.Scroll
 	}
 	return l.paged().revealing(f.Scroll, r)
+}
+
+// ListStepScroll is how far Sessions' List is scrolled once ↑ or ↓ chooses
+// a session, or stands on it at an end, as stepRevealing has it of the
+// session chosen. Only a step
+// goes there: a scroll or a click keeps the List where it was.
+func (f Frame) ListStepScroll(doc status.Document, now time.Time) int {
+	l, r, ok := f.listedChosen(doc, now)
+	if !ok {
+		return f.Scroll
+	}
+	return l.stepRevealing(l.paged(), f.Scroll, r)
+}
+
+// listedChosen is the List of doc at now as listing lays it out, and the
+// line of the session chosen in it: false where there's no log, or the
+// session chosen isn't in it.
+func (f Frame) listedChosen(doc status.Document, now time.Time) (listed, int, bool) {
+	if f.SessionsTab.Log == nil {
+		return listed{}, 0, false
+	}
+	l := f.listing(doc, now)
+	r := l.lineOf(f.SessionsTab.Chosen.Session)
+	return l, r, r >= 0
 }
 
 // paged is how the List's lines page in its rows, a row at a time, each
@@ -512,10 +623,12 @@ func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views
 // projectCells gives its projects cells, as the List does, a session is
 // named after its project, in a column of its own within the session's, as
 // a project's SESSIONS, under the project, names one without it; and glyphs
-// draws the marks of its name.
+// draws the marks of its name. gone says the sessions are of a period gone,
+// whose starts are dated as startedSays dates them.
 type sessionWords struct {
 	m            status.Moment
 	now          time.Time
+	gone         bool
 	projectCells int
 	glyphs       nerdFont
 }
@@ -535,9 +648,9 @@ func (w sessionWords) says(col listColumn, s views.PeriodSession) line {
 	case listModel:
 		return line{{modelNamed(s.Model), mutedInk}}
 	case listState:
-		return w.stateSays(s.ListedSession)
+		return w.stateSays(s)
 	case listStarted:
-		return w.startedSays(s.ListedSession)
+		return w.startedSays(s)
 	case listRequests:
 		return line{{prose.Grouped(s.Requests), mutedInk}}
 	case listWorth:
@@ -629,22 +742,28 @@ var listStateInks = map[views.Doing]ink{
 	views.Idle: mutedInk, views.Ended: mutedInk,
 }
 
-// stateSays is what it's doing at now, as its Activity's DayState says it,
-// as last known where asKnown says.
-func (w sessionWords) stateSays(s views.ListedSession) line {
-	return line{{s.Activity.DayState(w.now), asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
+// stateSays is what it's doing at now, as its DayState says it, as last
+// known where asKnown says: one that went on after a period gone in
+// text.muted, as one ended is.
+func (w sessionWords) stateSays(s views.PeriodSession) line {
+	return line{{s.DayState(w.now), asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
 }
 
 // startedSays is when its first request came, in text.muted: by the clock
-// alone where it came on the day the session's grouped under; else as
-// prose.Begun says it, its day as the rules name days, as "yesterday 15:08"
-// or "Mon 21 Sep 09:12"; nothing where that isn't known.
-func (w sessionWords) startedSays(s views.ListedSession) line {
+// alone where it came on the day the session's grouped under, as one that
+// went on after a period gone is under none; else, at now, as prose.Begun
+// says it, its day as the rules name days but never with a year, as
+// "yesterday 15:08" or "Mon 21 Sep 09:12", and of a period gone, as prose.PastAt says it, as "Tue
+// 12:08", "21 Sep 12:08" or "21 Sep 2025 12:08"; nothing where that isn't
+// known.
+func (w sessionWords) startedSays(s views.PeriodSession) line {
 	switch {
 	case s.Started.IsZero():
 		return nil
-	case prose.SameDay(w.now, w.dayOf(s), s.Started):
+	case !s.WentOn && prose.SameDay(w.now, w.dayOf(s.ListedSession), s.Started):
 		return line{{prose.TimeOfDay(w.now, s.Started), mutedInk}}
+	case w.gone:
+		return line{{prose.PastAt(w.now, s.Started), mutedInk}}
 	}
 	return line{{prose.Begun(w.now, s.Started), mutedInk}}
 }

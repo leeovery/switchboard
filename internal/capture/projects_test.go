@@ -106,3 +106,42 @@ func TestTheProjectsOfTwelveMonthsAreTheDesignsWorld(t *testing.T) {
 		t.Errorf("every project's 12 months are %+v, want 6 live, 1,688 sessions, 212,885 requests and $24,736", all)
 	}
 }
+
+// This week's runs, each session's of a day, share their worth among their
+// requests, each spending some, summing to the run's.
+func TestARunsWorthIsSharedAmongItsRequests(t *testing.T) {
+	runs := autoWorld().records().runs
+	for _, d := range []int{thisWeek, thisWeek + 1, today - 1} {
+		for _, run := range runs[dateOf(d)] {
+			reads := 0
+			for _, l := range run.lines() {
+				tokens, _ := ledger.Reply{Usage: l.Usage}.Tokens()
+				if tokens.CacheRead == 0 {
+					t.Errorf("%s's request %s spends nothing", run.session, l.Request)
+				}
+				reads += tokens.CacheRead
+			}
+			if reads != run.reads {
+				t.Errorf("%s's requests of %s read %d tokens, want the run's %d", run.session, dateOf(d), reads, run.reads)
+			}
+		}
+	}
+}
+
+// Tuesday's runs carry on to 23:30, so Detail over Tue 29 Sep charts hours of
+// them; Monday's and yesterday's take a request each 40 seconds or so.
+func TestTuesdaysRunsCarryOnTo2330(t *testing.T) {
+	runs := autoWorld().records().runs
+	for _, d := range []int{thisWeek, thisWeek + 1, today - 1} {
+		for _, run := range runs[dateOf(d)] {
+			lines := run.lines()
+			first, last := lines[0].At, lines[len(lines)-1].At
+			if tuesday := d == thisWeek+1; tuesday != last.After(dayAt(worldsNow().now, d, 23, 29, 0)) {
+				t.Errorf("%s's run of %s ends at %s", run.session, dateOf(d), last.Local().Format("15:04"))
+			}
+			if d != thisWeek+1 && last.Sub(first) > time.Duration(len(lines))*41*time.Second {
+				t.Errorf("%s's run of %s takes %s for %d requests", run.session, dateOf(d), last.Sub(first), len(lines))
+			}
+		}
+	}
+}

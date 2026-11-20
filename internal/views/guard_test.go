@@ -122,7 +122,8 @@ var (
 		// What an account's week had left as it last reset, and the day it ran
 		// out, as Accounts says them, whatever its period.
 		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
-		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOutOn",
+		"views.AccountsRow.RanOut":        "views.AccountsRow.RanOutOn",
 		// How an account stood at a moment gone, and the holds the router
 		// told of, as Runway's lanes draw the past, live or stepped back to.
 		"status.Moment.Then": "views.Lanes.Look",
@@ -157,6 +158,9 @@ var (
 		"views.Length.Name":   "views.Dial.Name",
 		"views.Length.Title":  "views.Dial.Title",
 		"views.Length.Within": "views.Dial.Within",
+		// Detail's SESSIONS over the dial's period, none in a past one, as
+		// none runs in the past.
+		"views.RunningOn": "views.RunningIn",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.

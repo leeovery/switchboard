@@ -66,7 +66,7 @@ func (f detailFramed) row() views.AccountsRow {
 // its weeks as many as the rows' peaks, to this one, from Monday 28
 // September.
 func detailPage(t *testing.T, rows ...detailFramed) *views.AccountsPage {
-	page := &views.AccountsPage{Period: views.LengthThisWeek.Now(), Recorded: true, ToCome: 3, Versions: comparedVersions(t)}
+	page := &views.AccountsPage{Period: views.LengthThisWeek.Now(), Recorded: true, ToCome: 3, ThisWeek: true, Versions: comparedVersions(t)}
 	thisWeek := time.Date(2026, time.September, 28, 0, 0, 0, 0, time.UTC)
 	weeks := len(rows[0].peaks)
 	for i := range weeks {
@@ -882,8 +882,8 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 	}
 }
 
-// THIS WEEK's title names the period as the dial says it, a past period's
-// by its own words.
+// THIS WEEK's title names the period as the dial says it, on USAGE's row, a
+// past period's by its own words, on BY MODEL's, as it has no USAGE.
 func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff)
 	last, _ := views.LengthThisWeek.Now().Back(now, time.Monday, time.Time{})
@@ -893,9 +893,13 @@ func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 	} {
 		page := detailsPage(t)
 		page.Period = period
-		rows := textOf(detailFrame(Look{}, framedAccounts, "work", "", page, nil).over(period).Draw(doc, routedAt))
-		if y := rowWith(rows, "USAGE"); !strings.HasSuffix(rows[y], want) {
-			t.Errorf("%s: USAGE's row reads %q, want THIS WEEK's title %q", period.Length().Name(), rows[y], want)
+		f := detailFrame(Look{}, framedAccounts, "work", "", page, nil).over(period)
+		rows, heads := textOf(f.Draw(doc, routedAt)), "USAGE"
+		if f.Dial.Gone() {
+			heads = "BY MODEL"
+		}
+		if y := rowWith(rows, heads); y < 0 || !strings.HasSuffix(rows[y], want) {
+			t.Errorf("%s: %s's row %d reads %q, want THIS WEEK's title %q", period.Length().Name(), heads, y, rows[max(y, 0)], want)
 		}
 	}
 }

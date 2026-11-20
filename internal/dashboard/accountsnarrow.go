@@ -246,19 +246,26 @@ func (f Frame) stackTargets(s stack) []Target {
 // row.
 func (f Frame) turned(doc status.Document, now time.Time) compared {
 	m := f.Moment(doc, now)
-	return compared{f: f, m: m, accounts: m.Configured(f.Accounts.Accounts), now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts), week: f.WeekWindow}
+	return compared{
+		f: f, m: m, accounts: m.Configured(f.Accounts.Accounts), now: now, page: f.Accounts.Page, shown: len(f.Accounts.Accounts),
+		week: f.WeekWindow, gone: f.Dial.Gone(),
+	}
 }
 
 // turnedWhole is turned Compare drawn whole, laid out as turnedLaid lays
-// it: WEEK USED; then, once the period's page is read, BY MODEL, WEEKS,
-// WORTH, ACTIVITY, LIMITS and VALUE, a blank row before each.
+// it: WEEK USED, but in a past period; then, once the period's page is
+// read, BY MODEL, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank row
+// before each, BY MODEL first in a past period.
 func (cp compared) turnedWhole() stack {
 	c := growing(cp.f.Width)
 	columns := cp.columns()
 	l := cp.turnedLaid(columns)
-	y := cp.turnedWeek(c, 0, l, columns)
+	byModel := 0
+	if !cp.gone {
+		byModel = cp.turnedWeek(c, 0, l, columns) + partsApart
+	}
 	if cp.page != nil {
-		y = cp.turnedByModel(c, y+partsApart, l, columns)
+		y := cp.turnedByModel(c, byModel, l, columns)
 		y = cp.turnedWeeks(c, y+partsApart, l, columns)
 		y = cp.turnedWorth(c, y+partsApart, l, columns)
 		for _, g := range cp.turnedGroups() {
@@ -519,16 +526,15 @@ func (f Frame) stackedOf(doc status.Document, now time.Time) stacked {
 
 // whole is stacked Detail drawn whole, each part under its heading, a
 // blank row between: the picker, and under it how the account stands, short,
-// as stands has it, and its token line, as note draws it; USAGE; once the
-// period's page is read, THIS WEEK, BY MODEL, the weeks, as stackedWeeks
-// has them, and WORTH; SESSIONS, as Detail draws it, where sessions run on
-// the account; and LATELY, its words uncut, each line cut at the frame's
-// edge, as many as fit to the view's foot.
+// as stands has it, and its token line, as note draws it, and USAGE, all
+// three leaving in a past period, as top has them; once the period's page is
+// read, THIS WEEK, BY MODEL, the weeks, as stackedWeeks has them, and WORTH;
+// SESSIONS, as Detail draws it, where sessions run on the account; and
+// LATELY, its words uncut, each line cut at the frame's edge, as many as fit
+// to the view's foot.
 func (s stacked) whole() stack {
 	c := growing(s.f.Width)
-	s.picker(c, 0)
-	s.stands(c, 0, 1, true)
-	y := s.usage(c, s.note(c, 1)+partsApart)
+	y := s.top(c)
 	if s.page != nil {
 		y = s.thisWeek(c, y+partsApart)
 		y = s.byModel(c, y+partsApart)
@@ -546,6 +552,19 @@ func (s stacked) whole() stack {
 	c.heading(y, y+1)
 	s.lately(c, y+1, 0, s.f.edge())
 	return stack{c: c, targets: targets, sessions: sessions}
+}
+
+// top draws the stack's top from its first row, and returns its last row:
+// the picker, and under it how the account stands, short, as stands has it,
+// its token line, as note draws it, and USAGE; in a past period, where what
+// tells the moment leaves, the picker alone.
+func (s stacked) top(c *canvas) int {
+	s.picker(c, 0)
+	if s.gone {
+		return 0
+	}
+	s.stands(c, 0, 1, true)
+	return s.usage(c, s.note(c, 1)+partsApart)
 }
 
 // stackedWeeks draws the weeks from row y, and returns their last row: of
@@ -732,7 +751,7 @@ var openHang = ansi.StringWidth(views.Peak(0, true)) - ansi.StringWidth(views.Pe
 // under each of BY DAY's weeks, its peak, as peakPart has it, this week's
 // bold text.secondary, right-aligned in stackPeakCells from the week's
 // first day, an open week's … past it, so BY DAY's ‹ 1 more holds for both;
-// and under it Weeks' facts on the weeks reached over, as detailFacts says
+// and under it Weeks' facts on the weeks reached over, as factsSaid says
 // them, the fullest that fits.
 func (s stacked) weeks(c *canvas, y int) int {
 	c.line(0, y, line{{"WEEKS", headingInk}})
@@ -745,7 +764,7 @@ func (s stacked) weeks(c *canvas, y int) int {
 		c.rightFit(end, s.f.edge(), y, peakPart(p, strongInk, Number{}))
 	}
 	cells := s.f.edge()
-	c.line(0, y+1, fitParts(cells, detailFacts(s.row.Facts(s.reach())).fitting(cells)...))
+	c.line(0, y+1, fitParts(cells, s.factsSaid().fitting(cells)...))
 	return y + 1
 }
 

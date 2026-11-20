@@ -15,19 +15,45 @@ between Detail and Tokens.
 
 ## The period: one dial for the dashboard
 
-Press `<` and `>` to step to a shorter or a longer period. Every view on Accounts counts over it,
-and so do [Projects](projects.md) and the List on [Sessions](sessions.md). The dashboard remembers
-the period from one run to the next.
+The dial at the right of the heading sets the period, for example `< this week >`. Step it back to
+see last week whole, or what a day in September was worth. Every view on Accounts counts over the
+period, and so do [Projects](projects.md) and the List on [Sessions](sessions.md).
 
-| Period | Runs over |
+| Key | Does |
 |---|---|
-| today | today, from midnight |
-| this week | this week, from its start |
-| 30 days | the last 30 days, back from today |
-| 12 weeks | this week and the 11 before it |
-| 12 months | the last 12 months, back from today: the same days as YEAR on [Trends](trends.md) |
+| `<` | Steps back to the period of the same length before this one: today to yesterday, this week to last week. |
+| `>` | Steps on again. It stops at now. |
+| `-` `+` | Changes the length, from today to 12 months. `=` counts as `+`. |
+| `n` | Goes back to now. |
 
-A period is never a billing month, because switchboard doesn't know when a plan renews.
+Changing the length keeps the last day of the period. For example, `+` on last week gives the 30
+days to the Sunday that ended it. The key line reads `- + period: this week    < > back · on`, and
+adds `n now` while a past period shows. A key that can't act is drawn faint: `>` at now, and `<`
+at the first day switchboard recorded.
+
+| Length | Now runs over | A past period reads |
+|---|---|---|
+| today | today, from midnight | `yesterday`, then `Tue 29 Sep` |
+| this week | this week, from its start | `last week`, then `week of 14 Sep` |
+| 30 days | the last 30 days, back from today | `30 days to 1 Sep` |
+| 12 weeks | this week and the 11 before it | `12 weeks to 12 Jul` |
+| 12 months | the last 12 months, back from today: the same days as YEAR on [Trends](trends.md) | `12 months to 1 Oct 2025` |
+
+A period is never a billing month, because switchboard doesn't know when a plan renews. The
+dashboard always opens on now, and remembers only the length from one run to the next.
+
+## A past period: what leaves
+
+A past period names itself in a colour of its own in the heading, so it never reads as now. It
+stays put as midnight passes. What tells the moment leaves, because it says nothing of the past:
+
+| View | In a past period |
+|---|---|
+| Compare | The state rows, the token rows and WEEK USED leave. |
+| Detail | The state, USAGE and SESSIONS leave. LATELY tells the events of the account up to the end of the period. |
+| Tokens | Nothing leaves. The first row names the period, as `30 days to 1 Sep`. |
+
+The rest counts over the days of the past period, by the same rules as now.
 
 ## Compare: every account side by side
 
@@ -36,7 +62,7 @@ Compare has a column for each account, in the order of your config, and a last o
 
 | Group | Shows |
 |---|---|
-| WEEK USED | The week window as it stands now, as a bar, whatever the period. |
+| WEEK USED | The week window as it stands now, as a bar, at any length. A past period has none. |
 | BY MODEL | The share of use by model version over the period. |
 | WEEKS | How full each week got, as columns. |
 | WORTH | What the use was worth at API prices over the period. |
@@ -155,7 +181,9 @@ Total and worth always show. The names stay whole until every other column has g
 | Key | Does |
 |---|---|
 | `[` `]` | Moves between Compare, Detail and Tokens. |
-| `<` `>` | Steps to a shorter or a longer period. |
+| `<` `>` | Steps the period back and on in time. `>` stops at now. |
+| `-` `+` | Changes the length of the period. `=` counts as `+`. |
+| `n` | Goes back to now. |
 | `←` `→` | On Compare, moves the focus along the columns. |
 | `enter` | On Compare, opens the focused account in Detail. |
 | `esc` | On Compare, ends the focus. |

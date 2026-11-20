@@ -16,9 +16,9 @@ type Dial struct {
 	// local is now in the local time zone, the one the period's days are
 	// reckoned in, as dayfile.CivilOf reckons them, for its times to be told
 	// on the days they fall on.
-	local               time.Time
-	name, title, within string
-	earliest            bool
+	local                      time.Time
+	name, short, title, within string
+	earliest                   bool
 }
 
 // DialOf is the dial's period given as it's said at now, weeks starting on
@@ -27,10 +27,10 @@ type Dial struct {
 func DialOf(period Period, now time.Time, starts time.Weekday, began time.Time) Dial {
 	s := period.spanAt(dayfile.CivilOf(now), starts)
 	l := period.length
-	d := Dial{span: s, local: now.Local(), name: l.Name(), title: l.Title(), within: l.Within(), earliest: s.earliest(began)}
+	d := Dial{span: s, local: now.Local(), name: l.Name(), short: l.Name(), title: l.Title(), within: l.Within(), earliest: s.earliest(began)}
 	if s.gone {
 		d.name, d.within = l.goneSaid(s)
-		d.title = strings.ToUpper(d.name)
+		d.short, d.title = l.goneShort(s, d.name), strings.ToUpper(d.name)
 	}
 	return d
 }
@@ -62,11 +62,38 @@ func (l Length) goneSaid(s periodSpan) (name, within string) {
 	return name, "in the " + name
 }
 
+// goneShort is the short name of a period of the length gone, of the span
+// given, named as given: a day in today's year its name itself, as Tue 29
+// Sep, and in another its date with its year, as 31 Dec 2025, without its
+// weekday; the week, never this week; and the longer lengths their own name,
+// as 30 days.
+func (l Length) goneShort(s periodSpan, name string) string {
+	switch l {
+	case LengthToday:
+		if s.last.Year() != s.today.Year() {
+			return prose.DayMonthYear(s.last)
+		}
+		return name
+	case LengthThisWeek:
+		return "the week"
+	}
+	return l.Name()
+}
+
 // Name is what the heading and the key line call the period: at now its
 // length's name, as "this week"; gone, as goneSaid names it, as "last week"
 // or "30 days to 1 Sep".
 func (d Dial) Name() string {
 	return d.name
+}
+
+// Short is the period's name where its own is too wide, as Tokens' total
+// row names it then, the heading naming it in full: at now its length's
+// name, as Name is; gone, never one that says now (today, this week): a
+// day's name, as "yesterday", or in another year its date, as "31 Dec 2025";
+// "the week" of a week; and the longer lengths' own names, as "30 days".
+func (d Dial) Short() string {
+	return d.short
 }
 
 // Title is the period's name in capitals, as Detail's figures and Tokens'
@@ -119,7 +146,8 @@ func (d Dial) Widest() string {
 // prose.Lately says it; gone, never as now, but over a period of one day by
 // its time of day alone, as "21:40"; over more, with its weekday where it
 // falls in the period's last seven days, as "Sun 21:40", else with its date,
-// as "21 Aug 21:40". No period holds a date twice, so a date needs no year.
+// as "21 Aug 21:40", and in a year other than now's with it, as "21 Aug 2025
+// 21:40", as a date carries its year wherever it isn't now's.
 func (d Dial) TimeSaid(t time.Time) string {
 	switch {
 	case !d.span.gone:
@@ -129,5 +157,5 @@ func (d Dial) TimeSaid(t time.Time) string {
 	case d.span.last.Sub(dayfile.CivilOf(t)) < 7*24*time.Hour:
 		return prose.Clock(d.local, t)
 	}
-	return prose.DayMonthTime(d.local, t)
+	return prose.DayMonthTimeAt(d.local, t)
 }

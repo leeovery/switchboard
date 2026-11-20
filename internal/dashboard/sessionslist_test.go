@@ -1236,7 +1236,7 @@ func TestTheListPagesThroughEverySessionEitherWay(t *testing.T) {
 			}
 			down, up := walk(0, 1), walk(p.most(), -1)
 			for r, l := range lines {
-				if !l.ruled && (!down[r] || !up[r]) {
+				if l.row() && (!down[r] || !up[r]) {
 					t.Errorf("of %d lines in %d rows, %s shows paged down %t, up %t; want both", len(lines), rows, l.session.Session, down[r], up[r])
 				}
 			}

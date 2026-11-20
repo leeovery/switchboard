@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -477,6 +478,40 @@ func TestAPeriodGoneBeginsAtItsFirstDaysStart(t *testing.T) {
 	}
 }
 
+// The dial's short name is its length's name at now, as its name is, and
+// gone, never one that says now (today, this week): a day's own name, or in
+// another year its date with its year, the week of a week, and the longer
+// lengths' own names.
+func TestShortIsTheLengthsNameNeverOneThatSaysNowGone(t *testing.T) {
+	tests := []struct {
+		length views.Length
+		keys   string
+		want   string
+	}{
+		{views.LengthToday, "", "today"},
+		{views.LengthToday, "<", "yesterday"},
+		{views.LengthToday, "<<", "Tue 29 Sep"},
+		{views.LengthToday, strings.Repeat("<", 274), "31 Dec 2025"},
+		{views.LengthThisWeek, "", "this week"},
+		{views.LengthThisWeek, "<", "the week"},
+		{views.LengthThisWeek, "<<", "the week"},
+		{views.LengthThirtyDays, "", "30 days"},
+		{views.LengthThirtyDays, "<", "30 days"},
+		{views.LengthTwelveWeeks, "", "12 weeks"},
+		{views.LengthTwelveWeeks, "<<", "12 weeks"},
+		{views.LengthTwelveMonths, "", "12 months"},
+		{views.LengthTwelveMonths, "<", "12 months"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s %d back", tt.length.Name(), len(tt.keys)), func(t *testing.T) {
+			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
+			if got := views.DialOf(p, framesNow, time.Monday, time.Time{}).Short(); got != tt.want {
+				t.Errorf("%s pressed %q is short %q, want %q", tt.length.Name(), tt.keys, got, tt.want)
+			}
+		})
+	}
+}
+
 // The dial keeps room for the widest of the lengths' names at now, whatever
 // the period: every length's name at now fits it, one fills it, and every
 // period, at now or gone, keeps the same.
@@ -499,7 +534,8 @@ func TestWidestIsTheWidestOfTheLengthsNamesAtNow(t *testing.T) {
 
 // A time in the period is said as Projects' last says it: at now as
 // prose.Lately says it; gone, never now, over a day by its time alone, over
-// more with its weekday in the period's last seven days, else its date.
+// more with its weekday in the period's last seven days, else its date, its
+// year where it isn't now's.
 func TestATimeInThePeriodIsSaidByHowFarIntoItItFalls(t *testing.T) {
 	at := func(date string, hour, minute int) time.Time {
 		day := civilDate(date)
@@ -523,7 +559,7 @@ func TestATimeInThePeriodIsSaidByHowFarIntoItItFalls(t *testing.T) {
 		{"30 days gone, six days before their last", views.LengthThirtyDays, "<", at("2026-08-26", 10, 0), "Wed 10:00"},
 		{"30 days gone, seven days before their last", views.LengthThirtyDays, "<", at("2026-08-25", 10, 0), "25 Aug 10:00"},
 		{"30 days gone, further back", views.LengthThirtyDays, "<", at("2026-08-21", 21, 40), "21 Aug 21:40"},
-		{"12 months gone, in another year", views.LengthTwelveMonths, "<", at("2024-10-03", 9, 0), "3 Oct 09:00"},
+		{"12 months gone, in another year", views.LengthTwelveMonths, "<", at("2024-10-03", 9, 0), "3 Oct 2024 09:00"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

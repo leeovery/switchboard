@@ -236,6 +236,27 @@ func TestAPastLATELYThatCantBeReadTellsNone(t *testing.T) {
 	}
 }
 
+// The frame says a past period's LATELY is held once its events are read,
+// though it tells none, for Detail to say it has nothing lately; never while
+// they're read, as the heading says loading…, nor at now, where Detail
+// tells the document's.
+func TestAPastLATELYIsHeldOnceItsEventsAreRead(t *testing.T) {
+	h := pastLatelyHarness(t, events.Empty{}, 1)
+	m, msg := askedLately(t, h.model)
+	if shown := m.accountsBuilt().frame(m.now()).Accounts; shown.LatelyHeld {
+		t.Error("while its events are read, the frame says LATELY is held")
+	}
+	h.model = m
+	h.update(msg)
+	if shown := h.model.frame(h.model.now()).Accounts; !shown.LatelyHeld || len(shown.Lately) != 0 {
+		t.Errorf("its events read, none, the frame says LATELY is held %v, telling %q; want held, telling none", shown.LatelyHeld, fullSaid(shown.Lately))
+	}
+	atNow := steppedBack(t, h.model, 0).accountsBuilt()
+	if shown := atNow.frame(atNow.now()).Accounts; shown.LatelyHeld || shown.Lately != nil {
+		t.Errorf("at now, the frame says LATELY is held %v, telling %q; want neither", shown.LatelyHeld, fullSaid(shown.Lately))
+	}
+}
+
 // fullSaid are the sentences given, each in full, on one line.
 func fullSaid(told []views.Sentence) string {
 	var said []string
