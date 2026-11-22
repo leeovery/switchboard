@@ -193,19 +193,23 @@ const (
 	periodBeside
 )
 
-// under reports what of a compact heading takes the row under its name and
-// sub-tabs in a frame width cells wide, as its parts above lay out there:
-// its state; and what's at its right, which goes where the state does. So
-// neither loading, nor a step of the period or of what the state names,
-// moves the heading between one row and two, but a step between now and a
-// past period, whose widest readouts differ. A tab without sub-tabs, as
-// Runway, keeps its rule and what's at its right on its row.
+// under reports what of a heading takes the row under its name and sub-tabs
+// in a frame width cells wide, on a phone where phone says. Of a compact
+// heading, as its parts above lay out there: its state; and what's at its
+// right, which goes where the state does. Of another, its period's readout
+// alone, where it doesn't fit beside them as ruledBeside has it, its state
+// and its rule keeping their row. So neither loading, nor a step of the
+// period or of what the state names, moves the heading between one row and
+// two, but a step between now and a past period, whose widest readouts
+// differ. A tab without sub-tabs or a period, as Runway, keeps its rule and
+// what's at its right on its row.
 func (h heading) under(width int, phone bool) (state, right bool) {
-	if !h.compact(phone) {
-		return false, false
-	}
 	var laid laying
-	named, least := h.named(&laid, 0, phone), h.leastState()
+	named := h.named(&laid, 0, phone)
+	if !h.compact(phone) {
+		return false, h.period.shown() && !h.ruledBeside(named, width)
+	}
+	least := h.leastState()
 	parts := []flex.Part{
 		periodNamed: {Least: named, Natural: named},
 		periodState: {Least: least, Natural: least, Gap: headingGap, Leaves: 2},
@@ -217,6 +221,14 @@ func (h heading) under(width int, phone bool) (state, right bool) {
 	spans, fits := flex.Lay(width, parts...)
 	state = !fits || spans[periodState].Left
 	return state, beside > 0 && (state || spans[periodBeside].Left)
+}
+
+// ruledBeside reports whether a heading with a rule, its name and sub-tabs
+// ending at column x, has room on its row for its period's readout at the
+// widest it keeps room for: the rule's gap, a cell of rule at least, so the
+// readout never floats on blanks, and the readout's gap before it.
+func (h heading) ruledBeside(x, width int) bool {
+	return x+ruleGap+1+readoutGap+ends(h.widestRight()) <= width
 }
 
 // widestRight are what sits at a compact heading's right at its widest: its
@@ -233,14 +245,16 @@ func (h heading) widestRight() []piece {
 // cells wide, on a phone where phone says: its name and sub-tabs, as named
 // lays them out; then three cells on, the state, or the first of its shorter
 // forms that fits where the rest leaves it short of room, cut where none
-// does. Ending at the last column, its period's readout, or its line, left
-// out where it doesn't fit beside the name and the sub-tabs, as far from
-// them as the rule ends short of it. Between them, the rule, from two cells
+// does. Ending at the last column, on the row under has it on, its period's
+// readout; or its line, left out where it doesn't fit beside the name and
+// the sub-tabs, as far from them as the rule ends short of it. Between them, the rule, from two cells
 // after them, or one after the state, to as many short of what sits at the
 // right as rightGap has it, or to the last column where nothing does. A
-// compact heading has no rule; and where under says, its state
-// starts the row under, and what's at its right ends it, left out where it
-// doesn't fit after the state's least.
+// compact heading has no rule; and where under says, its state starts the
+// row under, and what's at its right ends it, left out where it doesn't fit
+// after the state's least; but the period's readout, which the state gives
+// way to there, left out where even its least doesn't fit before it. A
+// readout wider than the frame is left out whole, never cut.
 func (h heading) pieces(y, width int, phone bool) []piece {
 	var laid laying
 	x := h.named(&laid, y, phone)
@@ -252,6 +266,9 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 	case width-ends(right) < x+gap:
 		right = nil
 	}
+	if h.period.shown() && ends(right) > width {
+		right = nil
+	}
 	stateX, stateY := x+headingGap, y
 	if stateUnder {
 		stateX, stateY = 0, y+1
@@ -260,11 +277,16 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 	if right != nil && rightY == stateY {
 		end = width - ends(right) - gap
 	}
+	forms := h.stateForms()
 	if stateUnder && end-stateX < h.leastState() {
-		right, end = nil, width
+		if h.period.shown() {
+			forms = nil
+		} else {
+			right, end = nil, width
+		}
 	}
 	ruled := x + ruleGap
-	if forms := h.stateForms(); forms != nil {
+	if forms != nil {
 		ruled = laid.put(stateX, stateY, firstFit(end-stateX, forms...), Target{}) + 1
 	}
 	if !h.compact(phone) {

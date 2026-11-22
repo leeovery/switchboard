@@ -103,15 +103,15 @@ func (m Model) periodShown(period views.Period) Model {
 }
 
 // dialListings are the dial's keys, as the key line and help list them on a
-// tab the dial shows on, where works says, the dial's period said as d says
-// it: - + and the period's name, and < > back · on, which the key line
-// leaves to help, as the heading's readout names them; and while a past
-// period shows, n now, in a group of its own, which a phone's line keeps to
-// the last, as dashboard.KeyLine's PhoneKept keeps it.
+// tab the dial shows on, where works says, of the dial's period as d says
+// it: - + range and < > time, which the key line leaves to help, as the
+// heading's readout names them; and while a past period shows, n now, in a
+// group of its own, which a phone's line keeps to the last, as
+// dashboard.KeyLine's PhoneKept keeps it.
 func dialListings(d views.Dial, works bool) []keyListing {
 	return []keyListing{
-		{Key: dashboard.Key{Key: "- +", Does: "period", State: d.Name()}, works: works, helpful: true},
-		{Key: dashboard.Key{Key: "< >", Does: "back · on"}, works: works, helpful: true},
+		{Key: dashboard.Key{Key: "- +", Does: "range"}, works: works, helpful: true},
+		{Key: dashboard.Key{Key: "< >", Does: "time"}, works: works, helpful: true},
 		{Key: dashboard.Key{Key: "n", Does: "now"}, works: works && d.Gone(), apart: true, kept: true},
 	}
 }

@@ -197,7 +197,12 @@ If the line doesn't fit whole, `v split` goes first.
 
 On Accounts, Projects and the List on Sessions, the heading shows the keys of the period dial,
 `- week +  < this week >`, so the key line leaves them to `?`. While a past period shows, the key
-line names `n now`, after the first keys of the page.
+line names `n now`:
+
+| Page | `n now` comes |
+|---|---|
+| Accounts, the List on Sessions | after `[ ] view` |
+| Projects | after the keys of the page, before `p pin` |
 
 On a phone, or wherever the line doesn't fit whole:
 

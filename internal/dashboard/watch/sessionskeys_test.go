@@ -183,7 +183,7 @@ func TestSessionsHelpListsItsKeysAsTheKeyLineWordsThem(t *testing.T) {
 			h := sessionsKeysHarness(t, routerDocument(three()...), shown, 160)
 			want := []dashboard.Key{{Key: "tab", Does: "views"}, {Key: "[ ]", Does: "view"}}
 			if shown == dashboard.SessionsList {
-				want = append(want, dashboard.Key{Key: "- +", Does: "period", State: "this week"}, dashboard.Key{Key: "< >", Does: "back · on"})
+				want = append(want, dashboard.Key{Key: "- +", Does: "range"}, dashboard.Key{Key: "< >", Does: "time"})
 			}
 			want = append(want, dashboard.Key{Key: "↑↓", Does: "session"}, dashboard.Key{Key: "enter", Does: "its page", Off: true})
 			want = append(want, dashboard.Key{Key: "p", Does: "pin"}, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, dashboard.Quit)

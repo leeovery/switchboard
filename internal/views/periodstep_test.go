@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -148,6 +149,7 @@ func TestTheReadoutSaysTheRangeAndWhen(t *testing.T) {
 		{"12 weeks further back", views.LengthTwelveWeeks, "<<", framesNow, "12 weeks", "to 19 Apr", false, false},
 		{"12 months at now", views.LengthTwelveMonths, "", framesNow, "12 months", "now", false, true},
 		{"12 months one back", views.LengthTwelveMonths, "<", framesNow, "12 months", "to 1 Oct 2025", false, true},
+		{"12 months further back", views.LengthTwelveMonths, "<<", framesNow, "12 months", "to 1 Oct 2024", false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -714,6 +716,20 @@ func TestAPeriodsDaysAreTheLocalZones(t *testing.T) {
 					t.Errorf("last week at %v says Sun 27 Sep 21:40 as %q, want \"Sun 21:40\"", local, got)
 				}
 			})
+		}
+	}
+}
+
+// The ranges are named as the heading's readout names them between - and +,
+// in the order - and + step through them.
+func TestRangeNamesAreTheReadoutsInStepOrder(t *testing.T) {
+	want := []string{"day", "week", "30 days", "12 weeks", "12 months"}
+	if got := views.RangeNames(); !slices.Equal(got, want) {
+		t.Errorf("RangeNames() = %q, want %q", got, want)
+	}
+	for i, length := range views.Lengths() {
+		if got := views.DialOf(length.Now(), framesNow, time.Monday, time.Time{}).Range(); got != want[i] {
+			t.Errorf("%s's readout names its range %q, want %q", length.Name(), got, want[i])
 		}
 	}
 }

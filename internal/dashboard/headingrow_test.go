@@ -300,6 +300,109 @@ func TestAPhonesHeadingHoldsStillAtNowAndAmongPeriodsGone(t *testing.T) {
 	}
 }
 
+// projectsAt has a frame show Projects over the period given.
+func projectsAt(period views.Period) func(*Frame) {
+	return func(f *Frame) { *f = f.over(period) }
+}
+
+// widestGonePeriod is the period gone whose readout is the widest a period
+// gone takes, as views keeps room for it: a week stepped back from now to
+// one over a year's end, neither year now's.
+func widestGonePeriod(t *testing.T) views.Period {
+	t.Helper()
+	p, _ := views.LengthThisWeek.Now().Back(now, time.Monday, time.Time{})
+	ranged, when := dialOf(p).Widest()
+	for range 200 {
+		if d := dialOf(p); d.Range() == ranged && d.When() == when {
+			return p
+		}
+		p, _ = p.Back(now, time.Monday, time.Time{})
+	}
+	t.Fatalf("no week within 200 back reads - %s +  < %s >", ranged, when)
+	return p
+}
+
+// readoutDrawn is the period's readout as the heading pieces given draw
+// it: its text, from the first column of - to the last of >, and the row
+// and column it starts at; false where none of its signs is drawn. It fails
+// t where some of its signs are drawn and not all, or where they aren't
+// laid end to end on one row.
+func readoutDrawn(t *testing.T, pieces []piece) (said string, x, y int, ok bool) {
+	t.Helper()
+	first := slices.IndexFunc(pieces, func(p piece) bool { return p.click.On == OnPress && p.click.Key == "-" })
+	signs := 0
+	for _, p := range pieces {
+		if p.click.On == OnStep || p.click.On == OnPress {
+			signs++
+		}
+	}
+	if first < 0 {
+		if signs > 0 {
+			t.Errorf("the heading draws %d of the readout's signs without its -", signs)
+		}
+		return "", 0, 0, false
+	}
+	readout := pieces[first:min(first+7, len(pieces))]
+	var b strings.Builder
+	at := readout[0].x
+	for _, p := range readout {
+		if p.y != readout[0].y || p.x != at {
+			t.Errorf("the readout's pieces aren't end to end on one row: %+v", readout)
+			break
+		}
+		b.WriteString(p.line.plain())
+		at += p.line.width()
+	}
+	if signs != 4 || len(readout) != 7 {
+		t.Errorf("the heading draws %d of the readout's signs, in %d pieces, want all four, in 7", signs, len(readout))
+	}
+	return b.String(), readout[0].x, readout[0].y, true
+}
+
+// Every tab with the dial draws the readout whole, at the last column, at
+// every width from 36 columns, at now and gone, the widest gone among
+// them; narrower, whole or not at all, never cut. On the row under, the
+// state gives way to it.
+func TestEveryDialTabDrawsItsReadoutWhole(t *testing.T) {
+	periods := []views.Period{widestGonePeriod(t)}
+	for _, length := range views.Lengths() {
+		p := length.Now()
+		for range 3 {
+			periods = append(periods, p)
+			p, _ = p.Back(now, time.Monday, time.Time{})
+		}
+	}
+	tabs := []struct {
+		name  string
+		view  View
+		shown func(views.Period) func(*Frame)
+	}{
+		{name: "Compare", view: Accounts, shown: func(p views.Period) func(*Frame) { return accountsAt(threeConfigured, AccountsCompare, p) }},
+		{name: "Detail", view: Accounts, shown: func(p views.Period) func(*Frame) { return accountsAt(threeConfigured, AccountsDetail, p) }},
+		{name: "Tokens", view: Accounts, shown: func(p views.Period) func(*Frame) { return accountsAt(threeConfigured, AccountsTokens, p) }},
+		{name: "Projects", view: Projects, shown: projectsAt},
+		{name: "the List", view: Sessions, shown: sessionsListAt},
+	}
+	for _, tab := range tabs {
+		for _, period := range periods {
+			d := dialOf(period)
+			want := "- " + d.Range() + " +  < " + d.When() + " >"
+			for width := 20; width <= 140; width++ {
+				for _, loading := range []bool{false, true} {
+					f := headingFrame(width, tab.view, tab.shown(period), loading)
+					said, x, _, ok := readoutDrawn(t, f.headingPieces())
+					switch {
+					case !ok && width >= 36:
+						t.Errorf("%s at %d over %q, loading: %t, draws no readout, want %q", tab.name, width, d.Name(), loading, want)
+					case ok && (said != want || x+len([]rune(said)) != width):
+						t.Errorf("%s at %d over %q, loading: %t, draws %q from column %d, want %q ending at the last column", tab.name, width, d.Name(), loading, said, x, want)
+					}
+				}
+			}
+		}
+	}
+}
+
 // sessionsListAt has a frame show Sessions' List over the period given.
 func sessionsListAt(period views.Period) func(*Frame) {
 	return func(f *Frame) {
@@ -530,9 +633,17 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 			add("Accounts with one account"+when, Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period))
 			add("Accounts' Tokens"+when, Accounts, accountsAt(threeConfigured, AccountsTokens, period))
 			add("Sessions' List"+when, Sessions, sessionsListAt(period))
+			add("Projects"+when, Projects, projectsAt(period))
 			period, _ = period.Back(now, time.Monday, time.Time{})
 		}
 	}
+	widest := widestGonePeriod(t)
+	add("Accounts' Compare gone", Accounts, accountsAt(threeConfigured, AccountsCompare, widest))
+	add("Accounts' Detail gone", Accounts, accountsAt(threeConfigured, AccountsDetail, widest))
+	add("Accounts with one account gone", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, widest))
+	add("Accounts' Tokens gone", Accounts, accountsAt(threeConfigured, AccountsTokens, widest))
+	add("Sessions' List gone", Sessions, sessionsListAt(widest))
+	add("Projects gone", Projects, projectsAt(widest))
 	for name, s := range sweeps {
 		for width := 30; width <= 140; width++ {
 			var rows []int

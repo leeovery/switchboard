@@ -3993,8 +3993,18 @@ never does (round 3):
 | Past | the widest of every period gone, a week over a year's end, neither year now's, as `- week +  < 30 Dec 2024–5 Jan 2025 >` | 36 |
 
 So at 73 columns a past readout takes row 6 on Accounts and on Sessions' List, however narrow its
-own, and the readout at now sits on row 5 beside the sub-tabs. Projects has no sub-tabs, so keeps
-its rule and its readout on row 5. Beside the readout, the state
+own, and the readout at now sits on row 5 beside the sub-tabs. One rule holds for every heading
+with the dial, so `<` and `>` never move the readout and never drop it:
+
+- A heading with a rule, as Projects' at any width, keeps the readout on its row where its widest
+  fits after the name, a cell of rule at least and the rule's gaps; else the readout takes the row
+  under, the rule running to the last column.
+- On the row under, the readout comes first: the state, `loading…` among its forms, gives way to
+  it, left out where its least doesn't fit before it.
+- Where the frame is narrower than the readout itself, under 36 columns for the widest, the
+  readout is left out whole, never cut.
+
+Beside the readout, the state
 takes the room left, two cells short of it, in the first of its forms that fits. A state of free
 text, the Log's filter, whose length is its data's, holds nothing of itself whole, so the heading's
 rows never hang on what it keeps: it's cut to the room left, as `only d28c swi…`. `loading…`'s room
@@ -4030,8 +4040,8 @@ Overview).
 - **The dial's keys,** on every tab with the dial (Accounts, Projects and Sessions' List), one rule:
   - The key line names none of `-`, `+`, `<` and `>`, now or past, as the heading's readout names
     them, and `?` lists them (the owner's call, 22 November 2026).
-  - While a past period shows, it names `n now`, in a group of its own after the page's first
-    keys, as Compare's
+  - While a past period shows, it names `n now`, in a group of its own: after `[ ] view` on
+    Accounts and the List, and on Projects after its own keys, before `p pin`, as Compare's
     `tab views   [ ] view    n now    ←→ account  enter its page    p pin    ? help  q quit`.
   - A wide line that doesn't fit leaves `p pin` out before it falls to the phone's form.
   - A phone's line keeps `n now` to the last, the one exception to the phone's order: the page's
@@ -4055,7 +4065,7 @@ theme picker is a slide-over at the right instead, so its themes preview on the 
 either side, else the screen's width less those, and centred, titled `HELP · <PAGE>` as the
 page is named, `HELP · OVERVIEW`, or `HELP · SESSION` on a session's page. It lists first every key
 that works on the page, those the key line leaves out among them (`t`, `R`, `j`/`k`, PgUp, PgDn, the
-wheel, and the dial's `- + period` and `< > back · on`), worded as the key line words them; then
+wheel, and the dial's `- + range` and `< > time`), each by its key and its word, as `n now`; then
 what the page's rules explain, part by part in the page's order: what each part shows and how to
 read it, the scale of a chart or a trace, and a key to its marks and glyphs (settled in the plan).
 It's as tall as its content, up to the page's height less two rows, and past that it scrolls

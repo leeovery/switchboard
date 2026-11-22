@@ -79,12 +79,13 @@ func Lengths() []Length {
 	return slices.Clone(lengths)
 }
 
-// LengthNames are the lengths' names, as Name has them, in the order - and
-// + step through them, the shortest first.
-func LengthNames() []string {
+// RangeNames are the lengths' ranges, as the heading's readout names them
+// between - and +, in the order - and + step through them, the shortest
+// first: "day", "week", "30 days", "12 weeks" and "12 months".
+func RangeNames() []string {
 	names := make([]string, len(lengths))
 	for i, l := range lengths {
-		names[i] = l.Name()
+		names[i] = lengthsAre[l].ranged
 	}
 	return names
 }

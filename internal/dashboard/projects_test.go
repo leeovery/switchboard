@@ -899,9 +899,9 @@ func TestEachDialsHelpSaysWhatItsKeysDo(t *testing.T) {
 	const (
 		periodsRun = "a period is a length and the day it ends on. Today is that day, this week its week, 30 days and 12 " +
 			"months run back from it, and 12 weeks over its week and the 11 before. The period that reaches today is now; " +
-			"any other is past, when it is drawn in its own colour."
+			"any other is past, and its when shows in its own colour."
 		steps = "The heading's right names the period's range between - and +, and when it is between < and >, as - 30 " +
-			"days +  < to 1 Sep >. - and + step through today, this week, 30 days, 12 weeks and 12 months, keeping the " +
+			"days +  < to 1 Sep >. - and + step through day, week, 30 days, 12 weeks and 12 months, keeping the " +
 			"period's last day, = as +; < and > step back and on in time, a period at a time, < stopping at the ledger's " +
 			"first day and > at now; each sign is faint where it stops, and a click on it steps as its key does; and n " +
 			"goes back to now"

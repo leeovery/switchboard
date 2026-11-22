@@ -1,6 +1,6 @@
 # Accounts: each account in depth, over any period
 
-Accounts sets your accounts side by side over a period you choose, from today to 12 months. Look
+Accounts sets your accounts side by side over a period you choose, from a day to 12 months. Look
 at it to see which account hits its limit most, and how full each week got. It also sets what the
 use was worth against each plan. It has three views on sub-tabs: Compare, Detail and Tokens.
 
@@ -20,7 +20,7 @@ Step it back to see last week whole, or what a day in September was worth. Every
 counts over the period, and so do [Projects](projects.md) and the List on [Sessions](sessions.md).
 
 The dial names the length between `-` and `+`, and when the period is between `<` and `>`. Each
-pair of keys changes its own half alone:
+pair of keys changes only its own half:
 
 | Key | Does |
 |---|---|
@@ -48,7 +48,7 @@ dashboard always opens on now, and remembers only the length from one run to the
 
 ## Past periods: what leaves
 
-A past period names when it is in a colour of its own in the heading, so it never reads as now. It
+The heading shows the when of a past period in a colour of its own, so it never reads as now. It
 stays put as midnight passes. What tells the moment leaves, because it says nothing of the past:
 
 | View | In a past period |
@@ -160,7 +160,8 @@ Press `v` to split each row by account, by model, by both, or not at all.
 ## Room by width
 
 **The dial** on a phone 73 columns wide sits beside the tabs at now. In a past period it takes the
-row under them, whatever its width, so `<` and `>` never move the page.
+row under them, whatever its width. So the first `<` from now moves the page down a row, and from
+then on `<` and `>` never move it.
 
 **Compare** scrolls its rows under the account names if they don't all fit. If the columns don't
 fit, `←` and `→` scroll them. If two accounts and `all accounts` don't fit side by side, as on a
