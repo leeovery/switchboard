@@ -3,6 +3,8 @@ package dashboard
 import (
 	"slices"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -162,14 +164,21 @@ func (d detailDrawn) thisWeekFigureCells() int {
 	return d.l.edge() - d.l.thisWeekAt() - thisWeekLabels
 }
 
+// thisWeekTitleAt is the column THIS WEEK's title starts at: its column's,
+// but where the title is wider than the column, as a past period's name may
+// be, so far left of it that the title ends at the weeks' edge.
+func (d detailDrawn) thisWeekTitleAt() int {
+	return min(d.l.thisWeekAt(), d.l.edge()-ansi.StringWidth(d.f.Dial.Title()))
+}
+
 // thisWeek draws THIS WEEK from row y, at its column: its title, naming the
-// period, then each item, its label thisWeekLabels cells wide in
-// text.subtle, and its figure over the rows its rows give it, each cut at
-// the weeks' edge, as fitParts cuts it, which only an unbounded figure
-// reaches.
+// period, from thisWeekTitleAt, then each item, its label thisWeekLabels
+// cells wide in text.subtle, and its figure over the rows its rows give it,
+// each cut at the weeks' edge, as fitParts cuts it, which only an unbounded
+// figure reaches.
 func (d detailDrawn) thisWeek(c *canvas, y int) {
 	x, cells := d.l.thisWeekAt(), d.thisWeekFigureCells()
-	c.line(x, y, line{{d.f.Dial.Title(), headingInk}})
+	c.line(d.thisWeekTitleAt(), y, line{{d.f.Dial.Title(), headingInk}})
 	for _, item := range d.thisWeekSaid() {
 		for i, row := range item.rows(cells) {
 			y++

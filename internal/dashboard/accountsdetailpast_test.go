@@ -138,7 +138,9 @@ func detailDrawnAt(f Frame, doc status.Document, now time.Time) pastDrawn {
 	c := stacked{d}.whole().c
 	if wide {
 		c = d.panel()
-		d.list(c, 0, wholeRows)
+		if l.list {
+			d.list(c, 0, wholeRows)
+		}
 	}
 	return pastDrawn{f: f, d: d, c: c, rows: textOf(c.rows(Look{})), wide: wide}
 }
@@ -250,30 +252,76 @@ func TestAPastDetailsFiguresStandBesideBYMODEL(t *testing.T) {
 				continue
 			}
 			t.Run(fmt.Sprintf("%d %s", width, dp.name), func(t *testing.T) {
-				l := p.d.l
-				y, title := rowWith(p.rows, "BY MODEL"), p.f.Dial.Title()
-				if got := columnOf(p.rows[y], title); got != l.thisWeekAt() {
-					t.Errorf("%s is at column %d, want THIS WEEK's, %d, on BY MODEL's row %q", title, got, l.thisWeekAt(), p.rows[y])
-				}
-				end := l.thisWeekAt() - 1
-				if bar := cellsOf(p.rows[y], l.cx(), end+1); bar != strings.Repeat("█", end-l.cx())+" " {
-					t.Errorf("BY MODEL's bar reads %q, want it from cx to a cell before THIS WEEK", bar)
-				}
-				versions := lastRowWith(p.rows, y+1, l.cx(), end)
-				if versions <= y {
-					t.Fatalf("no versions under BY MODEL's bar in\n%s", strings.Join(p.rows, "\n"))
-				}
-				for row := y + 1; row <= versions; row++ {
-					if gap := cellsOf(p.rows[row], end, end+1); gap != " " {
-						t.Errorf("BY MODEL's versions on row %d run to THIS WEEK: %q", row, p.rows[row])
-					}
-				}
-				figures := lastRowWith(p.rows, y, l.thisWeekAt(), l.edge())
-				if got, want := rowWith(p.rows, "┄┄ "), max(versions, figures)+2; got != want {
-					t.Errorf("the rule is on row %d, want two under BY MODEL's last, %d, and THIS WEEK's, %d", got, versions, figures)
-				}
+				standsBesideBYMODEL(t, p, p.d.l.thisWeekAt())
 			})
 		}
+	}
+}
+
+// Wide, in a past period, THIS WEEK's title wider than its column, as the
+// widest of the past names are with one account or two, ends at the weeks'
+// edge, and BY MODEL's bar and its versions end a cell before wherever it
+// starts; THIS WEEK's items stay at its column. Each title is a past 12
+// months': "12 MONTHS TO 1 OCT 2025", a step back from routedAt, and "12
+// MONTHS TO 30 SEP 2025", a step back from the day before.
+func TestAPastDetailsTitleWiderThanItsColumnEndsAtTheWeeksEdge(t *testing.T) {
+	doc := pastWorld()
+	for _, width := range []int{104, 138, 160, 173} {
+		for _, accounts := range []int{1, 2} {
+			for _, at := range []time.Time{routedAt, routedAt.AddDate(0, 0, -1)} {
+				year := backFrom(t, views.LengthTwelveMonths, at, 1)
+				dp := detailPeriod{period: year, page: goneDetail(t, year, false)}
+				p := drawnOver(width, dp, doc, func(f *Frame) { f.Accounts.Accounts = framedAccounts[:accounts] })
+				if !p.wide {
+					continue
+				}
+				title := p.f.Dial.Title()
+				t.Run(fmt.Sprintf("%d %d accounts %s", width, accounts, title), func(t *testing.T) {
+					l := p.d.l
+					titleAt := min(l.thisWeekAt(), l.edge()-len(title))
+					if (accounts == 1 || len(title) > 23) && titleAt == l.thisWeekAt() {
+						t.Fatalf("%s fits THIS WEEK's column of %d cells, want it wider", title, l.thisWeek)
+					}
+					standsBesideBYMODEL(t, p, titleAt)
+					if y := rowWith(p.rows, "requests"); columnOf(p.rows[y], "requests") != l.thisWeekAt() {
+						t.Errorf("THIS WEEK's requests read %q, want them at its column, %d", p.rows[y], l.thisWeekAt())
+					}
+				})
+			}
+		}
+	}
+}
+
+// standsBesideBYMODEL fails the test unless, as p draws it, THIS WEEK's
+// title heads on BY MODEL's row at titleAt, BY MODEL's bar and its versions
+// end a cell before it, and the rule sits two rows under the lower of BY
+// MODEL's last row and THIS WEEK's.
+func standsBesideBYMODEL(t *testing.T, p pastDrawn, titleAt int) {
+	t.Helper()
+	l := p.d.l
+	y, title := rowWith(p.rows, "BY MODEL"), p.f.Dial.Title()
+	if y < 0 {
+		t.Fatalf("no BY MODEL drawn in\n%s", strings.Join(p.rows, "\n"))
+	}
+	if got := columnOf(p.rows[y], title); got != titleAt {
+		t.Errorf("%s is at column %d, want %d, on BY MODEL's row %q", title, got, titleAt, p.rows[y])
+	}
+	end := titleAt - 1
+	if bar := cellsOf(p.rows[y], l.cx(), end+1); bar != strings.Repeat("█", end-l.cx())+" " {
+		t.Errorf("BY MODEL's bar reads %q, want it from cx to a cell before THIS WEEK's title", bar)
+	}
+	versions := lastRowWith(p.rows, y+1, l.cx(), end)
+	if versions <= y {
+		t.Fatalf("no versions under BY MODEL's bar in\n%s", strings.Join(p.rows, "\n"))
+	}
+	for row := y + 1; row <= versions; row++ {
+		if gap := cellsOf(p.rows[row], end, end+1); gap != " " {
+			t.Errorf("BY MODEL's versions on row %d run to THIS WEEK: %q", row, p.rows[row])
+		}
+	}
+	figures := lastRowWith(p.rows, y, l.thisWeekAt(), l.edge())
+	if got, want := rowWith(p.rows, "┄┄ "), max(versions, figures)+2; got != want {
+		t.Errorf("the rule is on row %d, want two under BY MODEL's last, %d, and THIS WEEK's, %d", got, versions, figures)
 	}
 }
 

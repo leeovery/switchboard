@@ -481,31 +481,36 @@ func TestAPeriodGoneBeginsAtItsFirstDaysStart(t *testing.T) {
 // The dial's short name is its length's name at now, as its name is, and
 // gone, never one that says now (today, this week): a day's own name, or in
 // another year its date with its year, the week of a week, and the longer
-// lengths' own names.
+// lengths' own names. Yesterday keeps its name on 1 January, its year
+// another: the year is said only of a date.
 func TestShortIsTheLengthsNameNeverOneThatSaysNowGone(t *testing.T) {
+	newYear := time.Date(2027, 1, 1, 9, 0, 0, 0, time.Local)
 	tests := []struct {
 		length views.Length
 		keys   string
 		want   string
+		now    time.Time
 	}{
-		{views.LengthToday, "", "today"},
-		{views.LengthToday, "<", "yesterday"},
-		{views.LengthToday, "<<", "Tue 29 Sep"},
-		{views.LengthToday, strings.Repeat("<", 274), "31 Dec 2025"},
-		{views.LengthThisWeek, "", "this week"},
-		{views.LengthThisWeek, "<", "the week"},
-		{views.LengthThisWeek, "<<", "the week"},
-		{views.LengthThirtyDays, "", "30 days"},
-		{views.LengthThirtyDays, "<", "30 days"},
-		{views.LengthTwelveWeeks, "", "12 weeks"},
-		{views.LengthTwelveWeeks, "<<", "12 weeks"},
-		{views.LengthTwelveMonths, "", "12 months"},
-		{views.LengthTwelveMonths, "<", "12 months"},
+		{views.LengthToday, "", "today", framesNow},
+		{views.LengthToday, "<", "yesterday", framesNow},
+		{views.LengthToday, "<<", "Tue 29 Sep", framesNow},
+		{views.LengthToday, strings.Repeat("<", 274), "31 Dec 2025", framesNow},
+		{views.LengthToday, "<", "yesterday", newYear},
+		{views.LengthToday, "<<", "30 Dec 2026", newYear},
+		{views.LengthThisWeek, "", "this week", framesNow},
+		{views.LengthThisWeek, "<", "the week", framesNow},
+		{views.LengthThisWeek, "<<", "the week", framesNow},
+		{views.LengthThirtyDays, "", "30 days", framesNow},
+		{views.LengthThirtyDays, "<", "30 days", framesNow},
+		{views.LengthTwelveWeeks, "", "12 weeks", framesNow},
+		{views.LengthTwelveWeeks, "<<", "12 weeks", framesNow},
+		{views.LengthTwelveMonths, "", "12 months", framesNow},
+		{views.LengthTwelveMonths, "<", "12 months", framesNow},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%s %d back", tt.length.Name(), len(tt.keys)), func(t *testing.T) {
-			p := pressed(t, tt.length, tt.keys, framesNow, time.Monday, time.Time{})
-			if got := views.DialOf(p, framesNow, time.Monday, time.Time{}).Short(); got != tt.want {
+		t.Run(fmt.Sprintf("%s %d back on %s", tt.length.Name(), len(tt.keys), tt.now.Format(time.DateOnly)), func(t *testing.T) {
+			p := pressed(t, tt.length, tt.keys, tt.now, time.Monday, time.Time{})
+			if got := views.DialOf(p, tt.now, time.Monday, time.Time{}).Short(); got != tt.want {
 				t.Errorf("%s pressed %q is short %q, want %q", tt.length.Name(), tt.keys, got, tt.want)
 			}
 		})

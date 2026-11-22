@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -374,5 +375,29 @@ func TestTheEmptyListOfAPeriodGoneSaysWhatTheListSays(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// ON ACCOUNTS over a period gone names each account without ▲ and without
+// the marks of one out of the pool, as both tell now; at now it names it as
+// the moment does, both marks kept.
+func TestOnAccountsOverAPeriodGoneNamesNoMarkOfNow(t *testing.T) {
+	m := status.Moment{Accounts: []status.AccountNow{{ID: "side", Label: "side", Primary: true, Next: true, OutOfPool: true}}}
+	share := views.AccountShare{Account: "side"}
+	f := projectsFrame(t, 160, projectsTall, projectRows(3), 0, nil)
+	tests := []struct {
+		name string
+		f    Frame
+		want accountName
+	}{
+		{name: "at now", f: f, want: accountName{label: "side", primary: true, best: true, out: true}},
+		{name: "gone", f: overGone(t, f, weekBack(t)), want: accountName{label: "side", primary: true}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := (projectDrawn{f: tt.f, m: m}).accountNamed(share); got != tt.want {
+				t.Errorf("ON ACCOUNTS names side %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }

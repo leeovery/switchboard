@@ -46,7 +46,7 @@ func DialOf(period Period, now time.Time, starts time.Weekday, began time.Time) 
 func (l Length) goneSaid(s periodSpan) (name, within string) {
 	switch l {
 	case LengthToday:
-		if s.last.AddDate(0, 0, 1).Equal(s.today) {
+		if s.yesterday() {
 			return "yesterday", "yesterday"
 		}
 		day := prose.DayAt(s.today, s.last)
@@ -62,15 +62,20 @@ func (l Length) goneSaid(s periodSpan) (name, within string) {
 	return name, "in the " + name
 }
 
+// yesterday reports whether the span's last day is the day before today.
+func (s periodSpan) yesterday() bool {
+	return s.last.AddDate(0, 0, 1).Equal(s.today)
+}
+
 // goneShort is the short name of a period of the length gone, of the span
-// given, named as given: a day in today's year its name itself, as Tue 29
-// Sep, and in another its date with its year, as 31 Dec 2025, without its
-// weekday; the week, never this week; and the longer lengths their own name,
-// as 30 days.
+// given, named as given: yesterday, or a day in today's year, its name
+// itself, as Tue 29 Sep, and a date in another its date with its year, as
+// 31 Dec 2025, without its weekday; the week, never this week; and the
+// longer lengths their own name, as 30 days.
 func (l Length) goneShort(s periodSpan, name string) string {
 	switch l {
 	case LengthToday:
-		if s.last.Year() != s.today.Year() {
+		if !s.yesterday() && s.last.Year() != s.today.Year() {
 			return prose.DayMonthYear(s.last)
 		}
 		return name

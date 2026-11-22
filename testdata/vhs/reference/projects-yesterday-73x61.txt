@@ -34,7 +34,7 @@ BY MODEL
   ● Sonnet 5.5   6%
 
 ON ACCOUNTS
-  side        ▲                                ▋                      62%
+  side                                         ▋                      62%
   work                      ▎                                         24%
   personal    ◆        ▏                                              14%
 

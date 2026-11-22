@@ -363,12 +363,18 @@ func (d projectDrawn) onAccounts(c *canvas, x, y, width int) int {
 
 // accountNamed is the account a share is of as a column of names names it:
 // as the moment names it, ◆ on the primary and ▲ on the one new sessions go
-// to; else, as of one no longer configured, by the name the share has.
+// to, its routing and pool marks left off in a period gone, as they tell
+// now; else, as of one no longer configured, by the name the share has.
 func (d projectDrawn) accountNamed(a views.AccountShare) accountName {
-	if now, ok := d.m.Account(a.Account); ok {
-		return namesAt([]status.AccountNow{now})[0]
+	now, ok := d.m.Account(a.Account)
+	if !ok {
+		return accountName{label: labelled(a.Label, a.Account)}
 	}
-	return accountName{label: labelled(a.Label, a.Account)}
+	n := namesAt([]status.AccountNow{now})[0]
+	if d.f.Dial.Gone() {
+		n.best, n.out = false, false
+	}
+	return n
 }
 
 // shareEighths are the eighths of cells cells a share takes, as barUnits

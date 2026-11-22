@@ -27,7 +27,7 @@ WORTH BY DAY                                                                    
 Mon         Tue          Wed         Thu         Fri          Sat         Sun           ON ACCOUNTS
 peak Tue $65.98                                                                           personal    ◆                                                                   38%
                                                                                           work                                 ▍                                          37%
-                                                                                          side        ▲                ▋                                                  25%
+                                                                                          side                         ▋                                                  25%
 
 SESSIONS
   session                                                                                                        on        model       state        started  requests   worth

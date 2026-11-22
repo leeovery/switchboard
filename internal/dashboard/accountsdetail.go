@@ -576,10 +576,10 @@ func (d detailDrawn) versionLines() []line {
 
 // byModelCells are the cells BY MODEL's bar and its versions take from cx:
 // to the weeks' edge; in a past period, to thisWeekApart cells short of THIS
-// WEEK, beside them.
+// WEEK, beside them, or of its title, where that starts before it.
 func (d detailDrawn) byModelCells() int {
 	if d.gone {
-		return d.l.thisWeekAt() - thisWeekApart - d.l.cx()
+		return d.thisWeekTitleAt() - thisWeekApart - d.l.cx()
 	}
 	return d.l.weeksCells()
 }
