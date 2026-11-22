@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-SESSIONS    Switchboard  List  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+SESSIONS    Switchboard  List  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────   - week +  < this week >
 
   session                   on        model       state        started          requests     worth  routing
 ▸ infra       terraform     side      opus-5-5    idle 50s     yesterday 15:08       153    $12.64  from work · at its cap  $0.66
@@ -34,4 +34,4 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 
 
 this week  16 sessions · 2,900 requests · $331.11+ at API prices
-tab views   [ ] view   - + period: this week   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit
+tab views   [ ] view   ↑↓ session   enter its page   p pin   ? help  q quit

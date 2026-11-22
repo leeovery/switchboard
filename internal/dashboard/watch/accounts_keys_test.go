@@ -52,7 +52,7 @@ func (h *harness) offKeys() []string {
 // phone's keeping [ ] view alone.
 func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 	const (
-		head    = "tab views   [ ] view    - + period: this week    < > back · on    "
+		head    = "tab views   [ ] view    "
 		ends    = "    p pin    ? help  q quit"
 		compare = head + "←→ account  enter its page" + ends
 		list    = head + "↑↓ account  enter its page" + ends
@@ -77,11 +77,11 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 		},
 		{
 			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured}, period: views.LengthThirtyDays.Now(),
-			want: "tab views   [ ] view    - + period: 30 days    < > back · on    ←→ account  enter its page" + ends, wantOff: []string{"enter"},
+			want: "tab views   [ ] view    ←→ account  enter its page" + ends, wantOff: []string{"enter"},
 		},
 		{
 			name: "Detail over the last 12 months", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail},
-			period: views.LengthTwelveMonths.Now(), want: "tab views   [ ] view    - + period: 12 months    < > back · on    ↑↓ account  enter its page" + ends, wantOff: []string{"enter"},
+			period: views.LengthTwelveMonths.Now(), want: "tab views   [ ] view    ↑↓ account  enter its page" + ends, wantOff: []string{"enter"},
 		},
 		{
 			name: "Compare, Detail's SESSIONS left as they were", sessions: true,
@@ -101,17 +101,17 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 		{name: "Tokens, split by account", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsTokens}, want: head + "v split: by account" + ends},
 		{
 			name: "Tokens over 12 weeks, split by model", shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsTokens, TokensSplit: dashboard.TokensByModel},
-			period: views.LengthTwelveWeeks.Now(), want: "tab views   [ ] view    - + period: 12 weeks    < > back · on    v split: by model" + ends,
+			period: views.LengthTwelveWeeks.Now(), want: "tab views   [ ] view    v split: by model" + ends,
 		},
 		{
 			name: "one account, sessions running on it", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one},
-			want: "tab views   [ ] view    - + period: this week    < > back · on    ↑↓ session  enter its page    ? help  q quit",
+			want: "tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit",
 		},
-		{name: "one account, none running on it", doc: routerDocument(three()[0]), shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   [ ] view    - + period: this week    < > back · on    ? help  q quit"},
-		{name: "one account, pinned from the command line", doc: pinned, shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   [ ] view    - + period: this week    < > back · on    p pin    ? help  q quit"},
+		{name: "one account, none running on it", doc: routerDocument(three()[0]), shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   [ ] view    ? help  q quit"},
+		{name: "one account, pinned from the command line", doc: pinned, shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   [ ] view    p pin    ? help  q quit"},
 		{
 			name: "one account's Tokens, sessions running on it", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one, Shown: dashboard.AccountsTokens},
-			want: "tab views   [ ] view    - + period: this week    < > back · on    v split: by account    ? help  q quit",
+			want: "tab views   [ ] view    v split: by account    ? help  q quit",
 		},
 		{name: "a phone on Compare, a column focused", shown: dashboard.AccountsShown{Accounts: threeConfigured, Focused: true}, width: 52, want: "tab views   [ ] view   ? keys   q quit"},
 		{name: "a phone", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work"}, width: 52, want: "tab views   [ ] view   ? keys   q quit"},

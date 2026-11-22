@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────────────────────────────   - week +  < this week >
 
 ◂ work ▸                                                                           ↑↓ an account, or all
 ● at its cap
@@ -55,4 +55,4 @@ Wed 17:10  ✓ open again: its 5-hour window reset
 
 
 
-tab views   [ ] view    - + period    < > back · on    ↑↓ account  enter its page    ? help  q quit
+tab views   [ ] view    ↑↓ account  enter its page    p pin    ? help  q quit

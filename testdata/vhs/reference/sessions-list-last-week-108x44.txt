@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-SESSIONS    Switchboard  List  [ ]  ─────────────────────────────────────────────────────────  < last week >
+SESSIONS    Switchboard  List  [ ]  ──────────────────────────────────────────────   - week +  < last week >
 
   session                              on        model       state        started          requests    worth
   ended Sat  ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -41,4 +41,4 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
   switchboard 4f47                     work      opus-5-5    ended 13:48  11:57                 296   $34.11
 last week  38 sessions · 5,791 requests · $667.15 at API prices
   ▼ 9 more sessions
-tab views   [ ] view   - + period   < > back · on   n now   ↑↓ session   enter its page   ? help  q quit
+tab views   [ ] view   n now   ↑↓ session   enter its page   p pin   ? help  q quit

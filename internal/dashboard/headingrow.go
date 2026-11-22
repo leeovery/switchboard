@@ -13,11 +13,13 @@ import (
 
 // The blank cells the heading row sets its parts apart by: before the
 // sub-tabs and before the state; between the rule and what's either side of
-// it, but the state, which the rule starts a cell after; and on a phone,
-// before the sub-tabs.
+// it, but the state, which the rule starts a cell after, and the period's
+// readout, which it ends three short of, so a faint - stands clear of it;
+// and on a phone, before the sub-tabs.
 const (
 	headingGap = 3
 	ruleGap    = 2
+	readoutGap = 3
 	compactGap = 2
 )
 
@@ -31,10 +33,10 @@ var shownSubTabInk = ink{token: theme.TextPrimary, on: hue{token: theme.BgSubtle
 // less room; the widest its least form takes as the keys that change what it
 // names step it, whether it shows yet or not; whether it's free text, its
 // length unbounded, as the Log's filter, cut to the room it's left; and at
-// its right, the dial's period, which < and > step, as dialed has it, or
-// another line, as the Log's count and its f, and that line where the
-// heading is compact, where it has one of its own; and whether it says its
-// page is loading.
+// its right, the dial's period's readout, as dialed has it, or another
+// line, as the Log's count and its f, and that line where the heading is
+// compact, where it has one of its own; and whether it says its page is
+// loading.
 type heading struct {
 	name         string
 	subTabs      []string
@@ -183,8 +185,8 @@ func (h heading) compact(phone bool) bool {
 // takes the row under: the name and the sub-tabs, whole; three cells on, the
 // state at its least, which is never cut, so gives way to the row under
 // where even it doesn't fit beside them; and two cells on, what's at the
-// right at its widest, the period between its keys or the line, which gives
-// way to the row under first.
+// right at its widest, the period's readout or the line, which gives way to
+// the row under first.
 const (
 	periodNamed = iota
 	periodState
@@ -195,7 +197,8 @@ const (
 // sub-tabs in a frame width cells wide, as its parts above lay out there:
 // its state; and what's at its right, which goes where the state does. So
 // neither loading, nor a step of the period or of what the state names,
-// moves the heading between one row and two. A tab without sub-tabs, as
+// moves the heading between one row and two, but a step between now and a
+// past period, whose widest readouts differ. A tab without sub-tabs, as
 // Runway, keeps its rule and what's at its right on its row.
 func (h heading) under(width int, phone bool) (state, right bool) {
 	if !h.compact(phone) {
@@ -217,7 +220,8 @@ func (h heading) under(width int, phone bool) (state, right bool) {
 }
 
 // widestRight are what sits at a compact heading's right at its widest: its
-// period at the widest it takes, as atWidest has it; else its line.
+// period's readout at the widest it keeps room for, as atWidest has it;
+// else its line.
 func (h heading) widestRight() []piece {
 	if h.period.shown() {
 		return periodPieces(h.period.atWidest())
@@ -229,22 +233,23 @@ func (h heading) widestRight() []piece {
 // cells wide, on a phone where phone says: its name and sub-tabs, as named
 // lays them out; then three cells on, the state, or the first of its shorter
 // forms that fits where the rest leaves it short of room, cut where none
-// does. Ending at the last column, its period between < and >, or its line,
-// left out where it doesn't fit beside the name and the sub-tabs. Between
-// them, the rule, from two cells after them, or one after the state, to two
-// cells short of what sits at the right, or to the last column where nothing
-// does. A compact heading has no rule; and where under says, its state
+// does. Ending at the last column, its period's readout, or its line, left
+// out where it doesn't fit beside the name and the sub-tabs, as far from
+// them as the rule ends short of it. Between them, the rule, from two cells
+// after them, or one after the state, to as many short of what sits at the
+// right as rightGap has it, or to the last column where nothing does. A
+// compact heading has no rule; and where under says, its state
 // starts the row under, and what's at its right ends it, left out where it
 // doesn't fit after the state's least.
 func (h heading) pieces(y, width int, phone bool) []piece {
 	var laid laying
 	x := h.named(&laid, y, phone)
 	stateUnder, rightUnder := h.under(width, phone)
-	right, rightY := h.rightPieces(h.compact(phone)), y
+	right, rightY, gap := h.rightPieces(h.compact(phone)), y, h.rightGap(phone)
 	switch {
 	case rightUnder:
 		rightY++
-	case width-ends(right) < x+ruleGap:
+	case width-ends(right) < x+gap:
 		right = nil
 	}
 	stateX, stateY := x+headingGap, y
@@ -253,7 +258,7 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 	}
 	end := width
 	if right != nil && rightY == stateY {
-		end = width - ends(right) - ruleGap
+		end = width - ends(right) - gap
 	}
 	if stateUnder && end-stateX < h.leastState() {
 		right, end = nil, width
@@ -270,6 +275,16 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 		from = laid.put(from, rightY, p.line, p.click)
 	}
 	return laid
+}
+
+// rightGap is how many cells short of what sits at the heading's right what's
+// before it ends, on a phone where phone says: the rule three short of the
+// period's readout, as readoutGap has it; else two.
+func (h heading) rightGap(phone bool) int {
+	if h.period.shown() && !h.compact(phone) {
+		return readoutGap
+	}
+	return ruleGap
 }
 
 // named lays the heading's name out from the first column of row y, then,
@@ -318,9 +333,9 @@ func (h heading) subTab(i int) line {
 }
 
 // rightPieces are what sits at the heading's right, in order, where they
-// are yet to be placed: its period, with < before it and > after, each a
-// step back and on; else, where compact says, its compact line, where it has
-// one; else its line; else nothing.
+// are yet to be placed: its period's readout, as periodPieces has it; else,
+// where compact says, its compact line, where it has one; else its line;
+// else nothing.
 func (h heading) rightPieces(compact bool) []piece {
 	switch {
 	case h.period.shown():
@@ -346,29 +361,39 @@ func widestOf(forms []string) string {
 	return widest
 }
 
-// stepOffInk is < or > by the dial's period where it does nothing: faint,
+// stepOffInk is a sign of the readout's where its step does nothing: faint,
 // and still bold, as the keys beside it are.
 var stepOffInk = ink{token: theme.TextFaint, bold: true}
 
-// periodPieces are the dial's period given between < and >, each a step
-// back and on, faint where it does nothing; the period's name in text.muted,
-// or gone, in accent.attention, so it never reads as now.
+// periodPieces are the dial's period's readout given: its range between -
+// and +, a click on each pressing it, then two cells on, when it is between
+// < and >, a click on each stepping back and on; each sign in bold
+// accent.key, faint where its step does nothing. The range is in
+// text.muted, and when too, but gone, in accent.attention, so it never
+// reads as now.
 func periodPieces(d dialed) []piece {
-	back, on, name := keyInk, keyInk, mutedInk
-	if d.backOff {
-		back = stepOffInk
-	}
-	if d.onOff {
-		on = stepOffInk
-	}
+	when := mutedInk
 	if d.gone {
-		name = warningInk
+		when = warningInk
 	}
 	return []piece{
-		{line: line{{"<", back}}, click: Target{On: OnStep, Step: -1}},
-		{line: line{{" " + d.name + " ", name}}},
-		{line: line{{">", on}}, click: Target{On: OnStep, Step: 1}},
+		{line: line{{"-", signInk(d.shorterOff)}}, click: Target{On: OnPress, Key: "-"}},
+		{line: line{{" " + d.ranged + " ", mutedInk}}},
+		{line: line{{"+", signInk(d.longerOff)}}, click: Target{On: OnPress, Key: "+"}},
+		{line: line{spaces(2)}},
+		{line: line{{"<", signInk(d.backOff)}}, click: Target{On: OnStep, Step: -1}},
+		{line: line{{" " + d.when + " ", when}}},
+		{line: line{{">", signInk(d.onOff)}}, click: Target{On: OnStep, Step: 1}},
 	}
+}
+
+// signInk is a sign of the readout's ink: faint where off says its step
+// does nothing, else a key's.
+func signInk(off bool) ink {
+	if off {
+		return stepOffInk
+	}
+	return keyInk
 }
 
 // ends is how many cells the pieces take, laid end to end.

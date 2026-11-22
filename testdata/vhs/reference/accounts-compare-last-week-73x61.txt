@@ -4,7 +4,8 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-ACCOUNTS   Compare  Detail  Tokens                          < last week >
+ACCOUNTS   Compare  Detail  Tokens
+                                                  - week +  < last week >
 
 BY MODEL
 
@@ -56,6 +57,5 @@ WORTH  at API prices, by day
              peak Wed $60.47
 
  side
-                             ▃▃▃▃▃▃
-▼ 29 more below · j/k
-tab views   [ ] view   < > back · on   n now   ? keys   q quit
+▼ 30 more below · j/k
+tab views   [ ] view   n now   ? keys   q quit

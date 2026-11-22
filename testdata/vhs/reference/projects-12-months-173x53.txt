@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-PROJECTS  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 months >
+PROJECTS  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────   - 12 months +  < now >
 
   project       live  sessions    worth                                                                                                                      requests  last
 ▸ switchboard   ● 1        506   $7,447                                                                                                                        64,135  now
@@ -50,4 +50,4 @@ SESSIONS
   7902                                                                                                         personal  haiku-4-5   ended 14:08  12:15           238  $27.43
   ▼ 495 more sessions
 
-tab views   ↑↓ project   → its sessions   - + period: 12 months   < > back · on   p pin   ? help  q quit
+tab views   ↑↓ project   → its sessions   p pin   ? help  q quit

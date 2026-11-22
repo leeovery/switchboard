@@ -1322,14 +1322,14 @@ func TestEveryRowTheListScrollsDrawsAnotherPage(t *testing.T) {
 	}
 }
 
-// The period's dial shows at the heading's right while the List shows, the
-// rule ending two cells before it, and leaves with the Switchboard.
+// The period's readout shows at the heading's right while the List shows,
+// the rule ending three cells before it, and leaves with the Switchboard.
 func TestTheDialShowsOnTheListAlone(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	f := listFrame(t, 160, 37, logOver(views.LengthThirtyDays.Now()))
 	f = f.over(views.LengthThirtyDays.Now())
-	if got := textOf(f.Draw(doc, routedAt))[f.headingY()]; !strings.HasSuffix(got, "─  < 30 days >") {
-		t.Errorf("on the List, the heading reads %q, want it to end with the dial", got)
+	if got := textOf(f.Draw(doc, routedAt))[f.headingY()]; !strings.HasSuffix(got, "─   - 30 days +  < now >") {
+		t.Errorf("on the List, the heading reads %q, want it to end with the readout", got)
 	}
 	f.SessionsTab.Shown = SessionsSwitchboard
 	if got := textOf(f.Draw(doc, routedAt))[f.headingY()]; strings.Contains(got, "<") {

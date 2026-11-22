@@ -25,8 +25,8 @@ func laidOn(h heading, width int, phone bool) (*canvas, []piece) {
 
 // The headings of the frames the tests hold the heading row to: the Log's,
 // filtered, its count and f at its right; Runway's, stepped back a day, and
-// over the week; and Accounts', its period between its keys. And the
-// headings of a tab of four sub-tabs: over the last 12 months; filtered,
+// over the week; and Accounts', its period's readout at its right. And the
+// headings of a tab of four sub-tabs: over 12 months at now; filtered,
 // its state naming what it's filtered to, and only that where there's less
 // room, at its least as wide as the widest of the accounts it steps
 // through; and of eight weeks, no period, eight weeks at its right.
@@ -37,8 +37,8 @@ var (
 		right: line{{"830 hidden", secondaryInk}, spaces(3), {"f", keyInk}, {" what it shows", mutedInk}},
 	}
 	steppedBack = heading{name: "RUNWAY", state: line{{"Mon 21 Sep – Sun 27 Sep", faintInk}}}
-	comparing   = heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, period: dialed{name: "this week"}}
-	fourTabs    = heading{name: "EXAMPLE", subTabs: []string{"Feed", "Queue", "Logs", "Alerts"}, period: dialed{name: "last 12 months"}}
+	comparing   = heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, period: weekAtNow}
+	fourTabs    = heading{name: "EXAMPLE", subTabs: []string{"Feed", "Queue", "Logs", "Alerts"}, period: yearAtNow}
 	filtering   = heading{
 		name: fourTabs.name, subTabs: fourTabs.subTabs, period: fourTabs.period, least: "personal only",
 		state:   line{{"Work only, every model  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}},
@@ -46,6 +46,22 @@ var (
 	}
 	eightWeeks = heading{name: fourTabs.name, subTabs: fourTabs.subTabs, right: line{{"eight weeks", mutedInk}}}
 )
+
+// The readouts of the dial's period the tests draw, each keeping room for
+// the widest readout views keeps room for then, as periodDial has it: this
+// week and 12 months, at now; and a day gone, a week gone and 12 months
+// gone.
+var (
+	weekAtNow = dialed{ranged: "week", when: "this week", widestRanged: "week", widestWhen: "this week", onOff: true}
+	yearAtNow = dialed{ranged: "12 months", when: "now", widestRanged: "week", widestWhen: "this week", longerOff: true, onOff: true}
+	dayGone   = dialed{ranged: "day", when: "yesterday", widestRanged: "week", widestWhen: widestWeekGone, gone: true, shorterOff: true}
+	weekGone  = dialed{ranged: "week", when: "last week", widestRanged: "week", widestWhen: widestWeekGone, gone: true}
+	yearGone  = dialed{ranged: "12 months", when: "to 1 Oct 2025", widestRanged: "week", widestWhen: widestWeekGone, gone: true, longerOff: true}
+)
+
+// widestWeekGone is when the widest readout of a period gone is, as views
+// keeps room for it: a week over a year's end, neither year now's.
+const widestWeekGone = "30 Dec 2024–5 Jan 2025"
 
 func TestTheHeadingRow(t *testing.T) {
 	tests := []struct {
@@ -65,53 +81,67 @@ func TestTheHeadingRow(t *testing.T) {
 			want: []string{"RUNWAY   Mon 21 Sep – Sun 27 Sep " + rule(127)},
 		},
 		{
-			name: "the sub-tabs, the rule two cells after [ ], and the period", heading: comparing, width: 160,
-			want: []string{"ACCOUNTS    Compare  Detail  [ ]  " + rule(111) + "  < this week >"},
+			name: "the sub-tabs, the rule two cells after [ ], and three short of the period's readout", heading: comparing, width: 160,
+			want: []string{"ACCOUNTS    Compare  Detail  [ ]  " + rule(100) + "   - week +  < this week >"},
 		},
 		{
-			name: "on a phone, the sub-tabs two cells after the name, without [ ] or a rule, the period at the right where it fits beside them and loading…", heading: comparing, width: 53, phone: true,
-			want: []string{"ACCOUNTS   Compare  Detail" + blanks(14) + "< this week >"},
+			name: "on a phone, the sub-tabs two cells after the name, without [ ] or a rule, the readout at the right where it fits beside them and loading…", heading: comparing, width: 63, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail" + blanks(14) + "- week +  < this week >"},
 		},
 		{
-			name: "on a phone, the period on the row under the sub-tabs where it doesn't fit beside them and loading…", heading: comparing, width: 52, phone: true,
-			want: []string{"ACCOUNTS   Compare  Detail", blanks(39) + "< this week >"},
+			name: "on a phone, the readout on the row under the sub-tabs where it doesn't fit beside them and loading…", heading: comparing, width: 62, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail", blanks(39) + "- week +  < this week >"},
 		},
 		{
-			name: "on a phone, loading… whole between the sub-tabs and the period, where they fit", heading: comparing.loading(), width: 53, phone: true,
-			want: []string{"ACCOUNTS   Compare  Detail    loading…  < this week >"},
+			name: "on a phone, loading… whole between the sub-tabs and the readout, where they fit", heading: comparing.loading(), width: 63, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail    loading…  - week +  < this week >"},
+		},
+		{
+			name: "on a phone, a past readout on the row under where the widest gone doesn't fit beside, however narrow its own", width: 73, phone: true,
+			heading: heading{name: comparing.name, subTabs: comparing.subTabs, period: dayGone},
+			want:    []string{"ACCOUNTS   Compare  Detail", blanks(51) + "- day +  < yesterday >"},
+		},
+		{
+			name: "on a phone, a past readout beside the sub-tabs where the widest gone fits", width: 76, phone: true,
+			heading: heading{name: comparing.name, subTabs: comparing.subTabs, period: dayGone},
+			want:    []string{"ACCOUNTS   Compare  Detail" + blanks(28) + "- day +  < yesterday >"},
 		},
 		{
 			name:    "on a phone, four sub-tabs two cells after the name, padded, as Accounts' are",
 			heading: fourTabs, width: 52, phone: true,
-			want: []string{"EXAMPLE   Feed  Queue  Logs  Alerts", blanks(34) + "< last 12 months >"},
+			want: []string{"EXAMPLE   Feed  Queue  Logs  Alerts", blanks(30) + "- 12 months +  < now >"},
 		},
 		{
-			name: "on a phone, Accounts' padded sub-tabs leave loading… room before the period", heading: comparing.loading(), width: 73, phone: true,
-			want: []string{"ACCOUNTS   Compare  Detail    loading…" + blanks(22) + "< this week >"},
+			name: "on a phone, Accounts' padded sub-tabs leave loading… room before the readout", heading: comparing.loading(), width: 73, phone: true,
+			want: []string{"ACCOUNTS   Compare  Detail    loading…" + blanks(12) + "- week +  < this week >"},
 		},
 		{
 			name: "on a phone, four padded sub-tabs leave loading… room, before the state", width: 52, phone: true,
 			heading: filtering.loading(),
-			want:    []string{"EXAMPLE   Feed  Queue  Logs  Alerts    loading…", blanks(34) + "< last 12 months >"},
+			want:    []string{"EXAMPLE   Feed  Queue  Logs  Alerts    loading…", blanks(30) + "- 12 months +  < now >"},
 		},
 		{
 			name: "on a phone, the state in its short form, where its full form doesn't fit the room four padded sub-tabs leave", width: 52, phone: true,
 			heading: filtering,
-			want:    []string{"EXAMPLE   Feed  Queue  Logs  Alerts    Work only", blanks(34) + "< last 12 months >"},
+			want:    []string{"EXAMPLE   Feed  Queue  Logs  Alerts    Work only", blanks(30) + "- 12 months +  < now >"},
 		},
 		{
-			name: "on a phone, the state in its short form beside the period, where its least would fit", width: 72, phone: true,
+			name: "on a phone, the state in its short form beside the readout, where its least would fit", width: 77, phone: true,
 			heading: filtering,
-			want:    []string{"EXAMPLE   Feed  Queue  Logs  Alerts    Work only" + blanks(6) + "< last 12 months >"},
+			want:    []string{"EXAMPLE   Feed  Queue  Logs  Alerts    Work only" + blanks(7) + "- 12 months +  < now >"},
 		},
 		{
 			name: "four sub-tabs wider than a phone", heading: fourTabs, width: 160,
-			want: []string{"EXAMPLE    Feed  Queue  Logs  Alerts  [ ]  " + rule(97) + "  < last 12 months >"},
+			want: []string{"EXAMPLE    Feed  Queue  Logs  Alerts  [ ]  " + rule(92) + "   - 12 months +  < now >"},
 		},
 		{
 			name: "wider than a phone, the state in its short form where its full form doesn't fit, then the rule", width: 108,
 			heading: filtering,
-			want:    []string{"EXAMPLE    Feed  Queue  Logs  Alerts  [ ]   Work only " + rule(34) + "  < last 12 months >"},
+			want:    []string{"EXAMPLE    Feed  Queue  Logs  Alerts  [ ]   Work only " + rule(29) + "   - 12 months +  < now >"},
+		},
+		{
+			name: "wider than a phone, a readout gone, the rule three short of it", heading: heading{name: "PROJECTS", period: yearGone}, width: 104,
+			want: []string{"PROJECTS  " + rule(59) + "   - 12 months +  < to 1 Oct 2025 >"},
 		},
 		{
 			name: "on a phone, the sub-tabs two cells after the name, padded, and a line at the right on their row, as log-requests-phone-52 draws them", width: 52, phone: true,
@@ -119,14 +149,14 @@ func TestTheHeadingRow(t *testing.T) {
 			want:    []string{"LOG   Requests  Events" + blanks(18) + "35 hidden  f"},
 		},
 		{
-			name: "on a phone, a tab without sub-tabs keeps its rule and its window, as runway-phone-52 draws it", width: 52, phone: true,
-			heading: heading{name: "RUNWAY", period: dialed{name: "5-hour"}},
-			want:    []string{"RUNWAY  " + rule(32) + "  < 5-hour >"},
+			name: "on a phone, a tab without sub-tabs keeps its rule and its readout, as projects-phone draws it", width: 52, phone: true,
+			heading: heading{name: "PROJECTS", period: dayGone},
+			want:    []string{"PROJECTS  " + rule(17) + "   - day +  < yesterday >"},
 		},
 		{
-			name: "the state cut short, to leave the period room", width: 100,
-			heading: heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, state: line{{"accounts 1–6 of 10  ·  ", faintInk}, {"←→", keyInk}, {" moves along them; all accounts stays put", faintInk}}, period: dialed{name: "this week"}},
-			want:    []string{"ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along them; all a…  < this week >"},
+			name: "the state cut short, to leave the readout room", width: 100,
+			heading: heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, state: line{{"accounts 1–6 of 10  ·  ", faintInk}, {"←→", keyInk}, {" moves along them; all accounts stays put", faintInk}}, period: weekAtNow},
+			want:    []string{"ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along…    - week +  < this week >"},
 		},
 		{
 			name:    "on a phone, a free state cut beside the name and the sub-tabs, loading…'s room kept, the right on the row under where it doesn't fit after that",
@@ -167,48 +197,67 @@ func TestTheHeadingRow(t *testing.T) {
 	}
 }
 
-// The dial's period is drawn as it stands: its name in text.muted at now
-// and in accent.attention gone, so it never reads as now; < and > in bold
-// accent.key, each faint, still bold, where it does nothing.
-func TestTheDialIsDrawnAsItStands(t *testing.T) {
+// The readout is drawn as it stands: the range in text.muted; when in
+// text.muted at now and in accent.attention gone, so it never reads as now;
+// -, +, < and > in bold accent.key, each faint, still bold, where its step
+// does nothing: - at the shortest range, + at the longest, < at the ledger's
+// first day and > at now.
+func TestTheReadoutIsDrawnAsItStands(t *testing.T) {
 	tests := []struct {
-		name           string
-		dial           dialed
-		back, said, on ink
+		name                                    string
+		dial                                    dialed
+		said                                    string
+		shorter, ranged, longer, back, when, on ink
 	}{
-		{name: "now", dial: dialed{name: "this week", onOff: true}, back: keyInk, said: mutedInk, on: stepOffInk},
-		{name: "now, at the ledger's first day", dial: dialed{name: "this week", backOff: true, onOff: true}, back: stepOffInk, said: mutedInk, on: stepOffInk},
-		{name: "a period gone", dial: dialed{name: "last week", gone: true}, back: keyInk, said: warningInk, on: keyInk},
-		{name: "a period gone, at the ledger's first day", dial: dialed{name: "week of 14 Sep", gone: true, backOff: true}, back: stepOffInk, said: warningInk, on: keyInk},
+		{name: "now", dial: weekAtNow, said: "- week +  < this week >", shorter: keyInk, ranged: mutedInk, longer: keyInk, back: keyInk, when: mutedInk, on: stepOffInk},
+		{name: "now, at the longest range", dial: yearAtNow, said: "- 12 months +  < now >", shorter: keyInk, ranged: mutedInk, longer: stepOffInk, back: keyInk, when: mutedInk, on: stepOffInk},
+		{name: "now, at the ledger's first day", dial: func() dialed { d := yearAtNow; d.backOff = true; return d }(), said: "- 12 months +  < now >",
+			shorter: keyInk, ranged: mutedInk, longer: stepOffInk, back: stepOffInk, when: mutedInk, on: stepOffInk},
+		{name: "a day gone, at the shortest range", dial: dayGone, said: "- day +  < yesterday >", shorter: stepOffInk, ranged: mutedInk, longer: keyInk, back: keyInk, when: warningInk, on: keyInk},
+		{name: "a week gone, at the ledger's first day", dial: func() dialed { d := weekGone; d.backOff = true; return d }(), said: "- week +  < last week >",
+			shorter: keyInk, ranged: mutedInk, longer: keyInk, back: stepOffInk, when: warningInk, on: keyInk},
 	}
 	for _, tt := range tests {
-		pieces := periodPieces(tt.dial)
-		got := []ink{pieces[0].line[0].ink, pieces[1].line[0].ink, pieces[2].line[0].ink}
-		if want := []ink{tt.back, tt.said, tt.on}; !slices.Equal(got, want) || pieces[1].line.plain() != " "+tt.dial.name+" " {
-			t.Errorf("%s: <, %q and > are in %+v, want %+v", tt.name, pieces[1].line.plain(), got, want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			pieces := periodPieces(tt.dial)
+			var said strings.Builder
+			for _, p := range pieces {
+				said.WriteString(p.line.plain())
+			}
+			inkOf := func(i int) ink { return pieces[i].line[0].ink }
+			got := []ink{inkOf(0), inkOf(1), inkOf(2), inkOf(4), inkOf(5), inkOf(6)}
+			if want := []ink{tt.shorter, tt.ranged, tt.longer, tt.back, tt.when, tt.on}; !slices.Equal(got, want) || said.String() != tt.said {
+				t.Errorf("the readout reads %q, -, the range, +, <, when and > in %+v; want %q in %+v", said.String(), got, tt.said, want)
+			}
+		})
 	}
 	if want := (ink{token: theme.TextFaint, bold: true}); stepOffInk != want || warningInk != (ink{token: theme.AccentAttention}) {
 		t.Errorf("a step that does nothing is in %+v and a period gone in %+v, want %+v and accent.attention", stepOffInk, warningInk, want)
 	}
 }
 
-// The heading draws the dial as views says it: at now, its length's name,
-// > doing nothing; gone, its own name; < doing nothing on a period holding
-// the ledger's first day; and it keeps room for the widest of the lengths'
-// names at now.
-func TestTheHeadingDrawsTheDialAsViewsSaysIt(t *testing.T) {
+// The heading draws the readout as views says it: at now, the range and
+// when at now, > doing nothing, keeping room for the widest readout at now;
+// gone, its own when, keeping room for the widest gone; - doing nothing at
+// the shortest range and + at the longest; < doing nothing on a period
+// holding the ledger's first day.
+func TestTheHeadingDrawsTheReadoutAsViewsSaysIt(t *testing.T) {
 	week := views.LengthThisWeek.Now()
 	last, _ := week.Back(routedAt, time.Monday, time.Time{})
+	yesterday, _ := views.LengthToday.Now().Back(routedAt, time.Monday, time.Time{})
+	yearBack, _ := views.LengthTwelveMonths.Now().Back(routedAt, time.Monday, time.Time{})
 	began := last.From(routedAt, time.Monday)
 	tests := []struct {
 		name string
 		dial views.Dial
 		want dialed
 	}{
-		{name: "now", dial: views.DialOf(week, routedAt, time.Monday, time.Time{}), want: dialed{name: "this week", widest: "this week", onOff: true}},
-		{name: "a week gone", dial: views.DialOf(last, routedAt, time.Monday, time.Time{}), want: dialed{name: "last week", widest: "this week", gone: true}},
-		{name: "the week holding the ledger's first day", dial: views.DialOf(last, routedAt, time.Monday, began), want: dialed{name: "last week", widest: "this week", gone: true, backOff: true}},
+		{name: "now", dial: views.DialOf(week, routedAt, time.Monday, time.Time{}), want: weekAtNow},
+		{name: "12 months at now", dial: views.DialOf(views.LengthTwelveMonths.Now(), routedAt, time.Monday, time.Time{}), want: yearAtNow},
+		{name: "a week gone", dial: views.DialOf(last, routedAt, time.Monday, time.Time{}), want: weekGone},
+		{name: "yesterday", dial: views.DialOf(yesterday, routedAt, time.Monday, time.Time{}), want: dayGone},
+		{name: "12 months gone", dial: views.DialOf(yearBack, routedAt, time.Monday, time.Time{}), want: yearGone},
+		{name: "the week holding the ledger's first day", dial: views.DialOf(last, routedAt, time.Monday, began), want: func() dialed { d := weekGone; d.backOff = true; return d }()},
 	}
 	for _, tt := range tests {
 		if got := periodDial(tt.dial); got != tt.want {
@@ -217,26 +266,50 @@ func TestTheHeadingDrawsTheDialAsViewsSaysIt(t *testing.T) {
 	}
 }
 
-// A phone's heading holds the room for the widest of the lengths' names at
-// now, so stepping through them never moves it between one row and two; a
-// period gone named wider may.
-func TestAPhonesHeadingHoldsStillAtNowAndAWiderPastNameMayMoveIt(t *testing.T) {
-	const edge = 61
-	for _, length := range views.Lengths() {
-		f := headingFrame(edge, Accounts, accountsAt(threeConfigured, AccountsCompare, length.Now()), false)
-		if rows := f.heading().rows(f.Width, f.phone()); rows != 1 {
-			t.Errorf("at %d columns over %q, the heading takes %d rows, want 1", edge, f.Dial.Name(), rows)
+// A phone's heading with sub-tabs keeps room for the widest readout at now
+// and, apart, for the widest gone: so no step at now, nor any step among
+// periods gone, moves it between one row and two, on Accounts or Sessions'
+// List. At 73 columns, as a phone draws them, the readout at now sits
+// beside the sub-tabs, and every past readout on the row under them.
+func TestAPhonesHeadingHoldsStillAtNowAndAmongPeriodsGone(t *testing.T) {
+	const phone = 73
+	tabs := []struct {
+		name  string
+		view  View
+		shown func(period views.Period) func(*Frame)
+	}{
+		{name: "Accounts' Compare", view: Accounts, shown: func(p views.Period) func(*Frame) { return accountsAt(threeConfigured, AccountsCompare, p) }},
+		{name: "Accounts' Detail", view: Accounts, shown: func(p views.Period) func(*Frame) { return accountsAt(threeConfigured, AccountsDetail, p) }},
+		{name: "Sessions' List", view: Sessions, shown: sessionsListAt},
+	}
+	for _, tab := range tabs {
+		for _, length := range views.Lengths() {
+			p := length.Now()
+			for back := range 60 {
+				f := headingFrame(phone, tab.view, tab.shown(p), false)
+				want := 2
+				if back == 0 {
+					want = 1
+				}
+				if rows := f.heading().rows(f.Width, f.phone()); rows != want {
+					t.Errorf("%s at %d over %q, %d back, takes %d rows, want %d", tab.name, phone, f.Dial.Name(), back, rows, want)
+				}
+				p, _ = p.Back(now, time.Monday, time.Time{})
+			}
 		}
 	}
-	year, _ := views.LengthTwelveMonths.Now().Back(now, time.Monday, time.Time{})
-	f := headingFrame(edge, Accounts, accountsAt(threeConfigured, AccountsCompare, year), false)
-	if rows := f.heading().rows(f.Width, f.phone()); rows != 2 {
-		t.Errorf("at %d columns over %q, the heading takes %d rows, want 2, its name wider than now's", edge, f.Dial.Name(), rows)
+}
+
+// sessionsListAt has a frame show Sessions' List over the period given.
+func sessionsListAt(period views.Period) func(*Frame) {
+	return func(f *Frame) {
+		*f = f.over(period)
+		f.SessionsTab = SessionsShown{Shown: SessionsList}
 	}
 }
 
 func TestTheHeadingRowsInks(t *testing.T) {
-	c, _ := laidOn(heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, shown: 1, period: dialed{name: "this week"}}, 160, false)
+	c, _ := laidOn(heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, shown: 1, period: weekGone}, 160, false)
 	tests := []struct {
 		name string
 		x    int
@@ -247,8 +320,13 @@ func TestTheHeadingRowsInks(t *testing.T) {
 		{name: "the sub-tab shown", x: 20, want: shownSubTabInk},
 		{name: "[ ]", x: 29, want: faintInk},
 		{name: "the rule", x: 34, want: borderInk},
+		{name: "the rule's last cell", x: 133, want: borderInk},
+		{name: "the cell after it", x: 134, want: ink{}},
+		{name: "-", x: 137, want: keyInk},
+		{name: "the range", x: 139, want: mutedInk},
+		{name: "+", x: 144, want: keyInk},
 		{name: "<", x: 147, want: keyInk},
-		{name: "the period", x: 149, want: mutedInk},
+		{name: "when", x: 149, want: warningInk},
 		{name: ">", x: 159, want: keyInk},
 	}
 	for _, tt := range tests {
@@ -279,17 +357,19 @@ func TestTheHeadingRowsSubTabsAndStepsAreTargetsWhereTheyreDrawn(t *testing.T) {
 			on   Clicked
 			sub  int
 			step int
+			key  string
 			text string
 		}{
 			{on: OnSubTab, sub: 0, text: " Compare "}, {on: OnSubTab, sub: 1, text: " Detail "},
+			{on: OnPress, key: "-", text: "-"}, {on: OnPress, key: "+", text: "+"},
 			{on: OnStep, step: -1, text: "<"}, {on: OnStep, step: 1, text: ">"},
 		}
 		if len(targets) != len(want) {
-			t.Fatalf("on a phone: %v, the targets are %+v, want the sub-tabs, < and >", phone, targets)
+			t.Fatalf("on a phone: %v, the targets are %+v, want the sub-tabs, -, +, < and >", phone, targets)
 		}
 		for i, w := range want {
 			tt := targets[i]
-			if tt.On != w.on || tt.SubTab != w.sub || tt.Step != w.step || under(rows, tt) != w.text {
+			if tt.On != w.on || tt.SubTab != w.sub || tt.Step != w.step || tt.Key != w.key || under(rows, tt) != w.text {
 				t.Errorf("on a phone: %v, target %+v is over %q, want %q", phone, tt, under(rows, tt), w.text)
 			}
 		}
@@ -367,21 +447,29 @@ func accountsAt(accounts config.Accounts, sub AccountsView, period views.Period)
 	}
 }
 
-// A phone's period sits at the right of the heading's row from the width its
-// name, its sub-tabs, three cells on loading… whole, or the state's least
-// form where that's wider, and two cells on the period at its widest fit,
-// and takes the row under them a cell narrower, the view starting a row on.
-func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
+// A phone's readout sits at the right of the heading's row from the width
+// its name, its sub-tabs, three cells on loading… whole, or the state's
+// least form where that's wider, and two cells on the widest readout it
+// keeps room for fit, at now or gone, and takes the row under them a cell
+// narrower, the view starting a row on.
+func TestAPhonesReadoutSitsBesideTheHeadingWhereItFits(t *testing.T) {
+	yesterday, _ := views.LengthToday.Now().Back(now, time.Monday, time.Time{})
+	lastWeek, _ := views.LengthThisWeek.Now().Back(now, time.Monday, time.Time{})
 	tests := []struct {
 		name  string
 		view  View
 		shown func(*Frame)
 		edge  int
 	}{
-		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.LengthThisWeek.Now()), edge: 61},
-		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.LengthToday.Now()), edge: 61},
-		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.LengthThisWeek.Now()), edge: 52},
-		{name: "Accounts' Tokens", view: Accounts, shown: accountsAt(threeConfigured, AccountsTokens, views.LengthThisWeek.Now()), edge: 61},
+		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.LengthThisWeek.Now()), edge: 71},
+		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.LengthToday.Now()), edge: 71},
+		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.LengthThisWeek.Now()), edge: 62},
+		{name: "Accounts' Tokens", view: Accounts, shown: accountsAt(threeConfigured, AccountsTokens, views.LengthThisWeek.Now()), edge: 71},
+		{name: "Sessions' List", view: Sessions, shown: sessionsListAt(views.LengthThisWeek.Now()), edge: 65},
+		{name: "Accounts' Tokens, gone", view: Accounts, shown: accountsAt(threeConfigured, AccountsTokens, lastWeek), edge: 84},
+		{name: "Accounts' Detail, gone", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, yesterday), edge: 84},
+		{name: "Accounts with one account, gone", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, lastWeek), edge: 75},
+		{name: "Sessions' List, gone", view: Sessions, shown: sessionsListAt(yesterday), edge: 78},
 	}
 	for _, tt := range tests {
 		for _, width := range []int{tt.edge - 1, tt.edge} {
@@ -392,15 +480,15 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 					if width < tt.edge {
 						rows = 2
 					}
-					var steps []int
+					var signs []int
 					for _, p := range f.headingPieces() {
-						if p.click.On == OnStep {
-							steps = append(steps, p.y)
+						if p.click.On == OnStep || p.click.On == OnPress {
+							signs = append(signs, p.y)
 						}
 					}
-					periodRow := f.headingY() + rows - 1
-					if want := []int{periodRow, periodRow}; !slices.Equal(steps, want) {
-						t.Errorf("< and > are on rows %v, want %v", steps, want)
+					readoutRow := f.headingY() + rows - 1
+					if want := []int{readoutRow, readoutRow, readoutRow, readoutRow}; !slices.Equal(signs, want) {
+						t.Errorf("-, +, < and > are on rows %v, want %v", signs, want)
 					}
 					if got := f.heading().rows(f.Width, f.phone()); got != rows {
 						t.Errorf("the heading takes %d rows, want %d", got, rows)
@@ -414,11 +502,11 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 	}
 }
 
-// Whether the period sits beside the name is the width's, the period's
-// widest form's and the state's least's to say: neither the page's loading,
-// nor stepping the period with < and >, moves it, at any width; and where
-// the period sits beside, the state shows its least form whole, and the
-// period clears it.
+// Whether the readout sits beside the name is the width's, the widest
+// readout's it keeps room for and the state's least's to say: neither the
+// page's loading, nor any step at now, nor any among periods gone, moves
+// it, at any width; and where the readout sits beside, the state shows its
+// least form whole, and the readout clears it.
 func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 	type sweep struct {
 		view  View
@@ -430,13 +518,20 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 		s.view, s.forms = view, append(s.forms, form)
 		sweeps[name] = s
 	}
-	for _, period := range views.Lengths() {
-		add("Accounts' Compare", Accounts, accountsAt(threeConfigured, AccountsCompare, period.Now()))
-		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period.Now()))
-		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period.Now()))
-	}
-	for _, period := range views.Lengths() {
-		add("Accounts' Tokens", Accounts, accountsAt(threeConfigured, AccountsTokens, period.Now()))
+	for _, length := range views.Lengths() {
+		period := length.Now()
+		for back := range 30 {
+			when := " at now"
+			if back > 0 {
+				when = " gone"
+			}
+			add("Accounts' Compare"+when, Accounts, accountsAt(threeConfigured, AccountsCompare, period))
+			add("Accounts' Detail"+when, Accounts, accountsAt(threeConfigured, AccountsDetail, period))
+			add("Accounts with one account"+when, Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period))
+			add("Accounts' Tokens"+when, Accounts, accountsAt(threeConfigured, AccountsTokens, period))
+			add("Sessions' List"+when, Sessions, sessionsListAt(period))
+			period, _ = period.Back(now, time.Monday, time.Time{})
+		}
 	}
 	for name, s := range sweeps {
 		for width := 30; width <= 140; width++ {
@@ -514,14 +609,14 @@ func TestTheLogsHeadingNeverHangsOnItsFilter(t *testing.T) {
 }
 
 // besideWhole fails t unless the frame's heading row says the state's least
-// form whole, where it has a state, and < starts two cells or more after
-// what's before it.
+// form whole, where it has a state, and the readout's - starts two cells or
+// more after what's before it.
 func besideWhole(t *testing.T, f Frame, name string) {
 	t.Helper()
 	var said strings.Builder
 	var before, stepAt int
 	for _, p := range f.headingPieces() {
-		if p.click.On == OnStep {
+		if p.click.On == OnPress && p.click.Key == "-" {
 			stepAt = p.x
 			break
 		}
@@ -534,6 +629,6 @@ func besideWhole(t *testing.T, f Frame, name string) {
 		}
 	}
 	if stepAt < before+ruleGap {
-		t.Errorf("%s at %d, loading: %t: < is at column %d, want it two cells or more after column %d", name, f.Width, f.Loading, stepAt, before)
+		t.Errorf("%s at %d, loading: %t: - is at column %d, want it two cells or more after column %d", name, f.Width, f.Loading, stepAt, before)
 	}
 }

@@ -195,16 +195,16 @@ Trends lists its toggles the same way:
 `w week  o pool  g glance  h when  y year  m months  d models`. While YEAR or BY MONTH shows, `v split: all` follows. Then come `p pin  ? help  q quit`.
 If the line doesn't fit whole, `v split` goes first.
 
-Accounts, Projects and the List on Sessions list the keys of the period dial:
-`- + period: this week    < > back · on`. While a past period shows, `n now` follows.
+On Accounts, Projects and the List on Sessions, the heading shows the keys of the period dial,
+`- week +  < this week >`, so the key line leaves them to `?`. While a past period shows, the key
+line names `n now`, after the first keys of the page.
 
 On a phone, or wherever the line doesn't fit whole:
 
 - `? keys` and `q quit` end it. On the Overview and Trends, it's `? keys and toggles`.
 - `tab views` leads it, while it fits.
 - `P pool` stays, if there's more than one pool. `p pin` is left to `?`.
-- While a past period shows, `< > back · on` and `n now` stay, ahead of the other keys of the
-  page.
+- While a past period shows, `n now` stays, ahead of the other keys of the page.
 
 ## Clicks
 
@@ -215,8 +215,8 @@ Option in iTerm2 and Terminal.app, and Shift in most others.
 |---|---|
 | a tab or a sub-tab | Shows it. |
 | the pool label in the title row | Turns to the next pool, as `P` does. After the last pool, turns back to the first. |
-| `<` or `>` by the period in the heading | Steps the period back or on. |
-| a key on the key line | Does what the key does. For a pair, such as `[ ]` or `- +`, does what the second key does, but `< >` steps back, as `<` does. Doesn't act on `p pin` or `q quit`. |
+| `-`, `+`, `<` or `>` in the period dial in the heading | Does what the key does: changes the length, or steps the period back or on. |
+| a key on the key line | Does what the key does. For a pair, such as `[ ]`, does what the second key does. Doesn't act on `p pin` or `q quit`. |
 | a row that names an account, a project, a session, a line or a turn, or the head of a Compare column | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |
 | a section heading, on the Overview or Trends | Hides the section. |
 | `▼ 214 new`, on the Log | Follows again. |

@@ -4,7 +4,8 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-ACCOUNTS   Compare  Detail  Tokens                         < Tue 29 Sep >
+ACCOUNTS   Compare  Detail  Tokens
+                                                  - day +  < Tue 29 Sep >
 
 ◂ work ▸                                            ↑↓ an account, or all
 
@@ -57,5 +58,4 @@ Sun 15:26  ▸ 2 sessions came from side: side reached its week limit
 
 
 
-
-tab views   [ ] view   < > back · on   n now   ? keys   q quit
+tab views   [ ] view   n now   ? keys   q quit

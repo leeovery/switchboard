@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 months >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────────   - 12 months +  < now >
 
                           work                                 personal ◆                           side                                all accounts
                           ● at cap                             ● open                               ● open                              2 open · 1 at cap
@@ -50,4 +50,4 @@ VALUE
   worth at API prices     $10,900                              $8,783                               $5,053                              $24,736
   against its price       4.5× its $2,400 12 months            3.7× its $2,400 12 months            2.1× its $2,400 12 months           3.4× its $7,200 12 months
 
-tab views   [ ] view    - + period: 12 months    < > back · on    ←→ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ←→ account  enter its page    p pin    ? help  q quit

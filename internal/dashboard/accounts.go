@@ -125,7 +125,7 @@ func (s AccountsShown) Account() string {
 
 // heading is Accounts' heading row: its name and its sub-tabs drawn, as
 // views has them, the one drawn picked out; and at its right, the dial's
-// period given between < and >, as periodDial has it.
+// period's readout, as periodDial has it.
 func (s AccountsShown) heading(dial views.Dial) heading {
 	h := heading{name: strings.ToUpper(Accounts.Title())}
 	for i, v := range s.views() {

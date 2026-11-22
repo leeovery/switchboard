@@ -4,7 +4,7 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-SESSIONS   Switchboard  List                                                 < this week >
+SESSIONS   Switchboard  List                                       - week +  < this week >
 
   session                                      on        model       state        requests
 ▸ infra       terraform                        side      opus-5-5    idle 50s          153
@@ -37,4 +37,4 @@ SESSIONS   Switchboard  List                                                 < t
   switchboard router-fix 31e1                  side      opus-5-5    ended 11:33       146
   switchboard release                          work      opus-5-5    ended 11:23       142
 this week  27 sessions · 5,410 requests · $635.00 at API prices
-tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit
+tab views   ↑↓ session   [ ] view   ? keys   q quit

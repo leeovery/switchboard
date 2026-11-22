@@ -37,23 +37,40 @@ const (
 // shortest first.
 var lengths = []Length{LengthToday, LengthThisWeek, LengthThirtyDays, LengthTwelveWeeks, LengthTwelveMonths}
 
-// lengthIs is what a length is: what the heading and the key line call it;
+// lengthIs is what a length is: what a sentence or a title calls it at now;
 // THIS WEEK's title, naming it; the unit against its price names it by; the
-// words Within says it in; the share of a month its plans cost over it; and
-// the period each of Accounts' Tokens' rows is over it.
+// words Within says it in; the heading's range, naming it between - and +,
+// and its when at now, between < and >; the share of a month its plans cost
+// over it; and the period each of Accounts' Tokens' rows is over it.
 type lengthIs struct {
 	name, title, unit, within string
+	ranged, now               string
 	share                     monthPart
 	rows                      TokensPeriod
 }
 
 // lengthsAre are each length's words and price.
 var lengthsAre = map[Length]lengthIs{
-	LengthToday:        {name: "today", title: "TODAY", unit: "day", within: "today", share: days(1), rows: TokensByDay},
-	LengthThisWeek:     {name: "this week", title: "THIS WEEK", unit: "week", within: "this week", share: aWeek, rows: TokensByDay},
-	LengthThirtyDays:   {name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days", share: aMonth, rows: TokensByDay},
-	LengthTwelveWeeks:  {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks", share: twelveWeeks, rows: TokensByWeek},
-	LengthTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months", share: aYear, rows: TokensByMonth},
+	LengthToday: {
+		name: "today", title: "TODAY", unit: "day", within: "today", ranged: "day", now: "today",
+		share: days(1), rows: TokensByDay,
+	},
+	LengthThisWeek: {
+		name: "this week", title: "THIS WEEK", unit: "week", within: "this week", ranged: "week", now: "this week",
+		share: aWeek, rows: TokensByDay,
+	},
+	LengthThirtyDays: {
+		name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days", ranged: "30 days", now: "now",
+		share: aMonth, rows: TokensByDay,
+	},
+	LengthTwelveWeeks: {
+		name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks", ranged: "12 weeks", now: "now",
+		share: twelveWeeks, rows: TokensByWeek,
+	},
+	LengthTwelveMonths: {
+		name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months", ranged: "12 months", now: "now",
+		share: aYear, rows: TokensByMonth,
+	},
 }
 
 // Lengths are the lengths in the order - and + step through them, the
@@ -79,8 +96,8 @@ func (l Length) Known() bool {
 	return ok
 }
 
-// Name is what the heading and the key line call the length: "today", "this
-// week", "30 days", "12 weeks" or "12 months".
+// Name is what a sentence or a title calls the length at now: "today",
+// "this week", "30 days", "12 weeks" or "12 months".
 func (l Length) Name() string {
 	return lengthsAre[l].name
 }

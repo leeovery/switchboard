@@ -20,7 +20,7 @@ func (m Model) sessionsListings(dial views.Dial) []keyListing {
 	list := sessions && m.sessionsTab.shown.Shown == dashboard.SessionsList
 	return slices.Concat([]keyListing{
 		{Key: sessionsViewKey, works: sessions, apart: true},
-	}, dialListings(dial, list, true), []keyListing{
+	}, dialListings(dial, list), []keyListing{
 		{Key: sessionsChooseKey, works: sessions, apart: true},
 		{Key: m.sessionsOpenKey("its page"), works: sessions, apart: list},
 		{Key: dashboard.Key{Key: "esc", Does: "deselect"}, works: sessions && m.sessionsTab.shown.Opens(), helpful: true},
@@ -41,13 +41,11 @@ func (m Model) sessionsOpenKey(does string) dashboard.Key {
 
 // sessionsPhoneKeys are Sessions' keys a phone's line keeps, in the frame's
 // order rather than the wide line's: on the Switchboard, ↑↓ session, enter
-// open and [ ] view; on the List, ↑↓ session, [ ] view and the dial's a
-// phone's line names in the page's place, of its period as dial says it, as
-// dialListings has them, those it gives way first and keeps to the last
-// aside, as the design's frame has them.
-func (m Model) sessionsPhoneKeys(dial views.Dial) []dashboard.Key {
+// open and [ ] view; on the List, ↑↓ session and [ ] view, the dial's n
+// kept to the last, as the design's frame has them.
+func (m Model) sessionsPhoneKeys() []dashboard.Key {
 	if m.sessionsTab.shown.Shown == dashboard.SessionsList {
-		return append([]dashboard.Key{sessionsChooseKey, sessionsViewKey}, grouped(dialListings(dial, true, true)).phone...)
+		return []dashboard.Key{sessionsChooseKey, sessionsViewKey}
 	}
 	return []dashboard.Key{sessionsChooseKey, m.sessionsOpenKey("open"), sessionsViewKey}
 }

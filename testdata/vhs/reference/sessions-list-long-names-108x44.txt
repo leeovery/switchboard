@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side-hustle-consulting
 
-SESSIONS    Switchboard  List  [ ]  ─────────────────────────────────────────────────────────  < this week >
+SESSIONS    Switchboard  List  [ ]  ──────────────────────────────────────────────   - week +  < this week >
 
   session                        on               model      state        started          requests    worth
 ▸ infra-terrafo… terraform       side-hustle-co…  opus-5-5   idle 50s     yesterday 15:08       153   $12.64
@@ -41,4 +41,4 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 
 
 this week  15 sessions · 1,925 requests · $204.36 at API prices
-tab views   [ ] view   - + period   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit
+tab views   [ ] view   ↑↓ session   enter its page   p pin   ? help  q quit

@@ -124,17 +124,15 @@ func (m Model) graphsKey(key string) (Model, bool) {
 // place, as esc back leads a session's page's; whether it sets it apart
 // from the keys before it, in a group of its own; whether a phone's line
 // leaves it to help, keeping it to a line wider than a phone's; whether a
-// phone's line names it after every other key of the page's, P pool among
-// them, so it's the first to give way, as the dial's - + while a past
-// period shows; whether a phone's line keeps it after the page's other
-// keys, the last to give way, as the dial's < > and n while a past period
-// shows; whether it scrolls the view, working only where the view scrolls;
+// phone's line keeps it after the page's other keys, the last to give way,
+// as the dial's n while a past period shows; whether it scrolls the view,
+// working only where the view scrolls;
 // and the word a phone's line gives it, its state left off, where that's
 // another, as enter's open.
 type keyListing struct {
 	dashboard.Key
-	works, helpful, leads, apart, wide, yields, kept, scrolls bool
-	phoneDoes                                                 string
+	works, helpful, leads, apart, wide, kept, scrolls bool
+	phoneDoes                                         string
 }
 
 // pageKeys is what lists the page's keys, as it stands, but for whether its
@@ -226,17 +224,17 @@ func (m Model) graphsListings() []keyListing {
 // accountsListings are Accounts' own keys, each move with enter in a group
 // of its own, as the facts Accounts' moves act on have them, Detail's
 // SESSIONS listing the sessions running given: [ ] view; the dial's keys,
-// of its period as dial says it, as dialListings has them, a phone's line
-// naming none at now; on Tokens, v and its split; on Compare, ←→ along the
-// accounts, enter opening the one focused in Detail, faint till one is, and
-// esc ending the focus while there is one, none of them where Compare is
-// turned, drawing no focus; on Detail's list, ↑↓ through the accounts, → into
+// of its period as dial says it, as dialListings has them; on Tokens, v and
+// its split; on Compare, ←→ along the accounts, enter opening the one
+// focused in Detail, faint till one is, and esc ending the focus while there
+// is one, none of them where Compare is turned, drawing no focus; on
+// Detail's list, ↑↓ through the accounts, → into
 // the chosen one's SESSIONS, which the key line leaves to help, and enter
 // opening the session selected there, faint where none is; in its SESSIONS,
 // ↑↓ through them, ← back to the list and enter; with one account, which
 // has no list, ↑↓ and enter while a session is selected on Detail. A
-// phone's line keeps [ ] view, and while a past period shows, the dial's
-// keys as dialListings has them.
+// phone's line keeps [ ] view, and while a past period shows, the dial's n,
+// as dialListings has it.
 func (m Model) accountsListings(running []string, dial views.Dial) []keyListing {
 	s := m.accounts.shown
 	shown := m.shownView() == dashboard.Accounts
@@ -248,7 +246,7 @@ func (m Model) accountsListings(running []string, dial views.Dial) []keyListing 
 	split := s.Split()
 	return slices.Concat([]keyListing{
 		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown, apart: true},
-	}, dialListings(dial, shown, false), []keyListing{
+	}, dialListings(dial, shown), []keyListing{
 		{Key: dashboard.Key{Key: "v", Does: "split", State: split}, works: shown && split != "", apart: true, wide: true},
 		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: compare, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !s.InSessions, apart: true, wide: true},
@@ -294,9 +292,8 @@ var scrollKeys = []dashboard.Key{{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn"
 // line keeping the page's own keys between those that lead and ? and q quit,
 // but those it leaves to a wider line, or on the Log and Sessions, with no
 // session's page open over it, those logPhoneKeys and sessionsPhoneKeys
-// keep, then P pool, then those it gives way first, and after them those it
-// keeps to the last, as the dial's while a past period shows; on a tab with
-// the dial, the wide line
+// keep, then P pool, and after them those it keeps to the last, as the
+// dial's n while a past period shows; on a tab with the dial, the wide line
 // gives way as dialNarrower has it where it doesn't fit; a page of toggles,
 // the Overview or Trends, sets p pin, P pool, ? help and q quit as a group
 // of their own, togglesApart after its toggles, which a phone's line leaves
@@ -335,12 +332,12 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	case dashboard.Log:
 		l.Phone = m.logPhoneKeys()
 	case dashboard.Sessions:
-		l.Phone = m.sessionsPhoneKeys(f.Dial)
+		l.Phone = m.sessionsPhoneKeys()
 		if m.sessionsTab.shown.Shown == dashboard.SessionsList {
 			l.After = apart
 		}
 	}
-	l.Phone = slices.Concat(l.Phone, keys.pools(), page.yields)
+	l.Phone = slices.Concat(l.Phone, keys.pools())
 	if ends := keys.ends(); ends != nil {
 		l.Groups = append(l.Groups, ends)
 	}
@@ -388,12 +385,12 @@ func (p pageKeys) pools() []dashboard.Key {
 // lineKeys are the page's own keys as the key line sets them: in their
 // groups, and by their places among them, those whose keys a line wider than
 // a phone's alone keeps; those that lead it, in tab views' place; and those
-// a phone's line keeps, as it words them, and of them, those it gives way
-// first and those it keeps to the last.
+// a phone's line keeps, as it words them, and of them, those it keeps to the
+// last.
 type lineKeys struct {
-	groups                    [][]dashboard.Key
-	spare                     []int
-	lead, phone, yields, kept []dashboard.Key
+	groups            [][]dashboard.Key
+	spare             []int
+	lead, phone, kept []dashboard.Key
 }
 
 // grouped are the keys listed that work, as the key line sets them, those it
@@ -416,8 +413,6 @@ func grouped(listed []keyListing) lineKeys {
 			keys.groups[last] = append(keys.groups[last], k.Key)
 			switch {
 			case k.wide:
-			case k.yields:
-				keys.yields, narrow[last] = append(keys.yields, k.phoned()), true
 			case k.kept:
 				keys.kept, narrow[last] = append(keys.kept, k.phoned()), true
 			default:

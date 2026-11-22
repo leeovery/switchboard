@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  3 sessions  ·  new sessions → ▲ work
 
-ACCOUNTS    Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Detail  Tokens  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────   - week +  < this week >
 
 work ◆   ● under pressure · new sessions still come here
 
@@ -34,4 +34,4 @@ WORTH
             Mon                  Tue                 Wed                  Thu                  Fri                 Sat                  Sun
             peak Mon $57.70
 ▼ 4 more below · j/k
-tab views   [ ] view    - + period: this week    < > back · on    ? help  q quit
+tab views   [ ] view    ? help  q quit

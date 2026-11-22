@@ -45,8 +45,8 @@ func TestTheListLogsThePeriodsSessions(t *testing.T) {
 	if got, want := loggedIDs(h), []string{betaOnly, alphaSecond, alphaFirst, gammaOnly}; !slices.Equal(got, want) {
 		t.Fatalf("over 30 days, the List lists %v, want %v", got, want)
 	}
-	if view := h.view(); !strings.Contains(view, "ended today") || !strings.Contains(view, "ended yesterday") || !strings.Contains(view, "< 30 days >") {
-		t.Errorf("over 30 days, the screen reads\n%s\nwant ended today and ended yesterday ruled, and the dial at 30 days", view)
+	if view := h.view(); !strings.Contains(view, "ended today") || !strings.Contains(view, "ended yesterday") || !strings.Contains(view, "- 30 days +  < now >") {
+		t.Errorf("over 30 days, the screen reads\n%s\nwant ended today and ended yesterday ruled, and the readout at 30 days", view)
 	}
 	h.keyed("- -")
 	if got, want := loggedIDs(h), []string{betaOnly, alphaSecond, alphaFirst}; h.model.period != views.LengthToday.Now() || !slices.Equal(got, want) {
@@ -99,18 +99,22 @@ func TestTheListLoadsAsProjectsDoes(t *testing.T) {
 }
 
 // The dial shows on the List alone: there its keys step the shared period,
-// and the key line lists them; on the Switchboard, they step nothing, and
-// the key line leaves them out.
+// and the heading's readout names it; on the Switchboard, they step
+// nothing, and the heading has no readout. The key line names none of
+// them on either.
 func TestTheDialStepsOnTheListAlone(t *testing.T) {
 	h := projectsHarness(t, dashboard.Sessions)
 	h.start()
 	h.keyed("+ <")
-	if line := h.keyLine(); h.model.period != views.LengthThisWeek.Now() || strings.Contains(line, "- +") || strings.Contains(line, "< >") {
-		t.Errorf("on the Switchboard, + and < left %q, the key line reading %q; want this week, no - + nor < >", h.model.period.Length().Name(), line)
+	if screen := h.view(); h.model.period != views.LengthThisWeek.Now() || strings.Contains(screen, "< this week >") {
+		t.Errorf("on the Switchboard, + and < left %q, the screen reading\n%s\nwant this week, and no readout", h.model.period.Length().Name(), screen)
 	}
 	h.keyed("] +")
-	if line := h.keyLine(); h.model.period != views.LengthThirtyDays.Now() || !strings.Contains(line, "- + period: 30 days · < > back · on") {
-		t.Errorf("on the List, + left %q, the key line reading %q; want 30 days, - + period: 30 days · < > back · on", h.model.period.Length().Name(), line)
+	if screen := h.view(); h.model.period != views.LengthThirtyDays.Now() || !strings.Contains(screen, "- 30 days +  < now >") {
+		t.Errorf("on the List, + left %q, the screen reading\n%s\nwant 30 days, the heading reading - 30 days +  < now >", h.model.period.Length().Name(), screen)
+	}
+	if line := h.keyLine(); strings.Contains(line, "- +") || strings.Contains(line, "< >") {
+		t.Errorf("on the List, the key line reads %q, want no - + nor < >", line)
 	}
 }
 

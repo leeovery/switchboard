@@ -154,10 +154,12 @@ var (
 		"views.DaySession.FirstRequest": "views.PeriodSession",
 		"views.DaySession.LastRequest":  "views.PeriodSession",
 		// The dial's period said in words, at now by its length's, gone by
-		// its dates, as the heading, the key line and every title name it.
+		// its dates, as every title and sentence names it; and the
+		// heading's readout's when, a past week by its days, as 14–20 Sep.
 		"views.Length.Name":   "views.Dial.Name",
 		"views.Length.Title":  "views.Dial.Title",
 		"views.Length.Within": "views.Dial.Within",
+		"prose.DaysAt":        "views.Dial.When",
 		// Detail's SESSIONS over the dial's period, none in a past one, as
 		// none runs in the past.
 		"views.RunningOn": "views.RunningIn",

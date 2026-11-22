@@ -15,36 +15,40 @@ between Detail and Tokens.
 
 ## The period: one dial for the dashboard
 
-The dial at the right of the heading sets the period, for example `< this week >`. Step it back to
-see last week whole, or what a day in September was worth. Every view on Accounts counts over the
-period, and so do [Projects](projects.md) and the List on [Sessions](sessions.md).
+The dial at the right of the heading sets the period, for example `- 30 days +  < to 1 Sep >`.
+Step it back to see last week whole, or what a day in September was worth. Every view on Accounts
+counts over the period, and so do [Projects](projects.md) and the List on [Sessions](sessions.md).
+
+The dial names the length between `-` and `+`, and when the period is between `<` and `>`. Each
+pair of keys changes its own half alone:
 
 | Key | Does |
 |---|---|
 | `<` | Steps back to the period of the same length before this one: today to yesterday, this week to last week. |
 | `>` | Steps on again. It stops at now. |
-| `-` `+` | Changes the length, from today to 12 months. `=` counts as `+`. |
+| `-` `+` | Changes the length, from a day to 12 months. `=` counts as `+`. |
 | `n` | Goes back to now. |
 
 Changing the length keeps the last day of the period. For example, `+` on last week gives the 30
-days to the last day of that week. The key line reads `- + period: this week    < > back · on`, and
-adds `n now` while a past period shows. A key that can't act is drawn faint: `>` at now, and `<`
-at the first day switchboard recorded.
+days to the last day of that week. A click on a key in the dial does what the key does. A key that
+can't act is drawn faint: `-` at a day, `+` at 12 months, `>` at now, and `<` at the first day
+switchboard recorded. The key line leaves these keys to `?`, and adds `n now` while a past period
+shows.
 
-| Length | Now runs over | A past period reads |
-|---|---|---|
-| today | today, from midnight | `yesterday`, then `Tue 29 Sep` |
-| this week | this week, from its start | `last week`, then `week of 14 Sep` |
-| 30 days | the last 30 days, back from today | `30 days to 1 Sep` |
-| 12 weeks | this week and the 11 before it | `12 weeks to 12 Jul` |
-| 12 months | the last 12 months, back from today: the same days as YEAR on [Trends](trends.md) | `12 months to 1 Oct 2025` |
+| Length | Now runs over | At now | A past period |
+|---|---|---|---|
+| `day` | today, from midnight | `today` | `yesterday`, then `Tue 29 Sep` |
+| `week` | this week, from its start | `this week` | `last week`, then `14–20 Sep` |
+| `30 days` | the last 30 days, back from today | `now` | `to 1 Sep` |
+| `12 weeks` | this week and the 11 before it | `now` | `to 12 Jul` |
+| `12 months` | the last 12 months, back from today: the same days as YEAR on [Trends](trends.md) | `now` | `to 1 Oct 2025` |
 
 A period is never a billing month, because switchboard doesn't know when a plan renews. The
 dashboard always opens on now, and remembers only the length from one run to the next.
 
 ## Past periods: what leaves
 
-A past period names itself in a colour of its own in the heading, so it never reads as now. It
+A past period names when it is in a colour of its own in the heading, so it never reads as now. It
 stays put as midnight passes. What tells the moment leaves, because it says nothing of the past:
 
 | View | In a past period |
@@ -154,6 +158,9 @@ kind, and their worth at API prices against what the plans cost.
 Press `v` to split each row by account, by model, by both, or not at all.
 
 ## Room by width
+
+**The dial** on a phone 73 columns wide sits beside the tabs at now. In a past period it takes the
+row under them, whatever its width, so `<` and `>` never move the page.
 
 **Compare** scrolls its rows under the account names if they don't all fit. If the columns don't
 fit, `←` and `→` scroll them. If two accounts and `all accounts` don't fit side by side, as on a

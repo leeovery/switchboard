@@ -340,9 +340,8 @@ func (m Model) projectsClick(t dashboard.Target) (tea.Model, tea.Cmd, bool) {
 // as the key line sets them: in the list, ↑↓ through the projects, and →
 // into the chosen one's sessions, where it has any; in SESSIONS, ↑↓ through
 // them, ← back to the list and enter opening the one selected; then the
-// dial's keys, of its period as dial says it, as dialListings has them, a
-// phone's line naming < > at now in the list alone. A phone's line keeps
-// the moves, → worded sessions.
+// dial's keys, of its period as dial says it, as dialListings has them. A
+// phone's line keeps the moves, → worded sessions.
 func (m Model) projectsListings(dial views.Dial) []keyListing {
 	shown := m.shownView() == dashboard.Projects
 	s := m.projects.shown
@@ -353,5 +352,5 @@ func (m Model) projectsListings(dial views.Dial) []keyListing {
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: sessions, apart: true},
 		{Key: dashboard.Key{Key: "←", Does: "projects"}, works: sessions, apart: true},
 		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: !s.Opens()}, works: sessions, apart: true},
-	}, dialListings(dial, shown, list))
+	}, dialListings(dial, shown))
 }

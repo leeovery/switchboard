@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 weeks >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────   - 12 weeks +  < now >
 
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │
@@ -50,4 +50,4 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │
 
-tab views   [ ] view    - + period: 12 weeks    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ↑↓ account  enter its page    p pin    ? help  q quit

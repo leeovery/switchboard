@@ -46,20 +46,20 @@ func (h *harness) phoneOffKeys() []string {
 // with one account, no p pin, but where a pin set from the command line
 // stands; p pin faint while the router doesn't answer; and a phone's line
 // keeping ↑↓ session, enter open and [ ] view on the Switchboard, and ↑↓
-// session and [ ] view on the List, in those orders, < > back · on, the
-// last of its keys, giving way on a phone 52 columns wide.
+// session and [ ] view on the List, in those orders; the List's naming
+// none of the dial's keys at now, which the heading's readout names.
 func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 	type lines [2]string
 	var (
 		wide = lines{
 			"tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit",
-			"tab views   [ ] view   - + period: this week   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit",
+			"tab views   [ ] view   ↑↓ session   enter its page   p pin   ? help  q quit",
 		}
 		alone = lines{
 			"tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit",
-			"tab views   [ ] view   - + period: this week   < > back · on   ↑↓ session   enter its page   ? help  q quit",
+			"tab views   [ ] view   ↑↓ session   enter its page   ? help  q quit",
 		}
-		phone = lines{"↑↓ session   enter open   [ ] view   ? keys   q quit", "↑↓ session   [ ] view   ? keys   q quit"}
+		phone = lines{"↑↓ session   enter open   [ ] view   ? keys   q quit", "tab views   ↑↓ session   [ ] view   ? keys   q quit"}
 		enter = [2][]string{{"enter"}, {"enter"}}
 	)
 	pinned := routerDocument(three()[0])

@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ─────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ──────────────────────────────────────────────────────────────────────   - week +  < this week >
 
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │
@@ -27,4 +27,4 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │   WORTH                                                   ▇▇▇▇▇▇▇▇▇▇▇▇
                         ▼ 18 more below · j/k
-tab views   [ ] view    - + period: this week    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ↑↓ account  enter its page    p pin    ? help  q quit

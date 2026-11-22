@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────   - week +  < this week >
 
  all accounts       │   personal ◆   ● open
                     │
@@ -34,4 +34,4 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │               Mon               Tue               Wed               Thu              Fri               Sat               Sun
                     │               peak Wed $81.32
                         ▼ 11 more below · j/k
-tab views   [ ] view    - + period: this week    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ↑↓ account  enter its page    p pin    ? help  q quit

@@ -286,9 +286,9 @@ func TestTheDialsKeysDoNothingWhereItDoesntShow(t *testing.T) {
 	}
 }
 
-// A click on the key line's < > steps the period back, as <, and on its
-// - +, longer, as +; on the heading's < back and > on.
-func TestAClickOnTheDialsKeysStepsItAsTheKeyDoes(t *testing.T) {
+// A click on the heading's readout steps the period as its sign's key
+// does: - shorter, + longer, < back and > on.
+func TestAClickOnTheReadoutsSignsStepsItAsTheirKeysDo(t *testing.T) {
 	for _, tab := range dialTabs {
 		t.Run(tab.name, func(t *testing.T) {
 			h := dialHarness(t, tab.show, &fakePrefs{})
@@ -301,29 +301,29 @@ func TestAClickOnTheDialsKeysStepsItAsTheKeyDoes(t *testing.T) {
 				click func()
 				want  views.Period
 			}{
-				{name: "the key line's < >", click: func() { h.clickWhere(onKey("< >")) }, want: last},
-				{name: "the heading's >", click: func() { h.clickWhere(onStep(1)) }, want: week},
-				{name: "the heading's <", click: func() { h.clickWhere(onStep(-1)) }, want: last},
-				{name: "the key line's - +", click: func() { h.clickWhere(onKey("- +")) }, want: lastThirty},
+				{name: "<", click: func() { h.clickWhere(onStep(-1)) }, want: last},
+				{name: ">", click: func() { h.clickWhere(onStep(1)) }, want: week},
+				{name: "< again", click: func() { h.clickWhere(onStep(-1)) }, want: last},
+				{name: "+", click: func() { h.clickWhere(onPress("+")) }, want: lastThirty},
+				{name: "-", click: func() { h.clickWhere(onPress("-")) }, want: last},
 			}
 			for _, step := range steps {
 				step.click()
 				if h.model.period != step.want {
-					t.Fatalf("a click on %s gives %+v, want %+v", step.name, h.model.period, step.want)
+					t.Fatalf("a click on the heading's %s gives %+v, want %+v", step.name, h.model.period, step.want)
 				}
 			}
 		})
 	}
 }
 
-// The key line names the dial's keys as the design's rule has them, at
-// every width: - + period with its name, < > back · on, and n now while a
-// past period shows; where the wide line doesn't fit, the name goes, then p
-// pin, then - + period, before a phone's line, which at now names < > as
-// the page's last key, where it names it at all, and while past keeps < >
-// and n, - + going first, after the page's other keys, P pool among them,
-// then the page's keys from the last, then tab views.
-func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
+// The key line names none of the dial's keys, at any width, now or past:
+// no - + and no < >, which the heading's readout names; n now alone while
+// a past period shows, in a group of its own after the page's first keys,
+// and on a phone's line kept to the last, after the page's other keys, P
+// pool among them. Where the wide line doesn't fit, p pin goes before a
+// phone's line takes its place.
+func TestTheKeyLineNamesNoneOfTheDialsKeysAtEveryWidth(t *testing.T) {
 	const (
 		ends     = "    p pin    ? help  q quit"
 		detail   = "↑↓ account  enter its page"
@@ -337,39 +337,48 @@ func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 		width int
 		want  string
 	}{
-		{tab: "Detail", width: 173, want: "tab views   [ ] view    - + period: this week    < > back · on    " + detail + ends},
-		{tab: "Detail", width: 108, want: "tab views   [ ] view    - + period    < > back · on    " + detail + ends},
-		{tab: "Detail", width: 104, want: "tab views   [ ] view    - + period    < > back · on    " + detail + "    ? help  q quit"},
+		{tab: "Detail", width: 173, want: "tab views   [ ] view    " + detail + ends},
+		{tab: "Detail", width: 160, want: "tab views   [ ] view    " + detail + ends},
+		{tab: "Detail", width: 138, want: "tab views   [ ] view    " + detail + ends},
+		{tab: "Detail", width: 108, want: "tab views   [ ] view    " + detail + ends},
+		{tab: "Detail", width: 104, want: "tab views   [ ] view    " + detail + ends},
 		{tab: "Detail", width: 73, want: "tab views   [ ] view   ? keys   q quit"},
 		{tab: "Detail", width: 52, want: "tab views   [ ] view   ? keys   q quit"},
-		{tab: "Detail", past: true, width: 160, want: "tab views   [ ] view    - + period: last week    < > back · on    n now    " + detail + ends},
-		{tab: "Detail", past: true, width: 108, want: "tab views   [ ] view    - + period    < > back · on    n now    " + detail + "    ? help  q quit"},
-		{tab: "Detail", past: true, width: 104, want: "tab views   [ ] view    < > back · on    n now    " + detail + "    ? help  q quit"},
-		{tab: "Detail", past: true, width: 73, want: "tab views   [ ] view   < > back · on   n now   ? keys   q quit"},
-		{tab: "Detail", past: true, width: 52, want: "tab views   < > back · on   n now   ? keys   q quit"},
-		{tab: "Detail", past: true, pools: true, width: 90, want: "tab views   [ ] view   P pool   - + period   < > back · on   n now   ? keys   q quit"},
-		{tab: "Detail", past: true, pools: true, width: 73, want: "tab views   [ ] view   P pool   < > back · on   n now   ? keys   q quit"},
-		{tab: "Projects", width: 160, want: "tab views   " + project + "- + period: this week   < > back · on   p pin   ? help  q quit"},
-		{tab: "Projects", width: 104, want: "tab views   " + project + "- + period: this week   < > back · on   p pin   ? help  q quit"},
-		{tab: "Projects", width: 100, want: "tab views   " + project + "- + period   < > back · on   p pin   ? help  q quit"},
-		{tab: "Projects", width: 73, want: "tab views   ↑↓ project   → sessions   < > back · on   ? keys   q quit"},
+		{tab: "Detail", past: true, width: 173, want: "tab views   [ ] view    n now    " + detail + ends},
+		{tab: "Detail", past: true, width: 160, want: "tab views   [ ] view    n now    " + detail + ends},
+		{tab: "Detail", past: true, width: 138, want: "tab views   [ ] view    n now    " + detail + ends},
+		{tab: "Detail", past: true, width: 108, want: "tab views   [ ] view    n now    " + detail + ends},
+		{tab: "Detail", past: true, width: 104, want: "tab views   [ ] view    n now    " + detail + ends},
+		{tab: "Detail", past: true, width: 73, want: "tab views   [ ] view   n now   ? keys   q quit"},
+		{tab: "Detail", past: true, width: 52, want: "tab views   [ ] view   n now   ? keys   q quit"},
+		{tab: "Detail", past: true, pools: true, width: 90, want: "tab views   [ ] view   P pool   n now   ? keys   q quit"},
+		{tab: "Detail", past: true, pools: true, width: 73, want: "tab views   [ ] view   P pool   n now   ? keys   q quit"},
+		{tab: "Projects", width: 173, want: "tab views   " + project + "p pin   ? help  q quit"},
+		{tab: "Projects", width: 138, want: "tab views   " + project + "p pin   ? help  q quit"},
+		{tab: "Projects", width: 104, want: "tab views   " + project + "p pin   ? help  q quit"},
+		{tab: "Projects", width: 73, want: "tab views   ↑↓ project   → sessions   ? keys   q quit"},
 		{tab: "Projects", width: 52, want: "↑↓ project   → sessions   ? keys   q quit"},
-		{tab: "Projects", past: true, width: 173, want: "tab views   " + project + "- + period: last week   < > back · on   n now   p pin   ? help  q quit"},
-		{tab: "Projects", past: true, width: 108, want: "tab views   " + project + "- + period   < > back · on   n now   p pin   ? help  q quit"},
-		{tab: "Projects", past: true, width: 73, want: "tab views   ↑↓ project   < > back · on   n now   ? keys   q quit"},
-		{tab: "Projects", past: true, width: 52, want: "tab views   < > back · on   n now   ? keys   q quit"},
-		{tab: "Projects", past: true, pools: true, width: 90, want: "tab views   ↑↓ project   → sessions   P pool   < > back · on   n now   ? keys   q quit"},
-		{tab: "Projects", past: true, pools: true, width: 73, want: "tab views   ↑↓ project   < > back · on   n now   ? keys   q quit"},
-		{tab: "the List", width: 160, want: "tab views   [ ] view   - + period: this week   < > back · on   " + sessions + "p pin   ? help  q quit"},
-		{tab: "the List", width: 104, want: "tab views   [ ] view   - + period   < > back · on   " + sessions + "p pin   ? help  q quit"},
-		{tab: "the List", width: 73, want: "tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit"},
-		{tab: "the List", width: 52, want: "↑↓ session   [ ] view   ? keys   q quit"},
-		{tab: "the List", past: true, width: 173, want: "tab views   [ ] view   - + period: last week   < > back · on   n now   " + sessions + "p pin   ? help  q quit"},
-		{tab: "the List", past: true, width: 108, want: "tab views   [ ] view   - + period   < > back · on   n now   " + sessions + "? help  q quit"},
-		{tab: "the List", past: true, width: 73, want: "tab views   ↑↓ session   < > back · on   n now   ? keys   q quit"},
-		{tab: "the List", past: true, width: 52, want: "tab views   < > back · on   n now   ? keys   q quit"},
-		{tab: "the List", past: true, pools: true, width: 90, want: "tab views   ↑↓ session   [ ] view   P pool   < > back · on   n now   ? keys   q quit"},
-		{tab: "the List", past: true, pools: true, width: 73, want: "tab views   ↑↓ session   < > back · on   n now   ? keys   q quit"},
+		{tab: "Projects", past: true, width: 173, want: "tab views   " + project + "n now   p pin   ? help  q quit"},
+		{tab: "Projects", past: true, width: 160, want: "tab views   " + project + "n now   p pin   ? help  q quit"},
+		{tab: "Projects", past: true, width: 108, want: "tab views   " + project + "n now   p pin   ? help  q quit"},
+		{tab: "Projects", past: true, width: 104, want: "tab views   " + project + "n now   p pin   ? help  q quit"},
+		{tab: "Projects", past: true, width: 73, want: "tab views   ↑↓ project   → sessions   n now   ? keys   q quit"},
+		{tab: "Projects", past: true, width: 52, want: "tab views   ↑↓ project   n now   ? keys   q quit"},
+		{tab: "Projects", past: true, pools: true, width: 90, want: "tab views   ↑↓ project   → sessions   P pool   n now   ? keys   q quit"},
+		{tab: "Projects", past: true, pools: true, width: 73, want: "tab views   ↑↓ project   → sessions   P pool   n now   ? keys   q quit"},
+		{tab: "the List", width: 160, want: "tab views   [ ] view   " + sessions + "p pin   ? help  q quit"},
+		{tab: "the List", width: 108, want: "tab views   [ ] view   " + sessions + "p pin   ? help  q quit"},
+		{tab: "the List", width: 104, want: "tab views   [ ] view   " + sessions + "p pin   ? help  q quit"},
+		{tab: "the List", width: 73, want: "tab views   ↑↓ session   [ ] view   ? keys   q quit"},
+		{tab: "the List", width: 52, want: "tab views   ↑↓ session   [ ] view   ? keys   q quit"},
+		{tab: "the List", past: true, width: 173, want: "tab views   [ ] view   n now   " + sessions + "p pin   ? help  q quit"},
+		{tab: "the List", past: true, width: 138, want: "tab views   [ ] view   n now   " + sessions + "p pin   ? help  q quit"},
+		{tab: "the List", past: true, width: 108, want: "tab views   [ ] view   n now   " + sessions + "p pin   ? help  q quit"},
+		{tab: "the List", past: true, width: 104, want: "tab views   [ ] view   n now   " + sessions + "p pin   ? help  q quit"},
+		{tab: "the List", past: true, width: 73, want: "tab views   ↑↓ session   [ ] view   n now   ? keys   q quit"},
+		{tab: "the List", past: true, width: 52, want: "tab views   ↑↓ session   n now   ? keys   q quit"},
+		{tab: "the List", past: true, pools: true, width: 90, want: "tab views   ↑↓ session   [ ] view   P pool   n now   ? keys   q quit"},
+		{tab: "the List", past: true, pools: true, width: 73, want: "tab views   ↑↓ session   [ ] view   P pool   n now   ? keys   q quit"},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s at %d, past: %t, pools: %t", tt.tab, tt.width, tt.past, tt.pools), func(t *testing.T) {
@@ -393,5 +402,18 @@ func TestTheKeyLineNamesTheDialsKeysAtEveryWidth(t *testing.T) {
 				t.Errorf("the key line reads\n%q\nwant\n%q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A dial tab's wide line that doesn't fit leaves p pin out, every other key
+// kept in its group, before a phone's line takes its place.
+func TestADialTabsWideLineLeavesPPinOutFirst(t *testing.T) {
+	groups := [][]dashboard.Key{{tabViews}, {{Key: "[ ]", Does: "view"}}, {{Key: "n", Does: "now"}}, {pinWord, poolKey}, {helpKey, dashboard.Quit}}
+	want := [][]dashboard.Key{{tabViews}, {{Key: "[ ]", Does: "view"}}, {{Key: "n", Does: "now"}}, {poolKey}, {helpKey, dashboard.Quit}}
+	if got := dialNarrower(groups); len(got) != 1 || !slices.EqualFunc(got[0], want, slices.Equal) {
+		t.Errorf("the narrower forms are %+v, want one, %+v", got, want)
+	}
+	if len(groups[3]) != 2 {
+		t.Errorf("dialNarrower changed the groups given, %+v", groups)
 	}
 }

@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-PROJECTS  ───────────────────────────────────────────────────────────────────────────────  < this week >
+PROJECTS  ────────────────────────────────────────────────────────────────────   - week +  < this week >
 
   project       live  sessions   worth                                                   requests  last
 ▸ switchboard   ● 1          8    $239                                                      2,059  now
@@ -55,4 +55,4 @@ SESSIONS
 
 
 
-tab views   ↑↓ project   → its sessions   - + period: this week   < > back · on   p pin   ? help  q quit
+tab views   ↑↓ project   → its sessions   p pin   ? help  q quit

@@ -60,7 +60,7 @@ func TestSessionsHeadingRow(t *testing.T) {
 		want          string
 	}{
 		{name: "the Switchboard", width: 160, row: 4, picked: 12, other: 25, want: "SESSIONS    Switchboard  List  [ ]  " + rule(124)},
-		{name: "the List", width: 160, row: 4, shown: SessionsList, picked: 25, other: 12, want: "SESSIONS    Switchboard  List  [ ]  " + rule(109) + "  < this week >"},
+		{name: "the List", width: 160, row: 4, shown: SessionsList, picked: 25, other: 12, want: "SESSIONS    Switchboard  List  [ ]  " + rule(98) + "   - week +  < this week >"},
 		{name: "on a phone", width: 52, row: 7, picked: 11, other: 24, want: "SESSIONS   Switchboard  List"},
 	}
 	for _, tt := range tests {

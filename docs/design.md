@@ -3960,28 +3960,41 @@ session's page has its own heading there, ending in `esc back` (see A session's 
   till the List's first read lands, as it names their sessions; the Overview, which has no heading
   row, in SESSIONS' heading, as its description (settled in the plan).
 - **A rule** of `─` in `border`, from two cells after `[ ]`, or after the name where there are no
-  sub-tabs, or one after the state, to two cells short of what sits at the right, or to the last
-  column where nothing does.
-- **At the right,** where the tab has one: its period between its keys, `<` and `>` in
-  bold `accent.key`, the period in `text.muted` with a space either side, `< this week >`; or the
-  Log's count and its `f` (see The Log). A past period's name is in
-  `accent.attention`, `< last week >`, so it never reads as now (the owner's call, 20 November
-  2026). A key that does nothing there is drawn faint, in `text.faint` and still bold: the dial's
-  `>` at now, and its `<` on a period holding or lying before the ledger's first day (see
-  Accounts).
+  sub-tabs, or one after the state, to two cells short of what sits at the right, three short of
+  the period's readout, so a faint `-` stands clear of it, or to the last column where nothing does.
+- **At the right,** where the tab has one: its period's readout; or the Log's count and its `f`
+  (see The Log). The readout splits as the dial's keys do: the period's range between `-` and `+`,
+  which change it alone; two cells; then when it is between `<` and `>`, which change it alone,
+  `- 30 days +  < to 1 Sep >` (the owner's call, 22 November 2026, the Paper file *Switchboard ·
+  Periods*, round 3, FINAL). Its parts are inked as they act:
+  - The signs `-`, `+`, `<` and `>` are in bold `accent.key`, each a click that presses its key.
+  - The range is in `text.muted`, with a space either side.
+  - When is in `text.muted` at now, and a past period's in `accent.attention`,
+    `- week +  < last week >`, so it never reads as now (the owner's call, 20 November 2026).
+  - A sign whose step does nothing there is drawn faint, in `text.faint` and still bold: `-` at
+    day, the shortest range; `+` at 12 months, the longest; `>` at now; and `<` on a period
+    holding or lying before the ledger's first day (see Accounts).
 
 On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule, and what
-sits at its right, its period or its line, as Accounts' period, sits at
+sits at its right, its period's readout or its line, as Accounts' readout, sits at
 the right of row 5 wherever the name, the sub-tabs, the state at its least and it fit whole there;
 where they don't, it goes to row 6, right-aligned, the view then starting at row 8. The state is
 never cut below its least: where even the name, the sub-tabs and the state at its least don't fit
 row 5, the state starts row 6, what's at the right ending it, left out only where the two don't fit
-there. Whether they fit is decided by the width, the period's widest form, and the state's
+there. Whether they fit is decided by the width, the readout's widest form, and the state's
 least: `loading…` whole, whether it shows or not, as a read can start at any moment, or the state's
-shortest form where that's wider. The dial's widest form is the widest of the lengths' names at
-now, as it always was, so nothing changes at now, and a read never moves the heading between one
-row and two. A past period's name wider than that, as `< 12 months to 1 Oct 2025 >`, may, and so
-may a change of length, `-` or `+`. Beside the period, the state
+shortest form where that's wider. The readout's widest form is one at now and another gone, so no
+step moves the heading between one row and two but one between now and a past period, and a read
+never does (round 3):
+
+| The period | The readout's widest form | Cells |
+|---|---|---|
+| Now | the widest of every length's at now, `- week +  < this week >` | 23 |
+| Past | the widest of every period gone, a week over a year's end, neither year now's, as `- week +  < 30 Dec 2024–5 Jan 2025 >` | 36 |
+
+So at 73 columns a past readout takes row 6 on Accounts and on Sessions' List, however narrow its
+own, and the readout at now sits on row 5 beside the sub-tabs. Projects has no sub-tabs, so keeps
+its rule and its readout on row 5. Beside the readout, the state
 takes the room left, two cells short of it, in the first of its forms that fits. A state of free
 text, the Log's filter, whose length is its data's, holds nothing of itself whole, so the heading's
 rows never hang on what it keeps: it's cut to the room left, as `only d28c swi…`. `loading…`'s room
@@ -4015,25 +4028,16 @@ Overview).
   are never on a phone's line, as `? keys` lists them. The Overview says `? keys and toggles`, as
   its toggles are listed there.
 - **The dial's keys,** on every tab with the dial (Accounts, Projects and Sessions' List), one rule:
-  - A wide line names `- + period: this week` and `< > back · on`, and `n now` after them while
-    a past period shows,
-    `- + period: last week    < > back · on    n now`,
-    as the Paper file *Switchboard · Periods* draws them (the owner's call, 20 November 2026).
-    Both show at every period, now or past: `< > back · on` shows at now too, so `< >` holds its
-    place as the dial steps.
-  - A wide line that doesn't fit gives way in this order before it falls to the phone's form: the
-    period's name after `- + period`, then `p pin`, then `- + period` whole. So the List's line
-    in a past period at 108 columns is
-    `tab views   [ ] view   - + period   < > back · on   n now   ↑↓ session   enter its page   ? help  q quit`,
-    104 cells.
-  - At now, a phone's line keeps the phone's rule, with `< > back · on` in place of `< > period`
-    on the List's, `tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit`, and on
-    Projects', `tab views   ↑↓ project   → sessions   < > back · on   ? keys   q quit`. Accounts'
-    names no dial on a phone at now.
-  - While a past period shows, a phone's line keeps `< > back · on` and `n now`, the one exception
-    to the phone's order: `- + period` goes first, then the page's other keys from the last, then
-    `tab views`; `? keys` and `q quit` still end it. So Accounts' phone line in a past period is
-    `tab views   [ ] view   < > back · on   n now   ? keys   q quit`.
+  - The key line names none of `-`, `+`, `<` and `>`, now or past, as the heading's readout names
+    them, and `?` lists them (the owner's call, 22 November 2026).
+  - While a past period shows, it names `n now`, in a group of its own after the page's first
+    keys, as Compare's
+    `tab views   [ ] view    n now    ←→ account  enter its page    p pin    ? help  q quit`.
+  - A wide line that doesn't fit leaves `p pin` out before it falls to the phone's form.
+  - A phone's line keeps `n now` to the last, the one exception to the phone's order: the page's
+    other keys give way from the last, then `tab views`; `? keys` and `q quit` still end it. So
+    Accounts' phone line in a past period is `tab views   [ ] view   n now   ? keys   q quit`, and
+    Projects' `tab views   ↑↓ project   → sessions   n now   ? keys   q quit`.
 
 **A session's page opens over a tab, and `esc` goes back.** It opens with `enter` on a session's
 row on Sessions, in either view, and on Accounts' Detail; with `s` on a line of the Log; and with a
@@ -4050,11 +4054,12 @@ theme picker is a slide-over at the right instead, so its themes preview on the 
 **`?` opens the page's help** in the card, 128 cells wide where the screen has that and a cell
 either side, else the screen's width less those, and centred, titled `HELP · <PAGE>` as the
 page is named, `HELP · OVERVIEW`, or `HELP · SESSION` on a session's page. It lists first every key
-that works on the page, those the key line leaves out among them (`t`, `R`, `j`/`k`, PgUp, PgDn and
-the wheel), worded as the key line words them; then what the page's rules explain, part by part in
-the page's order: what each part shows and how to read it, the scale of a chart or a trace, and a
-key to its marks and glyphs (settled in the plan). It's as tall as its content, up to the page's
-height less two rows, and past that it scrolls within, with `j`/`k`. `?` or `esc` closes it. Each
+that works on the page, those the key line leaves out among them (`t`, `R`, `j`/`k`, PgUp, PgDn, the
+wheel, and the dial's `- + period` and `< > back · on`), worded as the key line words them; then
+what the page's rules explain, part by part in the page's order: what each part shows and how to
+read it, the scale of a chart or a trace, and a key to its marks and glyphs (settled in the plan).
+It's as tall as its content, up to the page's height less two rows, and past that it scrolls
+within, with `j`/`k`. `?` or `esc` closes it. Each
 page's section says what its help explains. The screen says only state; a page that needs its help
 to be read is redesigned, not explained.
 
@@ -4063,13 +4068,12 @@ selection takes its modifier: Option in iTerm2 and Terminal.app, Shift in most o
 what a key does, where that changes only what's shown (settled in the plan, but for a row of the
 Overview's SESSIONS):
 
-- on a tab or a sub-tab, it shows it; on `<` or `>` by the dial's period, it steps it back or
-  on in time;
+- on a tab or a sub-tab, it shows it; on the readout's `-` or `+`, it changes the period's
+  length, and on its `<` or `>`, it steps it back or on in time, as each key does;
 - on the pool's label in the title row, it turns to the next pool, as `P` does, round to the
   first after the last (the owner's call, 20 November 2026);
 - on a key of the key line, it acts as that key does, but for `p pin` and `q quit`; on a pair,
-  which moves either way, it acts as the way on, `]`, `↓`, `→`, and `+` for `- +`, but the dial's
-  `< >`, which acts as `<`, back;
+  which moves either way, it acts as the way on, `]`, `↓` and `→`;
 - on a row that names an account, a session, a line or a turn, or a Compare column's head, it
   chooses it, as the arrows would, and on the one already chosen, opens it, as `enter` does; a row
   of the Overview's SESSIONS opens its session's page at once, as the Overview has nothing to
@@ -5120,11 +5124,12 @@ from the build alone, as `accounts-detail-tue-29-sep-73x61` and `accounts-detail
 its periods, as Trends has none:
 
 - **The heading row** is the page's (see The page): `ACCOUNTS`, the sub-tabs, and at
-  the right the period between its keys, `< this week >`. The state after `[ ]` is only what the
+  the right the period's readout, `- week +  < this week >`. The state after `[ ]` is only what the
   screen can't show otherwise, as which accounts Compare shows of more than fit. On a phone, the sub-tabs follow the tab's name after two spaces, each
   ` Name ` with a space either side, as wider, so the highlight sits centred on its name (the
-  owner's call, 17 October 2026), with no `[ ]` or rule, and the period at the right of the heading
-  row where it fits beside, else on row 6 (see The page).
+  owner's call, 17 October 2026), with no `[ ]` or rule, and the readout at the right of the heading
+  row where its widest fits beside, else on row 6 (see The page): at 73 columns, at now beside,
+  and in a past period on row 6.
 - **No description after a heading,** a tab's or a group's: the tab and the sub-tab name the view,
   and what a view is, and how to read it, is for `?` help. A dim line says only what the screen
   can't: a key to an encoding, as to the shades or the dots; a rule the eye can't see, as that worth
@@ -5226,8 +5231,21 @@ its periods, as Trends has none:
     move it: from Wed 23 Sep, `+` gives last week and `-` then gives Sun 27 Sep. Where
     the new period reaches today, it's now. At now, both keep now.
   - **`n`** goes straight back to now, keeping the length; at now it does nothing.
-  - **Its words,** one owner in `views`, the dates' in `prose`, read alike by the dial at the right
-    of each heading, the key line's state and each title naming the period:
+  - **Its words,** one owner in `views`, the dates' in `prose`. The heading's readout says the
+    range and when (the owner's call, 22 November 2026):
+
+    | Range | Now | One back | Further back |
+    |---|---|---|---|
+    | `day` | `today` | `yesterday` | `Tue 29 Sep` |
+    | `week` | `this week` | `last week` | `14–20 Sep`, its days |
+    | `30 days` | `now` | `to 1 Sep` | `to 2 Aug` |
+    | `12 weeks` | `now` | `to 12 Jul` | `to 19 Apr` |
+    | `12 months` | `now` | `to 1 Oct 2025` | `to 1 Oct 2024` |
+
+    A week's days across months are `28 Sep–4 Oct`; across a year's end, `29 Dec 2025–4 Jan`, the
+    last day's year where it isn't now's and the first's where it isn't the last's. Each title and
+    sentence naming the period, as the key line's state in `?` help, Tokens' total and the List's
+    period line, names it whole:
 
     | Length | Now | One back | Further back |
     |---|---|---|---|
@@ -5241,8 +5259,9 @@ its periods, as Trends has none:
     `last week` are the day and the week before now's; the rest name the date, so a period's
     words follow its dates as the day turns. A title in capitals says the same words in capitals:
     `TUE 29 SEP`, `LAST WEEK`, `WEEK OF 14 SEP`, `30 DAYS TO 1 SEP`.
-  - **Drawn** as the heading says (see The page): a past period's name in `accent.attention`, so
-    it never reads as now; at now, `>` faint, and at the floor or before it, `<` faint.
+  - **Drawn** as the heading says (see The page): a past period's when in `accent.attention`, so
+    it never reads as now; at now, `>` faint; at the floor or before it, `<` faint; at day, `-`
+    faint; and at 12 months, `+` faint.
   - **Opening and midnight:** the dashboard always opens on now. A past period keeps its dates as
     midnight passes, so what's shown doesn't move; now rolls to the new day, as it always has. The
     preferences file keeps the length alone, never the step, as `period`, by its name, `today`,
@@ -5852,23 +5871,23 @@ opens, from Compare, the account in Detail, and from a session row, the session'
 split; `p` new sessions' routing picker; `?` help; `q` quit. A click picks a sub-tab, an account, a
 column or a session. The key lines, where the frames draw the keys from before the sweep of 7 and 8
 October 2026 (settled in the plan), the dial's keys as The page's rule for them has it, `n now`
-joining after `< > back · on` while a past period shows:
+joining after `[ ] view` while a past period shows:
 
 - Compare:
-  `tab views   [ ] view    - + period: this week    < > back · on    ←→ account  enter its page    p pin    ? help  q quit`.
+  `tab views   [ ] view    ←→ account  enter its page    p pin    ? help  q quit`.
 - Detail:
-  `tab views   [ ] view    - + period: this week    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit`,
+  `tab views   [ ] view    ↑↓ account  enter its page    p pin    ? help  q quit`,
   and in its SESSIONS `↑↓ session  ← accounts  enter its page` in place of
   `↑↓ account  enter its page` (settled in the plan).
 - Tokens:
-  `tab views   [ ] view    - + period: this week    < > back · on    v split: by account    p pin    ? help  q quit`.
+  `tab views   [ ] view    v split: by account    p pin    ? help  q quit`.
 - With one account, Compare gone and its sub-tabs Detail and Tokens:
-  `tab views   [ ] view    - + period: this week    < > back · on    ? help  q quit`
+  `tab views   [ ] view    ? help  q quit`
   on Detail, `↑↓ session  enter its page` joining it while it has sessions, never in a past
   period, as it has none then, and Tokens' `v split` on Tokens; no page shows `p pin`
   with one account, unless a pin set from the command line stands (see Routing by hand).
 - On a phone: `tab views   [ ] view   ? keys   q quit`; while a past period shows,
-  `tab views   [ ] view   < > back · on   n now   ? keys   q quit`, giving way as The page's rule
+  `tab views   [ ] view   n now   ? keys   q quit`, giving way as The page's rule
   for the dial's keys has it.
 
 **A token's year.** Accounts tells of an account whose token's year is up within 30 days, or is up,
@@ -6020,8 +6039,8 @@ of stepping back through periods draw it (20 November 2026), `projects-yesterday
   family; and when its last request arrived. Then `all projects`, every project's totals.
 - **A past period** (see Accounts' rules for the dial, and The page for its keys on the key line,
   as
-  `tab views   ↑↓ project   → its sessions   - + period: last week   < > back · on   n now   p pin   ? help  q quit`,
-  and a phone's `tab views   ↑↓ project   < > back · on   n now   ? keys   q quit`): the list has
+  `tab views   ↑↓ project   → its sessions   n now   p pin   ? help  q quit`,
+  and a phone's `tab views   ↑↓ project   → sessions   n now   ? keys   q quit`): the list has
   no `live` column and the chosen project's head no count of its sessions running, as neither is the
   period's, the rest taking the room. `last` is the time of its last request within the period,
   never `now`: the
@@ -6164,8 +6183,9 @@ unless they say otherwise.
 and `List`, each with a space either side, the one shown bold `text.primary` on `bg.subtle` and the
 other `text.subtle`; a space and `[ ]` in `text.faint`; two spaces, and a rule of `─` in `border` to
 the last column. `SESSIONS` takes 0–7, `Switchboard` with its spaces 11–23, `List` with its spaces
-24–29 and `[ ]` 31–33, and the rule starts at 36. While the List shows, the dial sits at the
-row's right, `< 30 days >`, the rule ending two cells before it, as Accounts' and Projects' do: the
+24–29 and `[ ]` 31–33, and the rule starts at 36. While the List shows, the dial's readout sits at
+the row's right, `- 30 days +  < now >`, the rule ending three cells before it, as Accounts' and
+Projects' do: the
 one period the entity tabs share, which `<` and `>` step back and on in time there, and `-` and
 `+` change the length of; it leaves with the Switchboard. The
 view starts on row 6, and the row over the key line holds its state line, where it has one (see The
@@ -6664,12 +6684,12 @@ each at least its least and at most its natural, but `session`, which grows wher
 | Where | Key line |
 |---|---|
 | The Switchboard | `tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit` |
-| The List | `tab views   [ ] view   - + period: 30 days   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit` |
-| The List, a past period | `tab views   [ ] view   - + period: 30 days to 1 Sep   < > back · on   n now   ↑↓ session   enter its page   p pin   ? help  q quit` |
+| The List | `tab views   [ ] view   ↑↓ session   enter its page   p pin   ? help  q quit` |
+| The List, a past period | `tab views   [ ] view   n now   ↑↓ session   enter its page   p pin   ? help  q quit` |
 | A phone, the Switchboard | `↑↓ session   enter open   [ ] view   ? keys   q quit` |
-| A phone, the List | `tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit`, `n now` joining after `< > back · on` while a past period shows |
+| A phone, the List | `tab views   ↑↓ session   [ ] view   ? keys   q quit`, `n now` joining after `[ ] view` while a past period shows |
 
-The dial's keys give way, wide and on a phone, as The page's rule for them has it.
+`n now` gives way, wide and on a phone, as The page's rule for the dial's keys has it.
 
 - `[` and `]` switch between Switchboard and List.
 - `<` and `>` step the dial's period back and on in time on the List, `-` and `+` (or `=`) change

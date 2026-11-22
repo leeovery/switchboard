@@ -114,6 +114,52 @@ func TestEachLengthStepsBackAndIsNamedAsTheFramesNameIt(t *testing.T) {
 	}
 }
 
+// The heading's readout says the period's range, which - and + change
+// alone, and when it is, which < and > change alone: at now today, this
+// week, or now; one back yesterday, last week, or to its last day; further
+// back a day's date, a week's days, or to its last day; a date with its
+// year where it isn't now's, and a week's days across months and years. -
+// stops at the shortest range and + at the longest.
+func TestTheReadoutSaysTheRangeAndWhen(t *testing.T) {
+	midOctober := time.Date(2026, 10, 15, 9, 0, 0, 0, time.Local)
+	midJanuary := time.Date(2026, 1, 14, 9, 0, 0, 0, time.Local)
+	tests := []struct {
+		name              string
+		length            views.Length
+		keys              string
+		now               time.Time
+		ranged, when      string
+		shortest, longest bool
+	}{
+		{"today", views.LengthToday, "", framesNow, "day", "today", true, false},
+		{"yesterday", views.LengthToday, "<", framesNow, "day", "yesterday", true, false},
+		{"a day further back", views.LengthToday, "<<", framesNow, "day", "Tue 29 Sep", true, false},
+		{"a day in another year", views.LengthToday, strings.Repeat("<", 274), framesNow, "day", "Wed 31 Dec 2025", true, false},
+		{"this week", views.LengthThisWeek, "", framesNow, "week", "this week", false, false},
+		{"last week", views.LengthThisWeek, "<", framesNow, "week", "last week", false, false},
+		{"a week further back", views.LengthThisWeek, "<<", framesNow, "week", "14–20 Sep", false, false},
+		{"a week across months", views.LengthThisWeek, "<<", midOctober, "week", "28 Sep–4 Oct", false, false},
+		{"a week across years", views.LengthThisWeek, "<<", midJanuary, "week", "29 Dec 2025–4 Jan", false, false},
+		{"30 days at now", views.LengthThirtyDays, "", framesNow, "30 days", "now", false, false},
+		{"30 days one back", views.LengthThirtyDays, "<", framesNow, "30 days", "to 1 Sep", false, false},
+		{"30 days further back", views.LengthThirtyDays, "<<", framesNow, "30 days", "to 2 Aug", false, false},
+		{"12 weeks at now", views.LengthTwelveWeeks, "", framesNow, "12 weeks", "now", false, false},
+		{"12 weeks one back", views.LengthTwelveWeeks, "<", framesNow, "12 weeks", "to 12 Jul", false, false},
+		{"12 weeks further back", views.LengthTwelveWeeks, "<<", framesNow, "12 weeks", "to 19 Apr", false, false},
+		{"12 months at now", views.LengthTwelveMonths, "", framesNow, "12 months", "now", false, true},
+		{"12 months one back", views.LengthTwelveMonths, "<", framesNow, "12 months", "to 1 Oct 2025", false, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := views.DialOf(pressed(t, tt.length, tt.keys, tt.now, time.Monday, time.Time{}), tt.now, time.Monday, time.Time{})
+			if d.Range() != tt.ranged || d.When() != tt.when || d.Shortest() != tt.shortest || d.Longest() != tt.longest {
+				t.Errorf("%s pressed %q at %v reads - %s +  < %s >, shortest %v, longest %v; want - %s +  < %s >, shortest %v, longest %v",
+					tt.length.Name(), tt.keys, tt.now, d.Range(), d.When(), d.Shortest(), d.Longest(), tt.ranged, tt.when, tt.shortest, tt.longest)
+			}
+		})
+	}
+}
+
 // - and + change the length and keep the period's last day: a week length
 // takes the week holding it, 12 weeks the 12 to that week; one reaching
 // today is now, named as now.
@@ -517,23 +563,43 @@ func TestShortIsTheLengthsNameNeverOneThatSaysNowGone(t *testing.T) {
 	}
 }
 
-// The dial keeps room for the widest of the lengths' names at now, whatever
-// the period: every length's name at now fits it, one fills it, and every
-// period, at now or gone, keeps the same.
-func TestWidestIsTheWidestOfTheLengthsNamesAtNow(t *testing.T) {
-	widest := views.DialOf(views.LengthThisWeek.Now(), framesNow, time.Monday, time.Time{}).Widest()
-	most := 0
+// The heading keeps room for the widest readout: at now, the widest of
+// every length's at now, which every period at now fits and one fills;
+// gone, the widest of every period gone, which every period gone of a
+// length, stepped back a hundred times at a later year's start, fits, one
+// filling it.
+func TestWidestIsTheWidestReadoutAtNowOrGone(t *testing.T) {
+	cells := func(ranged, when string) int { return utf8.RuneCountInString(ranged) + utf8.RuneCountInString(when) }
+	now := views.DialOf(views.LengthThisWeek.Now(), framesNow, time.Monday, time.Time{})
+	gone := views.DialOf(pressed(t, views.LengthThisWeek, "<", framesNow, time.Monday, time.Time{}), framesNow, time.Monday, time.Time{})
+	nowRange, nowWhen := now.Widest()
+	goneRange, goneWhen := gone.Widest()
+	if nowRange != "week" || nowWhen != "this week" {
+		t.Errorf("at now the heading keeps room for %q %q, want week, this week", nowRange, nowWhen)
+	}
+	if goneRange != "week" || cells(goneRange, goneWhen) != 26 {
+		t.Errorf("gone the heading keeps room for %q %q, want a week over a year's end, neither year now's, as 29 Dec 2025–4 Jan 2026", goneRange, goneWhen)
+	}
+	newYear := time.Date(2027, 1, 1, 9, 0, 0, 0, time.Local)
+	filled := false
 	for _, length := range views.Lengths() {
-		most = max(most, utf8.RuneCountInString(length.Name()))
-		for back := range 3 {
-			p := pressed(t, length, strings.Repeat("<", back), framesNow, time.Monday, time.Time{})
-			if got := views.DialOf(p, framesNow, time.Monday, time.Time{}).Widest(); got != widest {
-				t.Errorf("%s %d back keeps room for %q, want %q", length.Name(), back, got, widest)
+		d := views.DialOf(length.Now(), newYear, time.Monday, time.Time{})
+		if got := cells(d.Range(), d.When()); got > cells(nowRange, nowWhen) {
+			t.Errorf("%s at now, %q %q, is %d wide, wider than the room kept", length.Name(), d.Range(), d.When(), got)
+		}
+		p := length.Now()
+		for back := range 100 {
+			p, _ = p.Back(newYear, time.Monday, time.Time{})
+			d := views.DialOf(p, newYear, time.Monday, time.Time{})
+			got := cells(d.Range(), d.When())
+			if got > cells(goneRange, goneWhen) {
+				t.Errorf("%s %d back, %q %q, is %d wide, wider than the room kept", length.Name(), back+1, d.Range(), d.When(), got)
 			}
+			filled = filled || got == cells(goneRange, goneWhen)
 		}
 	}
-	if got := utf8.RuneCountInString(widest); got != most {
-		t.Errorf("the dial keeps room for %q, %d wide, want %d, the widest length's name at now", widest, got, most)
+	if !filled {
+		t.Errorf("no period gone fills the room kept for %q %q", goneRange, goneWhen)
 	}
 }
 

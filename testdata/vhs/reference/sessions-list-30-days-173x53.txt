@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < 30 days >
+SESSIONS    Switchboard  List  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────   - 30 days +  < now >
 
   session                      on        model       state        started          requests    worth  routing
 ▸ infra       terraform        side      opus-5-5    idle 50s     yesterday 15:08       153   $12.64  from work · at its cap  $0.66
@@ -50,4 +50,4 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
   switchboard a358             work      opus-5-5    ended 13:32  10:39                 260   $30.01
 30 days  162 sessions · 26,469 requests · $3,061.31 at API prices
   ▼ 124 more sessions
-tab views   [ ] view   - + period: 30 days   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit
+tab views   [ ] view   ↑↓ session   enter its page   p pin   ? help  q quit
