@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-22
+
+Step back through past periods on the dashboard's Accounts, Projects and Sessions tabs to see what happened on an earlier day, week or month.
+
+💥 Breaking
+- `<` and `>` on the period dial now step back and on in time instead of changing the period's length — use `-` and `+` (or `=`) to change length.
+
+✨ Added
+- Step the period back and on in time with `<` and `>`, never before the ledger's first day or past now, and press `n` to return to now.
+- Change the period's length with `-` and `+`, keeping its last day, so you can go from last week to the 30 days ending on its Sunday.
+- Past periods are named by their day or dates (such as "yesterday", "last week" or "30 days to 1 Sep") in the heading and titles, drawn in a warning colour so they never read as now.
+- Accounts in a past period show that period's own days, weeks, worth and limit facts, with weeks ending at the period's last week and limit days named by date.
+- Detail's LATELY in a past period lists the router's events up to the end of the period's last day.
+- Projects and Sessions in a past period list sessions that went on after it, and say which days' sessions are no longer kept.
+- Worth for a past single day is charted by the hour.
+- Start times in a past period show their date and, for another year, their year.
+
+🔧 Changed
+- A past period hides what only tells now: account states, token lines, USAGE, WEEK USED, SESSIONS and routing marks, and Projects' live column.
+- The Sessions list's period line fits its sessions, requests and worth into the width more gracefully.
+- Choosing the last session with ↑ or ↓ in Sessions' List or a project's SESSIONS now scrolls to show the words after it too.
+- Tokens' total row names the period in full where it fits, otherwise by a short name.
+
+🐛 Fixed
+- The day-rule above ended sessions no longer shows without a session under it.
+
 ## [1.0.6] - 2026-11-20
 
 ✨ Added
