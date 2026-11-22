@@ -39,4 +39,4 @@ pre_tag = ['scripts/gated', 'press prepare']
 post_release = ['press upload']
 
 [release]
-diff_exclude = ["testdata/", "art/", "internal/views/viewstest/", "demo/", "internal/testguard/", "internal/tokens/tokenstest/", "internal/skill/SKILL.md", ".gitignore", "internal/status/statustest/", "internal/capture/", "CONTRIBUTING.md", "internal/claude/claudetest/", "release", ".press.toml"]
+diff_exclude = ["testdata/", "art/", "internal/views/viewstest/", "demo/", "internal/testguard/", "internal/tokens/tokenstest/", "internal/skill/SKILL.md", ".gitignore", "internal/status/statustest/", "internal/capture/", "CONTRIBUTING.md", "internal/claude/claudetest/", "release", ".press.toml", ".golangci.yml"]
