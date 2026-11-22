@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
@@ -149,14 +151,19 @@ func TestTheHeadingRow(t *testing.T) {
 			want:    []string{"LOG   Requests  Events" + blanks(18) + "35 hidden  f"},
 		},
 		{
-			name: "on a phone, a tab without sub-tabs keeps its rule and its readout, as projects-phone draws it", width: 52, phone: true,
+			name: "on a phone, a tab without sub-tabs keeps its rule and its readout, where the widest gone fits after loading…'s room", width: 60, phone: true,
 			heading: heading{name: "PROJECTS", period: dayGone},
-			want:    []string{"PROJECTS  " + rule(17) + "   - day +  < yesterday >"},
+			want:    []string{"PROJECTS  " + rule(25) + "   - day +  < yesterday >"},
 		},
 		{
-			name: "the state cut short, to leave the readout room", width: 100,
+			name: "on a phone, a tab without sub-tabs takes the row under for its readout, where the widest gone doesn't fit, its rule to the last column", width: 59, phone: true,
+			heading: heading{name: "PROJECTS", period: dayGone},
+			want:    []string{"PROJECTS  " + rule(49), blanks(37) + "- day +  < yesterday >"},
+		},
+		{
+			name: "the state whole, never cut for the readout, which takes the row under where the state's least leaves it no room", width: 110,
 			heading: heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, state: line{{"accounts 1–6 of 10  ·  ", faintInk}, {"←→", keyInk}, {" moves along them; all accounts stays put", faintInk}}, period: weekAtNow},
-			want:    []string{"ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along…    - week +  < this week >"},
+			want:    []string{"ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put " + rule(8), blanks(87) + "- week +  < this week >"},
 		},
 		{
 			name:    "on a phone, a free state cut beside the name and the sub-tabs, loading…'s room kept, the right on the row under where it doesn't fit after that",
@@ -390,16 +397,39 @@ func TestEveryDialTabDrawsItsReadoutWhole(t *testing.T) {
 			for width := 20; width <= 140; width++ {
 				for _, loading := range []bool{false, true} {
 					f := headingFrame(width, tab.view, tab.shown(period), loading)
-					said, x, _, ok := readoutDrawn(t, f.headingPieces())
+					where := fmt.Sprintf("%s at %d over %q, loading: %t", tab.name, width, d.Name(), loading)
+					said, x, y, ok := readoutDrawn(t, f.headingPieces())
 					switch {
-					case !ok && width >= 36:
-						t.Errorf("%s at %d over %q, loading: %t, draws no readout, want %q", tab.name, width, d.Name(), loading, want)
-					case ok && (said != want || x+len([]rune(said)) != width):
-						t.Errorf("%s at %d over %q, loading: %t, draws %q from column %d, want %q ending at the last column", tab.name, width, d.Name(), loading, said, x, want)
+					case !ok && width >= ansi.StringWidth(want):
+						t.Errorf("%s, draws no readout, want %q", where, want)
+					case ok && (said != want || x < 0 || x+ansi.StringWidth(said) != width):
+						t.Errorf("%s, draws %q from column %d, want %q whole, ending at the last column", where, said, x, want)
+					case ok && y == f.headingY() && !f.heading().compact(f.phone()):
+						ruledClear(t, f, x, where)
 					}
 				}
 			}
 		}
+	}
+}
+
+// ruledClear fails t unless the frame's heading row, a heading with a rule
+// whose readout starts at column x of it, draws a cell of rule at least,
+// ending readoutGap cells before the readout, and its state, where it has
+// one, loading… among its forms, whole in one of them.
+func ruledClear(t *testing.T, f Frame, x int, where string) {
+	t.Helper()
+	c := newCanvas(f.Width, f.headingY()+2)
+	for _, p := range f.headingPieces() {
+		c.line(p.x, p.y, p.line)
+	}
+	row := []rune(c.rows(Look{})[f.headingY()])
+	if gap := string(row[x-readoutGap : x]); row[x-readoutGap-1] != '─' || strings.TrimSpace(gap) != "" {
+		t.Errorf("%s, the heading reads %q, want a cell of rule ending %d cells before the readout", where, string(row), readoutGap)
+	}
+	forms := f.heading().stateForms()
+	if forms != nil && !slices.ContainsFunc(forms, func(l line) bool { return strings.Contains(string(row), l.plain()+" ─") }) {
+		t.Errorf("%s, the heading reads %q, want its state whole in one of its forms, the rule after it", where, string(row))
 	}
 }
 

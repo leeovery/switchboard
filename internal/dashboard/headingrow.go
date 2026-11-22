@@ -15,12 +15,15 @@ import (
 // sub-tabs and before the state; between the rule and what's either side of
 // it, but the state, which the rule starts a cell after, and the period's
 // readout, which it ends three short of, so a faint - stands clear of it;
-// and on a phone, before the sub-tabs.
+// on a phone, before the sub-tabs; and what a heading with a rule keeps
+// after the state, before the period's readout's gap: the cell the rule
+// starts after, and a cell of rule, so the readout never floats on blanks.
 const (
 	headingGap = 3
 	ruleGap    = 2
 	readoutGap = 3
 	compactGap = 2
+	ruleKept   = 2
 )
 
 // shownSubTabInk picks out the sub-tab shown.
@@ -225,15 +228,30 @@ func (h heading) under(width int, phone bool) (state, right bool) {
 
 // ruledBeside reports whether a heading with a rule, its name and sub-tabs
 // ending at column x, has room on its row for its period's readout at the
-// widest it keeps room for: the rule's gap, a cell of rule at least, so the
-// readout never floats on blanks, and the readout's gap before it.
+// widest it keeps room for, after three cells and the state at its least,
+// as ruledLeast has it, so the state is never cut for it and loading never
+// moves it, then what ruleKept keeps and the readout's gap.
 func (h heading) ruledBeside(x, width int) bool {
-	return x+ruleGap+1+readoutGap+ends(h.widestRight()) <= width
+	return x+headingGap+h.ruledLeast()+ruleKept+readoutGap+ends(h.widestRight()) <= width
 }
 
-// widestRight are what sits at a compact heading's right at its widest: its
-// period's readout at the widest it keeps room for, as atWidest has it;
-// else its line.
+// ruledLeast is the fewest cells a heading with a rule keeps for its state
+// beside its period's readout: loading… whole, whether it shows or not, or
+// the state's shortest form where that's wider, but a free state's, whose
+// length is its data's. Unlike leastState, it holds no least the heading
+// names, as Compare's clause, which a phone's heading alone keeps whole: a
+// wide heading's state gives way to its shortest form.
+func (h heading) ruledLeast() int {
+	least := ansi.StringWidth(loadingWord)
+	if forms := h.quietForms(); forms != nil && !h.free {
+		least = max(least, forms[len(forms)-1].width())
+	}
+	return least
+}
+
+// widestRight are what sits at a heading's right at its widest, as the room
+// for it is judged: its period's readout at the widest it keeps room for, as
+// atWidest has it; else its line, a compact heading's own where it has one.
 func (h heading) widestRight() []piece {
 	if h.period.shown() {
 		return periodPieces(h.period.atWidest())
@@ -245,16 +263,18 @@ func (h heading) widestRight() []piece {
 // cells wide, on a phone where phone says: its name and sub-tabs, as named
 // lays them out; then three cells on, the state, or the first of its shorter
 // forms that fits where the rest leaves it short of room, cut where none
-// does. Ending at the last column, on the row under has it on, its period's
-// readout; or its line, left out where it doesn't fit beside the name and
-// the sub-tabs, as far from them as the rule ends short of it. Between them, the rule, from two cells
-// after them, or one after the state, to as many short of what sits at the
-// right as rightGap has it, or to the last column where nothing does. A
-// compact heading has no rule; and where under says, its state starts the
-// row under, and what's at its right ends it, left out where it doesn't fit
-// after the state's least; but the period's readout, which the state gives
-// way to there, left out where even its least doesn't fit before it. A
-// readout wider than the frame is left out whole, never cut.
+// does. Ending at the last column: its period's readout, on the row under
+// says; or its line, left out where it doesn't fit beside the name and the
+// sub-tabs, as far from them as the rule ends short of it, which only a
+// line without the dial can be, as the Log's count. Between them, the rule,
+// from two cells after them, or one after the state, to as many short of
+// what sits at the right as rightGap has it, or to the last column where
+// nothing does, a cell of it at least before a readout beside, as ruleKept
+// has it. A compact heading has no rule; and where under says, its state
+// starts the row under, and what's at its right ends it, left out where it
+// doesn't fit after the state's least; but the period's readout, which the
+// state gives way to there, left out where even its least doesn't fit
+// before it. A readout wider than the frame is left out whole, never cut.
 func (h heading) pieces(y, width int, phone bool) []piece {
 	var laid laying
 	x := h.named(&laid, y, phone)
@@ -285,9 +305,13 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 			right, end = nil, width
 		}
 	}
+	room := end - stateX
+	if h.period.shown() && !h.compact(phone) && right != nil && rightY == stateY {
+		room -= ruleKept
+	}
 	ruled := x + ruleGap
 	if forms != nil {
-		ruled = laid.put(stateX, stateY, firstFit(end-stateX, forms...), Target{}) + 1
+		ruled = laid.put(stateX, stateY, firstFit(room, forms...), Target{}) + 1
 	}
 	if !h.compact(phone) {
 		laid.put(ruled, y, line{{rule(end - ruled), borderInk}}, Target{})

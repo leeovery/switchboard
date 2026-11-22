@@ -3994,11 +3994,13 @@ never does (round 3):
 
 So at 73 columns a past readout takes row 6 on Accounts and on Sessions' List, however narrow its
 own, and the readout at now sits on row 5 beside the sub-tabs. One rule holds for every heading
-with the dial, so `<` and `>` never move the readout and never drop it:
+with the dial, so only a step between now and a past period moves the readout a row, the first
+`<` from now and `>` or `n` back onto it, and none ever drops it:
 
 - A heading with a rule, as Projects' at any width, keeps the readout on its row where its widest
-  fits after the name, a cell of rule at least and the rule's gaps; else the readout takes the row
-  under, the rule running to the last column.
+  fits after the name, the state in its shortest form or `loading…` whole, whether it shows or
+  not, a cell of rule at least and the rule's gaps; else the readout takes the row under, the rule running to
+  the last column. So the state is never cut for the readout, and loading never moves it.
 - On the row under, the readout comes first: the state, `loading…` among its forms, gives way to
   it, left out where its least doesn't fit before it.
 - Where the frame is narrower than the readout itself, under 36 columns for the widest, the

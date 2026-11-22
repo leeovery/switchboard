@@ -160,8 +160,9 @@ Press `v` to split each row by account, by model, by both, or not at all.
 ## Room by width
 
 **The dial** on a phone 73 columns wide sits beside the tabs at now. In a past period it takes the
-row under them, whatever its width. So the first `<` from now moves the page down a row, and from
-then on `<` and `>` never move it.
+row under them, whatever its width. Only a step between now and a past period moves the page a
+row: the first `<` from now, and `>` or `n` back onto now. Among past periods, `<` and `>` never
+move it.
 
 **Compare** scrolls its rows under the account names if they don't all fit. If the columns don't
 fit, `←` and `→` scroll them. If two accounts and `all accounts` don't fit side by side, as on a
