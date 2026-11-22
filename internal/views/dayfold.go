@@ -9,12 +9,13 @@ import "time"
 // known, as hoursOn has it, of the tail's fold of its day, whatever it holds,
 // as the tail reads every line of it; and of a day's read, where the ledger
 // keeps the day's lines, as OldestDay's kept has it, a quiet day's too, as
-// no hours are known of a day whose lines are no longer kept. The zero
-// DayFold is of no day.
+// no hours are known of a day whose lines are no longer kept. It's the
+// tail's where TodayFold gives it. The zero DayFold is of no day.
 type DayFold struct {
-	date  string
-	held  daySessions
-	known bool
+	date   string
+	held   daySessions
+	known  bool
+	tailed bool
 }
 
 // ReadDayFold is the fold of the local day with the given date in the pool
@@ -37,7 +38,15 @@ func ReadDayFold(l Ledger, date string, keep time.Duration, now time.Time, p Poo
 // day it turned from till the tail's next read, as DayFold has it, its hours
 // known.
 func (d SessionDays) TodayFold() DayFold {
-	return DayFold{date: d.today.Date, held: d.held, known: true}
+	return DayFold{date: d.today.Date, held: d.held, known: true, tailed: true}
+}
+
+// Tailed reports whether the fold is the ledger's tail's, as TodayFold gives
+// it: so of the fold HoursFold picks, whether the day is charted by the
+// tail's hours, and follows the tail's reads, or by a read of it, which
+// doesn't.
+func (f DayFold) Tailed() bool {
+	return f.tailed
 }
 
 // HoursFold is the fold the period's day, as Day has it, is charted by the

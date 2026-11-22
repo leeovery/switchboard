@@ -207,9 +207,10 @@ type Config struct {
 	KeepGraphs bool
 	Log        dashboard.LogTicks
 	Prefs      Prefs
-	// Period is the period the entity tabs open counting over: of the length
-	// the preferences keep, as dashboard.LengthKept reads it, which Prefs
-	// keeps as it changes, or the one shown where the pool turns.
+	// Period is the period the entity tabs open counting over: now, of the
+	// length the preferences keep, as dashboard.LengthKept reads it, which
+	// Prefs keeps as it changes; or the one shown where the pool turns, past
+	// or now.
 	Period views.Period
 	// AccountsShown is what the preferences keep Accounts showing, as
 	// dashboard.AccountsKept reads it, SessionsShown Sessions, as
@@ -382,7 +383,7 @@ type Model struct {
 	scroll int
 	readIn scrollRead
 	// period is the period the entity tabs count over, one dial they share,
-	// as < and > step it.
+	// as periodStepped steps it.
 	period views.Period
 	// accounts is what the watch holds of Accounts: what it shows, and its
 	// page, built of the days past holds over the period.
@@ -390,11 +391,17 @@ type Model struct {
 	// past is the ledger's days the watch holds, and the reads of them, which
 	// Accounts, Runway and Trends share.
 	past pastDays
+	// begun is where the pool shown's work of the ledger begins, held once
+	// for every read and page, and the dial's floor, as whichever read asks
+	// first learns it.
+	begun begun
 	// projects is what the watch holds of Projects: what it shows, and its
 	// pages. sessionDays are the sessions' days it's built of, as Sessions'
-	// List is, one read of the period serving both.
+	// List is, one read of the period serving both; and pastDay the fold of a
+	// day gone, which Accounts and Projects chart its hours by.
 	projects    projectsTab
 	sessionDays periodDays
+	pastDay     pastDay
 	// sessionsTab is what the watch holds of Sessions: what it shows, its
 	// Switchboard and its List as the last look built them, and whether the
 	// List is held. held are the sessions its readers want, the store
@@ -554,7 +561,7 @@ func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, graphs: cfg.Graphs,
-		period: cfg.Period, accounts: accountsTab{shown: cfg.AccountsShown}, past: pastDays{starts: cfg.WeekStarts},
+		period: cfg.Period, accounts: accountsTab{shown: cfg.AccountsShown},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
 		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
@@ -597,7 +604,9 @@ func (m Model) started() tea.Cmd {
 // afresh, as relived says, and closing a session's card it leaves no p for,
 // as closing says, then has the watch read the router's request stream
 // while it wants it, and the ledger's days for Accounts, Runway, Graphs, a
-// session's page, the Log and its find, and Sessions, as they want them,
+// session's page, the Log and its find, and Sessions, as they want them, a
+// day gone's fold for its hours, as readPastDay has it, and the router's
+// events for Detail's LATELY in a past period, as readPastLately has it,
 // Accounts' and Trends' pages built of them as accountsBuilt and trendsBuilt
 // have it, Detail's selection following its sessions, as
 // followed has it, Sessions, Runway and Graphs built at the look, as
@@ -626,6 +635,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readPast()
 	tuned, projected := tuned.readDays()
+	tuned, hours := tuned.readPastDay()
+	tuned, told := tuned.readPastLately()
 	tuned = tuned.accountsBuilt().trendsBuilt().projectsBuilt(msg).followed(msg).sessionsLooked(msg).runwayLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
@@ -648,7 +659,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, projected, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, projected, hours, told, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -794,8 +805,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.history = m.history.filedAs(msg)
 		m.trails = m.history.drawn(m.moment(m.now()))
 		return m, nil
-	case yearReadMsg:
-		return m.yearRead(msg), nil
+	case pastReadMsg:
+		return m.pastRead(msg), nil
 	case sinceMsg:
 		return m.sinceRead(msg), nil
 	case daysReadMsg:
@@ -844,6 +855,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.latelyRead(msg), nil
 	case pastLatelyReadMsg:
 		return m.pastLatelyRead(msg)
+	case pastDayReadMsg:
+		return m.pastDayRead(msg), nil
 	case turnedMsg:
 		return m.turnedTo(msg)
 	}
@@ -1036,6 +1049,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		VersionNameCells: m.versionNameCells,
 		PlansAtMost:      m.plansAtMost,
 		Period:           m.period,
+		Dial:             m.dial(now),
 		Accounts:         m.accounts.shown,
 		Projects:         m.projects.shown,
 		Runway:           m.runwayTab.shown,

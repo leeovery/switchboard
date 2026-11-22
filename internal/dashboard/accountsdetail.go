@@ -376,8 +376,9 @@ func (f Frame) detailDays() int {
 // layout; the configured accounts, as the moment's Configured has them; the
 // account shown, by its id, "" for all accounts, as they have it, and
 // whether the moment has it; its row of the period's page, where the page is
-// read and holds one; the sessions running on it; and its panel drawn whole,
-// once, for every look to share.
+// read and holds one; the sessions running on it, none in a past period,
+// as views.RunningIn has them; and its panel drawn whole, once, for every
+// look to share.
 type detailDrawn struct {
 	f        Frame
 	m        status.Moment
@@ -401,7 +402,7 @@ func (f Frame) detailDrawn(doc status.Document, now time.Time, l detailLayout) d
 	if i := slices.IndexFunc(d.accounts, func(a status.AccountNow) bool { return a.ID == f.Accounts.Account() }); i >= 0 {
 		d.id, d.account = d.accounts[i].ID, d.accounts[i]
 		_, d.known = m.Account(d.id)
-		d.running = views.RunningOn(f.running(doc, now), d.id)
+		d.running = views.RunningIn(f.running(doc, now), d.id, f.Dial)
 	}
 	d.page, d.row = pageRowOf(f.Accounts.Page, d.id)
 	d.drawn = sync.OnceValue(d.panel)

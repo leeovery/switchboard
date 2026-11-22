@@ -323,29 +323,29 @@ func (f heldFold) fed(r logReaders, read tailLines, logged []string, now time.Ti
 const noSessionChosen = "no session is chosen"
 
 // sessionsSteps are the ways Sessions' keys move: back, -1, or on, 1.
-var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1, "<": -1, ">": 1}
+var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1}
 
 // sessionsKey acts on a key of Sessions', reporting false for a key it
 // doesn't take, or on another tab, and the command it starts, if any: [ and
 // ] turn the sub-tab, as Turned has it; ↑ and ↓ choose a row, as Choosing
 // has it; enter opens the page of the session chosen, as openSession opens
 // it, and while none is, as the key line draws it faint, says why in the key
-// line's place; esc deselects, as Unchosen has it; and on the List, < and >
-// step the period, as periodStepped has it. A key that changes what's shown
+// line's place; esc deselects, as Unchosen has it; and on the List, the
+// dial's keys step the period, as periodStepped has it. A key that changes what's shown
 // shows it as showSessions has it.
 func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Sessions {
 		return m, nil, false
 	}
 	s := m.sessionsTab.shown
+	if s.Shown == dashboard.SessionsList {
+		if stepped, ok := m.periodStepped(key); ok {
+			return stepped, nil, true
+		}
+	}
 	var next dashboard.SessionsShown
 	var changed bool
 	switch key {
-	case "<", ">":
-		if s.Shown != dashboard.SessionsList {
-			return m, nil, false
-		}
-		return m.periodStepped(sessionsSteps[key]), nil, true
 	case "[", "]":
 		next, changed = s.Turned(sessionsSteps[key], m.boardAccounts())
 	case "up", "down":

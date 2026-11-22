@@ -1,24 +1,30 @@
 package watch
 
-import "github.com/leeovery/switchboard/internal/dashboard"
+import (
+	"slices"
+
+	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/views"
+)
 
 // sessionsListings are Sessions' own keys, as the key line and help list
-// them: [ ] view; on the List, < > and the period; ↑↓ choosing a session;
+// them: [ ] view; on the List, the dial's keys, of its period as dial says
+// it, as dialListings has them; ↑↓ choosing a session;
 // enter opening the one chosen, faint till one is, as Opens has it; and
 // while one is, esc deselecting it, which the key line leaves to help. On
 // the Switchboard, enter
 // shares ↑↓'s group, and on the List each key has a group of its own, as
 // Projects' do. A phone's line sets them as sessionsPhoneKeys has it.
-func (m Model) sessionsListings() []keyListing {
+func (m Model) sessionsListings(dial views.Dial) []keyListing {
 	sessions := m.view == dashboard.Sessions
 	list := sessions && m.sessionsTab.shown.Shown == dashboard.SessionsList
-	return []keyListing{
+	return slices.Concat([]keyListing{
 		{Key: sessionsViewKey, works: sessions, apart: true},
-		{Key: m.periodKey(), works: list, apart: true},
+	}, dialListings(dial, list, true), []keyListing{
 		{Key: sessionsChooseKey, works: sessions, apart: true},
 		{Key: m.sessionsOpenKey("its page"), works: sessions, apart: list},
 		{Key: dashboard.Key{Key: "esc", Does: "deselect"}, works: sessions && m.sessionsTab.shown.Opens(), helpful: true},
-	}
+	})
 }
 
 // Sessions' keys that a phone's line keeps, as the key line words them.
@@ -35,11 +41,13 @@ func (m Model) sessionsOpenKey(does string) dashboard.Key {
 
 // sessionsPhoneKeys are Sessions' keys a phone's line keeps, in the frame's
 // order rather than the wide line's: on the Switchboard, ↑↓ session, enter
-// open and [ ] view; on the List, ↑↓ session, [ ] view and < > period, its
-// state left off, as the design's frame has them.
-func (m Model) sessionsPhoneKeys() []dashboard.Key {
+// open and [ ] view; on the List, ↑↓ session, [ ] view and the dial's a
+// phone's line names in the page's place, of its period as dial says it, as
+// dialListings has them, those it gives way first and keeps to the last
+// aside, as the design's frame has them.
+func (m Model) sessionsPhoneKeys(dial views.Dial) []dashboard.Key {
 	if m.sessionsTab.shown.Shown == dashboard.SessionsList {
-		return []dashboard.Key{sessionsChooseKey, sessionsViewKey, {Key: "< >", Does: "period"}}
+		return append([]dashboard.Key{sessionsChooseKey, sessionsViewKey}, grouped(dialListings(dial, true, true)).phone...)
 	}
 	return []dashboard.Key{sessionsChooseKey, m.sessionsOpenKey("open"), sessionsViewKey}
 }

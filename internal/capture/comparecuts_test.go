@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // compareCutsWorlds are the fixtures of Compare whose figures run widest:
@@ -46,21 +47,22 @@ func TestCompareDrawnWideCutsNoFigure(t *testing.T) {
 	}
 }
 
-// comparePeriods is how many periods Compare's cuts are held over: from the
-// earliest, three back with <, to the latest.
-const comparePeriods = 4
+// comparePeriods is how many periods Compare's cuts are held over: every
+// length at now, from the shortest to the longest.
+var comparePeriods = len(views.Lengths())
 
 // compareOver is Compare of the fixture named, with nothing open over it,
-// moved back three periods with <, then on period of them with >.
+// at today, - pressed once for each length past the shortest, whichever
+// the fixture shows, then period lengths longer with +.
 func compareOver(t *testing.T, name string, period int) watch.Model {
 	t.Helper()
 	f := fixture(t, name)
 	m := withNothingOver(t, f.settle(f.Size), f.Size)
-	for _, k := range keysOf("<", "<", "<") {
-		m = deliver(m, k)
+	for range comparePeriods - 1 {
+		m = deliver(m, keysOf("-")[0])
 	}
 	for range period {
-		m = deliver(m, keysOf(">")[0])
+		m = deliver(m, keysOf("+")[0])
 	}
 	return m
 }

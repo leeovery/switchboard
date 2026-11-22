@@ -61,12 +61,12 @@ func (s SessionsShown) Kept() theme.SessionsPrefs {
 
 // heading is Sessions' heading row: its name and its sub-tabs, the one shown
 // picked out, set apart on a phone as the Log's are; and while the List
-// shows, at its right, the period given between < and >, as periodDial has
-// it.
-func (s SessionsShown) heading(period views.Period) heading {
+// shows, at its right, the dial's period given between < and >, as
+// periodDial has it.
+func (s SessionsShown) heading(dial views.Dial) heading {
 	h := heading{name: strings.ToUpper(Sessions.Title()), subTabs: sessionsViews, shown: int(s.Shown)}
 	if s.Shown == SessionsList {
-		h.period, h.widest = periodDial(period)
+		h.period = periodDial(dial)
 	}
 	return h
 }

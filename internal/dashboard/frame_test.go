@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // claudeLike judges windows as Claude's are judged: the session and the week
@@ -87,12 +88,24 @@ func probed(accounts ...status.Account) status.Document {
 
 // frameOf is a frame of a terminal the size given, as text alone, showing
 // the Overview, each model's own window shown where used, its key
-// line listing tab, ? and q.
+// line listing tab, ? and q, its dial this week.
 func frameOf(width, height int) Frame {
 	return Frame{
-		Width: width, Height: height, View: Overview, Policy: claudeLike,
+		Width: width, Height: height, View: Overview, Policy: claudeLike, Dial: dialOf(views.LengthThisWeek.Now()),
 		KeyLine: KeyLine{Groups: [][]Key{{{Key: "tab", Does: "views"}}, {{Key: "?", Does: "help"}, {Key: "q", Does: "quit"}}}, Lead: 3},
 	}
+}
+
+// dialOf is the dial of the period given as the watch builds it at now,
+// weeks starting on Monday, where the ledger began not known.
+func dialOf(period views.Period) views.Dial {
+	return views.DialOf(period, now, time.Monday, time.Time{})
+}
+
+// over is f counting over the period given, its dial as dialOf has it.
+func (f Frame) over(period views.Period) Frame {
+	f.Period, f.Dial = period, dialOf(period)
+	return f
 }
 
 func TestAFrameIsTheTerminalsSize(t *testing.T) {

@@ -152,6 +152,11 @@ var (
 		"views.DaySession.Uses":         "views.ProjectsPage",
 		"views.DaySession.FirstRequest": "views.PeriodSession",
 		"views.DaySession.LastRequest":  "views.PeriodSession",
+		// The dial's period said in words, at now by its length's, gone by
+		// its dates, as the heading, the key line and every title name it.
+		"views.Length.Name":   "views.Dial.Name",
+		"views.Length.Title":  "views.Dial.Title",
+		"views.Length.Within": "views.Dial.Within",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
@@ -184,9 +189,9 @@ var (
 		"views.HeldPage.On",
 		"views.ReadSessionDays", "views.SessionDays.Tailed", "views.SessionDays.Projects", "views.ProjectsPage.Project",
 		"views.SessionDays.SessionLog", "views.SessionDays.Joined", "views.SessionDays.Without", "views.SessionDays.Owed", "views.SessionDays.Told",
-		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly", "views.ReadDayFold", "views.SessionDays.TodayFold", "views.Period.HoursFold", "views.Period.Day",
+		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly", "views.ReadDayFold", "views.SessionDays.TodayFold", "views.DayFold.Tailed", "views.Period.HoursFold", "views.Period.Day",
 		"views.DialOf", "views.Period.Back", "views.Period.On", "views.Period.Shorter", "views.Period.Longer",
-		"views.ReadLatelyTo", "views.Period.From", "views.Period.AccountsFrom",
+		"views.ReadLatelyTo", "views.AccountLatelyTo", "views.Period.From", "views.Period.AccountsFrom",
 		"views.BegunOf", "views.Begun.Known", "views.Begun.Oldest",
 	}
 )

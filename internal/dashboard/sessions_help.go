@@ -81,8 +81,8 @@ func (f Frame) sessionsHelp() []helpPart {
 				said("Every session of the period the dial shows, a row each, even one on two accounts: those running first, in the " +
 					"order they started, a new one at their foot; then those ended, the newest end first, under a rule for the day " +
 					"they ended. A row moves only as its session ends, or as it asks again, so rows never slide from under the " +
-					"choice. Its mark says it's asking or answering, or that it moved to the account it's on. `<` and `>` step the " +
-					"period, the one Accounts and Projects share."),
+					"choice. Its mark says it's asking or answering, or that it moved to the account it's on. " +
+					dialStepped() + ", the period Accounts and Projects share."),
 				said("On is the account its latest request went to, and model that request's model. State says when it ended, on the " +
 					"day its rule names, and started when it began, with its day where that was another. Requests counts its " +
 					"requests in the period that spend quota, and worth is theirs at API prices, at today's; routing says how it " +

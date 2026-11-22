@@ -15,19 +15,18 @@ import (
 // pastDays are the ledger's days the watch holds, which Accounts, Runway's
 // and Trends' lanes and Trends' pages are built of: those of the last 12
 // months, read once a run, as Accounts is first shown, Runway's lanes first
-// want them or Trends first shows a section drawn of them, and of the
-// earliest calendar year the lanes reach back to that they don't, each
-// brought up to today at each look since; where the ledger began, as begun
-// has it; the day weeks start on; and the reads of the ledger asked for,
-// one under way at a time, and whether a look since the last asks for the
-// days since. held counts the changes to the last 12 months' days held, as
-// each read and look brings them, for the pages built of them to be built
-// afresh.
+// want them or Trends first shows a section drawn of them; and those read
+// back to a day before them, the earliest any page has wanted, as
+// pastWanted has it, never replaced by a read reaching less far; each
+// brought up to today at each look since; and the reads of the ledger asked
+// for, one under way at a time, and whether a look since the last asks for
+// the days since. held counts the changes to the last 12 months' days held,
+// as each read and look brings them, and backs the reads back taken in, for
+// the pages built of them to be built afresh.
 type pastDays struct {
-	begun
 	last, back heldDays
 	held       int
-	starts     time.Weekday
+	backs      int
 	asked      int
 	reading    bool
 	due        bool
@@ -52,10 +51,10 @@ func (d heldDays) reach(from, began time.Time) bool {
 	return d.held() && (!from.Before(d.from) || !began.IsZero() && !began.Before(d.from))
 }
 
-// yearReadMsg is a read of the ledger's days, the asked'th: the days of the
-// last 12 months, or, back, of a calendar year the lanes reach back to; and
-// where the ledger began, as the read asked it.
-type yearReadMsg struct {
+// pastReadMsg is a read of the ledger's days, the asked'th: the days of the
+// last 12 months, or, back, of those back to a day before them; and where
+// the ledger began, as the read asked it.
+type pastReadMsg struct {
 	asked int
 	days  heldDays
 	back  bool
@@ -82,11 +81,11 @@ type beginning struct {
 	err   error
 }
 
-// begun is where the pool shown's work of the ledger begins, as a reader of
-// it learns it from the reads that ask, as beganAsked has them: the start of
-// its first day, zero till one tells it, and whether that's today's as it
-// holds no day yet, beganNone; and whether a failure to tell has been
-// logged, the once.
+// begun is where the pool shown's work of the ledger begins, as the watch
+// learns it once from whichever of its reads asks first, as beganAsked has
+// them: the start of its first day, zero till one tells it, and whether
+// that's today's as it holds no day yet, beganNone; and whether a failure to
+// tell has been logged, the once.
 type begun struct {
 	began     time.Time
 	beganNone bool
@@ -94,29 +93,46 @@ type begun struct {
 }
 
 // readPast has the watch read the ledger's days for Accounts while it's
-// shown, for Runway or Trends while its lanes want them, as runwayYearWanted
+// shown, for Runway or Trends while its lanes want them, as pastWanted
 // says, and for Trends while it shows a section drawn of them, as
 // trendsDaysWanted says, as they want them, one read at a time, what's
 // wanted meanwhile waiting for it to land, all sharing every read and the
 // days it holds: the last 12 months, once a run, as any is first shown;
-// while Runway or Trends does, the calendar year its lanes want; and the
-// days since those held were read to, once a look since the last asks.
+// those back to the first day any wants, as pastWanted has it, where none
+// held reach it, so each read back reaches further than those held back
+// before it; and the days since those held were read to, once a look since
+// the last asks.
 func (m Model) readPast() (Model, tea.Cmd) {
-	runwayYear, runway := m.runwayYearWanted()
-	shown := m.view == dashboard.Accounts || runway || m.trendsDaysWanted()
-	if !shown || m.past.reading || m.cfg.Ledger == nil {
+	now := m.now()
+	from, wanted := m.pastWanted(now)
+	if !wanted && !m.trendsDaysWanted() || m.past.reading || m.cfg.Ledger == nil {
 		return m, nil
 	}
-	now := m.now()
-	switch _, reached := m.past.reaching(runwayYear); {
+	switch _, reached := m.past.reaching(from, m.begun.began); {
 	case !m.past.last.held():
-		return m.readYear(0, now)
-	case runway && !reached:
-		return m.readYear(runwayYear, now)
+		return m.readHeld(views.DaysFrom(0, now, m.cfg.WeekStarts), false, now)
+	case wanted && !reached:
+		return m.readHeld(from, true, now)
 	case m.past.due:
 		return m.readSince(now)
 	}
 	return m, nil
+}
+
+// pastWanted is the first day the ledger's days held reach back to for what
+// shows at now, the earliest of what each wants: Runway's or Graphs' lanes,
+// as runwayFrom has it, and Accounts, of the dial's period, as its page
+// reads it, as AccountsFrom has it. It reports false where neither shows.
+func (m Model) pastWanted(now time.Time) (time.Time, bool) {
+	from, wanted := m.runwayFrom(now)
+	if m.view != dashboard.Accounts {
+		return from, wanted
+	}
+	accounts := m.period.AccountsFrom(now, m.cfg.WeekStarts)
+	if !wanted || accounts.Before(from) {
+		from = accounts
+	}
+	return from, true
 }
 
 // asking notes a read of the ledger asked for, under way till it lands, and
@@ -127,23 +143,21 @@ func (m Model) asking() (Model, int) {
 	return m, m.past.asked
 }
 
-// readYear reads the days of the year given, 0 for the last 12 months, else
-// a calendar year, from the first day its grid shows, as DaysFrom has it, to
-// today, at now, in the pool shown, as ledgerDays reads them, and prices
-// them, as each is read once, knowing where the ledger began, as it was
-// known: where the ledger holds nothing so far back, they begin where it
-// does, which it asks alongside, as beganAsked has it, for yearRead to have
-// them priced knowing it.
-func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
-	from := views.DaysFrom(year, now, m.cfg.WeekStarts)
+// readHeld reads the days from the start of the day from to today, at now,
+// the last 12 months' or, back, those before them, in the pool shown, as
+// ledgerDays reads them, and prices them, as each is read once, knowing
+// where the ledger began, as it was known: where the ledger holds nothing so
+// far back, they begin where it does, which it asks alongside, as
+// beganAsked has it, for pastRead to have them priced knowing it.
+func (m Model) readHeld(from time.Time, back bool, now time.Time) (Model, tea.Cmd) {
 	in := views.HistoryInput{
-		From: from, Now: now, Began: m.past.began, Prices: m.cfg.Prices, Accounts: m.cfg.Accounts, Removed: m.cfg.Removed, Moved: m.cfg.Moved,
+		From: from, Now: now, Began: m.begun.began, Prices: m.cfg.Prices, Accounts: m.cfg.Accounts, Removed: m.cfg.Removed, Moved: m.cfg.Moved,
 		WeekStarts: m.cfg.WeekStarts, WeekWindow: m.cfg.WeekWindow, Family: m.cfg.Family,
 	}
-	l, start := m.ledgerDays(), m.past.beganAsked(m.ledgerStart())
+	l, start := m.ledgerDays(), m.begun.beganAsked(m.ledgerStart())
 	m, asked := m.asking()
 	return m, func() tea.Msg {
-		msg := yearReadMsg{asked: asked, back: year != 0}
+		msg := pastReadMsg{asked: asked, back: back}
 		if start != nil {
 			msg.beginning = ledgerBegan(start, now)
 		}
@@ -209,7 +223,7 @@ func ledgerBegan(start views.LedgerStart, now time.Time) beginning {
 // has it.
 func (m Model) readSince(now time.Time) (Model, tea.Cmd) {
 	from := dayfile.DayStart(m.past.readTo(now).Local(), 0)
-	l, start := m.ledgerDays(), m.past.beganAsked(m.ledgerStart())
+	l, start := m.ledgerDays(), m.begun.beganAsked(m.ledgerStart())
 	m, asked := m.asking()
 	return m, func() tea.Msg {
 		msg := sinceMsg{asked: asked, at: now}
@@ -233,39 +247,42 @@ func (t pastDays) readTo(now time.Time) time.Time {
 	return to
 }
 
-// yearRead takes in the days of a year read, but those of a read another
+// pastRead takes in the days of a read, but those of a read another
 // overtook: the last 12 months', which the pages are built of from then on;
-// or a calendar year's, held for the lanes that reach back to it; and where
-// the ledger began, where the read learned it.
-func (m Model) yearRead(msg yearReadMsg) Model {
+// or those back to a day before them, held for the pages that reach back to
+// it in place of those held back before, which reach less far, as readPast
+// reads back only where none held reach; and where the ledger began, where
+// the read learned it. A read back a step overtook is held all the same, as
+// it holds more than a step on needs.
+func (m Model) pastRead(msg pastReadMsg) Model {
 	if msg.asked != m.past.asked {
 		return m
 	}
 	t := m.past
 	t.reading = false
 	if msg.back {
-		t.back = msg.days
+		t.back, t.backs = msg.days, t.backs+1
 	} else {
 		t.last, t.held = msg.days, t.held+1
 	}
-	m.past = t.learned(msg.beginning)
-	return m
+	m.past = t
+	return m.learned(msg.beginning)
 }
 
-// learned is the days held once a read has asked where the ledger began, as
-// begun's told has it, where it told taken by every Past held, the 12
-// months' and a calendar year's alike.
-func (t pastDays) learned(b beginning) pastDays {
-	t.begun = t.told(b)
+// learned is m once a read has asked where the ledger began, as begun's
+// told has it, where it told taken by every Past held, the 12 months' and
+// those back alike, whichever read asked.
+func (m Model) learned(b beginning) Model {
+	m.begun = m.begun.told(b)
 	if b.began.IsZero() {
-		return t
+		return m
 	}
-	for _, d := range []*heldDays{&t.last, &t.back} {
+	for _, d := range []*heldDays{&m.past.last, &m.past.back} {
 		if d.held() {
 			d.past = d.past.Begun(b.began)
 		}
 	}
-	return t
+	return m
 }
 
 // usedAsk is what the Year's ask shows of the days given: all use where it
@@ -290,7 +307,7 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 	if msg.asked != m.past.asked {
 		return m
 	}
-	m.past = m.past.learned(msg.beginning)
+	m = m.learned(msg.beginning)
 	m.past.reading = false
 	now := m.now()
 	var was Model
@@ -315,7 +332,7 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 
 // since is the days held at now, the days given, read at at, as the read was
 // asked, before the ledger summarised them, so they hold nothing they're
-// taken to hold of what came after, in place of those each year held held
+// taken to hold of what came after, in place of those each read held held
 // of them, as Past.Since has it.
 func (t pastDays) since(days []ledger.Summary, at, now time.Time) pastDays {
 	t.held++
@@ -331,16 +348,13 @@ func (t pastDays) since(days []ledger.Summary, at, now time.Time) pastDays {
 	return t
 }
 
-// reaching is the days held of the year given, 0 for the last 12 months,
-// reporting false where none reach back to its grid's first day: the last
-// 12 months' where they do, else the calendar year's read back to.
-func (t pastDays) reaching(year int) (views.Past, bool) {
-	if year == 0 {
-		return t.last.past, t.last.held()
-	}
-	from := views.DaysFrom(year, t.last.to, t.starts)
+// reaching is the days held that reach back to from, or to where the
+// ledger began, at began, where that's known and later, as reach has it:
+// the last 12 months' where they do, else those read back, reporting false
+// where neither does.
+func (t pastDays) reaching(from, began time.Time) (views.Past, bool) {
 	for _, d := range []heldDays{t.last, t.back} {
-		if d.reach(from, t.began) {
+		if d.reach(from, began) {
 			return d.past, true
 		}
 	}

@@ -105,7 +105,8 @@ func TestAccountsHeadingRow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := frameOf(160, 37)
-			f.View, f.Accounts, f.Period = Accounts, tt.shown, tt.period
+			f.View, f.Accounts = Accounts, tt.shown
+			f = f.over(tt.period)
 			c := f.page(threeRouted(), now)
 			if got := c.rows(Look{})[4]; got != tt.want {
 				t.Errorf("row 5 reads\n%q\nwant\n%q", got, tt.want)

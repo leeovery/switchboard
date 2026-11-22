@@ -41,4 +41,4 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 
 
 this week  15 sessions · 1,925 requests · $204.36 at API prices
-tab views   [ ] view   < > period: this week   ↑↓ session   enter its page   p pin   ? help  q quit
+tab views   [ ] view   - + period   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit

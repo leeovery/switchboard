@@ -50,7 +50,7 @@ func TestAccountsTokensPageIsBuiltWhileTokensShows(t *testing.T) {
 		t.Errorf("a look that read today's days left Tokens' page as it was built, want it built afresh")
 	}
 
-	h.keyed("<")
+	h.keyed("-")
 	builtOver(views.LengthToday.Now())
 }
 
@@ -92,7 +92,7 @@ func TestAccountsTokensAtTodayAsksNoReadOfTheTail(t *testing.T) {
 	h.start()
 	h.tickUntilAsked()
 	h.keyed("[")
-	h.keyed("<")
+	h.keyed("-")
 	read := h.model.tail.tailRead
 	at := h.clock.now.Add(-time.Second)
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)

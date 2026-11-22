@@ -34,4 +34,4 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │               Mon               Tue               Wed               Thu              Fri               Sat               Sun
                     │               peak Mon $57.70
                         ▼ 11 more below · j/k
-tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    - + period: this week    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit

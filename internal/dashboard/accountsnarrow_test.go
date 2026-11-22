@@ -128,7 +128,7 @@ func TestTurnedCompareScrollsByRows(t *testing.T) {
 // now.
 func TestTurnedCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	f := phoneText(t, 52, 49, AccountsCompare, "", nil, nil)
-	f.Period = views.LengthThirtyDays.Now()
+	f = f.over(views.LengthThirtyDays.Now())
 	got := rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 10)
 	want := []string{"WEEK USED  now", "", " work", "", " personal  ◆", "", " side", "", " all"}
 	for i, w := range want {

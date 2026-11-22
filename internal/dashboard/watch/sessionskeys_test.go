@@ -46,19 +46,20 @@ func (h *harness) phoneOffKeys() []string {
 // with one account, no p pin, but where a pin set from the command line
 // stands; p pin faint while the router doesn't answer; and a phone's line
 // keeping ↑↓ session, enter open and [ ] view on the Switchboard, and ↑↓
-// session, [ ] view and < > period on the List, in those orders.
+// session and [ ] view on the List, in those orders, < > back · on, the
+// last of its keys, giving way on a phone 52 columns wide.
 func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 	type lines [2]string
 	var (
 		wide = lines{
 			"tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit",
-			"tab views   [ ] view   < > period: this week   ↑↓ session   enter its page   p pin   ? help  q quit",
+			"tab views   [ ] view   - + period: this week   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit",
 		}
 		alone = lines{
 			"tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit",
-			"tab views   [ ] view   < > period: this week   ↑↓ session   enter its page   ? help  q quit",
+			"tab views   [ ] view   - + period: this week   < > back · on   ↑↓ session   enter its page   ? help  q quit",
 		}
-		phone = lines{"↑↓ session   enter open   [ ] view   ? keys   q quit", "↑↓ session   [ ] view   < > period   ? keys   q quit"}
+		phone = lines{"↑↓ session   enter open   [ ] view   ? keys   q quit", "↑↓ session   [ ] view   ? keys   q quit"}
 		enter = [2][]string{{"enter"}, {"enter"}}
 	)
 	pinned := routerDocument(three()[0])
@@ -182,7 +183,7 @@ func TestSessionsHelpListsItsKeysAsTheKeyLineWordsThem(t *testing.T) {
 			h := sessionsKeysHarness(t, routerDocument(three()...), shown, 160)
 			want := []dashboard.Key{{Key: "tab", Does: "views"}, {Key: "[ ]", Does: "view"}}
 			if shown == dashboard.SessionsList {
-				want = append(want, dashboard.Key{Key: "< >", Does: "period", State: "this week"})
+				want = append(want, dashboard.Key{Key: "- +", Does: "period", State: "this week"}, dashboard.Key{Key: "< >", Does: "back · on"})
 			}
 			want = append(want, dashboard.Key{Key: "↑↓", Does: "session"}, dashboard.Key{Key: "enter", Does: "its page", Off: true})
 			want = append(want, dashboard.Key{Key: "p", Does: "pin"}, dashboard.Key{Key: "R", Does: "refresh"}, helpKey, dashboard.Quit)

@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -32,11 +33,13 @@ func pastLatelyFiles(clock *fakeClock) *countedFiles {
 	return files
 }
 
-// pastLatelyHarness is a model of the router's document, its files of events
-// those given, its dial on the day back from today the count of < given.
+// pastLatelyHarness is a model of the router's document on Accounts' Detail,
+// whose LATELY reads them, its files of events those given, its dial on the
+// day back from today the count of < given.
 func pastLatelyHarness(t *testing.T, filed views.Events, back int) *harness {
 	t.Helper()
 	h := newHarness(t, routerDocument(three()...))
+	h.model.view, h.model.accounts.shown = dashboard.Accounts, dashboard.AccountsShown{Shown: dashboard.AccountsDetail}
 	h.model.cfg.Events = filed
 	h.model = steppedBack(t, h.model, back)
 	return h

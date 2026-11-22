@@ -35,11 +35,17 @@ type KeyLine struct {
 	// theme picker's, is laid out on a phone as on a wider terminal.
 	Phone     []Key
 	PhoneHelp string
-	// Spare are the groups, by their places among Groups, the wide line
-	// leaves out where it doesn't fit whole, one at a time, in their order,
-	// before a phone's line takes its place, as a page of toggles leaves its
-	// keys kept to a line wider than a phone's.
-	Spare []int
+	// PhoneKept are the keys a phone's line keeps after Phone's, last to
+	// give way, as the dial's < > and n while a past period shows; where
+	// there are any, tab views gives way after Phone's, not before, the one
+	// exception to the phone's order.
+	PhoneKept []Key
+	// Narrower are the wide line's narrower forms, each its groups as Groups
+	// has them, tried in their order where the one before doesn't fit whole,
+	// before a phone's line takes its place: as a page of toggles leaves out
+	// its keys kept to a line wider than a phone's, a group at a time, or as
+	// the dial's keys give way.
+	Narrower [][][]Key
 	// Note says what the last key did, or why it couldn't, in the line's
 	// place, while that's news: "" otherwise.
 	Note string
@@ -141,12 +147,13 @@ func (f Frame) keysAt() []keyAt {
 	return laid
 }
 
-// wide are the line's groups in order, Lead cells after the first, as many
-// as After has after each past it, and keysInGroup apart within a group.
-func (l KeyLine) wide() []spaced {
+// wide are the groups given in order, as the line sets its own: Lead cells
+// after the first, as many as After has after each past it, and keysInGroup
+// apart within a group.
+func (l KeyLine) wide(groups [][]Key) []spaced {
 	var keys []spaced
 	gap := 0
-	for i, group := range l.Groups {
+	for i, group := range groups {
 		if len(group) == 0 {
 			continue
 		}
@@ -163,43 +170,43 @@ func (l KeyLine) wide() []spaced {
 }
 
 // fitting is the line as wide sets it, width cells wide: where it doesn't
-// fit whole, its Spare groups left out, one at a time, in their order, till
-// it does or none is left.
+// fit whole, the first of its Narrower forms that does, else the last.
 func (l KeyLine) fitting(width int) []spaced {
-	keys := l.wide()
-	spared := l
-	spared.Groups = slices.Clone(l.Groups)
-	for _, g := range l.Spare {
+	keys := l.wide(l.Groups)
+	for _, groups := range l.Narrower {
 		if widthOf(keys) <= width {
 			break
 		}
-		spared.Groups[g] = nil
-		keys = spared.wide()
+		keys = l.wide(groups)
 	}
 	return keys
 }
 
 // phone is the line as a phone width cells wide has it, keysApart apart:
-// the first group, tab views, leading it; the page's Phone keys; then ?, its
-// word PhoneHelp, and q quit. Where that's wider than the phone, the first
-// group goes first, then the page's keys from the last, till it fits or
-// only ? and q quit are left.
+// the first group, tab views, leading it; the page's Phone keys, then its
+// PhoneKept; then ?, its word PhoneHelp, and q quit. Where that's wider than
+// the phone, the first group goes first, then the page's Phone keys from the
+// last; but where it keeps any, the Phone keys go first, then the first
+// group; then the kept from the last, till it fits or only ? and q quit are
+// left.
 func (l KeyLine) phone(width int) []spaced {
 	var lead []Key
 	if len(l.Groups) > 0 {
 		lead = l.Groups[0]
 	}
-	page := l.Phone
+	page, kept := l.Phone, l.PhoneKept
 	ends := []Key{{Key: "?", Does: l.PhoneHelp}, Quit}
 	for {
-		keys := evenly(slices.Concat(lead, page, ends))
+		keys := evenly(slices.Concat(lead, page, kept, ends))
 		switch {
 		case widthOf(keys) <= width:
 			return keys
-		case len(lead) > 0:
+		case len(lead) > 0 && (len(kept) == 0 || len(page) == 0):
 			lead = nil
 		case len(page) > 0:
 			page = page[:len(page)-1]
+		case len(kept) > 0:
+			kept = kept[:len(kept)-1]
 		default:
 			return keys
 		}

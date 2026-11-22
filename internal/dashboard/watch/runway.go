@@ -287,24 +287,25 @@ func civilOf(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
-// runwayYear is the year of the ledger's days readPast reads that reach back
-// to the day given, as dayfile.Civil gives one, at now, weeks starting on the
-// day given: 0, the last 12 months, where they do, else the calendar year
-// it falls in.
-func runwayYear(first, now time.Time, starts time.Weekday) int {
+// runwayReach is the first day of the ledger's days readPast reads for lanes
+// that reach back to the day given, as dayfile.Civil gives one, at now,
+// weeks starting on the day given, as DaysFrom has it: the last 12 months',
+// where they reach it, else the calendar year's it falls in, so the lanes
+// stepped back a week at a time read back a year at a time.
+func runwayReach(first, now time.Time, starts time.Weekday) time.Time {
+	year := 0
 	if first.Before(civilOf(views.DaysFrom(0, now, starts))) {
-		return first.Year()
+		year = first.Year()
 	}
-	return 0
+	return views.DaysFrom(year, now, starts)
 }
 
-// runwayYearWanted is the year of the ledger's days the lanes of the tab
-// shown want, Runway's or Graphs', as lanesTimelines has them, those
-// reaching back furthest, as runwayYear has it, reporting false where they
-// want none, as runwayWants says, or neither shows: readPast reads it, and
-// the lanes share what it holds, as Accounts does.
-func (m Model) runwayYearWanted() (int, bool) {
-	now := m.now()
+// runwayFrom is the first day of the ledger's days the lanes of the tab
+// shown want read at now, Runway's or Graphs', as lanesTimelines has them,
+// of those reaching back furthest, as runwayReach has it, reporting false
+// where they want none, as runwayWants says, or neither shows: readPast
+// reads back to it, and the lanes share what it holds, as Accounts does.
+func (m Model) runwayFrom(now time.Time) (time.Time, bool) {
 	var first time.Time
 	wanted := false
 	for _, tl := range m.lanesTimelines(now) {
@@ -312,7 +313,10 @@ func (m Model) runwayYearWanted() (int, bool) {
 			first, wanted = from, true
 		}
 	}
-	return runwayYear(first, now, m.cfg.WeekStarts), wanted
+	if !wanted {
+		return time.Time{}, false
+	}
+	return runwayReach(first, now, m.cfg.WeekStarts), true
 }
 
 // runwayDays are the summaries of the days the lanes over the timeline tl at
@@ -323,7 +327,7 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 	if !ok {
 		return nil
 	}
-	past, held := m.past.reaching(runwayYear(first, now, m.cfg.WeekStarts))
+	past, held := m.past.reaching(runwayReach(first, now, m.cfg.WeekStarts), m.begun.began)
 	if !held {
 		return nil
 	}
@@ -368,7 +372,7 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
-	read.began = m.past.beganAsked(m.ledgerStart())
+	read.began = m.begun.beganAsked(m.ledgerStart())
 	t.reading, t.readingLive = true, read.span.is(live)
 	m.runwayTab = t
 	return m, read.cmd(now)
@@ -434,8 +438,7 @@ func (m Model) runwayRead(msg runwayReadMsg) Model {
 		t.warned = true
 	}
 	m.runwayTab = t
-	m.past = m.past.learned(msg.beginning)
-	return m
+	return m.learned(msg.beginning)
 }
 
 // runwayStepKeys are the ways Runway's ← and → move: back through the weeks
@@ -475,7 +478,7 @@ func (m Model) runwayKey(key string) (Model, bool) {
 func (m Model) runwayReaches(r dashboard.RunwayShown, now time.Time) bool {
 	tl := r.TimelineAt(now, m.cfg.WeekStarts, 0)
 	_, last, named := tl.Named()
-	began := m.past.began
+	began := m.begun.began
 	return !named || !tl.Now.IsZero() || !began.IsZero() && !last.Before(civilOf(began))
 }
 

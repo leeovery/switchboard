@@ -220,7 +220,6 @@ func (c listColumn) head() string {
 type listed struct {
 	sessionsByDay
 	f      Frame
-	period views.Period
 	foot   []line
 	top    int
 	page   int
@@ -344,7 +343,7 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 	words.projectCells = projectCellsOf(sessionCells(columns), naturals)
 	rows := f.Height - underView - f.top()
 	l := listed{
-		f: f, period: log.Period, top: f.top(), foot: periodLine(*log, f.Width),
+		f: f, top: f.top(), foot: periodLine(*log, f.Dial, f.Width),
 		words: words, columns: columns,
 		lines: sessionLines(log.Sessions), width: f.Width, lit: f.SessionsTab.Chosen.Session,
 	}
@@ -357,11 +356,11 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 }
 
 // periodLine is the List's period line, width cells wide, its rows top to
-// bottom: the period's name, then its sessions, their requests and their
-// worth, on one row where it fits; else broken after the requests, the worth
-// on a row of its own. Of no sessions, it says so.
-func periodLine(log views.SessionLog, width int) []line {
-	said, apart := line{{log.Period.Length().Name() + "  ", dimInk}}, line{{" · ", mutedInk}}
+// bottom: the dial's period's name, then its sessions, their requests and
+// their worth, on one row where it fits; else broken after the requests, the
+// worth on a row of its own. Of no sessions, it says so.
+func periodLine(log views.SessionLog, dial views.Dial, width int) []line {
+	said, apart := line{{dial.Name() + "  ", dimInk}}, line{{" · ", mutedInk}}
 	if log.All.Sessions == 0 {
 		return []line{slices.Concat(said, line{{prose.SessionCount(0), mutedInk}})}
 	}
@@ -385,11 +384,11 @@ func periodWorth(w views.Worth) line {
 }
 
 // noSessionsIn are the List's words, and Projects', where it has no session
-// of the period to list, in place of its rows, the period as its Within says
-// it: "no sessions today", "no sessions this week" or "no sessions in the
-// last 30 days".
-func noSessionsIn(p views.Period) line {
-	return line{{prose.SessionCount(0) + " " + p.Length().Within(), faintInk}}
+// of the dial's period to list, in place of its rows, the period as its
+// Within says it: "no sessions today", "no sessions this week", "no sessions
+// in the last 30 days" or "no sessions on Tue 29 Sep".
+func noSessionsIn(dial views.Dial) line {
+	return line{{prose.SessionCount(0) + " " + dial.Within(), faintInk}}
 }
 
 // draw draws the List from row top: its heads; its lines in view, as far as
@@ -401,7 +400,7 @@ func noSessionsIn(p views.Period) line {
 func (l listed) draw(c *canvas, top int) {
 	columnHeads(c, top, l.columns)
 	if len(l.lines) == 0 {
-		c.line(listFrom, top+1, noSessionsIn(l.period).fit(l.f.Width-listFrom))
+		c.line(listFrom, top+1, noSessionsIn(l.f.Dial).fit(l.f.Width-listFrom))
 	}
 	paged := l.paged()
 	l.drawPage(c, top+1, paged, l.f.Scroll)

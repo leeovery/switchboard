@@ -153,14 +153,14 @@ func TestProjectsReadsItsDaysOnceAndAgainOnlyFurtherBack(t *testing.T) {
 		period views.Period
 		asked  int
 	}{
-		{"<", views.LengthToday.Now(), 1},
-		{">", views.LengthThisWeek.Now(), 1},
-		{">", views.LengthThirtyDays.Now(), 2},
-		{"<", views.LengthThisWeek.Now(), 2},
-		{">", views.LengthThirtyDays.Now(), 2},
-		{">", views.LengthTwelveWeeks.Now(), 3},
-		{">", views.LengthTwelveMonths.Now(), 4},
-		{"<", views.LengthTwelveWeeks.Now(), 4},
+		{"-", views.LengthToday.Now(), 1},
+		{"+", views.LengthThisWeek.Now(), 1},
+		{"+", views.LengthThirtyDays.Now(), 2},
+		{"-", views.LengthThisWeek.Now(), 2},
+		{"+", views.LengthThirtyDays.Now(), 2},
+		{"+", views.LengthTwelveWeeks.Now(), 3},
+		{"+", views.LengthTwelveMonths.Now(), 4},
+		{"-", views.LengthTwelveWeeks.Now(), 4},
 	}
 	for _, s := range steps {
 		h.deliver(h.press(s.key)...)
@@ -218,11 +218,11 @@ func TestTheSessionsDaysAskWhereTheLedgerBeginsTillItSays(t *testing.T) {
 	}
 	for i, s := range steps {
 		if i > 0 {
-			h.deliver(h.press(">")...)
+			h.deliver(h.press("+")...)
 		}
-		if d := h.model.sessionDays; l.asked != s.asked || !d.began.Equal(s.began) || !d.from.Equal(s.reads) {
+		if d, b := h.model.sessionDays, h.model.begun; l.asked != s.asked || !b.began.Equal(s.began) || !d.from.Equal(s.reads) {
 			t.Fatalf("over %s, asked %d times, the days begin %v, read from %v; want asked %d, beginning %v, read from %v",
-				s.name, l.asked, d.began, d.from, s.asked, s.began, s.reads)
+				s.name, l.asked, b.began, d.from, s.asked, s.began, s.reads)
 		}
 	}
 	if got := beginningsUntold(log); got != 1 {
@@ -286,7 +286,7 @@ func TestProjectsLoadsTillItsDaysAreRead(t *testing.T) {
 		built string
 	}{
 		{"as it's first shown", h.init, "/code/alpha /code/beta"},
-		{"after a step further back", func() []tea.Msg { return h.press(">") }, "/code/alpha /code/beta /code/gamma"},
+		{"after a step further back", func() []tea.Msg { return h.press("+") }, "/code/alpha /code/beta /code/gamma"},
 	}
 	for _, r := range reads {
 		held := holdingBack[daysReadMsg](h, r.msgs()...)
@@ -304,8 +304,8 @@ func TestProjectsLoadsTillItsDaysAreRead(t *testing.T) {
 			t.Errorf("%s, its read landed, the rows are %s, want %s", r.name, got, r.built)
 		}
 	}
-	held := holdingBack[daysReadMsg](h, h.press(">")...)
-	h.deliver(h.press("<")...)
+	held := holdingBack[daysReadMsg](h, h.press("+")...)
+	h.deliver(h.press("-")...)
 	if !h.model.sessionDays.reading || h.model.projects.shown.Page == nil || h.model.awaiting() {
 		t.Errorf("a step back within the days held as a read further back runs, reading %v, its page %v, awaiting %v; want its page built and drawn, not loading", h.model.sessionDays.reading, h.model.projects.shown.Page, h.model.awaiting())
 	}
@@ -323,7 +323,7 @@ func TestProjectsReturnsToWhereTheUserWasOnceAStepBacksReadLands(t *testing.T) {
 		h.start()
 		h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
 		h.keys(rightKey, downKey)
-		held := holdingBack[daysReadMsg](h, h.press(">")...)
+		held := holdingBack[daysReadMsg](h, h.press("+")...)
 		if s := h.model.projects.shown; len(held) != 1 || s.Page != nil || s.InSessions {
 			t.Fatalf("its read under way, %d held, its page %v, in sessions %v; want no page, as the first read draws", len(held), s.Page, s.InSessions)
 		}
@@ -341,7 +341,7 @@ func TestProjectsReturnsToWhereTheUserWasOnceAStepBacksReadLands(t *testing.T) {
 		if s := h.model.projects.shown; s.Chosen != "/code/epsilon" || !s.InSessions {
 			t.Fatalf("after ↓ ↓ →, %s chosen, in sessions %v; want epsilon, its SESSIONS", s.Chosen, s.InSessions)
 		}
-		held := holdingBack[daysReadMsg](h, h.press(">")...)
+		held := holdingBack[daysReadMsg](h, h.press("+")...)
 		h.source.sessions = nil
 		h.tickUntilAsked()
 		h.deliver(held...)
@@ -361,13 +361,13 @@ func TestProjectsDialStepKeepsTheSelectionScrolledInView(t *testing.T) {
 		step func(h *harness)
 	}{
 		{"within the days held", func(h *harness) {
-			h.deliver(h.press(">")...)
+			h.deliver(h.press("+")...)
 			if h.model.sessionDays.reading {
 				h.t.Fatal("the step to 12 weeks asked for a read, want the days held to reach it")
 			}
 		}},
 		{"further back", func(h *harness) {
-			held := holdingBack[daysReadMsg](h, h.press(">")...)
+			held := holdingBack[daysReadMsg](h, h.press("+")...)
 			if len(held) != 1 {
 				h.t.Fatalf("the step to 12 weeks held %d reads, want one", len(held))
 			}
@@ -379,10 +379,10 @@ func TestProjectsDialStepKeepsTheSelectionScrolledInView(t *testing.T) {
 			h := withDelta(projectsHarness(t, dashboard.Projects))
 			h.start()
 			h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
-			h.deliver(h.press(">")...)
+			h.deliver(h.press("+")...)
 			if st.name == "within the days held" {
-				h.deliver(h.press(">")...)
-				h.deliver(h.press("<")...)
+				h.deliver(h.press("+")...)
+				h.deliver(h.press("-")...)
 			}
 			h.keys(rightKey)
 			for range deltaSessions {
@@ -409,7 +409,7 @@ func TestProjectsRebuiltScrollsSessionsNoFurtherThanItGoes(t *testing.T) {
 	h.model.cfg.Ledger.(*projectsLedger).write(projectAsks("d8000000-0000-4000-8000-000000000008", "/code/delta", start.Add(-30*time.Minute), 1)...)
 	h.start()
 	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
-	h.deliver(h.press(">")...)
+	h.deliver(h.press("+")...)
 	h.keys(downKey, upKey)
 	for range deltaSessions {
 		h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"})
@@ -417,11 +417,11 @@ func TestProjectsRebuiltScrollsSessionsNoFurtherThanItGoes(t *testing.T) {
 	if s := h.model.projects.shown; s.Chosen != "/code/delta" || s.InSessions || h.model.scroll == 0 {
 		t.Fatalf("over 30 days, delta chosen by ↓ ↑ and j to SESSIONS' foot, %s chosen, in sessions %v, scrolled %d; want delta, the list with the choice, scrolled", s.Chosen, s.InSessions, h.model.scroll)
 	}
-	h.deliver(h.press("<")...)
+	h.deliver(h.press("-")...)
 	if s := h.model.projects.shown; s.Chosen != "/code/delta" || h.model.scroll != 0 {
 		t.Fatalf("over this week, its one session today, %s chosen, scrolled %d; want delta, scrolled no further than its one line goes, 0", s.Chosen, h.model.scroll)
 	}
-	h.deliver(h.press(">")...)
+	h.deliver(h.press("+")...)
 	if h.model.scroll != 0 {
 		t.Errorf("back over 30 days, SESSIONS scrolled %d, want 0: the offset gone as this week's lines went no further", h.model.scroll)
 	}
@@ -465,8 +465,8 @@ func TestProjectsPagesAreBuiltOnlyAsWhatTheyreBuiltOfChanges(t *testing.T) {
 	built(1, 1, "a frame, a resize and a look")
 	h.keys(downKey)
 	built(1, 2, "↓")
-	h.deliver(h.press("<")...)
-	built(2, 3, "<")
+	h.deliver(h.press("-")...)
+	built(2, 3, "-")
 	running(h, betaOnly, "/code/beta")
 	built(3, 4, "a session started running")
 }
@@ -574,7 +574,7 @@ func TestProjectsKeepsTheChoiceAcrossRebuilds(t *testing.T) {
 	h := withDelta(projectsHarness(t, dashboard.Projects))
 	h.start()
 	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
-	h.deliver(h.press(">")...)
+	h.deliver(h.press("+")...)
 	if got := strings.Join(rowsOf(h), " "); got != "/code/delta /code/alpha /code/beta /code/gamma" {
 		t.Fatalf("over 30 days the rows are %s, want delta, alpha, beta and gamma", got)
 	}
@@ -582,11 +582,11 @@ func TestProjectsKeepsTheChoiceAcrossRebuilds(t *testing.T) {
 	if s := h.model.projects.shown; s.Chosen != "/code/alpha" || !s.InSessions || s.Selection() != alphaFirst {
 		t.Fatalf("after ↓ → ↓, %s chosen, in sessions %v, %s selected; want alpha, second, its SESSIONS, its first ended last", s.Chosen, s.InSessions, s.Selection())
 	}
-	h.deliver(h.press("<")...)
+	h.deliver(h.press("-")...)
 	if s := h.model.projects.shown; s.Chosen != "/code/alpha" || s.Selection() != alphaFirst || !s.InSessions {
 		t.Errorf("rebuilt over this week, alpha first, %s chosen, %s selected, in sessions %v; want both kept", s.Chosen, s.Selection(), s.InSessions)
 	}
-	h.deliver(h.press(">")...)
+	h.deliver(h.press("+")...)
 	h.keys(leftKey, upKey, rightKey)
 	for range deltaSessions {
 		h.keys(downKey)
@@ -594,7 +594,7 @@ func TestProjectsKeepsTheChoiceAcrossRebuilds(t *testing.T) {
 	if s := h.model.projects.shown; s.Chosen != "/code/delta" || s.Selection() != deltaSessions[0] || h.model.scroll == 0 {
 		t.Fatalf("after ← ↑ → and ↓ to its last, %s chosen, %s selected, SESSIONS scrolled %d; want delta, its first, listed last, scrolled", s.Chosen, s.Selection(), h.model.scroll)
 	}
-	h.deliver(h.press("<")...)
+	h.deliver(h.press("-")...)
 	if s := h.model.projects.shown; s.Chosen != "/code/alpha" || s.InSessions || s.Selected != "" || h.model.scroll != 0 {
 		t.Errorf("delta gone from this week's list, %s chosen, in sessions %v, %q selected, SESSIONS scrolled %d; want the top row, alpha, the list with the choice, none selected, from its top", s.Chosen, s.InSessions, s.Selected, h.model.scroll)
 	}
@@ -623,10 +623,10 @@ func TestProjectsHoldsTheTopRowOnceItsSessionsAreTaken(t *testing.T) {
 		t.Run(tk.name, func(t *testing.T) {
 			h := withDelta(projectsHarness(t, dashboard.Projects))
 			h.start()
-			h.deliver(h.press(">")...)
-			h.deliver(h.press("<")...)
+			h.deliver(h.press("+")...)
+			h.deliver(h.press("-")...)
 			tk.take(h)
-			h.deliver(h.press(">")...)
+			h.deliver(h.press("+")...)
 			if s := h.model.projects.shown; s.Chosen != "/code/alpha" || !s.InSessions {
 				t.Errorf("after %s, then over 30 days, delta top, %s chosen, in sessions %v; want alpha kept, its SESSIONS", tk.name, s.Chosen, s.InSessions)
 			}
@@ -641,7 +641,7 @@ func TestProjectsRebuiltKeepsTheSelectionInView(t *testing.T) {
 	h := withDelta(projectsHarness(t, dashboard.Projects))
 	h.start()
 	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
-	h.deliver(h.press(">")...)
+	h.deliver(h.press("+")...)
 	h.keys(rightKey)
 	var inView []string
 	for _, tg := range h.targets() {

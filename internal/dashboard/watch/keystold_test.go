@@ -25,9 +25,9 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 		"every page": {"tab views", "p pin", "P pool", "t themes", "R refresh", "? help", "q quit", "j k scroll", "PgUp PgDn page", "wheel scroll"},
 		"Overview":   {"u usage", "r routing", "s sessions", "c coming up", "l lately", "b by", "↑↓ scroll"},
 		"Accounts": {
-			"[ ] view", "< > period", "v split", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus",
+			"[ ] view", "- + period", "< > back · on", "n now", "v split", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus",
 		},
-		"Projects": {"↑↓ project", "→ its sessions", "↑↓ session", "← projects", "enter its page", "< > period"},
+		"Projects": {"↑↓ project", "→ its sessions", "↑↓ session", "← projects", "enter its page", "- + period", "< > back · on", "n now"},
 		"Runway":   {"←→ week", "a collapse"},
 		"Trends":   {"w week", "o pool", "g glance", "h when", "y year", "m months", "d models", "v split", "←→ account"},
 		"Log": {
@@ -48,8 +48,8 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 		t.Errorf("the pages are told in the order %q, want %q", named, want)
 	}
 	sessions := pages[slices.IndexFunc(pages, func(p PageKeys) bool { return p.Page == "Sessions" })]
-	if got := keysTold(sessions.Keys); len(got) < 4 || !slices.Equal(got[:4], []string{"[ ] view", "< > period", "↑↓ session", "enter its page"}) {
-		t.Errorf("Sessions' keys are told %q, want them to start [ ] view, < > period, ↑↓ session, enter its page", got)
+	if got := keysTold(sessions.Keys); len(got) < 6 || !slices.Equal(got[:6], []string{"[ ] view", "- + period", "< > back · on", "n now", "↑↓ session", "enter its page"}) {
+		t.Errorf("Sessions' keys are told %q, want them to start [ ] view, - + period, < > back · on, n now, ↑↓ session, enter its page", got)
 	}
 }
 

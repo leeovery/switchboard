@@ -78,7 +78,8 @@ func runningOf(m status.Moment, by lister, held HeldSessions) []Running {
 
 // RunningOn are the sessions of running, as RunningOf lists them, running on
 // the account with the given id, in their order, the one seen last first:
-// Detail's SESSIONS, the rows RunningCounts counts of it.
+// the rows RunningCounts counts of it, Detail's SESSIONS at now, as
+// RunningIn has them.
 func RunningOn(running []Running, id string) []Running {
 	var on []Running
 	for _, r := range running {
@@ -87,6 +88,16 @@ func RunningOn(running []Running, id string) []Running {
 		}
 	}
 	return on
+}
+
+// RunningIn are Detail's SESSIONS over the dial's period d: the sessions of
+// running on the account with the given id, as RunningOn has them, while d
+// reaches today; none while it's gone, as none runs in the past.
+func RunningIn(running []Running, id string, d Dial) []Running {
+	if d.Gone() {
+		return nil
+	}
+	return RunningOn(running, id)
 }
 
 // RunningCounts counts the sessions running on each account, by the

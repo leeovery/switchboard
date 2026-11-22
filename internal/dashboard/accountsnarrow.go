@@ -637,7 +637,7 @@ func (s stacked) usage(c *canvas, y int) int {
 // an item, their labels stackLabels cells in text.subtle, each figure cut a
 // cell short of the next column, or of the frame's edge.
 func (s stacked) thisWeek(c *canvas, y int) int {
-	c.line(0, y, line{{s.page.Period.Length().Title(), headingInk}})
+	c.line(0, y, line{{s.f.Dial.Title(), headingInk}})
 	c.heading(y, y+1)
 	halves := s.thisWeekItems()
 	for h, items := range halves {
