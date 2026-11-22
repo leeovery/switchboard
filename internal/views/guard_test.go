@@ -122,7 +122,8 @@ var (
 		// What an account's week had left as it last reset, and the day it ran
 		// out, as Accounts says them, whatever its period.
 		"views.AccountTotals.LeftAtReset": "views.AccountsRow.WeekLeft",
-		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOut",
+		"views.AccountTotals.RanOut":      "views.AccountsRow.RanOutOn",
+		"views.AccountsRow.RanOut":        "views.AccountsRow.RanOutOn",
 		// How an account stood at a moment gone, and the holds the router
 		// told of, as Runway's lanes draw the past, live or stepped back to.
 		"status.Moment.Then": "views.Lanes.Look",
@@ -157,6 +158,16 @@ var (
 		"views.Length.Name":   "views.Dial.Name",
 		"views.Length.Title":  "views.Dial.Title",
 		"views.Length.Within": "views.Dial.Within",
+		// Detail's SESSIONS over the dial's period, none in a past one, as
+		// none runs in the past.
+		"views.RunningOn": "views.RunningIn",
+		// How many of the weeks shown an account hit its limit in, as
+		// Detail's facts say it, at now and gone.
+		"views.LimitHit":          "views.AccountsPage.LimitHitOver",
+		"views.LimitHitOfTheLast": "views.AccountsPage.LimitHitOver",
+		// A listed session's state, "went on" where it went on after a
+		// period gone.
+		"views.Activity.DayState": "views.PeriodSession.DayState",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
@@ -167,6 +178,8 @@ var (
 		// for.
 		"views.AccountTotals.LeftAtReset": {"internal/dashboard", "internal/dashboard/watch"},
 		"views.AccountTotals.RanOut":      {"internal/dashboard", "internal/dashboard/watch"},
+		// history's text says a range's weeks by their count alone.
+		"views.LimitHit": {"internal/dashboard", "internal/dashboard/watch"},
 	}
 	// builtInTheWatch are what the watch builds once each change, as each
 	// reads the ledger or the router's events, places every line, or keeps

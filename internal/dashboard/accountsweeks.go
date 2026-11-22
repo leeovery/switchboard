@@ -164,7 +164,8 @@ func (d detailDrawn) asATable(c *canvas, y int, label line) {
 }
 
 // tableAt draws all accounts' table as t lays it from row y, label on its
-// heads' row: all accounts' row, then each configured account's, as the
+// heads' row, the last week's head bold where it's this week, as the page's
+// ThisWeek has it: all accounts' row, then each configured account's, as the
 // moment's Configured has them, each its peaks and its facts on the weeks
 // reached over.
 func (d detailDrawn) tableAt(c *canvas, t weeksTable, y int, label line) {
@@ -176,7 +177,7 @@ func (d detailDrawn) tableAt(c *canvas, t weeksTable, y int, label line) {
 			rows = append(rows, tableRow{name: listName(a).line(t.names), peaks: row.Peaks, facts: row.Facts(reach)})
 		}
 	}
-	t.draw(c, y, label, d.page.Weeks, reach, all, rows)
+	t.draw(c, y, label, d.page.Weeks, d.page.ThisWeek, reach, all, rows)
 }
 
 // rowOf is the period's page's row of the account with the given id,
@@ -197,8 +198,9 @@ func (l detailLayout) weeksIn(room, count int) []flex.Span {
 // cells wide, each in Days' shades at its level on the scale of the days
 // drawn, as views.ShadedDays shades them, a red ▪ in its middle where it hit a
 // 5-hour limit, and · in text.faint a cell of each day still to come; and on
-// the row under them, each week's first day, this week's bold, and at the
-// panel's left, where the weeks reached over don't all show, how many don't.
+// the row under them, each week's first day, this week's bold where it
+// shows, as ThisWeek has it, and at the panel's left, where the weeks
+// reached over don't all show, how many don't.
 func (d detailDrawn) byDay(c *canvas, y int, weeks []flex.Span) {
 	c.line(d.l.panel, y, line{{"BY DAY", headingInk}})
 	held := d.row.Days
@@ -214,7 +216,7 @@ func (d detailDrawn) byDay(c *canvas, y int, weeks []flex.Span) {
 	}
 	heads := d.page.Weeks[max(len(d.page.Weeks)-len(weeks), 0):]
 	for i, week := range heads {
-		c.line(d.l.cx()+weeks[i].At, y+1, weekHead(week, i == len(heads)-1))
+		c.line(d.l.cx()+weeks[i].At, y+1, weekHead(week, d.page.ThisWeek && i == len(heads)-1))
 	}
 	c.line(d.l.panel, y+1, moreWeeks(d.page.Reaches-len(weeks)).fit(d.l.into-1))
 }
@@ -264,10 +266,16 @@ func peakSaid(p views.WeekPeak) line {
 
 // facts draws the facts on the account's weeks along row y, from the panel's
 // column to the weeks' edge: Weeks' facts on the weeks reached over, as
-// detailFacts says them, the fullest form that fits.
+// factsSaid says them, the fullest form that fits.
 func (d detailDrawn) facts(c *canvas, y int) {
 	cells := d.l.edge() - d.l.panel
-	c.line(d.l.panel, y, fitParts(cells, detailFacts(d.row.Facts(d.reach())).fitting(cells)...))
+	c.line(d.l.panel, y, fitParts(cells, d.factsSaid().fitting(cells)...))
+}
+
+// factsSaid are Weeks' facts on the account's weeks reached over, as
+// detailFacts says them over the page's weeks at the moment's now.
+func (d detailDrawn) factsSaid() partForms {
+	return detailFacts(d.page, d.row.Facts(d.reach()), d.m.Now)
 }
 
 // worth draws WORTH from row y: its heading on the panel's left, and the
@@ -290,10 +298,11 @@ func worthAcross(c *canvas, look Look, x, y, cells int, charts views.WorthCharts
 
 // rule draws the rule heading the weeks section along row y, from the
 // panel's column to the weeks' edge: ┄┄ in border, the weeks shown,
-// counted, "the last nine weeks", in text.faint, and ┄ in border to the
+// counted, as the page's WeeksShown says them, "the last nine weeks" or
+// "the eight weeks to Sun 27 Sep", in text.faint, and ┄ in border to the
 // edge.
 func (d detailDrawn) rule(c *canvas, y int) {
-	head := line{{"┄┄ ", borderInk}, {"the last " + prose.Number(d.weeksShown()) + " weeks", faintInk}, {" ", borderInk}}
+	head := line{{"┄┄ ", borderInk}, {d.page.WeeksShown(d.weeksShown(), d.m.Now), faintInk}, {" ", borderInk}}
 	rest := d.l.edge() - d.l.panel - head.width()
 	c.line(d.l.panel, y, append(head, span{strings.Repeat("┄", max(rest, 0)), borderInk}))
 }

@@ -1,0 +1,53 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                                         Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < Tue 29 Sep >
+
+ all accounts       │   work
+                    │
+ work               │   BY MODEL                                                                                                                  TUE 29 SEP
+                    │               ● Opus 5.5 35%  ● Opus 5 10%  ● Sonnet 5.5 41%  ● Sonnet 5 4%  ● Fable 5.1 7%  ● Haiku 4.5 3%                 requests  180
+ personal    ◆      │                                                                                                                             limits    5-hour ×1
+                    │                                                                                                                             plan      Ultra
+ side               │                                                                                                                             worth     $46  7.0×
+                    │                                                                                                                             extra use off
+                    │
+ ↑↓ choose          │   ┄┄ the last eight weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │
+                    │   BY DAY      ▪   ▪   ▪        ▪   ▪ ▪ ▪        ▪ ▪ ▪ ▪ ▪        ▪ ▪ ▪ ▪ ▪        ▪ ▪ ▪ ▪ ▪        ▪ ▪ ▪   ▪        ▪ ▪ ▪ ▪ ▪          ▪ ▪   ······
+                    │               10 Aug           17 Aug           24 Aug           31 Aug           7 Sep            14 Sep           21 Sep           28 Sep
+                    │
+                    │   WEEKS             ▌   72            ▉  88               100            ▌ 94               100           ▎  81               100              34
+                    │
+                    │   limit hit 3 of the 7 weeks to Sun 27 Sep · 9% left at a reset, on average
+                    │
+                    │   WORTH
+                    │                                                                                                         ▇▇▇▇       ▆▆▆▆  ▄▄▄▄ ▃▃▃▃       ▇▇▇▇
+                    │                                                                                                                                     ▅▅▅▅
+                    │                                                                                                                                                ▄▄▄▄
+                    │                                                                                                   ▂▂▂▂
+                    │
+                    │               00    01   02    03   04    05    06   07    08   09    10    11   12    13    14   15    16   17    18    19   20    21   22    23
+                    │               peak 17:00 $0.99
+                    │
+                    │   LATELY      Tue 22:50  ✓ open again: its 5-hour window reset
+                    │               Tue 21:15  ╎ reached its cap: 2 sessions moved to personal
+                    │               Tue 16:02  ▸ 1 session came from personal: personal reached its 5-hour limit
+                    │               Tue 10:31  ▸ 3 sessions came from side: side reached its 5-hour limit
+                    │               Mon 17:35  ✓ open again: its 5-hour window reset
+                    │               Mon 16:48  ╎ reached its cap: 2 sessions moved to personal
+                    │               Mon 14:05  ■ refused (401): 1 session moved to personal
+                    │               Sun 15:26  ▸ 2 sessions came from side: side reached its week limit
+                    │
+                    │
+                    │
+                    │
+                    │
+                    │
+                    │
+                    │
+                    │
+                    │
+
+tab views   [ ] view    - + period: Tue 29 Sep    < > back · on    n now    ↑↓ account  enter its page    p pin    ? help  q quit

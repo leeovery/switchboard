@@ -321,3 +321,34 @@ func TestASteppedPeriodKeepsTheChosenSessionInView(t *testing.T) {
 		t.Errorf("stepped to %q, %+v chosen, scrolled %d; want today, none chosen, the List from its top", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen, h.model.scroll)
 	}
 }
+
+// The List's log over last week is measured as it's built, as the dial of
+// the period gone says its starts: a session that started on Monday 21
+// September and ended on the Saturday measures as prose.PastAt dates its
+// start, never as now's rules name its day.
+func TestTheListOverAPeriodGoneIsMeasuredByItsDial(t *testing.T) {
+	h := projectsHarness(t, dashboard.Sessions)
+	const spans = "e1000000-0000-4000-8000-000000000005"
+	projectsLedgerOf(h).write(slices.Concat(
+		projectAsks(spans, "/code/epsilon", start.AddDate(0, 0, -7), 1),
+		projectAsks(spans, "/code/epsilon", start.AddDate(0, 0, -2), 1),
+	)...)
+	h.start()
+	h.keyed("] <")
+	log := h.model.sessionsTab.shown.Log
+	if log == nil || !slices.Contains(loggedIDs(h), spans) {
+		t.Fatalf("over last week, the List lists %v, want %s among them", loggedIDs(h), spans)
+	}
+	now := h.clock.now
+	gone := views.DialOf(h.model.period, now, time.Monday, time.Time{})
+	if !gone.Gone() {
+		t.Fatalf("the dial of %s isn't gone", gone.Name())
+	}
+	if got, want := h.model.sessionsTab.shown.Measured, dashboard.MeasureLog(log, now, gone); got != want {
+		t.Errorf("over last week, the log is measured %+v, want %+v, as the period gone says it", got, want)
+	}
+	atNow := views.DialOf(views.LengthThisWeek.Now(), now, time.Monday, time.Time{})
+	if dashboard.MeasureLog(log, now, gone) == dashboard.MeasureLog(log, now, atNow) {
+		t.Errorf("the log measures alike by last week's dial and now's, want %s's start measured apart", spans)
+	}
+}

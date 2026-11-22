@@ -1,0 +1,44 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log        Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+SESSIONS    Switchboard  List  [ ]  ─────────────────────────────────────────────────────────  < last week >
+
+  session                              on        model       state        started          requests    worth
+  ended Sat  ───────────────────────────────────────────────────────────────────────────────────────────────
+  website     0606                     personal  sonnet-5-5  ended 15:33  14:48                  69    $7.95
+  switchboard 24da                     side      opus-5-5    ended 13:14  12:40                  51    $5.90
+  ended Fri  ───────────────────────────────────────────────────────────────────────────────────────────────
+  switchboard c646                     personal  sonnet-5-5  ended 16:53  15:27                 130   $15.01
+  docs        8efd                     work      sonnet-5-5  ended 16:05  14:34                 138   $15.82
+  website     69d4                     work      opus-5-5    ended 14:47  13:14                 192   $22.19
+  api         e595                     personal  sonnet-5-5  ended 12:13  11:09                  97   $11.11
+  infra       b19e                     side      opus-5-5    ended 10:55  10:04                  78    $8.98
+  ended Thu 24 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  infra       a0db                     work      sonnet-5-5  ended 16:18  13:49                 304   $35.06
+  mobile      d07a                     work      opus-5-5    ended 15:48  13:25                 215   $24.79
+  switchboard 7902                     personal  haiku-4-5   ended 14:08  12:15                 238   $27.43
+  switchboard a358                     work      opus-5-5    ended 13:32  10:39                 260   $30.01
+  website     a9cc                     work      sonnet-5-5  ended 12:48  11:41                 102   $11.64
+  switchboard a165                     side      opus-5-5    ended 12:42  12:18                  37    $4.16
+  api         b557                     personal  opus-5-5    ended 11:07  09:18                 165   $19.01
+  infra       8096                     side      opus-5-5    ended 10:48  09:51                  87   $10.09
+  ended Wed 23 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  website     2ed2                     work      opus-5-5    ended 17:36  15:33                 186   $21.37
+  website     3e08                     side      fable-5-1   ended 16:22  15:05                 117   $13.43
+  switchboard dfd8                     side      opus-5-5    ended 15:10  13:49                 123   $14.21
+  infra       734a                     personal  opus-5-5    ended 15:01  13:10                 168   $19.34
+  docs        ff91                     personal  sonnet-5    ended 14:54  12:15                 239   $27.57
+  api         7029                     side      opus-5-5    ended 14:50  13:31                 119   $13.75
+  switchboard 8a8d                     personal  sonnet-5    ended 14:29  13:11                 118   $13.56
+  switchboard 7712                     work      opus-5      ended 13:26  12:12                 112   $12.90
+  api         1f09                     work      sonnet-5-5  ended 12:39  10:28                 316   $36.41
+  ended Tue 22 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  infra       a861                     side      sonnet-5-5  ended 17:01  15:55                 100   $11.57
+  switchboard 6634                     personal  sonnet-5-5  ended 16:56  14:50                 190   $21.90
+  docs        11a0                     personal  opus-5-5    ended 15:32  14:09                 125   $14.37
+  switchboard cfee                     side      opus-5-5    ended 13:51  12:54                  87    $9.97
+  switchboard 4f47                     work      opus-5-5    ended 13:48  11:57                 296   $34.11
+last week  38 sessions · 5,791 requests · $667.15 at API prices
+  ▼ 9 more sessions
+tab views   [ ] view   - + period   < > back · on   n now   ↑↓ session   enter its page   ? help  q quit

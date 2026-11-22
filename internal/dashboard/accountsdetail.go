@@ -51,14 +51,17 @@ const (
 // last, its windows from the row after, windowsApart rows apart, and THIS WEEK's
 // title on its row, its items under it, thisWeekLeastRows rows at the
 // fewest; BY MODEL, byModelGap rows under the lower of the two; the rule,
-// ruleUnder rows under BY MODEL; and under it, a blank row before each, the
-// weeks section, WORTH and LATELY.
+// ruleUnder rows under BY MODEL, or in a past period, BY MODEL on USAGE's
+// row, goneRuleUnder rows under the lower of its last row and THIS WEEK's;
+// and under it, a blank row before each, the weeks section, WORTH and
+// LATELY.
 const (
 	usageUnder        = 2
 	windowsApart      = 2
 	thisWeekLeastRows = 5
 	byModelGap        = 2
 	ruleUnder         = 3
+	goneRuleUnder     = 2
 )
 
 // One account's weeks section, in rows from BY DAY's: the weeks' first days
@@ -373,7 +376,8 @@ func (f Frame) detailDays() int {
 }
 
 // detailDrawn is Detail of a moment as it's drawn wide: the frame and its
-// layout; the configured accounts, as the moment's Configured has them; the
+// layout; whether the dial's period is gone, where what tells the moment
+// leaves; the configured accounts, as the moment's Configured has them; the
 // account shown, by its id, "" for all accounts, as they have it, and
 // whether the moment has it; its row of the period's page, where the page is
 // read and holds one; the sessions running on it, none in a past period,
@@ -383,6 +387,7 @@ type detailDrawn struct {
 	f        Frame
 	m        status.Moment
 	l        detailLayout
+	gone     bool
 	accounts []status.AccountNow
 	id       string
 	account  status.AccountNow
@@ -398,7 +403,7 @@ type detailDrawn struct {
 // panel drawn once, the first time a look asks.
 func (f Frame) detailDrawn(doc status.Document, now time.Time, l detailLayout) detailDrawn {
 	m := f.Moment(doc, now)
-	d := detailDrawn{f: f, m: m, l: l, accounts: m.Configured(f.Accounts.Accounts)}
+	d := detailDrawn{f: f, m: m, l: l, gone: f.Dial.Gone(), accounts: m.Configured(f.Accounts.Accounts)}
 	if i := slices.IndexFunc(d.accounts, func(a status.AccountNow) bool { return a.ID == f.Accounts.Account() }); i >= 0 {
 		d.id, d.account = d.accounts[i].ID, d.accounts[i]
 		_, d.known = m.Account(d.id)
@@ -509,23 +514,29 @@ func (d detailDrawn) windowNames() int {
 }
 
 // byModelAt is the row of the panel BY MODEL is on: byModelGap rows under
-// USAGE's last window, or THIS WEEK's last row, whichever is lower.
+// USAGE's last window, or THIS WEEK's last row, whichever is lower; in a
+// past period, which has no USAGE, on its row, THIS WEEK beside it.
 func (d detailDrawn) byModelAt() int {
 	at := d.usageAt()
+	if d.gone {
+		return at
+	}
 	return max(at+len(d.windows())*windowsApart-1, at+d.thisWeekRows()) + byModelGap
 }
 
-// usageAt is the row of the panel USAGE's heading is on: usageUnder rows
-// under the head, or its token line's last row, where it has one.
+// usageAt is the row of the panel USAGE's heading and THIS WEEK's title are
+// on: usageUnder rows under the head, or its token line's last row, where it
+// has one.
 func (d detailDrawn) usageAt() int {
 	return len(d.noteLines(d.f.edge()-d.noteAt())) + usageUnder
 }
 
 // noteLines are the lines of the token line under the head, as
 // tokenNoteLines wraps them width cells wide: of the account shown, where
-// the moment has it, as views.TokenNoteOf tells of it; none of all accounts.
+// the moment has it, as views.TokenNoteOf tells of it; none of all accounts,
+// nor in a past period, where it leaves with the state.
 func (d detailDrawn) noteLines(width int) []line {
-	if d.id == "" || !d.known {
+	if d.id == "" || !d.known || d.gone {
 		return nil
 	}
 	note, noted := views.TokenNoteOf(d.account)
@@ -554,13 +565,23 @@ func (d detailDrawn) headName() line {
 }
 
 // versionLines are BY MODEL's versions with their shares, over the rows
-// under its bar, as versionsOver has them across the weeks' width; none
-// where the period's page isn't read.
+// under its bar, as versionsOver has them across its cells, as byModelCells
+// has them; none where the period's page isn't read.
 func (d detailDrawn) versionLines() []line {
 	if d.page == nil {
 		return nil
 	}
-	return versionsOver(versionsUsed(d.row, d.page.Versions), d.l.weeksCells())
+	return versionsOver(versionsUsed(d.row, d.page.Versions), d.byModelCells())
+}
+
+// byModelCells are the cells BY MODEL's bar and its versions take from cx:
+// to the weeks' edge; in a past period, to thisWeekApart cells short of THIS
+// WEEK, beside them, or of its title, where that starts before it.
+func (d detailDrawn) byModelCells() int {
+	if d.gone {
+		return d.thisWeekTitleAt() - thisWeekApart - d.l.cx()
+	}
+	return d.l.weeksCells()
 }
 
 // underModels is the row of the panel the parts under BY MODEL count their
@@ -571,8 +592,12 @@ func (d detailDrawn) underModels() int {
 }
 
 // ruleRow is the row of the panel the rule heading the weeks section is on,
-// ruleUnder rows under BY MODEL's last row.
+// ruleUnder rows under BY MODEL's last row; in a past period, goneRuleUnder
+// rows under the lower of BY MODEL's last row and THIS WEEK's, beside it.
 func (d detailDrawn) ruleRow() int {
+	if d.gone {
+		return max(d.underModels()+1, d.byModelAt()+d.thisWeekRows()) + goneRuleUnder
+	}
 	return d.underModels() + ruleUnder
 }
 
@@ -586,17 +611,20 @@ func (d detailDrawn) latelyAt() int {
 
 // panel is Detail's panel drawn whole, from row 0 of a canvas the frame's
 // width: its head, and under it its token line; USAGE, and THIS WEEK beside
-// it; BY MODEL, the rule, the weeks section and WORTH, where the period's
-// page is read, the rule and what's under it moved down a row for each row
-// BY MODEL's versions take past the first; and LATELY, beside SESSIONS where
+// it, but in a past period, which has no USAGE, THIS WEEK beside BY MODEL;
+// BY MODEL, the rule, the weeks section and WORTH, where the period's page
+// is read, the rule and what's under it moved down a row for each row BY
+// MODEL's versions take past the first; and LATELY, beside SESSIONS where
 // sessions run on the account, its heading on SESSIONS' row and its lines
-// under it, their words cut at the frame's edge, every event the document
-// carries, filling the rows down to the key line and the rest scrolling.
+// under it, their words cut at the frame's edge, every event it tells,
+// filling the rows down to the key line and the rest scrolling.
 func (d detailDrawn) panel() *canvas {
 	c := growing(d.f.Width)
 	d.head(c, 0)
 	usage := d.usageAt()
-	d.usage(c, usage)
+	if !d.gone {
+		d.usage(c, usage)
+	}
 	if d.page != nil {
 		d.thisWeek(c, usage)
 		d.byModel(c, d.byModelAt())
@@ -621,9 +649,12 @@ func (d detailDrawn) panel() *canvas {
 // head draws the panel's head from row y: its name, as headName has it, then
 // headApart cells on, how the account stands, as stands has it; and from the
 // row under it, its token line, as noteLines wraps it to the frame's edge,
-// from noteAt.
+// from noteAt. In a past period it's the name alone.
 func (d detailDrawn) head(c *canvas, y int) {
 	c.line(d.l.panel, y, d.headName())
+	if d.gone {
+		return
+	}
 	d.stands(c, d.standsAt(), y, false)
 	x := d.noteAt()
 	for i, l := range d.noteLines(d.f.edge() - x) {
@@ -704,13 +735,14 @@ func (d detailDrawn) extra() status.AllExtra {
 }
 
 // byModel draws BY MODEL along row y: its heading, the period's share of use
-// of each version it used as a stacked bar, from cx to the weeks' edge, a
-// part a version in its shade, as Compare's; and from the row under it, the
-// versions with their shares, as versionLines has them.
+// of each version it used as a stacked bar, from cx across its cells, as
+// byModelCells has them, a part a version in its shade, as Compare's; and
+// from the row under it, the versions with their shares, as versionLines has
+// them.
 func (d detailDrawn) byModel(c *canvas, y int) {
 	c.line(d.l.panel, y, line{{"BY MODEL", headingInk}})
 	versions := d.page.Versions
-	stackedBar(c, d.f.Look, d.l.cx(), y, splitCells(shareAmounts(d.row, versions), d.l.weeksCells()), versionHues(versions))
+	stackedBar(c, d.f.Look, d.l.cx(), y, splitCells(shareAmounts(d.row, versions), d.byModelCells()), versionHues(versions))
 	for i, l := range d.versionLines() {
 		c.line(d.l.cx(), y+1+i, l)
 	}
@@ -719,20 +751,50 @@ func (d detailDrawn) byModel(c *canvas, y int) {
 // everyEvent asks LATELY for every event the document carries.
 const everyEvent = math.MaxInt
 
-// lately draws LATELY's lines from x along row y on, every event the
-// document carries, as accountLatelyLines has them, their words cut to the cells given, each cut
-// short of the frame's edge and picked out while it's fresh; or why it has
-// none.
+// lately draws LATELY's lines from x along row y on, a line each event
+// latelySentences tells, as accountLatelyLines has them, their words cut to
+// the cells given, each cut short of the frame's edge and, at now, picked
+// out while it's fresh; or why it has none, as latelyQuiet says it.
+// Nothing in a past period is fresh, and its sentences' ids, of events read
+// back, may be another's of now's.
 func (d detailDrawn) lately(c *canvas, y, x, words int) {
-	sentences := views.AccountLately(d.m, d.id, everyEvent, d.f.sessionDirs())
+	sentences := d.latelySentences()
 	if len(sentences) == 0 {
-		d.f.quietly(c, d.m, x, y, d.f.edge())
+		c.line(x, y, d.latelyQuiet().fit(d.f.edge()-x))
 		return
 	}
 	for i, l := range accountLatelyLines(d.m, sentences, words) {
 		end := c.line(x, y+i, l.fit(d.f.edge()-x))
-		d.f.freshen(c, sentences[i].ID, x, y+i, end)
+		if !d.gone {
+			d.f.freshen(c, sentences[i].ID, x, y+i, end)
+		}
 	}
+}
+
+// latelySentences are the events LATELY tells, newest first: at now, every
+// one the document carries of the account shown, as views.AccountLately
+// tells them; in a past period, those up to the end of its last day, as the
+// frame's Accounts holds them.
+func (d detailDrawn) latelySentences() []views.Sentence {
+	if d.gone {
+		return d.f.Accounts.Lately
+	}
+	return views.AccountLately(d.m, d.id, everyEvent, d.f.sessionDirs())
+}
+
+// latelyQuiet is what LATELY says where it tells no events: at now, why, of
+// the document, as quiet says it; in a past period, that it has none, once
+// its events are held, as the frame's Accounts has them, and nothing while
+// they're read, as the heading says loading…; never how the router stands
+// now, which says nothing of then.
+func (d detailDrawn) latelyQuiet() line {
+	switch {
+	case !d.gone:
+		return d.f.quiet(d.m)
+	case d.f.Accounts.LatelyHeld:
+		return nothingLately
+	}
+	return nil
 }
 
 // accountLatelyLines are Detail's LATELY lines of the sentences given, at the
@@ -879,18 +941,23 @@ func chosenRow(c *canvas, x, y, width int, focused bool) {
 // as the moment's Configured has it, its name and marks, as listName
 // has them, in the name column, and after it its state's glyph, as
 // StateInAWord and stateMark have it, cued over the row's light while it's
-// newly changed, as cueState has it; the chosen row picked out, as listRow
-// has it; ↑↓ choose chooseUnder rows under the last; and the │ beside them,
-// down the view's rows, as LATELY fills the panel to its foot.
+// newly changed, as cueState has it, its cell blank in a past period, so
+// nothing moves; the chosen row picked out, as listRow has it; ↑↓ choose
+// chooseUnder rows under the last; and the │ beside them, down the view's
+// rows, as LATELY fills the panel to its foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
 	d.listRow(c, top, allAccountsNamed, d.id == "")
 	first, shown := d.listShown()
 	y := top
 	for _, a := range d.accounts[first : first+shown] {
 		y += listApart
-		c.line(d.l.dotAt(), y, line{stateMark(d.m.StateInAWord(a.ID))})
+		if !d.gone {
+			c.line(d.l.dotAt(), y, line{stateMark(d.m.StateInAWord(a.ID))})
+		}
 		d.listRow(c, y, listName(a).line(d.l.names), a.ID == d.id)
-		d.f.cueState(c, a.ID, d.l.dotAt(), y, 1)
+		if !d.gone {
+			d.f.cueState(c, a.ID, d.l.dotAt(), y, 1)
+		}
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})
 	for row := range rows {

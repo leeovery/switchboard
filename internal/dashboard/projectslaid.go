@@ -67,7 +67,7 @@ func (f Frame) projectsLaying(doc status.Document, now time.Time) projectsLaid {
 	g := l.given()
 	l.list = projectsListOf(f, g.list, lit, now)
 	l.project.kept, l.project.chart = g.kept, g.chart
-	l.sessions = projectSessionsOf(sessionWords{m: m, now: now, glyphs: nerdFont(f.NerdFont)}, p, f.Projects.Measured, f.Width)
+	l.sessions = projectSessionsOf(sessionWords{m: m, now: now, glyphs: nerdFont(f.NerdFont)}, p, f.Dial, f.Projects.Measured, f.Width)
 	at := l.sessionsAt()
 	l.sessions = l.sessions.within(at, l.top+f.viewRows()-at)
 	l.sessions.scroll = f.Scroll
@@ -276,4 +276,16 @@ func (f Frame) ProjectsSessionsScroll(doc status.Document, now time.Time, id str
 		return f.Scroll
 	}
 	return l.sessions.paged().revealing(f.Scroll, l.sessions.lineOf(id))
+}
+
+// ProjectsSessionsStepScroll is how far Projects' SESSIONS is scrolled once
+// ↑ or ↓ selects the session with the given id, or stands on it at an end,
+// as stepRevealing has it, as the List's ListStepScroll steps. Only a step goes there: a scroll or a
+// click keeps SESSIONS where it was.
+func (f Frame) ProjectsSessionsStepScroll(doc status.Document, now time.Time, id string) int {
+	l := f.projectsLaying(doc, now)
+	if l.project == nil {
+		return f.Scroll
+	}
+	return l.sessions.stepRevealing(l.sessions.paged(), f.Scroll, l.sessions.lineOf(id))
 }

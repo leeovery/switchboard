@@ -12,6 +12,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -106,6 +107,29 @@ type UnkeptDays struct {
 	Every    bool
 }
 
+// Said tells of the days no longer kept at now, as the List and a project's
+// SESSIONS say it: "sessions no longer kept" where every day is, in place of
+// saying the period had no session; "sessions before 14 Sep no longer kept"
+// where only some are, by the first day kept, its year where it isn't now's,
+// as prose.DayMonthAt dates it; "" where none is.
+func (u UnkeptDays) Said(now time.Time) string {
+	switch {
+	case u.KeptFrom.IsZero():
+		return ""
+	case u.Every:
+		return "sessions no longer kept"
+	}
+	return "sessions before " + prose.DayMonthAt(now, u.KeptFrom) + " no longer kept"
+}
+
+// SaysNoSessions reports whether a period with no session to list says it
+// had none, as the List and a project's SESSIONS say so in place of their
+// rows: not where every day of it is no longer kept, as Said says so in
+// their place.
+func (u UnkeptDays) SaysNoSessions() bool {
+	return !u.Every
+}
+
 // ProjectsMost are the most of a page's rows any project of the list has:
 // BY MODEL's versions and ON ACCOUNTS' accounts, as its page has them; and
 // the cells of the widest name BY MODEL gives a version among them; so the
@@ -184,6 +208,14 @@ type SessionLog struct {
 	in PeriodInput
 }
 
+// CountsTold reports whether the List's period line tells what the period's
+// sessions come to beside its name: not where every day of the period gone
+// is no longer kept, as the List says so in place of its rows, and there's
+// nothing to count, so the line names the period alone.
+func (l SessionLog) CountsTold() bool {
+	return !l.Unkept.Every
+}
+
 // SessionLog is Sessions' List over in's period, as SessionLog has it, of
 // the days d holds at in's Now, each project tallied as tallied has it, so
 // it rows every session alike with Projects' pages, each named by its
@@ -199,7 +231,9 @@ func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 			projectNamed[id] = names[p.path]
 		}
 	}
-	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), Unkept: t.unkept, in: in}
+	return SessionLog{
+		Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), Unkept: t.unkept, in: in,
+	}
 }
 
 // tallied are the projects of in's period, each tallied of the days d holds

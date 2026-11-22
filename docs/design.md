@@ -5096,7 +5096,10 @@ and Runway when they'll have room; Accounts says who. It has three views, as sub
 a column an account; **Detail**, one account, or all of them, in full; and **Tokens**, its tokens as ccusage reports them,
 over the dial's period, drawn in the Paper file
 *Switchboard · Entities*, page p-2-0, and kept as `accounts-tokens-173x53` and
-`accounts-tokens-73x61`. Compare and Detail are drawn in the Paper
+`accounts-tokens-73x61`; over a past period, signed off on 20 November 2026, as
+`accounts-tokens-30-days-to-1-sep-73x61`, a phone's 30 days to 1 Sep. Compare over a past period is
+kept as `accounts-compare-last-week-73x61`, a phone's last week, and
+`accounts-compare-week-of-14-sep-173x53`. Compare and Detail are drawn in the Paper
 file *Switchboard · Accounts*, on its page **FINAL · accounts · signed off 5 Oct 2026 · revised 6
 Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `accounts-compare-ten-160`,
 `accounts-compare-month-160`, `accounts-compare-bad-hour-160`, `accounts-detail-all-160`,
@@ -5109,7 +5112,9 @@ its space, and turned Compare's WEEKS and WORTH, are drawn in round 2 of the das
 and kept as `accounts-detail-all-173x53`, all accounts' bands, `accounts-detail-work-12-weeks-173x53`,
 an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table on a phone; and
 `accounts-detail-104x58`, an account stacked on a tall, narrow screen, its USAGE bars filling the
-row.
+row. Detail over a past period, signed off on 20 November 2026, is kept as
+`accounts-detail-tue-29-sep-173x53`, an account two days back on a MacBook; and stacked, drawn
+from the build alone, as `accounts-detail-tue-29-sep-73x61` and `accounts-detail-tue-29-sep-52x41`.
 
 **Accounts' rules,** which Trends' YEAR, BY MONTH and MODELS BY DAY keep too, but for the dial and
 its periods, as Trends has none:
@@ -5357,8 +5362,10 @@ its periods, as Trends has none:
   read of the day, today is by the day. Today's page, Accounts' and Projects' alike, is built
   afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. A past
   day's hours are that day's lines', read as the dial steps to it and folded as today's are, its
-  page saying `loading…` till they land; yesterday's, read just after midnight, are read again once
-  the tail has read the day's owed lines. Where a past day's lines are no longer kept, the day is
+  page saying `loading…` till they land. A day gone that the tail's fold still stands for, as
+  yesterday just after midnight, isn't read early: its page waits on a read of the tail, asked at
+  once, then reads the day once. A day read while the tail last read before it is read early, then
+  again at the next look. Where a past day's lines are no longer kept, the day is
   one bucket. A past period's chart marks no bucket as now's, and counts none as to come. At
   173 columns with three accounts that's an hour a column today, a day at this week and 30 days,
   a week at 12 weeks and a month at 12 months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
@@ -5380,7 +5387,10 @@ its periods, as Trends has none:
     `3h 10m`, and for `all accounts` their sum; and `left at its last reset`, what its week had left
     as it last reset, `15%`, or `0% (limit Fri)` where the week ran out, naming the day it did, and
     `—` for `all accounts`; in a past period whose last week isn't this week, as it reset at the end
-    of that week.
+    of that week. In a past period, yesterday too, the day is named by its date, `0% (limit
+    30 Sep)`, with its year where it isn't this year's, `0% (limit 3 Oct 2025)`, never a weekday:
+    an own week placed under the period's last week can run out after its last day. Narrow, it
+    falls to `0%`, as at now.
   - **VALUE,** with no description, as its rows say it: `plan`, `Ultra`, and ` · $200/mo` in
     `text.subtle`, and for `all accounts` the plans summed, `$600/mo`, and ` · 3 plans`;
     `extra usage`, `off` in `text.muted`, or `on · billed past its limit` in `accent.attention`, and
@@ -5549,8 +5559,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     in capitals, `TUE 29 SEP`, `LAST WEEK`, `30 DAYS TO 1 SEP`.
   - In a past period it heads on BY MODEL's row, two rows under the head, and BY MODEL's bar ends
     a cell before it; the rule sits two rows under the lower of BY MODEL's last row and THIS
-    WEEK's. Where the wide form starts holds as at now, so a step in time never turns Detail
-    stacked or wide (see Wide, from where it fits).
+    WEEK's. Where the title is wider than its column, as `12 MONTHS TO 30 SEP 2025` is with one
+    account or several, it's right-aligned to the weeks' edge, and BY MODEL's bar and its
+    versions end a cell before wherever it starts; THIS WEEK's items stay at its column. Where the
+    wide form starts holds as at now, so a step in time never turns Detail stacked or wide (see
+    Wide, from where it fits).
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
   panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
   version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the
@@ -5636,7 +5649,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   does: `api started on side, the best`. In a past period it tells the latest events up to the
   end of the period's last day, as LATELY at now tells them up to now: the router's events of the
   week to that day's end, and the facts that reach further, read once for each last day, a read
-  the dial has stepped past dropped as it lands.
+  the dial has stepped past dropped as it lands. A past period with no events to tell says
+  `nothing lately` once they're held, and nothing while they're read.
 - **In a past period** there's no SESSIONS, as it tells what runs now: LATELY keeps its rows, and
   `→` doesn't act. `enter its page` is drawn faint, as a key that can't act now is, and pressed,
   it says `no sessions in a past period` in the key line's place, as other refusals do (see The
@@ -5774,7 +5788,8 @@ way in, its splits and its footnote.
   width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
   read`; `total` and `worth` stay. The names hold their natural until every one of those has left,
   so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
-  never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
+  never shows fewer columns, nor a shorter name, but for a past period's total: where `models`
+  shows again, its name may give way to the dial's short one (see the total below). Where `against its price` has left, worth runs to
   the frame's width. So at 108 and 120 every column shows but `models`, of short labels; by account
   and model, whose names take 2 more, `models` leaves 2 columns sooner than by account, as the names
   come first, where it used to show at the widest the old fixed form needed; and at 73, `cache
@@ -5792,7 +5807,12 @@ way in, its splits and its footnote.
   its $20 day`, `its $138 week`, `its $600 month`: priced whole, but where the 12 months or the
   ledger begin part-way through it, by its days from then, as Against its price says.
 - **The period's total leads:** a row for the whole period, split as the rows are, named by the
-  dial's words, `this week`, or a past period's, `30 days to 1 Sep`, in a row's head's ink. Its
+  dial's words, `this week`, or a past period's, `30 days to 1 Sep`, in a row's head's ink. No
+  column moves for it: a past period's name wider than the names runs on, where `models` has left,
+  into the first count's cells, to a cell before its figure; where it doesn't fit even so, the row
+  is named by the dial's short name (`Dial.Short()`), the heading naming the period in full: the
+  length's name, as `30 days`; `the week` of a week, never `this week`; and a day's own name, as
+  `yesterday`, even on 1 January, or a date of another year with its year, as `31 Dec 2025`. Its
   tokens and worth are its rows' summed, and its models count the versions the period used, each
   once, never a sum. Its against its price is
   Compare's all accounts' over the period, the one figure (`views` works it out once), its unit the
@@ -5913,7 +5933,9 @@ is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the
 draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
 `projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
 `projects-108x24`, `projects-12-months-173x53`, `projects-many-114x40` and `projects-104x58`, a
-tall, narrow screen, its SESSIONS filling the width.
+tall, narrow screen, its SESSIONS filling the width; and over a past period, as the Paper frames
+of stepping back through periods draw it (20 November 2026), `projects-yesterday-73x61` and
+`projects-last-week-173x53`.
 
 - **A session's project** is `status.Projects`'. It starts from `status.ProjectOf`: the project
   its lines name, else, of a line from before they named one, its directory's, a Claude Code
@@ -6004,9 +6026,11 @@ tall, narrow screen, its SESSIONS filling the width.
   period's, the rest taking the room. `last` is the time of its last request within the period,
   never `now`: the
   time alone where the period is one day, `21:40`; over more, with the weekday where it falls in
-  the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`. WORTH BY over a
+  the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`, with its year
+  where it isn't now's, `21 Aug 2025 21:40`. WORTH BY over a
   past day is by the hour of that day's lines, as Accounts' WORTH charts it, and no chart marks a
-  bucket as now's. SESSIONS lists the period's sessions as the List does in a past period (see
+  bucket as now's. ON ACCOUNTS names its accounts without `▲` and without the marks of one out of
+  the pool, as both tell now. SESSIONS lists the period's sessions as the List does in a past period (see
   Sessions, The List), and says as it does, once, after its last row, where the period reaches
   back before the first day whose sessions are kept: `sessions before 14 Sep no longer kept`.
 - **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
@@ -6131,7 +6155,8 @@ Switchboard stays live, with no dial. The frames are in the Paper file
 `sessions-switchboard-mixed-160` (work and personal without a 5-hour window). The List as a log is
 in the Paper file *Switchboard · Entities*, on page `p-3-0` (round 3, signed off 13 November 2026),
 and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73x61` and
-`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. The List under `nerd_font` is
+`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`; over a past period, it's
+`sessions-list-last-week-108x44`. The List under `nerd_font` is
 `sessions-list-nerd-font-160`. Columns and rows are at 160 by 37
 unless they say otherwise.
 
@@ -6477,7 +6502,7 @@ each at least its least and at most its natural, but `session`, which grows wher
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted`; in a past period, `went on` in `text.muted`, of a session that went on after the period's last day |
-| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS). As wide as the widest of the whole log says, the ended sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
+| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS); in a past period dated as `prose.PastAt` dates it (see A past period). As wide as the widest of the whole log says, the ended and gone-on sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
 | `requests` | 8 | 8, right-aligned | Its requests in the period, as `1,240`, in `text.muted`: today's over today |
 | `worth` | 7, or the widest the log says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
@@ -6576,7 +6601,8 @@ each at least its least and at most its natural, but `session`, which grows wher
   router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells,
   and a rule of `─` in `border` to the last column. The rules read `ended today`, `ended yesterday`,
   the weekday within the six days before today, `ended Tue`, and the weekday and date beyond,
-  `ended Mon 21 Sep`, as Projects' SESSIONS reads them. The order stays still, never reshuffled by
+  `ended Mon 21 Sep`, its year where it isn't now's, `ended Sun 21 Sep 2025`, as Projects'
+  SESSIONS reads them. The order stays still, never reshuffled by
   activity, as rows would slide from under the cursor: a row moves only as its session ends, from
   running to the top of ended, or as it asks again, back to its place by start among the running. A
   rule shows with the first session under it or not at all, so a List of one row, at its least,
@@ -6587,9 +6613,11 @@ each at least its least and at most its natural, but `session`, which grows wher
   that had requests in the period and went on after its last day sits first, where the running
   would, in the order they started, its state `went on` in `text.muted` in place of `ended …`,
   its requests and worth the period's alone. A start on another day than the one its rule names,
-  and a start of a session that went on, is dated as `prose.Past` dates it, `Tue 12:08` within the
-  six days before today and `21 Sep 12:08` before them; one on its rule's day is by the clock
-  alone. A past period with no session says so in the table's place, in `text.subtle`, by the
+  and a start of a session that went on, is dated as `prose.PastAt` dates it, `Tue 12:08` within
+  the six days before today and `21 Sep 12:08` before them, its year where it isn't now's,
+  `21 Sep 2025 12:08`; one on its rule's day is by the clock alone. ↑ and ↓ onto the last session,
+  or ↓ on it, show the words after it too, where the page holds both; a look or a click keeps the
+  session in view and never moves the List further to show them, which `j` or the wheel does. A past period with no session says so in the table's place, in `text.subtle`, by the
   dial's words: `no sessions yesterday`, `no sessions on Tue 29 Sep`, `no sessions last week`,
   `no sessions in the week of 14 Sep`, `no sessions in the 30 days to 1 Sep`, and so on;
   Projects' SESSIONS and its empty list say it alike. The ledger keeps a day's sessions only as
@@ -6597,18 +6625,27 @@ each at least its least and at most its natural, but `session`, which grows wher
   some of its days are before it, the List says so once, after its last row, in `text.subtle`:
   `sessions before 14 Sep no longer kept`, by the first day whose sessions are kept, its year only
   where it isn't now's. No day's rule shows without a session under it. A past period whose every
-  day is gone shows `sessions no longer kept` in place of the empty period's words. Projects'
-  SESSIONS and its empty list say both alike. The period line's name is the dial's words, in now's ink,
-  never `accent.attention`: `last week  29 sessions · 5,423 requests · $646.09 at API prices`.
+  day is gone shows `sessions no longer kept` in place of the empty period's words, and its
+  period line names the period alone, with nothing to count. Projects' SESSIONS and its empty
+  list say both alike. The period line's name is the dial's words, in now's ink, never
+  `accent.attention`: `last week  29 sessions · 5,423 requests · $646.09 at API prices`.
 - **The period line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
   `30 days  150 sessions · 33,010 requests · $3,257.86 at API prices`, the period's name in
   `text.subtle`, as `today` over today, the counts in `text.secondary`, the worth bold
   `text.secondary`, its thousands set apart, and the rest in `text.muted`. It sums the period's
   sessions, running and ended, their requests in it and their worth, as Projects' every project's
-  row does, so it carries the period's worth where `worth` has left. Where it doesn't fit its row,
-  it breaks after `requests`, the worth on the row under the rest; the view's least, three rows,
-  always leaves the table a row over the two, so the worth never gives way. The sessions run down
+  row does, so it carries the period's worth where `worth` has left. It's never cut: it takes the
+  first of these forms whose rows fit whole, in two rows at most:
+  1. all on one row;
+  2. broken after `requests`, the worth on the row under the rest;
+  3. the name alone, the rest on the row under it;
+  4. the requests given way, the name and the sessions, the worth under them;
+  5. the name, the sessions and the worth under it;
+  6. the name, the worth under it.
+
+  The worth never gives way. Of no sessions, `no sessions` follows the name, or sits under it. The
+  view's least, three rows, always leaves the table a row over the two. The sessions run down
   to it; where they fit, the rows left over lie between the last session and it: every session
   shows, and nothing folds.
 - **Past a screen,** the table scrolls a row at a time, its heads held, and the row over the key
@@ -11490,7 +11527,8 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
 ## Signing
 
 A release's macOS binaries are built, signed with a Developer ID and notarised on the owner's Mac,
-where the certificate and the notary's login live, in its keychain; nothing of either is in GitHub.
+where the certificate and the notary's login live, in its signing keychain; nothing of either is in
+GitHub.
 macOS knows an ad-hoc signed binary, as Go's linker signs one, by the hash of its code alone, which
 every release changes, and a signed one by its identifier and its signer, which stay. So what the
 user allows the router, kept against its copy's path and, for some folders, its signature, holds
@@ -11510,12 +11548,12 @@ binary can't have its ticket stapled, so macOS looks it up online.
   into the checkout for the binaries to embed; a tree from before the app, an older tag built
   again to finish its upload, is built as it was, with no app and no tag. Then switchboard, for
   arm64 and amd64, with the build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
-  signed by `codesign` with the login keychain's Developer ID Application certificate, the
+  signed by `codesign` with the signing keychain's Developer ID Application certificate, the
   hardened runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`,
   the LaunchAgent's label, and run to check it reports that version; the two, with the app, sent
   together to Apple's notary service by
-  `notarytool`, under the keychain profile `notarytool`, the Mac's one login for notarising, made
-  once with `xcrun notarytool store-credentials notarytool`, and waited on until it answers, for
+  `notarytool`, under the keychain profile `notarytool` in the signing keychain, the Mac's one
+  login for notarising, and waited on until it answers, for
   about an hour at most, as mint gives a hook no time limit; then archived and summed under the
   names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
   `switchboard_<version>_checksums.txt`, and kept, with the commit they were built from, in
@@ -11545,11 +11583,12 @@ binary can't have its ticket stapled, so macOS looks it up online.
 - **Where it runs:** a release can be cut only on an Apple-silicon Mac with Rosetta, as each
   binary is run to check its version, Xcode 26 or later, chosen with `xcode-select`, for the app's
   `swiftc` and `actool`, which its command line tools alone don't have, and the certificate and the
-  profile. The first run is
-  at the Mac, as `scripts/release-build 0.0.0-check`, which signs and notarises and releases
-  nothing: macOS asks there to let `codesign` use the certificate's key and `notarytool` its
-  profile, answered "Always Allow". A release run from elsewhere, as over SSH, waits on that
-  dialog, or fails on a locked keychain, before the tag either way.
+  profile, in the signing keychain, `~/Library/Keychains/signing.keychain-db`, a keychain of their
+  own that kit's developer-id and notarytool steps make. It opens with the certificate's `.p12`
+  password, `DEVELOPER_ID_P12_PASSWORD`, which kit writes to `~/.secrets.zsh`, and never locks once
+  unlocked; `scripts/release-build` unlocks it itself before anything signs, and its key lets
+  `codesign` use it with no dialog, so a release asks nothing, at the Mac or over SSH alike.
+  `scripts/release-build 0.0.0-check` signs and notarises and releases nothing, to check it.
 - Each run logs to `~/Library/Logs/switchboard/release-<version>.log`, as mint shows nothing of a
   hook that succeeds and only the stderr of one that fails. mint's dry run runs neither hook. The
   owner's call, 5 November 2026, in place of signing in GitHub's workflow from secrets (built 4

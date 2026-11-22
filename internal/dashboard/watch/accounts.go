@@ -109,14 +109,15 @@ func (m Model) accountsEntered() Model {
 // falls in, as accountsEntered has the tail read. Each look reads today's
 // days afresh, as readPast reads them, so the page follows them from look
 // to look; and past midnight it moves on to the new day before the next
-// look reads it. Where
-// the days the period's page reads, or the fold of the day gone it charts,
-// as hoursReady has it, are still to land, there's no page, as before the
-// first read lands, for it to say it's loading. It's stood at the moment of
-// the message taken in, as views.AccountsPage.At stands it, where it's built
-// afresh, the document or the policy is another, or the page stands
-// otherwise since, as its Until has it: never a frame at a time. Detail's
-// LATELY in a past period is told as pastLatelyTold tells it.
+// look reads it. Where the days the period's page reads, or the hours of
+// the day gone it charts, as hoursReady has it, are still to land, there's
+// no page, as before the first read lands, for it to say it's loading, a
+// read of the tail due where they wait on it, as hoursWaited has it. It's
+// stood at the moment of the message taken in, as views.AccountsPage.At
+// stands it, where it's built afresh, the document or the policy is
+// another, or the page stands otherwise since, as its Until has it: never a
+// frame at a time. Detail's LATELY in a past period is told as
+// pastLatelyTold tells it.
 func (m Model) accountsBuilt() Model {
 	m = m.accountsEntered()
 	if m.view != dashboard.Accounts {
@@ -128,6 +129,7 @@ func (m Model) accountsBuilt() Model {
 	}
 	past, reached := m.past.reaching(m.period.AccountsFrom(now, m.cfg.WeekStarts), m.begun.began)
 	if !reached || m.accountsHourly() && !m.hoursReady(now) {
+		m = m.hoursWaited(now)
 		m.accounts = m.accounts.awaited()
 		return m
 	}
@@ -173,13 +175,14 @@ func (m Model) tokensBuilt(now time.Time, past views.Past, of builtOf) Model {
 // standing is Accounts as the frame f shows it: its page as accountsBuilt
 // last stood it, and Tokens' as tokensBuilt last built it, none till the
 // days are read; Detail's LATELY in a past period as pastLatelyTold last
-// told it; Compare's columns scrolled to show its focus at f's size, as
-// CompareFirst has them, and Detail's list to show the account it shows, as
-// DetailListScroll has it, each from as far along as it was left, so a
-// frame smaller than the one it was scrolled in still shows it.
+// told it, and whether it's told, as told has it; Compare's columns scrolled
+// to show its focus at f's size, as CompareFirst has them, and Detail's list
+// to show the account it shows, as DetailListScroll has it, each from as far
+// along as it was left, so a frame smaller than the one it was scrolled in
+// still shows it.
 func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 	s := t.shown
-	s.Page, s.Tokens, s.Lately = t.stood, t.tokens, t.lately.sentences
+	s.Page, s.Tokens, s.Lately, s.LatelyHeld = t.stood, t.tokens, t.lately.sentences, t.lately.told()
 	s.First, s.ListScroll = f.CompareFirst(s.Focus), f.DetailListScroll(s.Account())
 	return s
 }
