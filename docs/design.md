@@ -5560,10 +5560,10 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   - In a past period it heads on BY MODEL's row, two rows under the head, and BY MODEL's bar ends
     a cell before it; the rule sits two rows under the lower of BY MODEL's last row and THIS
     WEEK's. Where the title is wider than its column, as `12 MONTHS TO 30 SEP 2025` is with one
-    account or two, it's right-aligned to the weeks' edge, and BY MODEL's bar and its versions end
-    a cell before wherever it starts; THIS WEEK's items stay at its column. Where the wide form
-    starts holds as at now, so a step in time never turns Detail stacked or wide (see Wide, from
-    where it fits).
+    account or several, it's right-aligned to the weeks' edge, and BY MODEL's bar and its
+    versions end a cell before wherever it starts; THIS WEEK's items stay at its column. Where the
+    wide form starts holds as at now, so a step in time never turns Detail stacked or wide (see
+    Wide, from where it fits).
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
   panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
   version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the

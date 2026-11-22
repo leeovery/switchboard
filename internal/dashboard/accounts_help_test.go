@@ -295,6 +295,9 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"the weeks an account's facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in"},
 		{"the weeks all accounts' facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in, or of all accounts"},
 		{"all accounts' table", "Where Detail is stacked, as on a phone, a table gives the same"},
+		{"what leaves a past period", "In a past period, what tells now leaves: the accounts' states, the token lines, WEEK USED, USAGE and SESSIONS. LATELY tells each account's events up to the period's end."},
+		{"a past Detail's head and THIS WEEK", "In a past period, the head names the account alone, and where Detail is wide, THIS WEEK stands beside BY MODEL."},
+		{"a past LATELY", "LATELY tells every event the router has for the account, in a past period those up to its end, newest first, down to the key line"},
 	} {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)
@@ -330,10 +333,14 @@ func TestAccountsHelpOfOneAccountExplainsWhatItDraws(t *testing.T) {
 	for _, want := range []string{
 		"the limits it hit, by window",
 		"Extra usage is on where Claude bills past the plan's limit",
+		"In a past period, what tells now leaves: the account's state, its token line, USAGE and SESSIONS. LATELY tells its events up to the period's end.",
 	} {
 		if !strings.Contains(said, want) {
 			t.Errorf("help of one account reads\n%s\nwant it to say %q", said, want)
 		}
+	}
+	if strings.Contains(said, "WEEK USED") {
+		t.Errorf("help of one account reads\n%s\nwant nothing of WEEK USED, which only Compare draws", said)
 	}
 	if strings.Contains(said, "all accounts") {
 		t.Errorf("help of one account reads\n%s\nwant nothing of all accounts", said)

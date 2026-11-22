@@ -52,7 +52,7 @@ func (f Frame) compareHelp() helpPart {
 		"put at the right; `enter` opens the account focused in Detail, and `esc` ends the focus."
 	charts := " WEEKS is how full each of its weeks got, at least the last eight, or every week the period begins where " +
 		"there are more, a month its fullest week at 12 months; a dotted line marks the cap of an account that keeps " +
-		"a reserve, and the axis marks this week, so far. Under them, how many of those weeks it hit its limit in, " +
+		"a reserve, and the axis marks this week, so far, where this week shows. Under them, how many of those weeks it hit its limit in, " +
 		"and what they had left at a reset, on average; all accounts says how many weeks some account was short. " +
 		"WORTH is what its use was worth at API prices over the period, in the finest buckets that fit, its peak " +
 		"under it: the accounts share one scale, so their columns compare, and all accounts has its own."
@@ -93,9 +93,16 @@ const periodsRun = "The periods are never billing months, as switchboard knows n
 	"day it ends on. Today is that day, this week its week, 30 days and 12 months run back from it, and 12 weeks over its " +
 	"week and the 11 before. The period that reaches today is now; any other is past, its name drawn in its own colour."
 
-// pastLeaves is what leaves a past period, as Accounts' help says it.
-const pastLeaves = "In a past period, what tells now leaves: the accounts' states, the token lines, WEEK USED, USAGE " +
-	"and SESSIONS. LATELY tells each account's events up to the period's end."
+// pastLeaves is what leaves a past period, as Accounts' help says it: of
+// one account, alone, without WEEK USED, which only Compare draws.
+func pastLeaves(alone bool) string {
+	if alone {
+		return "In a past period, what tells now leaves: the account's state, its token line, USAGE and SESSIONS. " +
+			"LATELY tells its events up to the period's end."
+	}
+	return "In a past period, what tells now leaves: the accounts' states, the token lines, WEEK USED, USAGE " +
+		"and SESSIONS. LATELY tells each account's events up to the period's end."
+}
 
 // dialStepped is how the dial's keys step the period, as each help of a tab
 // the dial shows on says it.
@@ -139,7 +146,7 @@ func (f Frame) valueHelp() helpPart {
 				"running priced whole, and one the ledger began part-way through priced from its first day." + plans +
 				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
-			said(periodsRun + " " + dialStepped() + shared + " " + pastLeaves),
+			said(periodsRun + " " + dialStepped() + shared + " " + pastLeaves(f.Accounts.Alone())),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},
@@ -196,15 +203,15 @@ func (f Frame) detailHelp() helpPart {
 				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS cover the "+
 				"weeks it names, as many as fit across the panel, the period's own at least where they fit, and never "+
 				"fewer than six; at 12 months the newest, saying how many more there are. In a past period, the head "+
-				"names the account alone, and THIS WEEK stands beside BY MODEL."),
+				"names the account alone, and where Detail is wide, THIS WEEK stands beside BY MODEL."),
 			said("BY DAY shades each day by how much of its week the account used that day, in YEAR's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
-				"highest so far. Under them, how many of the period's whole weeks or those shown, whichever are more, it "+
+				"highest so far, where this week shows. Under them, how many of the period's whole weeks or those shown, whichever are more, it "+
 				"hit its limit in, and what they left at a reset, on average."),
 			said("WORTH is what its use was worth at API prices over the period, across the panel, in the finest buckets "+
-				"that fit, its peak under it. LATELY tells every event the router has for the account, newest first, "+
-				"in a past period those up to its end, down to the key line, and the rest scrolls."),
+				"that fit, its peak under it. LATELY tells every event the router has for the account, in a past period "+
+				"those up to its end, newest first, down to the key line, and the rest scrolls."),
 			said(sessions),
 		),
 		glyphs: append(shadesHelp("a day", "days", f.byDaySwatch),

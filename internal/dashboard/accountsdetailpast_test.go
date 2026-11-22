@@ -259,15 +259,21 @@ func TestAPastDetailsFiguresStandBesideBYMODEL(t *testing.T) {
 }
 
 // Wide, in a past period, THIS WEEK's title wider than its column, as the
-// widest of the past names are with one account or two, ends at the weeks'
-// edge, and BY MODEL's bar and its versions end a cell before wherever it
-// starts; THIS WEEK's items stay at its column. Each title is a past 12
-// months': "12 MONTHS TO 1 OCT 2025", a step back from routedAt, and "12
-// MONTHS TO 30 SEP 2025", a step back from the day before.
+// widest of the past names are with one account or several, ends at the
+// weeks' edge, and BY MODEL's bar and its versions end a cell before
+// wherever it starts; THIS WEEK's items stay at its column. Each title is a
+// past 12 months': "12 MONTHS TO 1 OCT 2025", a step back from routedAt, 23
+// cells, and "12 MONTHS TO 30 SEP 2025", a step back from the day before,
+// 24; the column is 22 cells with one account, as "Fable wk ×54" takes it,
+// and 23 with two or three, as all accounts' extra use on for one fewer
+// than every account takes it. Each count of accounts runs wide at one
+// width at least.
 func TestAPastDetailsTitleWiderThanItsColumnEndsAtTheWeeksEdge(t *testing.T) {
 	doc := pastWorld()
-	for _, width := range []int{104, 138, 160, 173} {
-		for _, accounts := range []int{1, 2} {
+	columns := map[int]int{1: 22, 2: 23, 3: 23}
+	for _, accounts := range []int{1, 2, 3} {
+		wider := 0
+		for _, width := range []int{104, 138, 160, 173} {
 			for _, at := range []time.Time{routedAt, routedAt.AddDate(0, 0, -1)} {
 				year := backFrom(t, views.LengthTwelveMonths, at, 1)
 				dp := detailPeriod{period: year, page: goneDetail(t, year, false)}
@@ -276,18 +282,23 @@ func TestAPastDetailsTitleWiderThanItsColumnEndsAtTheWeeksEdge(t *testing.T) {
 					continue
 				}
 				title := p.f.Dial.Title()
+				if len(title) > columns[accounts] {
+					wider++
+				}
 				t.Run(fmt.Sprintf("%d %d accounts %s", width, accounts, title), func(t *testing.T) {
 					l := p.d.l
-					titleAt := min(l.thisWeekAt(), l.edge()-len(title))
-					if (accounts == 1 || len(title) > 23) && titleAt == l.thisWeekAt() {
-						t.Fatalf("%s fits THIS WEEK's column of %d cells, want it wider", title, l.thisWeek)
+					if l.thisWeek != columns[accounts] {
+						t.Fatalf("THIS WEEK's column is %d cells, want %d", l.thisWeek, columns[accounts])
 					}
-					standsBesideBYMODEL(t, p, titleAt)
+					standsBesideBYMODEL(t, p, min(l.thisWeekAt(), l.edge()-len(title)))
 					if y := rowWith(p.rows, "requests"); columnOf(p.rows[y], "requests") != l.thisWeekAt() {
 						t.Errorf("THIS WEEK's requests read %q, want them at its column, %d", p.rows[y], l.thisWeekAt())
 					}
 				})
 			}
+		}
+		if wider == 0 {
+			t.Errorf("with %d accounts, no wide Detail drew a title wider than its column, want one at least", accounts)
 		}
 	}
 }
