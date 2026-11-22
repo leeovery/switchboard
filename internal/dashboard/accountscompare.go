@@ -384,11 +384,23 @@ func (f Frame) CompareFirst(id string) int {
 // says nothing where Compare is turned, as CompareWide has it, showing every
 // account a row.
 func (f Frame) compareState() []line {
+	return f.compareStateAt(f.compareFirst())
+}
+
+// compareLast is the last place among the accounts Compare's first shown
+// can be stepped to, where it shows the last of them.
+func (f Frame) compareLast() int {
+	return max(len(f.Accounts.Accounts)-f.compareShows(), 0)
+}
+
+// compareStateAt is what Compare's heading says, as compareState has it,
+// with the accounts it shows from the place given among them, from 0.
+func (f Frame) compareStateAt(first int) []line {
 	n, shown := len(f.Accounts.Accounts), f.compareShows()
 	if !f.CompareWide() || shown >= n {
 		return nil
 	}
-	which := line{{comparedShown(n, f.compareFirst(), shown), faintInk}}
+	which := line{{comparedShown(n, first, shown), faintInk}}
 	moves := slices.Concat(which, line{{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk}})
 	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves, which}
 }

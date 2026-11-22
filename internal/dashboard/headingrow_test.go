@@ -694,6 +694,31 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 	}
 }
 
+// ←→ steps along Compare's accounts without moving its heading between one
+// row and two, though which it shows gains a digit as it steps: of ten
+// accounts and twelve, this week, last week and the widest period gone, from
+// 20 columns to 200.
+func TestSteppingAlongComparesAccountsNeverMovesTheHeadingsRows(t *testing.T) {
+	lastWeek, _ := views.LengthThisWeek.Now().Back(now, time.Monday, time.Time{})
+	periods := []views.Period{views.LengthThisWeek.Now(), lastWeek, widestGonePeriod(t)}
+	for _, n := range []int{10, 12} {
+		for _, period := range periods {
+			for width := 20; width <= 200; width++ {
+				shown := headingFrame(width, Accounts, accountsAt(numberedConfigured(n), AccountsCompare, period), false)
+				var rows []int
+				for first := range shown.compareLast() + 1 {
+					f := shown
+					f.Accounts.First = first
+					rows = append(rows, f.heading().rows(width, f.phone()))
+				}
+				if slices.Min(rows) != slices.Max(rows) {
+					t.Errorf("Compare of %d at %d over %q: its headings, stepped along the accounts, take %v rows, want the same for each", n, width, dialOf(period).Name(), rows)
+				}
+			}
+		}
+	}
+}
+
 // A heading's state is a bounded qualifier, never cut: beside four sub-tabs
 // and eight weeks, from 40 columns, loading… reads whole, beside the
 // sub-tabs or on the row under them, and the heading takes the same rows

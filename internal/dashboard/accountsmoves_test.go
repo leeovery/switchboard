@@ -10,7 +10,12 @@ import (
 // tenConfigured are ten accounts, acct-1 to acct-10, more than Compare shows
 // at 160 columns.
 func tenConfigured() config.Accounts {
-	accounts := make(config.Accounts, 10)
+	return numberedConfigured(10)
+}
+
+// numberedConfigured are as many accounts as given, acct-1 on.
+func numberedConfigured(n int) config.Accounts {
+	accounts := make(config.Accounts, n)
 	for i := range accounts {
 		accounts[i] = config.Account{ID: fmt.Sprintf("acct-%d", i+1)}
 	}

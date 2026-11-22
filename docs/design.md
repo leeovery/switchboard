@@ -3998,9 +3998,10 @@ with the dial, so only a step between now and a past period moves the readout a 
 `<` from now and `>` or `n` back onto it, and none ever drops it:
 
 - A heading with a rule, as Projects' at any width, keeps the readout on its row where its widest
-  fits after the name, the state in its shortest form or `loading…` whole, whether it shows or
-  not, a cell of rule at least and the rule's gaps; else the readout takes the row under, the rule running to
-  the last column. So the state is never cut for the readout, and loading never moves it.
+  fits after the name, the state in its shortest form at its widest as it steps, or `loading…`
+  whole, whether it shows or not, a cell of rule at least and the rule's gaps; else the readout
+  takes the row under, the rule running to the last column. So the state is never cut for the
+  readout, and neither loading nor a step of what the state names moves it.
 - On the row under, the readout comes first: the state, `loading…` among its forms, gives way to
   it, left out where its least doesn't fit before it.
 - Where the frame is narrower than the readout itself, under 36 columns for the widest, the
