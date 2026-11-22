@@ -34,7 +34,7 @@ func listStepsBack(t *testing.T, length views.Length, times int) views.Period {
 // routedAt.
 func pastFrame(t *testing.T, width int, period views.Period, log *views.SessionLog) Frame {
 	t.Helper()
-	log.Period, log.Gone = period, true
+	log.Period = period
 	f := listFrame(t, width, 37, log)
 	f.Period, f.Dial = period, views.DialOf(period, routedAt, time.Monday, time.Time{})
 	if !f.Dial.Gone() {
@@ -249,8 +249,12 @@ func TestALogIsMeasuredAsItsPeriodSaysItsStarts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		log := lastWeeksLog()
-		log.Gone, log.Sessions = tt.gone, append(log.Sessions, tt.more...)
-		if got := MeasureLog(log, routedAt).started; got != tt.started {
+		log.Sessions = append(log.Sessions, tt.more...)
+		period := views.LengthThisWeek.Now()
+		if tt.gone {
+			period = listStepsBack(t, views.LengthThisWeek, 1)
+		}
+		if got := MeasureLog(log, routedAt, views.DialOf(period, routedAt, time.Monday, time.Time{})).started; got != tt.started {
 			t.Errorf("%s, the log's starts measure %d cells, want %d", tt.name, got, tt.started)
 		}
 	}

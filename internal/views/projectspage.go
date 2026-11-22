@@ -122,6 +122,14 @@ func (u UnkeptDays) Said(now time.Time) string {
 	return "sessions before " + prose.DayMonthAt(now, u.KeptFrom) + " no longer kept"
 }
 
+// SaysNoSessions reports whether a period with no session to list says it
+// had none, as the List and a project's SESSIONS say so in place of their
+// rows: not where every day of it is no longer kept, as Said says so in
+// their place.
+func (u UnkeptDays) SaysNoSessions() bool {
+	return !u.Every
+}
+
 // ProjectsMost are the most of a page's rows any project of the list has:
 // BY MODEL's versions and ON ACCOUNTS' accounts, as its page has them; and
 // the cells of the widest name BY MODEL gives a version among them; so the
@@ -188,15 +196,13 @@ func (d SessionDays) Projects(in PeriodInput) ProjectsPage {
 // project's, those running first, or of a period gone those that went on
 // after it, then those ended, by the day they ended, the latest first, as
 // periodRows orders them; what they come to together, as every project's
-// together on Projects; whether the period was gone as it was built, as
-// Dial's Gone has it; and the days of a period gone whose sessions are no
+// together on Projects; and the days of a period gone whose sessions are no
 // longer kept, as Projects has them. in is what it was built of, its List
 // as Live tells it afresh.
 type SessionLog struct {
 	Period   Period
 	Sessions []PeriodSession
 	All      ProjectTotals
-	Gone     bool
 	Unkept   UnkeptDays
 
 	in PeriodInput
@@ -226,7 +232,7 @@ func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 		}
 	}
 	return SessionLog{
-		Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), Gone: in.span().gone, Unkept: t.unkept, in: in,
+		Period: in.Period, Sessions: periodRows(sessions, in, projectNamed), All: t.totals(), Unkept: t.unkept, in: in,
 	}
 }
 

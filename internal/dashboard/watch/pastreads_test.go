@@ -409,36 +409,66 @@ func workedAt(h *harness, hour int) views.Worth {
 // them: no fold of it is read, a read of the tail is asked at once, and the
 // page waits on it; once it lands, the day's fold is read once, not early,
 // and the page built of it: the day's last request, its line filed after
-// the step, is charted in its hour.
+// the step, is charted in its hour. So on Accounts, all accounts' worth,
+// and on Projects, the chosen project's.
 func TestYesterdayJustAfterMidnightWaitsOnTheTailAndIsReadOnce(t *testing.T) {
-	h := projectsHarness(t, dashboard.Accounts)
-	today := dayfile.DayStart(start.Local(), 0)
-	h.clock.now = today.Add(23*time.Hour + 50*time.Minute)
-	h.start()
-	h.keyed("-")
-	if h.model.tail.day.Date != dayfile.DateOf(today) {
-		t.Fatalf("on today, the tail was last read on %q, want today", h.model.tail.day.Date)
+	tests := []struct {
+		name string
+		view dashboard.View
+		page func(m Model) bool
+		at23 func(m Model) views.Worth
+	}{
+		{
+			name: "Accounts", view: dashboard.Accounts,
+			page: func(m Model) bool { return m.accounts.page != nil },
+			at23: func(m Model) views.Worth { return m.accounts.page.All.WorthBy[0].Buckets[23].Worth },
+		},
+		{
+			name: "Projects", view: dashboard.Projects,
+			page: func(m Model) bool { return m.projects.shown.Page != nil && m.projects.shown.Page.Period == m.period },
+			at23: func(m Model) views.Worth {
+				if p := m.projects.shown.Project; p != nil && p.WorthBy[0].Unit == views.ByHour {
+					return p.WorthBy[0].Buckets[23].Worth
+				}
+				return views.Worth{}
+			},
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := projectsHarness(t, tt.view)
+			today := dayfile.DayStart(start.Local(), 0)
+			h.clock.now = today.Add(23*time.Hour + 50*time.Minute)
+			h.start()
+			h.keyed("-")
+			if h.model.tail.day.Date != dayfile.DateOf(today) {
+				t.Fatalf("on today, the tail was last read on %q, want today", h.model.tail.day.Date)
+			}
 
-	h.clock.now = today.Add(day + 30*time.Second)
-	date := dayfile.DateOf(today)
-	tails, rest := tailReads(h.press("<"))
-	if got := foldsRead(h, rest...); len(tails) != 1 || len(got) != 0 {
-		t.Fatalf("stepped back to the day just ended, %d reads of the tail asked, the folds of %v read; want one asked at once, none read", len(tails), got)
-	}
-	if h.model.accounts.page != nil || !h.model.awaiting() {
-		t.Fatalf("the tail's read under way, a page %t, awaiting %t; want none, awaiting it", h.model.accounts.page != nil, h.model.awaiting())
-	}
-	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", today.Add(23*time.Hour+58*time.Minute), 1)...)
+			h.clock.now = today.Add(day + 30*time.Second)
+			date := dayfile.DateOf(today)
+			tails, rest := tailReads(h.press("<"))
+			if got := foldsRead(h, rest...); len(tails) != 1 || len(got) != 0 {
+				t.Fatalf("stepped back to the day just ended, %d reads of the tail asked, the folds of %v read; want one asked at once, none read", len(tails), got)
+			}
+			if tt.page(h.model) || !h.model.awaiting() {
+				t.Fatalf("the tail's read under way, a page %t, awaiting %t; want none, awaiting it", tt.page(h.model), h.model.awaiting())
+			}
+			projectsLedgerOf(h).write(projectAsks(alphaSecond, "/code/alpha", today.Add(23*time.Hour+58*time.Minute), 1)...)
 
-	if got := foldsRead(h, tails...); !slices.Equal(got, []string{date}) || h.model.pastDay.early {
-		t.Fatalf("the tail's read landed, the folds of %v read, early %t; want the day's read once, not early, so never again", got, h.model.pastDay.early)
-	}
-	if got := workedAt(h, 23); got.Amount == nil || h.model.awaiting() {
-		t.Errorf("read, 23:00 is charted as nothing, awaiting %t; want the day's last request, nothing awaited", h.model.awaiting())
-	}
-	if got := foldsKeyed(h, "R"); len(got) != 0 {
-		t.Errorf("a look after, the folds of %v were read, want none", got)
+			if got := foldsRead(h, tails...); !slices.Equal(got, []string{date}) || h.model.pastDay.early {
+				t.Fatalf("the tail's read landed, the folds of %v read, early %t; want the day's read once, not early, so never again", got, h.model.pastDay.early)
+			}
+			if !tt.page(h.model) || h.model.awaiting() {
+				t.Fatalf("read, a page %t, awaiting %t; want the day's, nothing awaited", tt.page(h.model), h.model.awaiting())
+			}
+			if got := tt.at23(h.model); got.Amount == nil {
+				t.Errorf("read, 23:00 is charted as nothing, want the day's last request")
+			}
+			if got := foldsKeyed(h, "R"); len(got) != 0 {
+				t.Errorf("a look after, the folds of %v were read, want none", got)
+			}
+		})
 	}
 }
 

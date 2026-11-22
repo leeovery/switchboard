@@ -246,10 +246,10 @@ type LogMeasured struct {
 }
 
 // MeasureLog measures the sessions of the log given at now that hold still,
-// as sessionStill has them, as LogMeasured has them, said as the log's
+// as sessionStill has them, as LogMeasured has them, said as the dial's
 // period, at now or gone, has them said.
-func MeasureLog(log *views.SessionLog, now time.Time) LogMeasured {
-	words := sessionWords{now: now, gone: log.Gone}
+func MeasureLog(log *views.SessionLog, now time.Time, dial views.Dial) LogMeasured {
+	words := sessionWords{now: now, gone: dial.Gone()}
 	return LogMeasured{
 		of: log, model: words.widest(listModel, log.Sessions, sessionStill),
 		started: words.widest(listStarted, log.Sessions, sessionStill), worth: words.widest(listWorth, log.Sessions, sessionStill),
@@ -335,10 +335,10 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
 	log := f.SessionsTab.Log
-	words := sessionWords{m: m, now: now, gone: log.Gone, glyphs: nerdFont(f.NerdFont)}
+	words := sessionWords{m: m, now: now, gone: f.Dial.Gone(), glyphs: nerdFont(f.NerdFont)}
 	measured := f.SessionsTab.Measured
 	if measured.of != log {
-		measured = MeasureLog(log, now)
+		measured = MeasureLog(log, now, f.Dial)
 	}
 	naturals := measured.naturals(words, log.Sessions)
 	columns := listColumnsOf(f.Width, naturals)
@@ -458,12 +458,12 @@ func periodWorth(w views.Worth) line {
 // listLines are the lines of the sessions given of the dial's period at
 // now, as the List and a project's SESSIONS list them: their own, as
 // sessionLines has them, or of none, the words saying the period had none,
-// as noSessionsIn says them, but where every day of it is no longer kept, as
-// unkept tells; then, where any is, the words saying so, as unkept says
+// as noSessionsIn says them, where unkept's SaysNoSessions has them; then,
+// where any day is no longer kept, the words saying so, as unkept says
 // them, in text.subtle.
 func listLines(sessions []views.PeriodSession, unkept views.UnkeptDays, dial views.Dial, now time.Time) []sessionLine {
 	lines := sessionLines(sessions)
-	if len(lines) == 0 && !unkept.Every {
+	if len(lines) == 0 && unkept.SaysNoSessions() {
 		lines = append(lines, sessionLine{said: noSessionsIn(dial)})
 	}
 	if said := unkept.Said(now); said != "" {

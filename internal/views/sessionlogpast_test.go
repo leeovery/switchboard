@@ -7,22 +7,21 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The List's log knows whether its period is gone, as it was built: not at
-// now, and a step back, gone.
-func TestTheLogKnowsWhetherItsPeriodIsGone(t *testing.T) {
-	days := heldDays(framesNow, pastWeekWorld()...)
+// A period with no session to list says it had none, but where every day
+// of it is no longer kept, as the words saying so take their place.
+func TestAPeriodOfNoSessionSaysSoButWhereEveryDayIsGone(t *testing.T) {
 	tests := []struct {
 		name   string
-		period views.Period
-		gone   bool
+		unkept views.UnkeptDays
+		says   bool
 	}{
-		{name: "this week", period: views.LengthThisWeek.Now()},
-		{name: "last week", period: pastAt(t, views.LengthThisWeek, "<", time.Monday), gone: true},
-		{name: "yesterday", period: pastAt(t, views.LengthToday, "<", time.Monday), gone: true},
+		{name: "every day kept", says: true},
+		{name: "some days gone", unkept: views.UnkeptDays{KeptFrom: civilDate("2026-09-24")}, says: true},
+		{name: "every day gone", unkept: views.UnkeptDays{KeptFrom: civilDate("2026-09-28"), Every: true}},
 	}
 	for _, tt := range tests {
-		if got := days.SessionLog(projectsIn(tt.period, framesNow)).Gone; got != tt.gone {
-			t.Errorf("%s's log is gone %t, want %t", tt.name, got, tt.gone)
+		if got := tt.unkept.SaysNoSessions(); got != tt.says {
+			t.Errorf("%s: SaysNoSessions() = %t, want %t", tt.name, got, tt.says)
 		}
 	}
 }

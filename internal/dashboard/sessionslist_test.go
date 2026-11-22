@@ -1145,7 +1145,7 @@ func TestTheListsStartedIsAsWideAsTheWholeLogsWidest(t *testing.T) {
 	for _, measured := range []bool{false, true} {
 		f := listFrame(t, 160, 16, log)
 		if measured {
-			f.SessionsTab.Measured = MeasureLog(log, routedAt)
+			f.SessionsTab.Measured = MeasureLog(log, routedAt, f.Dial)
 		}
 		top := startedWidth(f)
 		f.Scroll = f.Scrolling(doc, routedAt).Most
