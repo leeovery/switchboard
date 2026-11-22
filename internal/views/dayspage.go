@@ -46,28 +46,36 @@ func (p DaysPage) Recorded() bool {
 	return len(p.ByModel) > 0
 }
 
-// weekDays are the days of the weeks to this one, as Days and Accounts' BY
-// DAY show them, from the first day of the first week to the last of this
-// one, those to come among them: each day's summary, nil where there's none,
-// and the index of today's.
+// weekDays are the days of some weeks, as Days and Accounts' BY DAY show
+// them, from the first day of the first week to the last of the last, those
+// to come among them: each day's summary, nil where there's none, and the
+// index of the last that's come, today's, or the weeks' last where they end
+// before today.
 type weekDays struct {
-	first time.Time
-	days  []*Day
-	today int
+	first   time.Time
+	days    []*Day
+	through int
 }
 
-// weekDaysOf are the days of the n weeks to now's, from the day weeks start
-// on, of days, which run to today.
-func weekDaysOf(days []Day, now time.Time, starts time.Weekday, n int) weekDays {
+// weekDaysOf are the days of the n weeks to the one beginning on last, as
+// dayfile.Civil gives a day, now's or one before it, from the day weeks
+// start on, of days, which run to today: none to come where they end before
+// today's week.
+func weekDaysOf(days []Day, now time.Time, starts time.Weekday, n int, last time.Time) weekDays {
 	today := dayfile.CivilOf(now)
-	w := weekDays{first: weeksTo(today, starts, n), days: make([]*Day, 7*n)}
-	w.today = w.index(today)
+	w := weekDays{first: weeksTo(last, starts, n), days: make([]*Day, 7*n)}
+	w.through = min(w.index(today), len(w.days)-1)
 	for i := range days {
-		if day, ok := dayfile.Civil(days[i].Day); ok && !day.Before(w.first) && !day.After(today) {
+		if day, ok := dayfile.Civil(days[i].Day); ok && !day.Before(w.first) && w.index(day) <= w.through {
 			w.days[w.index(day)] = &days[i]
 		}
 	}
 	return w
+}
+
+// toCome is how many of the weeks' days are still to come, after today.
+func (w weekDays) toCome() int {
+	return len(w.days) - 1 - w.through
 }
 
 // index is the place among the weeks' days of the day given, as
@@ -79,10 +87,10 @@ func (w weekDays) index(day time.Time) int {
 // daysPageOf is Days' page of days, which run to now's day, priced: the eight
 // weeks to now's, from the day weeks start on.
 func daysPageOf(in HistoryInput, days []Day) DaysPage {
-	w := weekDaysOf(days, in.Now, in.WeekStarts, weeksShown)
+	w := weekDaysOf(days, in.Now, in.WeekStarts, weeksShown, weekOf(dayfile.CivilOf(in.Now), in.WeekStarts))
 	return DaysPage{
 		Weeks:   weekDates(w.first, weeksShown),
-		ToCome:  len(w.days) - 1 - w.today,
+		ToCome:  w.toCome(),
 		ByModel: w.byFamily(versions{table: in.Prices, family: in.Family}),
 	}
 }

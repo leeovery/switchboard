@@ -58,4 +58,4 @@ SESSIONS
 
 
 
-tab views   ↑↓ project   → sessions   < > period   ? keys   q quit
+tab views   ↑↓ project   → sessions   < > back · on   ? keys   q quit

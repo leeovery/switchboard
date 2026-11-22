@@ -288,7 +288,7 @@ func addedPartWay() AccountsMoment {
 		readAccount("spare", now, window(fiveHour, 0.1, At(19, 0, 0)), window(week, 0.35, in2026(time.October, 3, 10, 0, 0))))
 	return AccountsMoment{
 		Name: "an account added part-way through the period", Accounts: config.Accounts{workUltra, spareMax}, WeekStarts: time.Monday,
-		Days: f.summaries(in2026(time.September, 2, 0, 0, 0), now), Doc: doc, Now: now, Period: views.PeriodThirtyDays,
+		Days: f.summaries(in2026(time.September, 2, 0, 0, 0), now), Doc: doc, Now: now, Period: views.LengthThirtyDays.Now(),
 		Want: map[string]Figures{
 			work:    {FigureRequests: "29", FigureWorth: "$116", FigurePlan: "Ultra $200/mo", FigureAgainst: "0.6× of $200", FigureLeft: "30%"},
 			"spare": {FigureRequests: "3", FigureWorth: "$3", FigurePlan: "Max $100/mo", FigureAgainst: "0.0× of $100", FigureLeft: "—"},
@@ -428,13 +428,13 @@ func atMidnight() []AccountsMoment {
 		}
 	}
 	return []AccountsMoment{
-		moment("today at a second to midnight", in2026(time.September, 30, 23, 59, 59), views.PeriodToday, "yes",
+		moment("today at a second to midnight", in2026(time.September, 30, 23, 59, 59), views.LengthToday.Now(), "yes",
 			Figures{FigureRequests: "1", FigureAgainst: "0.6× of $7"}),
-		moment("today at a second after midnight", in2026(time.October, 1, 0, 0, 1), views.PeriodToday, "no",
+		moment("today at a second after midnight", in2026(time.October, 1, 0, 0, 1), views.LengthToday.Now(), "no",
 			Figures{FigureRequests: "0", FigureAgainst: "0.0× of $7"}),
-		moment("this week at a second to midnight on its last day", in2026(time.October, 4, 23, 59, 59), views.PeriodThisWeek, "yes",
+		moment("this week at a second to midnight on its last day", in2026(time.October, 4, 23, 59, 59), views.LengthThisWeek.Now(), "yes",
 			Figures{FigureRequests: "7", FigureAgainst: "0.6× of $46"}),
-		moment("this week on its first day, a second after midnight", in2026(time.October, 5, 0, 0, 1), views.PeriodThisWeek, "no",
+		moment("this week on its first day, a second after midnight", in2026(time.October, 5, 0, 0, 1), views.LengthThisWeek.Now(), "no",
 			Figures{FigureRequests: "0", FigureAgainst: "0.0× of $46"}),
 	}
 }

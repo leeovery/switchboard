@@ -58,14 +58,14 @@ func TestCompareReachesOverThePeriodsWeeks(t *testing.T) {
 		first, last, firstAxis  string
 		firstStart, lastStarted string
 	}{
-		{views.PeriodToday, 8, "17 Aug", "5 Oct", "Aug", "2026-08-17", "2026-10-05"},
-		{views.PeriodThisWeek, 8, "17 Aug", "5 Oct", "Aug", "2026-08-17", "2026-10-05"},
-		{views.PeriodThirtyDays, 8, "17 Aug", "5 Oct", "Aug", "2026-08-17", "2026-10-05"},
-		{views.PeriodTwelveWeeks, 12, "20 Jul", "5 Oct", "Jul", "2026-07-20", "2026-10-05"},
-		{views.PeriodTwelveMonths, 13, "Oct", "Oct", "Oct", "2025-10-01", "2026-10-01"},
+		{views.LengthToday.Now(), 8, "17 Aug", "5 Oct", "Aug", "2026-08-17", "2026-10-05"},
+		{views.LengthThisWeek.Now(), 8, "17 Aug", "5 Oct", "Aug", "2026-08-17", "2026-10-05"},
+		{views.LengthThirtyDays.Now(), 8, "17 Aug", "5 Oct", "Aug", "2026-08-17", "2026-10-05"},
+		{views.LengthTwelveWeeks.Now(), 12, "20 Jul", "5 Oct", "Jul", "2026-07-20", "2026-10-05"},
+		{views.LengthTwelveMonths.Now(), 13, "Oct", "Oct", "Oct", "2025-10-01", "2026-10-01"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.period.Name(), func(t *testing.T) {
+		t.Run(tt.period.Length().Name(), func(t *testing.T) {
 			page := reachingPage(tt.period)
 			reach := page.Reach
 			got := fmt.Sprintf("%d %s %s %s %s %s", len(reach), reach[0].Label, reach[len(reach)-1].Label, reach[0].Axis,
@@ -93,7 +93,7 @@ func TestTheReachsPeaksAndFactsAreWeeks(t *testing.T) {
 	in := input(days)
 	in.Accounts = workAndSide
 	past := views.NewPast(in, days)
-	page, weeks := past.Accounts(views.PeriodThisWeek), past.Weeks()
+	page, weeks := past.Accounts(views.LengthThisWeek.Now()), past.Weeks()
 	rows := append(slices.Clone(page.Rows), page.All)
 	weekly := append(slices.Clone(weeks.Accounts), weeks.All)
 	for i, row := range rows {
@@ -117,10 +117,10 @@ func TestTheReachsPeaksAndFactsAreWeeks(t *testing.T) {
 // is its fullest week's of those that begin in it, the month this week
 // began in holding it so far, where it's the only one.
 func TestTheReachAt12WeeksAnd12MonthsIsTheirWeeks(t *testing.T) {
-	if work := reachingPage(views.PeriodTwelveWeeks).Rows[0].Reaching; work.Weeks != 11 || work.Limits != 2 {
+	if work := reachingPage(views.LengthTwelveWeeks.Now()).Rows[0].Reaching; work.Weeks != 11 || work.Limits != 2 {
 		t.Errorf("work's facts over 12 weeks are %s, want its limit hit in 2 of 11 whole weeks", verdictRead(work))
 	}
-	months := reachingPage(views.PeriodTwelveMonths)
+	months := reachingPage(views.LengthTwelveMonths.Now())
 	if work := months.Rows[0].Reaching; work.Weeks != 51 || work.Limits != 11 {
 		t.Errorf("work's facts over 12 months are %s, want its limit hit in 11 of 51 whole weeks", verdictRead(work))
 	}
@@ -139,7 +139,7 @@ func TestAMonthAt12MonthsIsAtItsCapWhereAnyOfItsWeeksIs(t *testing.T) {
 	days := peaking(map[string][]float64{"work": {1, 0.8}, "side": {0.4, 0.75}, "personal": {0.4, 0.75}})
 	in := input(days)
 	in.Accounts = config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "personal"}}
-	page := views.NewPast(in, days).Accounts(views.PeriodTwelveMonths)
+	page := views.NewPast(in, days).Accounts(views.LengthTwelveMonths.Now())
 	september := slices.IndexFunc(page.Reach, func(b views.Bucket) bool { return b.Start.Format(time.DateOnly) == "2026-09-01" })
 	if september < 0 {
 		t.Fatalf("the reach %v has no September", page.Reach)
@@ -171,7 +171,7 @@ func TestTheMonthThisWeekFallsInIsMarkedWhereAnotherOfItsWeeksWasShort(t *testin
 	)
 	in := input(days)
 	in.Now, in.Accounts = today, config.Accounts{{ID: "work"}, {ID: "side"}, {ID: "personal"}}
-	page := views.NewPast(in, days).Accounts(views.PeriodTwelveMonths)
+	page := views.NewPast(in, days).Accounts(views.LengthTwelveMonths.Now())
 	october := slices.IndexFunc(page.Reach, func(b views.Bucket) bool { return b.Start.Format(time.DateOnly) == "2026-10-01" })
 	if october < 0 {
 		t.Fatalf("the reach %v has no October", page.Reach)
@@ -213,14 +213,14 @@ func TestAnAccountsWorthIsChartedAsProjectsChartAProjects(t *testing.T) {
 		period views.Period
 		work   []chart
 	}{
-		{views.PeriodToday, []chart{{views.ByDay, 1, "Wed"}}},
-		{views.PeriodThisWeek, []chart{{views.ByDay, 7, "Wed"}}},
-		{views.PeriodThirtyDays, []chart{{views.ByDay, 30, "7 Oct"}, {views.ByWeek, 5, "week of 5 Oct"}}},
-		{views.PeriodTwelveWeeks, []chart{{views.ByDay, 84, "7 Oct"}, {views.ByWeek, 12, "week of 5 Oct"}}},
-		{views.PeriodTwelveMonths, []chart{{views.ByWeek, 53, "week of 5 Oct"}, {views.ByMonth, 13, "Oct 2026"}}},
+		{views.LengthToday.Now(), []chart{{views.ByDay, 1, "Wed"}}},
+		{views.LengthThisWeek.Now(), []chart{{views.ByDay, 7, "Wed"}}},
+		{views.LengthThirtyDays.Now(), []chart{{views.ByDay, 30, "7 Oct"}, {views.ByWeek, 5, "week of 5 Oct"}}},
+		{views.LengthTwelveWeeks.Now(), []chart{{views.ByDay, 84, "7 Oct"}, {views.ByWeek, 12, "week of 5 Oct"}}},
+		{views.LengthTwelveMonths.Now(), []chart{{views.ByWeek, 53, "week of 5 Oct"}, {views.ByMonth, 13, "Oct 2026"}}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.period.Name(), func(t *testing.T) {
+		t.Run(tt.period.Length().Name(), func(t *testing.T) {
 			page := past.Accounts(tt.period)
 			var got []chart
 			for _, by := range page.Rows[0].WorthBy {
@@ -276,10 +276,10 @@ func TestAnAccountsWorthIsChartedFromTheDayTheWorkBegan(t *testing.T) {
 		period views.Period
 		want   []chartFrom
 	}{
-		{"begun on Friday, over 30 days", "2026-10-02", views.PeriodThirtyDays, []chartFrom{{views.ByDay, 6, "2026-10-02"}, {views.ByWeek, 2, "2026-09-28"}}},
-		{"begun on Friday, over 12 months", "2026-10-02", views.PeriodTwelveMonths, []chartFrom{{views.ByWeek, 2, "2026-09-28"}, {views.ByMonth, 1, "2026-10-01"}}},
-		{"begun on Friday, over this week", "2026-10-02", views.PeriodThisWeek, []chartFrom{{views.ByDay, 7, "2026-10-05"}}},
-		{"begun in January, over 30 days", "2026-01-01", views.PeriodThirtyDays, []chartFrom{{views.ByDay, 30, "2026-09-08"}, {views.ByWeek, 5, "2026-09-07"}}},
+		{"begun on Friday, over 30 days", "2026-10-02", views.LengthThirtyDays.Now(), []chartFrom{{views.ByDay, 6, "2026-10-02"}, {views.ByWeek, 2, "2026-09-28"}}},
+		{"begun on Friday, over 12 months", "2026-10-02", views.LengthTwelveMonths.Now(), []chartFrom{{views.ByWeek, 2, "2026-09-28"}, {views.ByMonth, 1, "2026-10-01"}}},
+		{"begun on Friday, over this week", "2026-10-02", views.LengthThisWeek.Now(), []chartFrom{{views.ByDay, 7, "2026-10-05"}}},
+		{"begun in January, over 30 days", "2026-01-01", views.LengthThirtyDays.Now(), []chartFrom{{views.ByDay, 30, "2026-09-08"}, {views.ByWeek, 5, "2026-09-07"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -312,8 +312,8 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 	)
 	in := input(nil)
 	in.Accounts = workAndSide
-	byDay := views.NewPast(in, nil).Accounts(views.PeriodToday)
-	page := byDay.Hourly(heldDays(now, lines...))
+	byDay := views.NewPast(in, nil).Accounts(views.LengthToday.Now())
+	page := byDay.Hourly(heldDays(now, lines...).TodayFold())
 	type chart struct {
 		unit            views.BucketUnit
 		buckets, toCome int
@@ -363,12 +363,17 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 		return []views.WorthCharts{page.Rows[0].WorthBy, page.Rows[1].WorthBy, page.All.WorthBy}
 	}
 	yesterday := heldDays(october(6, 23, 0), projectAsks(repoSession, "/code/switchboard", "", "work", october(6, 22, 0))...)
-	if got := byDay.Hourly(yesterday); !reflect.DeepEqual(charts(got), charts(byDay)) {
+	if got := byDay.Hourly(yesterday.TodayFold()); !reflect.DeepEqual(charts(got), charts(byDay)) {
 		t.Errorf("fed yesterday's fold, today's page is charted %+v, want it by the day, %+v", charts(got), charts(byDay))
 	}
-	week := views.NewPast(in, nil).Accounts(views.PeriodThisWeek)
-	if got := week.Hourly(heldDays(now, lines...)); !reflect.DeepEqual(charts(got), charts(week)) {
+	week := views.NewPast(in, nil).Accounts(views.LengthThisWeek.Now())
+	if got := week.Hourly(heldDays(now, lines...).TodayFold()); !reflect.DeepEqual(charts(got), charts(week)) {
 		t.Errorf("fed today's fold, this week's page is charted %+v, want it by the day, %+v", charts(got), charts(week))
+	}
+	back, _ := views.LengthToday.Now().Back(in.Now, in.WeekStarts, time.Time{})
+	gone := views.NewPast(in, nil).Accounts(back)
+	if got := gone.Hourly(heldDays(now, lines...).TodayFold()); !reflect.DeepEqual(charts(got), charts(gone)) {
+		t.Errorf("fed today's fold, yesterday's page is charted %+v, want it by the day, %+v", charts(got), charts(gone))
 	}
 }
 
@@ -393,7 +398,7 @@ func TestAccountsTodaysHoursSumToItsWorth(t *testing.T) {
 	days := []ledger.Summary{summary}
 	in := input(days)
 	in.Accounts = workAndSide
-	page := views.NewPast(in, days).Accounts(views.PeriodToday).Hourly(heldDays(now, lines...))
+	page := views.NewPast(in, days).Accounts(views.LengthToday.Now()).Hourly(heldDays(now, lines...).TodayFold())
 	for _, row := range append(slices.Clone(page.Rows), page.All) {
 		var sum views.Worth
 		for _, b := range row.WorthBy[0].Buckets {
@@ -416,7 +421,7 @@ func TestARequestOfNoSessionGivenAgainCountsOnce(t *testing.T) {
 		Tailed(line, true, nil, nil, now, views.PoolRead{}).Tailed(line, false, nil, nil, now, views.PoolRead{})
 	in := input(nil)
 	in.Accounts = workAndSide
-	page := views.NewPast(in, nil).Accounts(views.PeriodToday).Hourly(days)
+	page := views.NewPast(in, nil).Accounts(views.LengthToday.Now()).Hourly(days.TodayFold())
 	if got := page.Rows[0].WorthBy[0].Buckets[10].Worth; !reflect.DeepEqual(got, hoursWorth(1)) {
 		t.Errorf("given twice, work's 10:00 is worth %+v, want the request's once, %+v", got, hoursWorth(1))
 	}

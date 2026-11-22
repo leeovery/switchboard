@@ -123,18 +123,19 @@ func TestDetailsWeeksReachAtEachPeriodAndWidth(t *testing.T) {
 		shown, dw      int
 		rule, more     string
 	}{
-		{period: views.PeriodToday, reaches: 6, width: 173, shown: 8, dw: 2, rule: "the last eight weeks"},
-		{period: views.PeriodThisWeek, reaches: 6, width: 107, shown: 8, dw: 1, rule: "the last eight weeks"},
-		{period: views.PeriodThisWeek, reaches: 6, width: 160, shown: 7, dw: 2, rule: "the last seven weeks"},
-		{period: views.PeriodThirtyDays, reaches: 6, width: 141, shown: 6, dw: 2, rule: "the last six weeks"},
-		{period: views.PeriodTwelveWeeks, reaches: 12, width: 120, shown: 9, dw: 1, rule: "the last nine weeks", more: "‹ 3 more"},
-		{period: views.PeriodTwelveWeeks, reaches: 12, width: 160, shown: 13, dw: 1, rule: "the last 13 weeks"},
-		{period: views.PeriodTwelveMonths, reaches: 53, width: 173, shown: 15, dw: 1, rule: "the last 15 weeks", more: "‹ 38 more"},
+		{period: views.LengthToday.Now(), reaches: 6, width: 173, shown: 8, dw: 2, rule: "the last eight weeks"},
+		{period: views.LengthThisWeek.Now(), reaches: 6, width: 107, shown: 8, dw: 1, rule: "the last eight weeks"},
+		{period: views.LengthThisWeek.Now(), reaches: 6, width: 160, shown: 7, dw: 2, rule: "the last seven weeks"},
+		{period: views.LengthThirtyDays.Now(), reaches: 6, width: 141, shown: 6, dw: 2, rule: "the last six weeks"},
+		{period: views.LengthTwelveWeeks.Now(), reaches: 12, width: 120, shown: 9, dw: 1, rule: "the last nine weeks", more: "‹ 3 more"},
+		{period: views.LengthTwelveWeeks.Now(), reaches: 12, width: 160, shown: 13, dw: 1, rule: "the last 13 weeks"},
+		{period: views.LengthTwelveMonths.Now(), reaches: 53, width: 173, shown: 15, dw: 1, rule: "the last 15 weeks", more: "‹ 38 more"},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%s at %d", tt.period.Name(), tt.width), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s at %d", tt.period.Length().Name(), tt.width), func(t *testing.T) {
 			f := detailFrame(Look{}, framedAccounts, "work", "", yearPage(t, tt.period, tt.reaches), nil)
-			f.Width, f.Period = tt.width, tt.period
+			f.Width = tt.width
+			f = f.over(tt.period)
 			rows, d := panelOf(f, doc)
 			if d.l.dw != tt.dw || d.weeksShown() != tt.shown {
 				t.Fatalf("its weeks are %d, their days %d cells; want %d, %d cells", d.weeksShown(), d.l.dw, tt.shown, tt.dw)
@@ -191,7 +192,7 @@ func TestDetailOfAllAccountsDrawsBandsWideAndTheTableStacked(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%dx%d", tt.width, tt.height), func(t *testing.T) {
-			f := detailFrame(Look{}, framedAccounts, "", "", yearPage(t, views.PeriodThisWeek, sixWeeks), nil)
+			f := detailFrame(Look{}, framedAccounts, "", "", yearPage(t, views.LengthThisWeek.Now(), sixWeeks), nil)
 			f.Width, f.Height = tt.width, tt.height
 			rows, d := panelOf(f, doc)
 			if got := d.weeksForm(); got != weeksInBands {
@@ -218,8 +219,8 @@ func TestDetailOfAllAccountsDrawsBandsWideAndTheTableStacked(t *testing.T) {
 	t.Run("their facts", func(t *testing.T) {
 		am := rereadMoment(t)
 		f := Frame{
-			Width: 173, Height: wholeRows, View: Accounts, Policy: claude.Policy(), Period: views.PeriodThisWeek,
-			Accounts: AccountsShown{Shown: AccountsDetail, Accounts: am.Accounts, Page: momentPage(am, views.PeriodThisWeek)},
+			Width: 173, Height: wholeRows, View: Accounts, Policy: claude.Policy(), Period: views.LengthThisWeek.Now(), Dial: dialOf(views.LengthThisWeek.Now()),
+			Accounts: AccountsShown{Shown: AccountsDetail, Accounts: am.Accounts, Page: momentPage(am, views.LengthThisWeek.Now())},
 		}
 		d := f.detailDrawn(am.Doc, am.Now, laidIn(f, am.Doc))
 		rows := textOf(d.panel().rows(Look{}))

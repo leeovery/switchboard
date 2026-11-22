@@ -26,7 +26,8 @@ func periodTokens() *views.TokensPage {
 // the page given over the period given, split as given.
 func accountsTokensFrame(width, height int, period views.Period, split TokensSplit, page *views.TokensPage) Frame {
 	f := frameOf(width, height)
-	f.View, f.Period = Accounts, period
+	f.View = Accounts
+	f = f.over(period)
 	f.Accounts = AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured, TokensSplit: split, Tokens: page}
 	return f
 }
@@ -45,7 +46,7 @@ func accountsTokensRows(f Frame) []string {
 // as accounts-tokens-173x53 draws them.
 func TestAccountsTokensLeadsWithThePeriodsTotalRuledOff(t *testing.T) {
 	const heads = "day           models                 input      output cache write    cache read         total  worth     against its price"
-	f := accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, periodTokens())
+	f := accountsTokensFrame(160, 37, views.LengthThisWeek.Now(), TokensByAccount, periodTokens())
 	rows := accountsTokensRows(f)
 	want := []string{
 		heads,
@@ -84,7 +85,7 @@ func TestAccountsTokensRuleRunsAsFarAsTheHeads(t *testing.T) {
 		{width: 73, heads: "day             cache read         total  worth     against its price"},
 		{width: 52, heads: "day             cache read         total  worth"},
 	} {
-		rows := accountsTokensRows(accountsTokensFrame(tt.width, 37, views.PeriodThisWeek, TokensByAccount, periodTokens()))
+		rows := accountsTokensRows(accountsTokensFrame(tt.width, 37, views.LengthThisWeek.Now(), TokensByAccount, periodTokens()))
 		if rows[0] != tt.heads || rows[6] != rule(len(tt.heads)) {
 			t.Errorf("at %d columns, the heads read %q and the rule %q, want the rule as long as %q", tt.width, rows[0], rows[6], tt.heads)
 		}
@@ -96,7 +97,7 @@ func TestAccountsTokensRuleRunsAsFarAsTheHeads(t *testing.T) {
 func TestAccountsTokensTodayIsItsTotalAlone(t *testing.T) {
 	page := periodTokens()
 	page.Periods = nil
-	rows := accountsTokensRows(accountsTokensFrame(160, 37, views.PeriodToday, TokensByAccount, page))
+	rows := accountsTokensRows(accountsTokensFrame(160, 37, views.LengthToday.Now(), TokensByAccount, page))
 	want := []string{
 		"",
 		"today         2 models                4.2M        2.9M       38.0M          615M          660M  $635+     4.6× its $138 day",
@@ -120,23 +121,23 @@ func TestAccountsTokensAgainstItsPriceNamesEachUnit(t *testing.T) {
 		total, firstRow  string
 		head, firstNamed string
 	}{
-		{period: views.PeriodThisWeek, head: "day", total: "its $138 week", firstNamed: "Thu 1 Oct", firstRow: "its $20 day"},
-		{period: views.PeriodThirtyDays, head: "day", total: "its $138 month", firstNamed: "Thu 1 Oct", firstRow: "its $20 day"},
-		{period: views.PeriodTwelveWeeks, head: "week", total: "its $138 12 weeks", firstNamed: "1 Oct", firstRow: "its $20 week"},
-		{period: views.PeriodTwelveMonths, head: "month", total: "its $138 12 months", firstNamed: "Oct 2026", firstRow: "its $20 month"},
+		{period: views.LengthThisWeek.Now(), head: "day", total: "its $138 week", firstNamed: "Thu 1 Oct", firstRow: "its $20 day"},
+		{period: views.LengthThirtyDays.Now(), head: "day", total: "its $138 month", firstNamed: "Thu 1 Oct", firstRow: "its $20 day"},
+		{period: views.LengthTwelveWeeks.Now(), head: "week", total: "its $138 12 weeks", firstNamed: "1 Oct", firstRow: "its $20 week"},
+		{period: views.LengthTwelveMonths.Now(), head: "month", total: "its $138 12 months", firstNamed: "Oct 2026", firstRow: "its $20 month"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.period.Name(), func(t *testing.T) {
+		t.Run(tt.period.Length().Name(), func(t *testing.T) {
 			page := periodTokens()
-			if tt.period == views.PeriodTwelveMonths {
+			if tt.period == views.LengthTwelveMonths.Now() {
 				page.Periods[0].First = "2026-10"
 			}
 			rows := accountsTokensRows(accountsTokensFrame(160, 37, tt.period, TokensUnsplit, page))
 			if !strings.HasPrefix(rows[0], tt.head+" ") {
 				t.Errorf("the heads read %q, want them to lead with %q", rows[0], tt.head)
 			}
-			if !strings.HasPrefix(rows[2], tt.period.Name()+" ") || !strings.HasSuffix(rows[2], tt.total) {
-				t.Errorf("the total reads %q, want it named %q and against %q", rows[2], tt.period.Name(), tt.total)
+			if !strings.HasPrefix(rows[2], tt.period.Length().Name()+" ") || !strings.HasSuffix(rows[2], tt.total) {
+				t.Errorf("the total reads %q, want it named %q and against %q", rows[2], tt.period.Length().Name(), tt.total)
 			}
 			if !strings.HasPrefix(rows[5], tt.firstNamed+" ") || !strings.HasSuffix(rows[5], tt.firstRow) {
 				t.Errorf("the first row reads %q, want it named %q and against %q", rows[5], tt.firstNamed, tt.firstRow)
@@ -159,7 +160,7 @@ func TestAccountsTokensSplitsEachRowAsVHasIt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tokensSplitWords[tt.split], func(t *testing.T) {
-			rows := accountsTokensRows(accountsTokensFrame(173, 53, views.PeriodThisWeek, tt.split, periodTokens()))
+			rows := accountsTokensRows(accountsTokensFrame(173, 53, views.LengthThisWeek.Now(), tt.split, periodTokens()))
 			names := func(from, n int) []string {
 				var named []string
 				for _, r := range rows[from : from+n] {
@@ -185,7 +186,7 @@ func TestAccountsTokensSplitsEachRowAsVHasIt(t *testing.T) {
 // rows don't fit, the row after saying how many more are below; scrolled,
 // they move a row at a time.
 func TestAccountsTokensRowsFillTheViewAndCutTheLast(t *testing.T) {
-	f := accountsTokensFrame(160, 18, views.PeriodThisWeek, TokensByAccount, periodTokens())
+	f := accountsTokensFrame(160, 18, views.LengthThisWeek.Now(), TokensByAccount, periodTokens())
 	rows := accountsTokensRows(f)
 	placed, note := f.accountsTokens().placed(f.top())
 	last := placed.first - f.top() + placed.rows - 1
@@ -215,7 +216,7 @@ func TestAccountsTokensRowsFillTheViewAndCutTheLast(t *testing.T) {
 // The total's figures and today's row's each brighten as the number they
 // are, never one for both: the total's of the period Accounts counts over.
 func TestAccountsTokensTotalAndTodayAreNumberedApart(t *testing.T) {
-	got := accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, periodTokens()).Numbers(threeRouted(), now)
+	got := accountsTokensFrame(160, 37, views.LengthThisWeek.Now(), TokensByAccount, periodTokens()).Numbers(threeRouted(), now)
 	for n, want := range map[Number]string{
 		{Kind: NumberPeriod, Of: "tokens total"}:                        "660M",
 		{Kind: NumberPeriod, Account: "side", Of: "tokens split worth"}: "$239+",
@@ -240,8 +241,8 @@ func TestAccountsTokensNoAccountsRowIsNumberedApartFromTheTotal(t *testing.T) {
 		p.Total = &total
 		return p
 	}
-	was := accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, page(100_000)).Numbers(threeRouted(), now)
-	is := accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, page(2_000_000)).Numbers(threeRouted(), now)
+	was := accountsTokensFrame(160, 37, views.LengthThisWeek.Now(), TokensByAccount, page(100_000)).Numbers(threeRouted(), now)
+	is := accountsTokensFrame(160, 37, views.LengthThisWeek.Now(), TokensByAccount, page(2_000_000)).Numbers(threeRouted(), now)
 	var changed []Number
 	for n, v := range is {
 		if was[n] != v {
@@ -262,11 +263,11 @@ func TestAccountsTokensNoAccountsRowIsNumberedApartFromTheTotal(t *testing.T) {
 // With nothing recorded over the period, Tokens says so; till its page is
 // built, it draws nothing.
 func TestAccountsTokensOfNothingRecordedSaysSo(t *testing.T) {
-	rows := accountsTokensRows(accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, &views.TokensPage{}))
+	rows := accountsTokensRows(accountsTokensFrame(160, 37, views.LengthThisWeek.Now(), TokensByAccount, &views.TokensPage{}))
 	if got := strings.TrimSpace(rows[0]); got != nothingRecorded {
 		t.Errorf("Tokens of nothing recorded reads %q, want %q", got, nothingRecorded)
 	}
-	for i, r := range accountsTokensRows(accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, nil)) {
+	for i, r := range accountsTokensRows(accountsTokensFrame(160, 37, views.LengthThisWeek.Now(), TokensByAccount, nil)) {
 		if strings.TrimSpace(r) != "" {
 			t.Errorf("Tokens unbuilt draws %q on its row %d, want nothing", r, i)
 		}

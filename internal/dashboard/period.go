@@ -7,24 +7,49 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// PeriodKept is the period the preferences kept, by its name: where they
-// keep none, the one a build from before the dial was shared kept under
-// Accounts. One that isn't a period, as a later build's, reads as this week.
-func PeriodKept(kept theme.Prefs) views.Period {
-	if period := views.Period(cmp.Or(kept.Period, kept.Accounts.Period)); period.Known() {
-		return period
+// LengthKept is the period's length the preferences kept: where they keep
+// none, the one a build from before the dial was shared kept under Accounts.
+// One that isn't a length, as a later build's, reads as this week.
+func LengthKept(kept theme.Prefs) views.Length {
+	if length := views.Length(cmp.Or(kept.Period, kept.Accounts.Period)); length.Known() {
+		return length
 	}
-	return views.PeriodThisWeek
+	return views.LengthThisWeek
 }
 
-// KeepPeriod has prefs keep period, as PeriodKept reads it back, in place of
-// the one a build from before the dial was shared kept under Accounts.
-func KeepPeriod(prefs *theme.Prefs, period views.Period) {
-	prefs.Period, prefs.Accounts.Period = string(period), ""
+// KeepLength has prefs keep the period's length given, as LengthKept reads
+// it back, in place of the one a build from before the dial was shared kept
+// under Accounts.
+func KeepLength(prefs *theme.Prefs, length views.Length) {
+	prefs.Period, prefs.Accounts.Period = string(length), ""
 }
 
-// periodDial is the dial's period at a heading's right, by its name, and the
-// widest name it can take, which the heading keeps room for as it steps.
-func periodDial(period views.Period) (name, widest string) {
-	return period.Name(), widestOf(views.PeriodNames())
+// dialed is the dial's period as a heading draws it at its right: its name;
+// the widest name it keeps room for, so nothing moves the heading at now;
+// whether it's gone, its name then in accent.attention, never read as now;
+// and whether < or > does nothing, at the ledger's first day or at now,
+// each then faint.
+type dialed struct {
+	name, widest   string
+	gone           bool
+	backOff, onOff bool
+}
+
+// periodDial is the dial's period given as a heading draws it, as dialed
+// has it.
+func periodDial(d views.Dial) dialed {
+	return dialed{name: d.Name(), widest: d.Widest(), gone: d.Gone(), backOff: d.Earliest(), onOff: d.AtNow()}
+}
+
+// shown reports whether the heading has a dial to draw.
+func (d dialed) shown() bool {
+	return d.name != ""
+}
+
+// atWidest is the dial at the widest it takes, as the heading keeps room for
+// it: its widest name, or its own where that's wider, as a period gone's may
+// be.
+func (d dialed) atWidest() dialed {
+	d.name = widestOf([]string{d.widest, d.name})
+	return d
 }

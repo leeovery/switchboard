@@ -2,6 +2,8 @@ package views
 
 import (
 	"cmp"
+	"errors"
+	"io/fs"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -56,9 +58,68 @@ func (o OldestDay) DayBefore(first LedgerDay) (LedgerDay, bool) {
 }
 
 // keeps reports whether the ledger keeps the lines of the day d, to read
-// back to: the oldest day, or one after it; none where it's none known.
+// back to: the oldest day, or one after it, as kept has it; none where it's
+// none known.
 func (o OldestDay) keeps(d LedgerDay) bool {
-	return o.known() && !d.Start.Before(o.Day.Start)
+	return o.known() && o.kept(d.Date)
+}
+
+// kept reports whether the ledger keeps the lines of the day with the given
+// date, and so its sessions and hours: the oldest day, or one after it;
+// every day where it's none known, as none can then be told as no longer
+// kept. It's the one rule of a day no longer kept, the Log's, Projects' and
+// the List's, and of a day's hours.
+func (o OldestDay) kept(date string) bool {
+	return !o.known() || date >= o.Day.Date
+}
+
+// Begun is where what a reader holds began, as a read found it, the
+// ledger's lines as its FirstLinesDay tells it, or the router's events as
+// their files' FirstDay does: the start of the first day it held any of;
+// known, false where it couldn't say. The zero Begun is not known.
+type Begun struct {
+	first time.Time
+	known bool
+}
+
+// BegunOf is where what a reader holds began, of first and err as it told
+// them read at now: first's day; where err says it holds none yet, as
+// fs.ErrNotExist does, now's day, as none of what it holds is of an earlier
+// one, so a read held as the days turn holds nothing before the day it was
+// read on; not known where err says it couldn't be read. It's the one
+// reading of where what's held begins, the Log's and the sessions' days'
+// alike.
+func BegunOf(first time.Time, err error, now time.Time) Begun {
+	switch {
+	case err == nil:
+		return Begun{first: first, known: true}
+	case errors.Is(err, fs.ErrNotExist):
+		return Begun{first: dayfile.DayStart(now.Local(), 0), known: true}
+	}
+	return Begun{}
+}
+
+// linesBegunIn is where the ledger l's lines began at now, as BegunOf has it
+// of its FirstLinesDay.
+func linesBegunIn(l Ledger, now time.Time) Begun {
+	first, err := l.FirstLinesDay(now)
+	return BegunOf(first, err, now)
+}
+
+// Known reports whether where it began is known.
+func (b Begun) Known() bool {
+	return b.known
+}
+
+// Oldest is the oldest day kept at now of what began where b says, kept as
+// long as keep says, as [ledger] keep gives it, as OldestKept has it, the
+// day the Log reads back to: the zero OldestDay, none known, where where it
+// began isn't known.
+func (b Begun) Oldest(keep time.Duration, now time.Time) OldestDay {
+	if !b.known {
+		return OldestDay{}
+	}
+	return OldestKept(b.first, keep, now)
 }
 
 // reached reports whether a table spanning the days from first's reaches

@@ -256,7 +256,7 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 		checks: []time.Time{midnight, midnight.Add(90 * time.Second), last}}
 	s := newSoak(t, soakSetup{start: guardStart, days: guardDays, pace: guardPace, guard: g})
 	s.show("projects")
-	s.typed(">", "<", ">")
+	s.typed("+", "-", "+")
 	s.show("trends")
 	if s.h.model.trends.year == nil || s.h.model.trends.days == nil {
 		t.Fatal("Trends shows YEAR, BY MONTH and MODELS BY DAY, but built no page of their days")
@@ -382,7 +382,7 @@ func (g *storeGuard) projectsRead(msg daysReadMsg) {
 	}
 	if !m.readsDays() || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
 		g.t.Errorf("at %s the sessions' days were read from %s on %s, the dial at %s, want a read of the dial's period while Projects or the List shows",
-			at, msg.from.Format(time.DateTime), m.view, m.period.Name())
+			at, msg.from.Format(time.DateTime), m.view, m.period.Length().Name())
 	}
 	if p.days != nil {
 		g.further++

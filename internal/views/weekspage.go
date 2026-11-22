@@ -85,18 +85,23 @@ func Peak(share float64, open bool) string {
 	return prose.Percent(share)
 }
 
-// weeksOver is Weeks' page over the n weeks to this one: the accounts' own
-// weeks placed under them as Weeks places them, the resets of the days
-// lookBack before them telling the week still running as they begin; and
-// the capacity verdict over those of them that are whole. Weeks' own page
-// is of eight; Compare's WEEKS reaches over as many as its period has.
-func (p Past) weeksOver(n int) WeeksPage {
+// weeksOver is Weeks' page over the n weeks to the one beginning on last, as
+// dayfile.Civil gives a day, this one or one before it, as the weeks to this
+// one tell them: the accounts' own weeks placed under the n and those after
+// them as Weeks places them, the resets of the days lookBack before them
+// telling the week still running as they begin, then those after dropped,
+// so each of the n before this week is whole, at its peak as the reset after
+// it filed it; and the capacity verdict over those of the n that are whole.
+// Weeks' own page is of eight to this one; Compare's WEEKS reaches over as
+// many as its period has, to its last week.
+func (p Past) weeksOver(n int, last time.Time) WeeksPage {
 	in := p.in
-	today := dayfile.CivilOf(in.Now)
-	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, n)
+	this, first := weekOf(dayfile.CivilOf(in.Now), in.WeekStarts), weeksTo(last, in.WeekStarts, n)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
-	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
+	lastDate := last.Format(time.DateOnly)
+	placed := slices.DeleteFunc(weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts),
+		func(w placedWeek) bool { return w.week > lastDate })
 	isWhole := wholeWeek(days, this)
 	pl := plans{accounts: in.Accounts, table: in.Prices}
 	j := judgingOf(placed, isWhole, in.Accounts, pl, in.WeekWindow)

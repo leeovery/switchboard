@@ -243,9 +243,9 @@ func TestTrendsOpenedOnAnEmptyLedgerBeginsTodayTillARequestLands(t *testing.T) {
 	h.model.cfg.Ledger = freshLedger{l}
 	h.model.cfg.Accounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "personal", Plan: "max"}}
 	h.start()
-	if h.model.trends.year == nil || !h.model.past.began.Equal(todayStart) {
+	if h.model.trends.year == nil || !h.model.begun.began.Equal(todayStart) {
 		t.Fatalf("Trends opened on an empty ledger, YEAR built %v, the ledger begun %s; want it built, begun today",
-			h.model.trends.year != nil, h.model.past.began)
+			h.model.trends.year != nil, h.model.begun.began)
 	}
 	pricedFromItsBeginning(t, h, h.clock.now, todayStart, []ledger.Summary{{Day: today}})
 
@@ -254,8 +254,8 @@ func TestTrendsOpenedOnAnEmptyLedgerBeginsTodayTillARequestLands(t *testing.T) {
 	l.first, l.days[tomorrow] = tomorrow, requested(tomorrow, 10)
 	h.lastTick().due = tomorrowStart.Add(time.Hour)
 	now := h.tickUntilAsked()
-	if !h.model.past.began.Equal(tomorrowStart) {
-		t.Fatalf("once a request lands the day after, the ledger is taken to begin %s, want %s", h.model.past.began, tomorrowStart)
+	if !h.model.begun.began.Equal(tomorrowStart) {
+		t.Fatalf("once a request lands the day after, the ledger is taken to begin %s, want %s", h.model.begun.began, tomorrowStart)
 	}
 	months := h.model.trends.year.ByMonth
 	if i := slices.IndexFunc(months, func(m views.MonthRow) bool { return m.Month.Month == tomorrow[:7] }); i < 0 || months[i].From != tomorrow {
@@ -278,7 +278,7 @@ func pricedFromItsBeginning(t *testing.T, h *harness, now, began time.Time, days
 	if got := h.model.trends.year.Numbers; got.Cost == nil || want.Cost == nil || *got.Cost != *want.Cost {
 		t.Errorf("YEAR's plans cost %v, want %v, priced from %s", deref(got.Cost), deref(want.Cost), began)
 	}
-	got, wantWeek := h.model.past.last.past.Accounts(views.PeriodThisWeek).All.Plan.Cost, past.Accounts(views.PeriodThisWeek).All.Plan.Cost
+	got, wantWeek := h.model.past.last.past.Accounts(views.LengthThisWeek.Now()).All.Plan.Cost, past.Accounts(views.LengthThisWeek.Now()).All.Plan.Cost
 	if got == nil || wantWeek == nil || *got != *wantWeek {
 		t.Errorf("Accounts' plans cost %v this week, want %v, priced from %s", deref(got), deref(wantWeek), began)
 	}
@@ -362,13 +362,13 @@ func TestALedgerThatFailsToSayWhereItBeginsIsAskedAgainTillItSays(t *testing.T) 
 	h.model.cfg.Ledger = flaky
 	h.start()
 	h.tickUntilAsked()
-	if !h.model.past.began.IsZero() {
-		t.Fatalf("the ledger failed to say where it began twice, but it's taken as %s", h.model.past.began)
+	if !h.model.begun.began.IsZero() {
+		t.Fatalf("the ledger failed to say where it began twice, but it's taken as %s", h.model.begun.began)
 	}
 
 	h.tickUntilAsked()
-	if began, _, _ := dayfile.Day(l.first); !h.model.past.began.Equal(began) || flaky.asked != 3 {
-		t.Errorf("at the third read, the ledger is taken to begin %s, asked %d times; want %s, at each read", h.model.past.began, flaky.asked, began)
+	if began, _, _ := dayfile.Day(l.first); !h.model.begun.began.Equal(began) || flaky.asked != 3 {
+		t.Errorf("at the third read, the ledger is taken to begin %s, asked %d times; want %s, at each read", h.model.begun.began, flaky.asked, began)
 	}
 	if got := beginningsUntold(log); got != 1 {
 		t.Errorf("the log reads\n%s\nwant one warning that the ledger couldn't say where it begins, of two failures", log)
@@ -395,9 +395,9 @@ func TestLearningWhereTheLedgerBeganBrightensNothing(t *testing.T) {
 	against := dashboard.Number{Kind: dashboard.NumberYear, Of: "against it"}
 	was := h.drawnNumber(against)
 	h.tickUntilAsked()
-	if is := h.drawnNumber(against); h.model.past.began.IsZero() || is == was {
+	if is := h.drawnNumber(against); h.model.begun.began.IsZero() || is == was {
 		t.Fatalf("the look learned the ledger began %s, the worth against the plans drawn %q, as before; want it learned, and the plans priced from it",
-			h.model.past.began, is)
+			h.model.begun.began, is)
 	}
 	if got := h.brightened(); len(got) > 0 {
 		t.Errorf("a look that learned where the ledger began, and found nothing new, brightened %v, want none", got)

@@ -46,16 +46,17 @@ type SessionsMeasured struct {
 }
 
 // MeasureSessions measures the ended sessions of the page given at the
-// moment m at now, as SessionsMeasured has them.
-func MeasureSessions(page *views.ProjectPage, m status.Moment, now time.Time) SessionsMeasured {
-	words := sessionWords{m: m, now: now}
+// moment m at now, as SessionsMeasured has them, said as the dial's period,
+// at now or gone, has them said.
+func MeasureSessions(page *views.ProjectPage, m status.Moment, now time.Time, dial views.Dial) SessionsMeasured {
+	words := sessionWords{m: m, now: now, gone: dial.Gone()}
 	widest := make([]int, len(projectColumns))
 	for i, p := range projectColumns {
-		widest[i] = words.widest(p, page.Sessions, sessionEnded)
+		widest[i] = words.widest(p, page.Sessions, sessionStill)
 	}
 	return SessionsMeasured{
 		of: page, widest: widest,
-		name: widestSaid(page.Sessions, sessionEnded, nameCells(false)), marked: widestSaid(page.Sessions, sessionEnded, nameCells(true)),
+		name: widestSaid(page.Sessions, sessionStill, nameCells(false)), marked: widestSaid(page.Sessions, sessionStill, nameCells(true)),
 	}
 }
 
@@ -67,24 +68,27 @@ func (m SessionsMeasured) Of(page *views.ProjectPage) SessionsMeasured {
 	return m
 }
 
-// sessionEnded reports whether the session has ended.
-func sessionEnded(s views.PeriodSession) bool {
-	return s.EndedOn != ""
+// sessionStill reports whether what the session says holds still, as it
+// doesn't run: it ended, or went on after a period gone.
+func sessionStill(s views.PeriodSession) bool {
+	return !sessionRunning(s)
 }
 
 // sessionRunning reports whether the session runs.
 func sessionRunning(s views.PeriodSession) bool {
-	return !sessionEnded(s)
+	return s.Running
 }
 
-// projectSessionsOf are the chosen project's sessions, of the page given, as
-// SESSIONS lays them out across a frame width cells wide, as columnsOf lays
-// its columns out, of the ended sessions as measured measures them, where
-// it's of the page, their lines as sessionLines has them.
-func projectSessionsOf(words sessionWords, page *views.ProjectPage, measured SessionsMeasured, width int) projectSessions {
-	s := projectSessions{words: words, lines: sessionLines(page.Sessions), width: width}
+// projectSessionsOf are the chosen project's sessions, of the page given
+// over the dial's period, as SESSIONS lays them out across a frame width
+// cells wide, as columnsOf lays its columns out, of the ended sessions as
+// measured measures them, where it's of the page, their lines as the List's
+// listLines has them; said as words says them, gone as the dial is.
+func projectSessionsOf(words sessionWords, page *views.ProjectPage, dial views.Dial, measured SessionsMeasured, width int) projectSessions {
+	words.gone = dial.Gone()
+	s := projectSessions{words: words, lines: listLines(page.Sessions, page.Unkept, dial, words.now), width: width}
 	if measured.of != page {
-		measured = MeasureSessions(page, words.m, words.now)
+		measured = MeasureSessions(page, words.m, words.now, dial)
 	}
 	s.columns = s.columnsOf(width, page.Sessions, measured)
 	return s

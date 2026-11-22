@@ -339,9 +339,9 @@ func TestStandingThePageADayOnStandsItsWeeksFromOneCount(t *testing.T) {
 			t.Run(fmt.Sprintf("%s, weeks from %s", tt.moment, starts), func(t *testing.T) {
 				in := accountsIn(am)
 				in.WeekStarts = starts
-				fresh := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
+				fresh := views.NewPast(in, am.Days).Accounts(views.LengthTwelveMonths.Now())
 				in.Now = am.Now.AddDate(0, 0, -1)
-				built := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
+				built := views.NewPast(in, am.Days).Accounts(views.LengthTwelveMonths.Now())
 				crossed = crossed || len(built.Weeks) != len(fresh.Weeks)
 				stood := built.At(m)
 				if stood.Reaches != fresh.Reaches || !slices.Equal(stood.Weeks, fresh.Weeks) || stood.ToCome != fresh.ToCome {

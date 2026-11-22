@@ -2,6 +2,7 @@ package views
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"time"
 
@@ -126,6 +127,126 @@ func holdLifts(events []Event) holdPairs {
 		}
 	}
 	return holdPairs{lifts: lifts, open: open}
+}
+
+// stoodAt are the events given, each told before until, as each stood
+// then. It exists because the router files an event again each time it
+// changes, as late as events.ChangesFor days on, and a read of its files
+// keeps the last version, so what's told of a time gone would otherwise
+// change with when it's read. Each field the router changes after it files
+// an event is put back as it was at until, as far as the events tell it:
+//   - a hold's until, set as the router lifts it, zero where it lifted at
+//     until or after;
+//   - the windows that joined a limit, a cap or a refusal at until or after,
+//     gone from its windows and from when each joined;
+//   - a move's ForcedBy and Limit, set as the event that forced it is told
+//     after it, zero where that event isn't among those given;
+//   - a limit's, a cap's, a refusal's and a hold's Count and To, counted
+//     again from the moves given folded into it, as foldedInto has it, as
+//     the router counts them: each session once, To where they all went to
+//     one account.
+//
+// What can't be put back, as the files don't keep what it was, is accepted:
+//   - a limit's, a cap's and a refusal's until, widened as it's reached
+//     again or brought forward as it lifts: nothing told before until says
+//     it;
+//   - a window a limit that named none learned later, as the router notes
+//     when a window joined only an event that named one: it shows, though
+//     learned after until.
+//
+// A hold told late, as at a router's start, filed after until but dated
+// before it from when it began, is told: what it says was true by then.
+func stoodAt(events []Event, until time.Time) []Event {
+	given := make(map[eventKey]bool, len(events))
+	for _, e := range events {
+		given[e.Key.same()] = true
+	}
+	stood := make([]Event, len(events))
+	moved := make(map[eventKey]*movedBy)
+	for i, e := range events {
+		e.Event = forcedAt(e, given)
+		e.Event = joinedBefore(e.Event, until)
+		if e.Event.Kind == status.EventHeld && !e.Event.Until.Before(until) {
+			e.Event.Until = time.Time{}
+		}
+		if into, ok := lineOf(e); ok {
+			if moved[into] == nil {
+				moved[into] = &movedBy{}
+			}
+			moved[into].add(e.Event.Session, e.Event.To)
+		}
+		stood[i] = e
+	}
+	for i, e := range stood {
+		switch e.Event.Kind {
+		case status.EventLimit, status.EventCap, status.EventRefused, status.EventHeld:
+			stood[i].Event.Count, stood[i].Event.To = moved[e.Key.same()].moved()
+		}
+	}
+	return stood
+}
+
+// forcedAt is the move e as the events given tell what forced it: its
+// ForcedBy and Limit zero where the event each names, of its run, isn't
+// among them; any other event as it is.
+func forcedAt(e Event, given map[eventKey]bool) status.Event {
+	s := e.Event
+	if s.Kind != status.EventMoved {
+		return s
+	}
+	named := func(id int) int {
+		if given[EventKey{Run: e.Key.Run, ID: id}.same()] {
+			return id
+		}
+		return 0
+	}
+	s.ForcedBy, s.Limit = named(s.ForcedBy), named(s.Limit)
+	return s
+}
+
+// joinedBefore is e without the windows that joined it at until or after,
+// as they hadn't then.
+func joinedBefore(e status.Event, until time.Time) status.Event {
+	late := func(key string) bool {
+		at, ok := e.Joined[key]
+		return ok && !at.Before(until)
+	}
+	if !slices.ContainsFunc(e.Windows, late) {
+		return e
+	}
+	e.Windows = slices.DeleteFunc(slices.Clone(e.Windows), late)
+	joined := maps.Clone(e.Joined)
+	maps.DeleteFunc(joined, func(key string, _ time.Time) bool { return late(key) })
+	e.Joined = joined
+	return e
+}
+
+// movedBy are the sessions an event's moves moved, each once, and the
+// accounts they went to, as the router counts them in the event.
+type movedBy struct {
+	sessions, to []string
+}
+
+// add takes in a session moved to the account to.
+func (m *movedBy) add(session, to string) {
+	if !slices.Contains(m.sessions, session) {
+		m.sessions = append(m.sessions, session)
+	}
+	if !slices.Contains(m.to, to) {
+		m.to = append(m.to, to)
+	}
+}
+
+// moved is how many sessions moved, and the account they went to where
+// they all went to one, "" otherwise: none of a nil m.
+func (m *movedBy) moved() (count int, to string) {
+	if m == nil {
+		return 0, ""
+	}
+	if len(m.to) == 1 {
+		to = m.to[0]
+	}
+	return len(m.sessions), to
 }
 
 // take takes in e, the next event of the run, and returns its facts.

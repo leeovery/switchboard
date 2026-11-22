@@ -1517,9 +1517,11 @@ pool's id and label. Accounts' Tokens draws one, kept as `accounts-tokens-moved-
   sessions it held, the sessions' days read for the List and Projects, where they begin and the
   tail's fold of them, Projects' page and the project chosen, the List's log and what was measured
   of it, and Accounts' pages. What's kept for the next dashboard to open with, the tab, its
-  sections, each tab's view and the dial's period, carries on. Each `P` reads the pools as they
-  stand, the pool's accounts, the router's events of the pool turned to and the pools that name them
-  afresh, so a pool added or removed while it's open shows at the next. What a command of the pool
+  sections, each tab's view and the dial's period, carries on. The period shown carries on too,
+  past or now: the new pool's first day only stops `<` (see Accounts' rules). Each `P` reads the
+  pools as they stand, the pool's accounts, the router's events of the pool turned to and the pools
+  that name them afresh, so a pool added or removed while it's open shows at the next. What a
+  command of the pool
   before sends back once `P` has turned is dropped, each of the watch's own messages stamped with
   the pool shown as its command was given. A second `P` while a turn is under way does nothing, and
   a turn that can't read the config keeps the pool shown, the key line giving the first line of why.
@@ -3960,9 +3962,13 @@ session's page has its own heading there, ending in `esc back` (see A session's 
 - **A rule** of `─` in `border`, from two cells after `[ ]`, or after the name where there are no
   sub-tabs, or one after the state, to two cells short of what sits at the right, or to the last
   column where nothing does.
-- **At the right,** where the tab has one: its period or window between its keys, `<` and `>` in
-  bold `accent.key`, the period in `text.muted` with a space either side, `< this week >`,
-  `< 5-hour >`; or the Log's count and its `f` (see The Log).
+- **At the right,** where the tab has one: its period between its keys, `<` and `>` in
+  bold `accent.key`, the period in `text.muted` with a space either side, `< this week >`; or the
+  Log's count and its `f` (see The Log). A past period's name is in
+  `accent.attention`, `< last week >`, so it never reads as now (the owner's call, 20 November
+  2026). A key that does nothing there is drawn faint, in `text.faint` and still bold: the dial's
+  `>` at now, and its `<` on a period holding or lying before the ledger's first day (see
+  Accounts).
 
 On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule, and what
 sits at its right, its period or its line, as Accounts' period, sits at
@@ -3972,15 +3978,17 @@ never cut below its least: where even the name, the sub-tabs and the state at it
 row 5, the state starts row 6, what's at the right ending it, left out only where the two don't fit
 there. Whether they fit is decided by the width, the period's widest form, and the state's
 least: `loading…` whole, whether it shows or not, as a read can start at any moment, or the state's
-shortest form where that's wider. Neither stepping the period nor a read moves the heading between
-one row and two. Beside the period, the state
+shortest form where that's wider. The dial's widest form is the widest of the lengths' names at
+now, as it always was, so nothing changes at now, and a read never moves the heading between one
+row and two. A past period's name wider than that, as `< 12 months to 1 Oct 2025 >`, may, and so
+may a change of length, `-` or `+`. Beside the period, the state
 takes the room left, two cells short of it, in the first of its forms that fits. A state of free
 text, the Log's filter, whose length is its data's, holds nothing of itself whole, so the heading's
 rows never hang on what it keeps: it's cut to the room left, as `only d28c swi…`. `loading…`'s room
 is kept for it all the same, as the Log says it reading back a day; so where the Log's count and
 `loading…` don't fit on row 5 together, under about 48 columns as the count's width has it, the
 count takes row 6, the price of its heading holding still as `loading…` comes and goes. Runway,
-without sub-tabs, keeps its rule and its window on row 5.
+without sub-tabs, keeps its rule on row 5.
 
 **The key line** (the last row) lists the keys that work where they are, each key in bold
 `accent.key` and its word in `text.muted`: `tab views` first, then the page's own keys in groups,
@@ -4003,8 +4011,29 @@ Overview).
   (settled in the plan).
 - **On a phone,** one rule for every page: `? keys` and `q quit` always end the line; `tab views`
   leads it while it fits, and is the first to go when the line is full; between them, the keys the
-  page chooses, three spaces apart. The global keys, `p`, `t` and `R`, are never on a phone's line,
-  as `? keys` lists them. The Overview says `? keys and toggles`, as its toggles are listed there.
+  page chooses, three spaces apart, giving way from the last. The global keys, `p`, `t` and `R`,
+  are never on a phone's line, as `? keys` lists them. The Overview says `? keys and toggles`, as
+  its toggles are listed there.
+- **The dial's keys,** on every tab with the dial (Accounts, Projects and Sessions' List), one rule:
+  - A wide line names `- + period: this week` and `< > back · on`, and `n now` after them while
+    a past period shows,
+    `- + period: last week    < > back · on    n now`,
+    as the Paper file *Switchboard · Periods* draws them (the owner's call, 20 November 2026).
+    Both show at every period, now or past: `< > back · on` shows at now too, so `< >` holds its
+    place as the dial steps.
+  - A wide line that doesn't fit gives way in this order before it falls to the phone's form: the
+    period's name after `- + period`, then `p pin`, then `- + period` whole. So the List's line
+    in a past period at 108 columns is
+    `tab views   [ ] view   - + period   < > back · on   n now   ↑↓ session   enter its page   ? help  q quit`,
+    104 cells.
+  - At now, a phone's line keeps the phone's rule, with `< > back · on` in place of `< > period`
+    on the List's, `tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit`, and on
+    Projects', `tab views   ↑↓ project   → sessions   < > back · on   ? keys   q quit`. Accounts'
+    names no dial on a phone at now.
+  - While a past period shows, a phone's line keeps `< > back · on` and `n now`, the one exception
+    to the phone's order: `- + period` goes first, then the page's other keys from the last, then
+    `tab views`; `? keys` and `q quit` still end it. So Accounts' phone line in a past period is
+    `tab views   [ ] view   < > back · on   n now   ? keys   q quit`.
 
 **A session's page opens over a tab, and `esc` goes back.** It opens with `enter` on a session's
 row on Sessions, in either view, and on Accounts' Detail; with `s` on a line of the Log; and with a
@@ -4034,10 +4063,13 @@ selection takes its modifier: Option in iTerm2 and Terminal.app, Shift in most o
 what a key does, where that changes only what's shown (settled in the plan, but for a row of the
 Overview's SESSIONS):
 
-- on a tab or a sub-tab, it shows it; on `<` or `>` by a period or a window, it steps it;
+- on a tab or a sub-tab, it shows it; on `<` or `>` by the dial's period, it steps it back or
+  on in time;
 - on the pool's label in the title row, it turns to the next pool, as `P` does, round to the
   first after the last (the owner's call, 20 November 2026);
-- on a key of the key line, it acts as that key does, but for `p pin` and `q quit`;
+- on a key of the key line, it acts as that key does, but for `p pin` and `q quit`; on a pair,
+  which moves either way, it acts as the way on, `]`, `↓`, `→`, and `+` for `- +`, but the dial's
+  `< >`, which acts as `<`, back;
 - on a row that names an account, a session, a line or a turn, or a Compare column's head, it
   chooses it, as the arrows would, and on the one already chosen, opens it, as `enter` does; a row
   of the Overview's SESSIONS opens its session's page at once, as the Overview has nothing to
@@ -4074,7 +4106,8 @@ too. The accepted misses, which get the list's wheel backwards, include:
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
 shown, which the dashboard opens on; the Overview's sections shown and its `b`; Trends'
-sections shown; the dashboard's period, which the entity tabs share; Accounts' view and its
+sections shown; the dashboard's period's length, which the entity tabs share, never a step back
+in time, as the dashboard always opens on now; Accounts' view and its
 Tokens' `v` split; Sessions' view; Runway's `a`; and the Log's columns.
 A file from before History went as a tab, which kept History as the tab shown, opens Trends with
 YEAR shown too, where History's Year went, the rest of Trends' sections as kept, and keeps Trends
@@ -4436,11 +4469,11 @@ last token's line where it has any, with no blank line after it, as a shell's pr
     unused: a 99.99% reserve, which puts the floor at 0.01%, had every unused Fable week near, and
     showed FABLE WEEK on every account.
   - It holds wherever windows are listed as they stand: USAGE by window and by account, Accounts'
-    Detail, the Switchboard's lines, a session's page and `usage`'s printout. Runway's `<` `>` step
-    between the week and the 5-hour alone, where an account has one, and the routing card shows
-    those two. The Switchboard's lines side by side, at its step 3 and in a phone's lanes, show the
-    week and the 5-hour alone, so a model's own goes there as the rows run short. The status
-    document keeps every window, used or not, as do the records Trends draws, the Log, Accounts'
+    Detail, the Switchboard's lines, a session's page and `usage`'s printout. The routing card
+    shows the week and the 5-hour alone, where an account has one. The Switchboard's lines side
+    by side, at its step 3 and in a phone's lanes, show the week and the 5-hour alone, so a model's
+    own goes there as the rows run short. The status document keeps every window, used or not, as do
+    the records Trends draws, the Log, Accounts'
     records (limits hit, past weeks) and every JSON; routing and scoring never read which show.
     Accounts' Compare is such a record: its WEEK USED reads a model's week an account hasn't used
     as the known 0% it is (`recordedGauge`), a dash only for one not read or not had.
@@ -4460,7 +4493,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   each model's own, as any window the policy doesn't share is, a new model's among them, in
   quota's order. `status.CompareWindows` owns it, and the moment's `Listed` lists the windows by
   it; every tab and verb that lists windows to the owner reads it there: USAGE by window and by
-  account, Runway's `<` `>`, the Switchboard's lines, the routing card, a
+  account, the Switchboard's lines, the routing card, a
   session's page, the Accounts tab's and Trends' limits and resets, the Log's request and event
   cards, `usage`'s flags, `status`'s text, and `history`'s text, its days' highest use and
   `--windows`' readings. The JSON keeps quota's order, shortest first, as it's for agents and the
@@ -5063,7 +5096,10 @@ and Runway when they'll have room; Accounts says who. It has three views, as sub
 a column an account; **Detail**, one account, or all of them, in full; and **Tokens**, its tokens as ccusage reports them,
 over the dial's period, drawn in the Paper file
 *Switchboard · Entities*, page p-2-0, and kept as `accounts-tokens-173x53` and
-`accounts-tokens-73x61`. Compare and Detail are drawn in the Paper
+`accounts-tokens-73x61`; over a past period, signed off on 20 November 2026, as
+`accounts-tokens-30-days-to-1-sep-73x61`, a phone's 30 days to 1 Sep. Compare over a past period is
+kept as `accounts-compare-last-week-73x61`, a phone's last week, and
+`accounts-compare-week-of-14-sep-173x53`. Compare and Detail are drawn in the Paper
 file *Switchboard · Accounts*, on its page **FINAL · accounts · signed off 5 Oct 2026 · revised 6
 Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `accounts-compare-ten-160`,
 `accounts-compare-month-160`, `accounts-compare-bad-hour-160`, `accounts-detail-all-160`,
@@ -5076,9 +5112,12 @@ its space, and turned Compare's WEEKS and WORTH, are drawn in round 2 of the das
 and kept as `accounts-detail-all-173x53`, all accounts' bands, `accounts-detail-work-12-weeks-173x53`,
 an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table on a phone; and
 `accounts-detail-104x58`, an account stacked on a tall, narrow screen, its USAGE bars filling the
-row.
+row. Detail over a past period, signed off on 20 November 2026, is kept as
+`accounts-detail-tue-29-sep-173x53`, an account two days back on a MacBook; and stacked, drawn
+from the build alone, as `accounts-detail-tue-29-sep-73x61` and `accounts-detail-tue-29-sep-52x41`.
 
-**Accounts' rules,** which Trends' YEAR, BY MONTH and MODELS BY DAY keep too:
+**Accounts' rules,** which Trends' YEAR, BY MONTH and MODELS BY DAY keep too, but for the dial and
+its periods, as Trends has none:
 
 - **The heading row** is the page's (see The page): `ACCOUNTS`, the sub-tabs, and at
   the right the period between its keys, `< this week >`. The state after `[ ]` is only what the
@@ -5132,8 +5171,9 @@ row.
   they hold 365 days or 366, as Trends' YEAR prices them, and a period so far priced whole. A period
   the ledger began part-way through, as a fresh install's week, is priced from the ledger's first
   day, a day each to the period's end, or today's for today and 30 days, as `history` and Trends
-  price it, as there's no worth for the days before to set against it (the owner's call, 15 October
-  2026): Ultra's week from a Wednesday costs $33, not its whole week's $46. A ledger that holds no
+  price it, as there's no worth for the days before to set against it (the owner's call, 15
+  October 2026): Ultra's week from a Wednesday costs $33, not its whole week's $46. A past period
+  is priced alike, to its last day. A ledger that holds no
   day yet begins today, for its plans' prices as for a read of its days, and the dashboard asks
   again where it began till it holds one. It reads `4.0×`, to a tenth, and from 100× whole, `123×`,
   so it's 5 cells at most up to 9999×, bold, in `state.positive` at 1× or more
@@ -5149,19 +5189,82 @@ row.
   it` and `against`, on Compare, in its last column, and on Detail, 15 cells from column 36, say it
   compact, `4.4× · 2/3`, and the ratio alone with every plan known (the owner's call, 15 October
   2026).
-- **Periods are never billing months,** as switchboard knows no renewal date: today, from
-  midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
-  the 29 before it; 12 weeks, this week and the 11 before it; and 12 months, the days Trends' YEAR
-  counts as LAST 12 MONTHS, from the day after today's date a year back, 1 March where today is 29
-  February, to today. `<` and `>` step through them in that order, staying put at either end. It's
-  one dial, the dashboard's period, shared by every tab that counts over a period: Compare, Detail
-  and Tokens, Projects, and, as it comes, Sessions' List (the owner's call, 13 November 2026). The
-  preferences file keeps it as `period`, by its name, `today`, `30-days`, `12-weeks` or
-  `12-months`, none for this week; where it keeps none, it reads `accounts.period`, where a build
-  from before the dial was shared kept it, till the period is next kept, which drops it.
+- **Periods are never billing months,** as switchboard knows no renewal date. A period is a length
+  and the day it ends on, its last day. The lengths, in order: today, the last day itself, from
+  midnight; this week, the week holding the last day, from its first day, as `week_starts` sets it
+  (see Config), to its last; 30 days, the last day and the 29 before it; 12 weeks, the last day's
+  week and the 11 before it; and 12 months, from the day after the last day's date a year back, 1
+  March where it's 29 February, to the last day. A week length's last day is always its week's
+  last. It's one dial, the dashboard's period, shared by every tab that counts over a period:
+  Compare, Detail and Tokens, Projects, and Sessions' List (the owner's call, 13 November 2026);
+  the Overview, Runway, the Log and Trends have none. It steps through time as well as length (the
+  owner's call, 20 November 2026), as the Paper file *Switchboard · Periods*
+  (`01M7VXT6E3HHSNJH8EZHTQNSXS`), page `p-1-0`, draws it: **FINAL**, signed off 20 November 2026,
+  its frames drawn from capturetool's fixtures at Thu 1 Oct 14:42, weeks starting on Monday, as the
+  examples below are.
+  - **Now** is the period whose last day is today, or for a week length, whose week holds today:
+    today, this week, 30 days, 12 weeks, 12 months. Its 12 months are the days Trends' YEAR counts
+    as LAST 12 MONTHS; a past 12 months is no YEAR's (see Trends). Every other period is a past
+    period. A period that reaches today, by any step, is now, and named as now.
+  - **Back and on:** `<` gives the period of the same length whose last day is the day before
+    this one's first day, and `>` the one whose first day is the day after this one's last day,
+    so periods of a length tile both ways. So 12 months back from a 29 February last day end on
+    28 February, and from the 12 months to 28 Feb 2027, `>` gives the 12 months from 1 Mar 2027,
+    to 29 Feb 2028. So from Thu 1 Oct, `<` steps today to yesterday, then to
+    Tue 29 Sep; this week to last week, then to the week of 14 Sep; 30 days to the 30 days to 1
+    Sep, then to 2 Aug; 12 weeks, whose last day is Sun 4 Oct, to the 12 weeks to 12 Jul, then to
+    19 Apr; and 12 months to the 12 months to 1 Oct 2025, then to 1 Oct 2024. A step on that
+    reaches today, or past it, is now. `>` does nothing at now.
+  - **The floor:** `<` does nothing on a period holding or lying before the ledger's first day,
+    the pool's first day of work where a pool is shown, as `P` can carry a period there. Till that
+    day is known, `<` steps freely. One owner holds the day, learned once as the dashboard reads
+    the ledger.
+  - **The length:** `-` takes the next shorter length and `+` the next longer, staying put at
+    either end; `=` counts as `+`, so `+` needs no shift on a Mac. Both keep the last day: from
+    last week, whose last day is Sun 27 Sep, `+` gives the 30 days to 27 Sep and `-` gives Sun 27
+    Sep. Into a week length, the period is the week holding the last day, so a round trip may
+    move it: from Wed 23 Sep, `+` gives last week and `-` then gives Sun 27 Sep. Where
+    the new period reaches today, it's now. At now, both keep now.
+  - **`n`** goes straight back to now, keeping the length; at now it does nothing.
+  - **Its words,** one owner in `views`, the dates' in `prose`, read alike by the dial at the right
+    of each heading, the key line's state and each title naming the period:
+
+    | Length | Now | One back | Further back |
+    |---|---|---|---|
+    | today | `today` | `yesterday` | `Tue 29 Sep` |
+    | this week | `this week` | `last week` | `week of 14 Sep`, its first day |
+    | 30 days | `30 days` | `30 days to 1 Sep` | `30 days to 2 Aug` |
+    | 12 weeks | `12 weeks` | `12 weeks to 12 Jul` | `12 weeks to 19 Apr` |
+    | 12 months | `12 months` | `12 months to 1 Oct 2025` | `12 months to 1 Oct 2024` |
+
+    A date carries its year only where it isn't now's year: `Mon 29 Sep 2025`. `yesterday` and
+    `last week` are the day and the week before now's; the rest name the date, so a period's
+    words follow its dates as the day turns. A title in capitals says the same words in capitals:
+    `TUE 29 SEP`, `LAST WEEK`, `WEEK OF 14 SEP`, `30 DAYS TO 1 SEP`.
+  - **Drawn** as the heading says (see The page): a past period's name in `accent.attention`, so
+    it never reads as now; at now, `>` faint, and at the floor or before it, `<` faint.
+  - **Opening and midnight:** the dashboard always opens on now. A past period keeps its dates as
+    midnight passes, so what's shown doesn't move; now rolls to the new day, as it always has. The
+    preferences file keeps the length alone, never the step, as `period`, by its name, `today`,
+    `30-days`, `12-weeks` or `12-months`, none for this week; where it keeps none, it reads
+    `accounts.period`, where a build from before the dial was shared kept it, till the period is
+    next kept, which drops it.
+- **A past period** counts everything counted over a period over its own days, as now counts over
+  its own, by the same rules. What tells the moment
+  leaves, as it says nothing of the period: an account's state, its token line, WEEK USED, USAGE,
+  the sessions running and what they're doing, and Projects' `live`; the rest moves up into the
+  room. The worth charts, Accounts' WORTH and Projects' WORTH BY, mark no hour or day as now's,
+  today's bold label going, and count no bucket as to come. A past period's weeks end at its last
+  week, each
+  whole, at its peak as the reset after it filed it, but this week: the weeks sections, Compare's
+  WEEKS and Detail's BY DAY and WEEKS, draw this week as now does wherever it shows, as in a past
+  period whose last week is this week, yesterday on any day but a week's first: `…`, its days
+  still to come as `··` and its first day bold. Each view's section says what leaves it.
 - **Keys:** `[` and `]` move between the sub-tabs, and a click on one shows it; `<` and `>` step the
-  period, `<` to a shorter and `>` to a longer; `v` cycles a view's shape, where it has more than one. The preferences file remembers
-  each choice, a view at a time (see Themes). `p` opens new sessions' routing picker, whatever is
+  period back and on in time, `-` and `+` (or `=`) change its length, and `n` goes back to now, as
+  the period's rules say; `v` cycles a view's shape, where it has more than one. The preferences
+  file remembers each choice, a view at a time (see Themes). `p` opens new sessions' routing picker,
+  whatever is
   chosen (see Routing by hand); `t`, the theme picker, and `R`, refresh, work as on every page, and
   neither is on the key line; `?` opens help for the page shown, and `q` quits.
 
@@ -5195,14 +5298,17 @@ row.
   with `…`, keeping its marks, as `usage` cuts a name
   (settled in the plan). No column is focused until `←` or `→`; then the focused column's heads are
   `bg.selection` across its width, less a cell, and `enter` opens that account, or `all accounts`,
-  in Detail (settled in the plan).
+  in Detail (settled in the plan). In a past period the state row leaves, and the token row with
+  it (see A token's year): the heads are the names alone, on the view's first row, and all under
+  them moves up.
 - **WEEK USED,** a blank row under the heads: each account's week as `usage` draws a window's bar,
   its cap and even pace marked (see `usage`, the printout), then, a cell on, its percentage,
   right-aligned in 4 and bold in its level's colour, ending where BY MODEL's bar does: its bar grows
   with its column, 19 at 138 columns, 24 at 160 and 35 at 220. `all accounts`' is every account's
   week together, with no cap. A stale account's bar is faded, as the Overview fades it, keeping 35%
   of its colour, which is 65% toward the canvas. The week is always as it stands now: over another
-  period, the label adds `now`, in `text.faint`.
+  period that's now, the label adds `now`, in `text.faint`; in a past period WEEK USED leaves, BY
+  MODEL taking its rows a blank row under the heads.
 - **BY MODEL,** a blank row under WEEK USED, `share of use` after it in `text.faint`: on its heading
   row, each column's share of use as a stacked bar, the narrowest column less 4, at most 40, the
   most of Compare's bars beside words, so none reads as a rule; each version's part in its shade;
@@ -5214,10 +5320,13 @@ row.
   12 months `, a month its fullest`: how full each column's weeks got, the weeks' own peaks and facts
   over the period's reach, as `views.AccountsRow`'s `Reached` and `Reaching` give them, worked out
   once, by `views`' `weeksOver`, never again for Compare.
-  - **Its reach:** the weeks that begin in the period, this one last, never fewer than eight:
-    eight at today, this week and 30 days, and 12 at 12 weeks. At 12 months, a column a month, the
-    13 months the period touches, each as full as its fullest week of those beginning in it; a
-    month no week has begun in yet, as on the 1st, is empty, so the months stand over WORTH's. A
+  - **Its reach:** the weeks that begin in the period, the period's last week last, this one at
+    now, never fewer than eight: eight at today, this week and 30 days, and 12 at 12 weeks. A past
+    period's reach ends at its last week, as many weeks as now's, each whole but this week, at the
+    peak and facts it was filed with as now's weeks before this one are. At 12 months, a column
+    a month, the 13 months the period touches, each as full as its fullest week of those beginning
+    in it; a month no week has begun in yet, as on the 1st, is empty, so the months stand over
+    WORTH's. A
     month is at its cap where any of its weeks is. Its `…` is its fullest week's, but where
     another of its weeks is at its cap, the month isn't open, so it's drawn marked, though this
     week so far is fuller.
@@ -5227,9 +5336,12 @@ row.
     160 and 173 columns, touching narrower, as at 100. Where the account keeps a
     reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
     the columns. The axis names a month where it starts, and at 12 months each month, giving way
-    from the last back, as WORTH BY's does, the last bold; under this week's column, so far, `…`
+    from the last back as WORTH BY's names do; the last is bold at now, and in a past period only
+    where this week shows, as Detail's BY DAY has it, so 12 months back names none bold; under
+    this week's column, so far, `…`
     in `text.secondary`, in place of its name, where its columns are weeks: at 12 months none,
-    as a month's column isn't this week's, though its fullest week may be.
+    as a month's column isn't this week's, though its fullest week may be. A past period's last
+    week, but this week, is drawn whole, undimmed and with its name.
   - **Under it,** the weeks' facts on the reach's whole weeks, never its verdict's words, which stay in
     `switchboard history`: `limit hit 3 of 7 · 9% left at a reset`, in `text.subtle`, its last
     part giving way to `9% left`, then going; `all accounts`, the pool's peaks the mean of the
@@ -5248,7 +5360,13 @@ row.
   hours sum to its worth: the summaries keep no hours. While Accounts shows today, the tail is
   read at each look, and at once as it comes to show today, so its hours keep up; till its first
   read of the day, today is by the day. Today's page, Accounts' and Projects' alike, is built
-  afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. At
+  afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. A past
+  day's hours are that day's lines', read as the dial steps to it and folded as today's are, its
+  page saying `loading…` till they land. A day gone that the tail's fold still stands for, as
+  yesterday just after midnight, isn't read early: its page waits on a read of the tail, asked at
+  once, then reads the day once. A day read while the tail last read before it is read early, then
+  again at the next look. Where a past day's lines are no longer kept, the day is
+  one bucket. A past period's chart marks no bucket as now's, and counts none as to come. At
   173 columns with three accounts that's an hour a column today, a day at this week and 30 days,
   a week at 12 weeks and a month at 12 months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
   every configured account's, shown or not, so their columns compare; `all accounts` has its
@@ -5268,7 +5386,11 @@ row.
     `all accounts` how many, `3`; `at cap or limit`, the time it spent at its cap or at a limit,
     `3h 10m`, and for `all accounts` their sum; and `left at its last reset`, what its week had left
     as it last reset, `15%`, or `0% (limit Fri)` where the week ran out, naming the day it did, and
-    `—` for `all accounts`.
+    `—` for `all accounts`; in a past period whose last week isn't this week, as it reset at the end
+    of that week. In a past period, yesterday too, the day is named by its date, `0% (limit
+    30 Sep)`, with its year where it isn't this year's, `0% (limit 3 Oct 2025)`, never a weekday:
+    an own week placed under the period's last week can run out after its last day. Narrow, it
+    falls to `0%`, as at now.
   - **VALUE,** with no description, as its rows say it: `plan`, `Ultra`, and ` · $200/mo` in
     `text.subtle`, and for `all accounts` the plans summed, `$600/mo`, and ` · 3 plans`;
     `extra usage`, `off` in `text.muted`, or `on · billed past its limit` in `accent.attention`, and
@@ -5370,7 +5492,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   (the owner's call, 15 October 2026). Two rows under the last,
   `↑↓ choose`, `↑↓` bold `accent.key` and `choose` in `text.subtle`. A `│` in `border` at column 20,
   from row 6 down the view's rows; the panel starts at column 24. More accounts than it holds
-  scroll with the choice (settled in the plan).
+  scroll with the choice (settled in the plan). In a past period the states' marks leave, their
+  cells kept blank, so nothing moves.
 - **The list's name column fits the names,** by a rule of its own: the widest number, label and
   `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
   cells; at least 14 cells and at most 24. The dot, the lit row, the `│` and the panel move right
@@ -5389,8 +5512,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   new sessions come here`. For `all accounts`, `all accounts`, three spaces, and its accounts'
   states counted. A model's own window at its limit, as Fable's week, heads it `■ Fable wk limit ·
   other models still come here`, in `accent.attention`, its USAGE row as `usage` draws a limit,
-  while Compare's word stays the account's own (settled in the plan).
-- **USAGE,** row 8, then every window, used or not, from row 9, 2 rows apart: the window's name in
+  while Compare's word stays the account's own (settled in the plan). In a past period the head is
+  the name and marks alone, or `all accounts`, and the token line under it leaves (see A token's
+  year).
+- **USAGE,** row 8, then every window, used or not, from row 9, 2 rows apart, at now alone: in a
+  past period it leaves, and BY MODEL takes its place, THIS WEEK beside it. The window's name in
   `text.subtle` (`5-hour`, `Week`, `Fable wk`); `usage`'s bar, 70 wide at 160, as
   `accounts-detail-work-160` draws it; a cell on, its percentage, right-aligned in 4 and bold in its
   level's colour; and two cells on, `usage`'s full words (see `usage`, the printout). A window the
@@ -5429,7 +5555,15 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   - The requests, the plan's name, from the price table, the plans' summed price, and the worth
     and its ratio have no bound: where one is wider than its cells, it's cut at the weeks' edge
     with `…`.
-  - Its title names the period: `THIS WEEK`, or `LAST 30 DAYS`.
+  - Its title names the period: `THIS WEEK`, or `LAST 30 DAYS`; a past period's, the dial's words
+    in capitals, `TUE 29 SEP`, `LAST WEEK`, `30 DAYS TO 1 SEP`.
+  - In a past period it heads on BY MODEL's row, two rows under the head, and BY MODEL's bar ends
+    a cell before it; the rule sits two rows under the lower of BY MODEL's last row and THIS
+    WEEK's. Where the title is wider than its column, as `12 MONTHS TO 30 SEP 2025` is with one
+    account or several, it's right-aligned to the weeks' edge, and BY MODEL's bar and its
+    versions end a cell before wherever it starts; THIS WEEK's items stay at its column. Where the
+    wide form starts holds as at now, so a step in time never turns Detail stacked or wide (see
+    Wide, from where it fits).
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
   panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
   version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the
@@ -5437,7 +5571,9 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `text.subtle` ending it (settled in the plan). A second row moves the rule and all under it down
   a row.
 - **The rule,** row 18: `┄┄ ` in `border`, the weeks shown, counted, `the last seven weeks`, or
-  `the last 13 weeks`, in `text.faint`, then `┄` in `border` to the weeks' edge. Above it, the
+  `the last 13 weeks`, in `text.faint`, then `┄` in `border` to the weeks' edge. In a past period
+  whose last week isn't this week, it counts the same weeks to the last day of the last,
+  `the eight weeks to Sun 27 Sep`. Above it, the
   windows are now, and THIS WEEK and BY MODEL the period; below it, the weeks section covers the
   weeks it names, then WORTH the period again, and LATELY.
 - **BY DAY,** row 20: the weeks' days, from `cx`, `dw` cells a day and `gap` cells between weeks, 2
@@ -5445,10 +5581,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   in the five shades (see Trends' Five shades) on the account's own scale, the quarters of the active days among those
   drawn and no others, so a heavy month out of view dims none of them (`views.ShadedDays`); a
   red `▪`, in `state.destructive`, in the middle of a day it hit a 5-hour limit, its one cell at
-  1-cell days; and `··` in `text.faint` for days still to come. On row 21, under each week, its
-  first day, `24 Aug`, a `step` apart, this week's bold `text.secondary` and the rest
-  `text.faint`; and where the weeks the period reaches over don't all show, as at 12 months, at
-  the panel's left, before them, how many more there are, `‹ 38 more`, in `text.subtle`.
+  1-cell days; and `··` in `text.faint` for days still to come, this week's alone. On row 21, under
+  each week, its first day, `24 Aug`, a `step` apart, this week's bold `text.secondary` and the
+  rest `text.faint`, none bold where this week isn't shown; and where the weeks the period reaches
+  over don't all show, as at 12 months, at the panel's left, before them, how many more there are,
+  `‹ 38 more`, in `text.subtle`.
   `all accounts` has no BY DAY.
 - **WEEKS,** row 23: the weeks' peaks, a `step` apart from `cx`, each `usage`'s bar of the week's
   peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at its cap bold
@@ -5458,7 +5595,14 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   a reset, on average` in `text.muted`, to the weeks' edge; where that doesn't fit, `limit hit 3
   of 7 weeks · 9% left at a reset`, then the limits alone; and `not enough weeks yet`, in
   `text.subtle`, where none is whole. As it fits to the weeks' edge, never the frame's, its form
-  follows the layout alone.
+  follows the layout alone. In every past period it names the whole weeks by the last day of the
+  last whole one: at Tue 29 Sep, `limit hit 3 of the 7 weeks to Sun 27 Sep · 9% left at a reset,
+  on average`, and at last week, `limit hit 3 of the 8 weeks to Sun 27 Sep`, and so on; its
+  shorter forms keep it, `limit hit 3 of 7 weeks to Sun 27 Sep · 9% left at a reset`, then the
+  limits alone, `limit hit 3 of 7 weeks to Sun 27 Sep`. The rule above keeps its own condition, so
+  at Tue 29 Sep
+  it still reads `the last eight weeks`. Compare's facts keep their form, `limit hit 3 of 7`, in
+  any period, though their counts may differ.
 - **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
   and as its table in the stack, or in the wide form where not a week of bands fits across.
   `all accounts`' peak of a week is at its cap where any account's peak is. So its marks agree
@@ -5502,7 +5646,15 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   lifted (subscription lapsed)`; a pin
   naming it with others, `● pinned with side, by hand`; and `12:10  ◇ primed: its 5-hour window
   started`. For `all accounts`, every account's, each naming its account, as the Overview's LATELY
-  does: `api started on side, the best`.
+  does: `api started on side, the best`. In a past period it tells the latest events up to the
+  end of the period's last day, as LATELY at now tells them up to now: the router's events of the
+  week to that day's end, and the facts that reach further, read once for each last day, a read
+  the dial has stepped past dropped as it lands. A past period with no events to tell says
+  `nothing lately` once they're held, and nothing while they're read.
+- **In a past period** there's no SESSIONS, as it tells what runs now: LATELY keeps its rows, and
+  `→` doesn't act. `enter its page` is drawn faint, as a key that can't act now is, and pressed,
+  it says `no sessions in a past period` in the key line's place, as other refusals do (see The
+  page).
 - **With sessions running** on the chosen account: `SESSIONS`, and `now` in `text.faint`, at the
   panel's left on LATELY's row, and from the row under it a row a session: `▸`, bold `accent.key`, before the one
   selected; `●` while busy, in `state.positive`, or `○`, in `text.subtle`; the id, bold,
@@ -5575,8 +5727,9 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   percentages, one under each of BY DAY's weeks, `34%…` this week's, and the weeks' facts under it,
   `limit hit 3 of 7 weeks · 9% left at a reset`, on one row; WORTH, across the frame; and LATELY,
   down to the key line. `all accounts` has no BY DAY: its WEEKS is the weeks' table, from column
-  0, as many weeks as fit, none at 52 columns. No rule. Its parts are laid across the width by
-  flex, the same at every width it's drawn at, under either chrome:
+  0, as many weeks as fit, none at 52 columns. No rule. In a past period the state, its token
+  line and USAGE leave, as wide, THIS WEEK titled by the dial's words. Its parts are laid across
+  the width by flex, the same at every width it's drawn at, under either chrome:
   - USAGE's row: the windows' names, as wide as the widest of every window listed, shown or not,
     at least 8 cells and at most 24; a cell on, the bars, all one width; a cell on, the
     percentage, in 4; and two cells on, `usage`'s words, in the cells of their form at its widest:
@@ -5635,7 +5788,8 @@ way in, its splits and its footnote.
   width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
   read`; `total` and `worth` stay. The names hold their natural until every one of those has left,
   so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
-  never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
+  never shows fewer columns, nor a shorter name, but for a past period's total: where `models`
+  shows again, its name may give way to the dial's short one (see the total below). Where `against its price` has left, worth runs to
   the frame's width. So at 108 and 120 every column shows but `models`, of short labels; by account
   and model, whose names take 2 more, `models` leaves 2 columns sooner than by account, as the names
   come first, where it used to show at the widest the old fixed form needed; and at 73, `cache
@@ -5647,13 +5801,20 @@ way in, its splits and its footnote.
 - **Its rows** are the period's, newest first, those with nothing recorded left out: a day each over
   this week and 30 days, this week from the day weeks start on, as the dial's is everywhere; a week
   each over 12 weeks; a month each over 12 months, the first priced from the 12 months' first day
-  where it begins part-way through, as Trends' BY MONTH has it. The names' head is what a row is,
+  where it begins part-way through, as Trends' BY MONTH has it, and in a past 12 months the last
+  to the period's last day, each such month priced by its days. The names' head is what a row is,
   `day`, `week` or `month`. Each row's against its price is over its period, its unit named, `5.6×
   its $20 day`, `its $138 week`, `its $600 month`: priced whole, but where the 12 months or the
   ledger begin part-way through it, by its days from then, as Against its price says.
 - **The period's total leads:** a row for the whole period, split as the rows are, named by the
-  dial's words, `this week`, in a row's head's ink. Its tokens and worth are its rows' summed, and
-  its models count the versions the period used, each once, never a sum. Its against its price is
+  dial's words, `this week`, or a past period's, `30 days to 1 Sep`, in a row's head's ink. No
+  column moves for it: a past period's name wider than the names runs on, where `models` has left,
+  into the first count's cells, to a cell before its figure; where it doesn't fit even so, the row
+  is named by the dial's short name (`Dial.Short()`), the heading naming the period in full: the
+  length's name, as `30 days`; `the week` of a week, never `this week`; and a day's own name, as
+  `yesterday`, even on 1 January, or a date of another year with its year, as `31 Dec 2025`. Its
+  tokens and worth are its rows' summed, and its models count the versions the period used, each
+  once, never a sum. Its against its price is
   Compare's all accounts' over the period, the one figure (`views` works it out once), its unit the
   period's, `4.6× its $138 week`, `3.4× its $2,400 12 months`. A rule in `border.subtle` runs under
   it as far as the heads run, to `against its price`'s end, or `worth`'s where that's left, then a
@@ -5672,8 +5833,9 @@ way in, its splits and its footnote.
   split rows don't fit, and the row after says `▼ 9 more below   ·   j/k to scroll`. `j` and `k`
   scroll a row, PgUp and PgDn a page.
 - **Its figures** are the ledger's days held, built once for the days held, the period and the day,
-  while Tokens shows. Those of the row today is in brighten as a look changes them; the total's are
-  figures of the period Accounts counts over.
+  while Tokens shows. Those of the row today is in brighten as a look changes them, and in a past
+  period, which holds no today, none does; the total's are figures of the period Accounts counts
+  over.
 - **The footnote,** under the rows, in `text.faint`: `worth: what the same tokens would cost through
   the API, at its prices as of 7 Oct 2026`, the price table's date, 7 Oct 2026 for the built-in
   table and 1 Oct 2026 in the frames, whose fixtures inject a table dated as they were drawn, and
@@ -5683,26 +5845,31 @@ way in, its splits and its footnote.
   and where they still would, at the view's least, the blank row under the heads gives way too, the
   rows starting on the row under them (settled in the plan).
 
-**Keys.** `tab` views; `[ ]` view; `<` `>` the period, on every view; `←` `→` the focus along
+**Keys.** `tab` views; `[ ]` view; `<` `>` back and on in time, `-` `+` (and `=`) the period's
+length, and `n` now, on every view; `←` `→` the focus along
 Compare's accounts; `↑` `↓` the account in Detail's list, or the session in its SESSIONS; `enter`
 opens, from Compare, the account in Detail, and from a session row, the session's page; `v` Tokens'
 split; `p` new sessions' routing picker; `?` help; `q` quit. A click picks a sub-tab, an account, a
 column or a session. The key lines, where the frames draw the keys from before the sweep of 7 and 8
-October 2026 (settled in the plan):
+October 2026 (settled in the plan), the dial's keys as The page's rule for them has it, `n now`
+joining after `< > back · on` while a past period shows:
 
 - Compare:
-  `tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit`.
+  `tab views   [ ] view    - + period: this week    < > back · on    ←→ account  enter its page    p pin    ? help  q quit`.
 - Detail:
-  `tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit`,
+  `tab views   [ ] view    - + period: this week    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit`,
   and in its SESSIONS `↑↓ session  ← accounts  enter its page` in place of
   `↑↓ account  enter its page` (settled in the plan).
 - Tokens:
-  `tab views   [ ] view    < > period: this week    v split: by account    p pin    ? help  q quit`.
+  `tab views   [ ] view    - + period: this week    < > back · on    v split: by account    p pin    ? help  q quit`.
 - With one account, Compare gone and its sub-tabs Detail and Tokens:
-  `tab views   [ ] view    < > period: this week    ? help  q quit` on Detail, `↑↓ session  enter
-  its page` joining it while it has sessions, and Tokens' `v split` on Tokens; no page shows `p pin`
+  `tab views   [ ] view    - + period: this week    < > back · on    ? help  q quit`
+  on Detail, `↑↓ session  enter its page` joining it while it has sessions, never in a past
+  period, as it has none then, and Tokens' `v split` on Tokens; no page shows `p pin`
   with one account, unless a pin set from the command line stands (see Routing by hand).
-- On a phone: `tab views   [ ] view   ? keys   q quit`.
+- On a phone: `tab views   [ ] view   ? keys   q quit`; while a past period shows,
+  `tab views   [ ] view   < > back · on   n now   ? keys   q quit`, giving way as The page's rule
+  for the dial's keys has it.
 
 **A token's year.** Accounts tells of an account whose token's year is up within 30 days, or is up,
 as `internal/status`, its one owner, works it out, the days counted in the dashboard's own time zone
@@ -5714,12 +5881,13 @@ their one owner, and `views.TokenNoteOf` the view's data; Paper follows the buil
   its last day, and `token expired 17 Nov 2026 — switchboard setup makes a new one` once it's up.
   USAGE moves down a row for it. Narrower than the line, it wraps at its spaces to the frame's edge,
   the days left and `switchboard setup` never broken; stacked, as on a phone, it sits under the
-  short state line the same way.
+  short state line the same way. In a past period it leaves with the state line.
 - **Compare:** a row under the accounts' state row, in each such account's column: `token: 21 days
   left`, `token: last day` or `token expired`, held with the heads. It's there only where an account
   shown has one; other columns, and `all accounts`, leave it blank. A column too narrow says the
   days left alone. Turned, as on a phone, where there are no heads, it's a row under the account's
-  WEEK USED row, from its bar.
+  WEEK USED row, from its bar. In a past period it leaves, with the state row, or turned, with
+  WEEK USED.
 - **Colours:** the words `text.muted`; the days left, or `expired`, bold `accent.attention`, and bold
   `state.destructive` at 7 days or fewer, as setup's table colours them; `switchboard setup`
   `text.secondary`.
@@ -5730,16 +5898,20 @@ their one owner, and `views.TokenNoteOf` the view's data; Paper follows the buil
 the wheel among them; then it explains each part in turn: Compare's groups and how each row is
 counted, a session served once however many days and accounts it ran on, the time at cap or limit,
 what its week had left at its last reset; worth at API prices and the price table's date; against
-its price and how a period is priced; what `all accounts` counts, and why it isn't the pool;
-Detail's windows, read as `usage` reads them, BY DAY's shades and its red `▪`, WEEKS' peaks and
+its price and how a period is priced; how the dial steps back and on in time and changes its
+length, where it stops, and what leaves a past period; what `all accounts` counts, and why it isn't
+the pool; Detail's windows, read as `usage` reads them, BY DAY's shades and its red `▪`, WEEKS'
+peaks and
 their facts, how many weeks show, `all accounts`' bands and table, WORTH and LATELY; Compare's
 WEEKS and WORTH, wide or turned; and Tokens' total and rows, its columns, `v`'s splits, and how its
 rows fill the screen.
 
 **Its figures.** The states, the windows, WEEK USED, extra usage, LATELY and SESSIONS are live, read
 as the Overview reads them: the status document, the router's events, `GET /sessions` and the
-request stream. The rest is the ledger's days, read with no router (see The request ledger):
-requests, as the ledger counts them; sessions served, the distinct ids of the days' `session_ids`,
+request stream; in a past period they leave, but LATELY, the router's events up to its end, and
+extra usage, which isn't the period's. The rest is the ledger's days, read with no router (see The
+request ledger): requests, as the ledger counts them; sessions served, the distinct ids of the days'
+`session_ids`,
 across accounts for `all accounts`; sessions moved, the days' `moved_off` and `moved_on`; limits
 hit, the days' `limits`; time at cap or limit, the days' `minutes_at_cap` and `minutes_at_limit`
 together; worth and share of use, the days' usage, priced; plan, each account's `plan` (see Config),
@@ -5761,7 +5933,9 @@ is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the
 draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
 `projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
 `projects-108x24`, `projects-12-months-173x53`, `projects-many-114x40` and `projects-104x58`, a
-tall, narrow screen, its SESSIONS filling the width.
+tall, narrow screen, its SESSIONS filling the width; and over a past period, as the Paper frames
+of stepping back through periods draw it (20 November 2026), `projects-yesterday-73x61` and
+`projects-last-week-173x53`.
 
 - **A session's project** is `status.Projects`'. It starts from `status.ProjectOf`: the project
   its lines name, else, of a line from before they named one, its directory's, a Claude Code
@@ -5844,6 +6018,21 @@ tall, narrow screen, its SESSIONS filling the width.
 - **The list:** a row a project with a session in the period, by worth, greatest first, then by
   name: its name and path; its sessions running now; its sessions, requests and worth, and worth by
   family; and when its last request arrived. Then `all projects`, every project's totals.
+- **A past period** (see Accounts' rules for the dial, and The page for its keys on the key line,
+  as
+  `tab views   ↑↓ project   → its sessions   - + period: last week   < > back · on   n now   p pin   ? help  q quit`,
+  and a phone's `tab views   ↑↓ project   < > back · on   n now   ? keys   q quit`): the list has
+  no `live` column and the chosen project's head no count of its sessions running, as neither is the
+  period's, the rest taking the room. `last` is the time of its last request within the period,
+  never `now`: the
+  time alone where the period is one day, `21:40`; over more, with the weekday where it falls in
+  the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`, with its year
+  where it isn't now's, `21 Aug 2025 21:40`. WORTH BY over a
+  past day is by the hour of that day's lines, as Accounts' WORTH charts it, and no chart marks a
+  bucket as now's. ON ACCOUNTS names its accounts without `▲` and without the marks of one out of
+  the pool, as both tell now. SESSIONS lists the period's sessions as the List does in a past period (see
+  Sessions, The List), and says as it does, once, after its last row, where the period reaches
+  back before the first day whose sessions are kept: `sessions before 14 Sep no longer kept`.
 - **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
   the hour today, or by two hours, the hours to come counted, by the day this week, by the day and
   by the week over 30 days and 12 weeks, and by the week, or the month, over 12 months, each
@@ -5860,7 +6049,8 @@ tall, narrow screen, its SESSIONS filling the width.
   them, a line saying how many more; its columns lie as flex lays them, the bar narrowing to 8
   cells first, then requests and `last` leaving, and only then the name cut, to 10 cells. Its
   bar is its worth in eighths of a cell against the top project's, split by family as BY MONTH
-  splits a month's; `last` is `now` while a session of it is busy, as `Activity.Busy` has it.
+  splits a month's; `last` is `now` while a session of it is busy, as `Activity.Busy` has it, and
+  a past period's as the past period's rule above says.
   Worth reads to the cent under $100 and to the dollar from it (`Worth.Rounded`). Under the list,
   a blank row between, the head, the numbers, the sections and SESSIONS. The sections lie wide,
   WORTH BY in the left half and BY MODEL over ON ACCOUNTS in the right, where a week's days'
@@ -5884,8 +6074,8 @@ tall, narrow screen, its SESSIONS filling the width.
   each hour in the cells it takes, the left half where it lies wide, else by two hours; over 30
   days and 12 weeks, by day where one fits each day, else by week; over 12 months, by week where
   one fits each week, else by month. Its axis names buckets from the last back, the one now
-  falls in bold, and weeks by the month of their first day in the period, where it's another
-  than the week before's. WORTH BY spans the
+  falls in bold, none in a past period, and weeks by the month of their first day in the period,
+  where it's another than the week before's. WORTH BY spans the
   cells it takes, here and on Accounts' Detail (the owner's call, 15 November 2026: a chart is
   never cut short). Its spare cells are spread evenly: across the gaps where its columns stand
   apart, every column one width, and across the columns where they touch (`chartSlots`). Where
@@ -5965,7 +6155,8 @@ Switchboard stays live, with no dial. The frames are in the Paper file
 `sessions-switchboard-mixed-160` (work and personal without a 5-hour window). The List as a log is
 in the Paper file *Switchboard · Entities*, on page `p-3-0` (round 3, signed off 13 November 2026),
 and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73x61` and
-`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. The List under `nerd_font` is
+`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`; over a past period, it's
+`sessions-list-last-week-108x44`. The List under `nerd_font` is
 `sessions-list-nerd-font-160`. Columns and rows are at 160 by 37
 unless they say otherwise.
 
@@ -5975,7 +6166,8 @@ other `text.subtle`; a space and `[ ]` in `text.faint`; two spaces, and a rule o
 the last column. `SESSIONS` takes 0–7, `Switchboard` with its spaces 11–23, `List` with its spaces
 24–29 and `[ ]` 31–33, and the rule starts at 36. While the List shows, the dial sits at the
 row's right, `< 30 days >`, the rule ending two cells before it, as Accounts' and Projects' do: the
-one period the entity tabs share, which `<` and `>` step there; it leaves with the Switchboard. The
+one period the entity tabs share, which `<` and `>` step back and on in time there, and `-` and
+`+` change the length of; it leaves with the Switchboard. The
 view starts on row 6, and the row over the key line holds its state line, where it has one (see The
 page). The sub-tab shown is kept in the preferences file (settled in the plan).
 
@@ -6309,8 +6501,8 @@ each at least its least and at most its natural, but `session`, which grows wher
 | `session` | 11 | Its whole, the widest project and the widest name of the log a cell apart, 29 at the most; growing to its whole before `routing` takes what's left; where `routing` has left, growing on to take what's left itself | Two cells, with no dot: its project, as Projects names the project's row, in `text.muted`, in a column of its own within this one, as wide as the widest project of the log, cut with `…` to leave the widest name whole, up to 14 cells of it, at its least 6, blank of a session of no project or of temporary folders, so the names line up; a space, then its session name, as the bullet below has it, in `text.secondary`, a worktree's carrying the tree under `nerd_font`, and a twin's id after it in `text.subtle`, cut with `…` to the rest, a twin's id kept whole |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
-| `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
-| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS). As wide as the widest of the whole log says, the ended sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
+| `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted`; in a past period, `went on` in `text.muted`, of a session that went on after the period's last day |
+| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS); in a past period dated as `prose.PastAt` dates it (see A past period). As wide as the widest of the whole log says, the ended and gone-on sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
 | `requests` | 8 | 8, right-aligned | Its requests in the period, as `1,240`, in `text.muted`: today's over today |
 | `worth` | 7, or the widest the log says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
@@ -6409,21 +6601,51 @@ each at least its least and at most its natural, but `session`, which grows wher
   router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells,
   and a rule of `─` in `border` to the last column. The rules read `ended today`, `ended yesterday`,
   the weekday within the six days before today, `ended Tue`, and the weekday and date beyond,
-  `ended Mon 21 Sep`, as Projects' SESSIONS reads them. The order stays still, never reshuffled by
+  `ended Mon 21 Sep`, its year where it isn't now's, `ended Sun 21 Sep 2025`, as Projects'
+  SESSIONS reads them. The order stays still, never reshuffled by
   activity, as rows would slide from under the cursor: a row moves only as its session ends, from
   running to the top of ended, or as it asks again, back to its place by start among the running. A
   rule shows with the first session under it or not at all, so a List of one row, at its least,
   shows no rule, the ended sessions following the running, each saying it ended (settled in the
   plan).
+- **A past period** (see Accounts' rules for the dial) lists its own sessions, under the same day
+  rules, `ended Thu 24 Sep`, with none first as running, as no session runs in the past. A session
+  that had requests in the period and went on after its last day sits first, where the running
+  would, in the order they started, its state `went on` in `text.muted` in place of `ended …`,
+  its requests and worth the period's alone. A start on another day than the one its rule names,
+  and a start of a session that went on, is dated as `prose.PastAt` dates it, `Tue 12:08` within
+  the six days before today and `21 Sep 12:08` before them, its year where it isn't now's,
+  `21 Sep 2025 12:08`; one on its rule's day is by the clock alone. ↑ and ↓ onto the last session,
+  or ↓ on it, show the words after it too, where the page holds both; a look or a click keeps the
+  session in view and never moves the List further to show them, which `j` or the wheel does. A past period with no session says so in the table's place, in `text.subtle`, by the
+  dial's words: `no sessions yesterday`, `no sessions on Tue 29 Sep`, `no sessions last week`,
+  `no sessions in the week of 14 Sep`, `no sessions in the 30 days to 1 Sep`, and so on;
+  Projects' SESSIONS and its empty list say it alike. The ledger keeps a day's sessions only as
+  long as its lines, so a past period can reach back before the first day it keeps them. Where
+  some of its days are before it, the List says so once, after its last row, in `text.subtle`:
+  `sessions before 14 Sep no longer kept`, by the first day whose sessions are kept, its year only
+  where it isn't now's. No day's rule shows without a session under it. A past period whose every
+  day is gone shows `sessions no longer kept` in place of the empty period's words, and its
+  period line names the period alone, with nothing to count. Projects' SESSIONS and its empty
+  list say both alike. The period line's name is the dial's words, in now's ink, never
+  `accent.attention`: `last week  29 sessions · 5,423 requests · $646.09 at API prices`.
 - **The period line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
   `30 days  150 sessions · 33,010 requests · $3,257.86 at API prices`, the period's name in
   `text.subtle`, as `today` over today, the counts in `text.secondary`, the worth bold
   `text.secondary`, its thousands set apart, and the rest in `text.muted`. It sums the period's
   sessions, running and ended, their requests in it and their worth, as Projects' every project's
-  row does, so it carries the period's worth where `worth` has left. Where it doesn't fit its row,
-  it breaks after `requests`, the worth on the row under the rest; the view's least, three rows,
-  always leaves the table a row over the two, so the worth never gives way. The sessions run down
+  row does, so it carries the period's worth where `worth` has left. It's never cut: it takes the
+  first of these forms whose rows fit whole, in two rows at most:
+  1. all on one row;
+  2. broken after `requests`, the worth on the row under the rest;
+  3. the name alone, the rest on the row under it;
+  4. the requests given way, the name and the sessions, the worth under them;
+  5. the name, the sessions and the worth under it;
+  6. the name, the worth under it.
+
+  The worth never gives way. Of no sessions, `no sessions` follows the name, or sits under it. The
+  view's least, three rows, always leaves the table a row over the two. The sessions run down
   to it; where they fit, the rows left over lie between the last session and it: every session
   shows, and nothing folds.
 - **Past a screen,** the table scrolls a row at a time, its heads held, and the row over the key
@@ -6442,13 +6664,17 @@ each at least its least and at most its natural, but `session`, which grows wher
 | Where | Key line |
 |---|---|
 | The Switchboard | `tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit` |
-| The List | `tab views   [ ] view   < > period: 30 days   ↑↓ session   enter its page   p pin   ? help  q quit` |
+| The List | `tab views   [ ] view   - + period: 30 days   < > back · on   ↑↓ session   enter its page   p pin   ? help  q quit` |
+| The List, a past period | `tab views   [ ] view   - + period: 30 days to 1 Sep   < > back · on   n now   ↑↓ session   enter its page   p pin   ? help  q quit` |
 | A phone, the Switchboard | `↑↓ session   enter open   [ ] view   ? keys   q quit` |
-| A phone, the List | `tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit` |
+| A phone, the List | `tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit`, `n now` joining after `< > back · on` while a past period shows |
+
+The dial's keys give way, wide and on a phone, as The page's rule for them has it.
 
 - `[` and `]` switch between Switchboard and List.
-- `<` and `>` step the dial's period on the List, the shared one Accounts and Projects step, the
-  List from its top; on the Switchboard they do nothing.
+- `<` and `>` step the dial's period back and on in time on the List, `-` and `+` (or `=`) change
+  its length, and `n` goes back to now: the shared dial Accounts and Projects step (see Accounts'
+  rules), the List from its top; on the Switchboard they do nothing.
 - `↑` and `↓` choose a session, a call on the Switchboard or a row on the List, on `bg.selection`:
   a row on the List, or a session's row in lanes, across the width; a call over its own columns
   alone, from the row's first through its id, name, state and `from`, to the cell before its plug,
@@ -6523,9 +6749,10 @@ each at least its least and at most its natural, but `session`, which grows wher
   the period at once meets that, as a year of sides, ten sessions a day, reads in about 36 ms, and the
   log of 12 months of them builds in about 16 ms more (an M1 Max, loaded, 14 November 2026), so
   the List reads them whole. Till they're read, the List draws no
-  log, its heading saying `loading…`, as Projects does; once read, a step back within them draws at
-  once, and past midnight it keeps the log it built till the tail's first read of the day. The log
-  is built again only as the days read, the period, the day or today's List's sessions change.
+  log, its heading saying `loading…`, as Projects does; once read, a step to a period within them
+  draws at once, and past midnight it keeps the log it built till the tail's first read of the day.
+  The log is built again only as the days read, the period, the day or today's List's sessions
+  change.
 - **Agents** read the same through the data verbs: `sessions` lists the running sessions and today's
   ended ones, the List's own function (see The data verbs).
 
@@ -8801,7 +9028,9 @@ that work there (see The page); `?` lists every one, with what it does.
 | `b` | Overview | By window, or by account |
 | `↑` `↓` | Overview, where USAGE scrolls | Scroll USAGE a row, as `j` `k` do |
 | `[` `]` | Accounts, Sessions, the Log | The sub-tab before or after |
-| `<` `>` | Accounts, Projects | A shorter period, a longer one |
+| `<` `>` | Accounts, Projects, Sessions' List | The period back a length in time, or on a length, stopping at now, and at a period holding or lying before the ledger's first day (the owner's call, 20 November 2026) |
+| `-` `+`, `=` | Accounts, Projects, Sessions' List | A shorter period, a longer one, keeping its last day; `=` as `+` |
+| `n` | Accounts, Projects, Sessions' List, while a past period shows | Back to now, keeping the length |
 | `v` | Accounts' Tokens; Trends, while YEAR or BY MONTH shows | The next split of Tokens' rows; the next of what YEAR and BY MONTH show |
 | `←` `→` | Accounts' Compare | Move the focus along the accounts' columns |
 | `←` `→` | Trends' YEAR and BY MONTH, filtered to an account | The account before or after |

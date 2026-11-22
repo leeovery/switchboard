@@ -17,6 +17,7 @@ const (
 	secondsLayout      = time.TimeOnly
 	clockLayout        = "Mon 15:04"
 	pastLayout         = "2 Jan 15:04"
+	pastInYearLayout   = "2 Jan 2006 15:04"
 	readingLayout      = "Mon 2 Jan 15:04"
 	dayLayout          = "Mon 2 Jan"
 	dayInYearLayout    = "Mon 2 Jan 2006"
@@ -80,7 +81,7 @@ func DatedAfar(now, t time.Time) string {
 	if WithinWeek(now, t) && WithinWeek(t.In(now.Location()), now) {
 		return Dated(now, t)
 	}
-	return t.In(now.Location()).Format(pastLayout)
+	return DayMonthTime(now, t)
 }
 
 // RunOut shows t, when a window is projected to run out, in now's time zone:
@@ -111,7 +112,7 @@ func weekOn(now, t time.Time) bool {
 // weekday, such as "5 Nov 15:00".
 func Befell(now, t time.Time) string {
 	if weekBack(now, t) {
-		return t.In(now.Location()).Format(pastLayout)
+		return DayMonthTime(now, t)
 	}
 	return Dated(now, t)
 }
@@ -126,7 +127,8 @@ func weekBack(now, t time.Time) bool {
 // BefellWidth is how many characters the widest time Befell shows takes: as
 // Dated shows one, or a week back, its date of two figures.
 func BefellWidth() int {
-	return max(DatedWidth(), utf8.RuneCountInString(time.Date(2000, time.January, 10, 23, 59, 0, 0, time.UTC).Format(pastLayout)))
+	twoFigures := time.Date(2000, time.January, 10, 23, 59, 0, 0, time.UTC)
+	return max(DatedWidth(), utf8.RuneCountInString(DayMonthTime(twoFigures, twoFigures)))
 }
 
 // RunOutWidth is how many characters the widest time RunOut shows takes: as
@@ -244,7 +246,18 @@ func Past(now, t time.Time) string {
 	case WithinWeek(now, t):
 		return Clock(now, t)
 	}
-	return t.Format(pastLayout)
+	return DayMonthTime(now, t)
+}
+
+// PastAt shows t, before now, as Past shows it, but where Past gives its
+// date in a year other than now's, with its year, such as "21 Sep 2025
+// 12:08", as a start in a period gone is dated. Within the week it names no
+// date, so no year, across a new year too.
+func PastAt(now, t time.Time) string {
+	if !WithinWeek(now, t) {
+		return DayMonthTimeAt(now, t)
+	}
+	return Past(now, t)
 }
 
 // yesterday leads a time on the day before now's, as Past says it.
@@ -253,15 +266,16 @@ const yesterday = "yesterday "
 // DayGone names the day t falls on, before now, in now's time zone, as a
 // rule over what ended that day names it: "today"; "yesterday"; its weekday
 // within the six days before today, as "Tue"; else its weekday and date, as
-// Day names it, "Mon 21 Sep".
+// DayAt names it, "Mon 21 Sep", or in another year than now's, "Sun 21 Sep
+// 2025".
 func DayGone(now, t time.Time) string {
-	return dayBefore(now, t, "today", Day)
+	return dayBefore(now, t, "today", func(d time.Time) string { return DayAt(now, d) })
 }
 
 // Begun says when t was, before now, in now's time zone, as a session's
 // start is said beside the rules DayGone words: its time of day today, as
-// "14:12"; else after the day as DayGone names it, as "yesterday 15:08",
-// "Tue 09:12" or "Mon 21 Sep 09:12".
+// "14:12"; else after the day as Day names it, never with a year, as
+// "yesterday 15:08", "Tue 09:12" or "Mon 21 Sep 09:12".
 func Begun(now, t time.Time) string {
 	return strings.TrimSpace(dayBefore(now, t, "", Day) + " " + TimeOfDay(now, t))
 }
@@ -367,6 +381,41 @@ func DayMonth(d time.Time) string {
 // 2026".
 func DayMonthYear(d time.Time) string {
 	return d.Format(dayMonthYearLayout)
+}
+
+// DayAt names the day d as it's named at now: as Day names it, such as "Tue
+// 29 Sep", in now's year; in another, with its year, as DayInYear names it,
+// such as "Mon 29 Sep 2025".
+func DayAt(now, d time.Time) string {
+	if d.Year() != now.Year() {
+		return DayInYear(d)
+	}
+	return Day(d)
+}
+
+// DayMonthAt names the day d as it's named at now: as DayMonth names it, such
+// as "1 Sep", in now's year; in another, with its year, as DayMonthYear names
+// it, such as "1 Oct 2025".
+func DayMonthAt(now, d time.Time) string {
+	if d.Year() != now.Year() {
+		return DayMonthYear(d)
+	}
+	return DayMonth(d)
+}
+
+// DayMonthTime shows t as its date, month and 24-hour time in now's time
+// zone, such as "21 Aug 21:40".
+func DayMonthTime(now, t time.Time) string {
+	return t.In(now.Location()).Format(pastLayout)
+}
+
+// DayMonthTimeAt shows t as DayMonthTime does in now's year, such as "21 Aug
+// 21:40"; in another, with its year, such as "21 Aug 2025 21:40".
+func DayMonthTimeAt(now, t time.Time) string {
+	if t = t.In(now.Location()); t.Year() != now.Year() {
+		return t.Format(pastInYearLayout)
+	}
+	return t.Format(pastLayout)
 }
 
 // expiresVerb is what TokenEnding says of a token's year before its date:

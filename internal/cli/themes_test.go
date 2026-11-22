@@ -286,8 +286,8 @@ func TestDashboardShowsAccountsAsKept(t *testing.T) {
 		wantPeriod  views.Period
 	}{
 		{name: "none kept", prefs: `{}`},
-		{name: "as kept", prefs: `{"period": "12-months", "accounts": {"view": "detail"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.PeriodTwelveMonths},
-		{name: "as a build from before kept it", prefs: `{"accounts": {"view": "detail", "period": "12-weeks"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.PeriodTwelveWeeks},
+		{name: "as kept", prefs: `{"period": "12-months", "accounts": {"view": "detail"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.LengthTwelveMonths.Now()},
+		{name: "as a build from before kept it", prefs: `{"accounts": {"view": "detail", "period": "12-weeks"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.LengthTwelveWeeks.Now()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

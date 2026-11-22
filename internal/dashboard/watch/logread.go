@@ -582,18 +582,15 @@ func (r logReaders) bounds(now time.Time) logBounds {
 	return b
 }
 
-// keptFrom is the oldest day kept at now of what began on the day first
-// starts, kept as long as keep says, as views.OldestKept has it: given no
-// first day where err says there's none yet; none where err says it
-// couldn't be read, and err.
+// keptFrom is the oldest day kept at now of what began where first and err,
+// as read, say, as views.BegunOf has it, kept as long as keep says: none
+// where where it began isn't known, and err.
 func keptFrom(first time.Time, err error, keep time.Duration, now time.Time) (*views.OldestDay, error) {
-	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		first = time.Time{}
-	case err != nil:
+	begun := views.BegunOf(first, err, now)
+	if !begun.Known() {
 		return nil, err
 	}
-	oldest := views.OldestKept(first, keep, now)
+	oldest := begun.Oldest(keep, now)
 	return &oldest, nil
 }
 

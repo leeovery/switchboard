@@ -128,7 +128,7 @@ func TestProjectsAndTheListReadThePoolShownsWorkAlone(t *testing.T) {
 			digestedAsTheRouter(t, h, state, "b2n8")
 			headsBuilt(t, h, state, 1, 5, 20)
 			h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
-			h.model.cfg.PoolRead, h.model.view, h.model.period = tt.read, dashboard.Projects, views.PeriodThirtyDays
+			h.model.cfg.PoolRead, h.model.view, h.model.period = tt.read, dashboard.Projects, views.LengthThirtyDays.Now()
 			h.start()
 
 			if got := projectRequests(h); !maps.Equal(got, tt.projects) {
@@ -179,14 +179,14 @@ func TestAPTurnReadsProjectsAndTheListAfreshInThePoolTurnedTo(t *testing.T) {
 	pools := newPoolTurns(t, testPools, slices.Concat(defaultAccounts, acmeAccounts), map[string]Source{"b2n8": h.source, "q7mt": h.source})
 	h.model.cfg = pools.opened(h.model.cfg, "b2n8")
 	followedOn(h, state)
-	h.model.view, h.model.period = dashboard.Projects, views.PeriodThirtyDays
+	h.model.view, h.model.period = dashboard.Projects, views.LengthThirtyDays.Now()
 	h.start()
 	if got, want := projectRequests(h), map[string]int{"/code/api": 2, "/code/web": 1}; !maps.Equal(got, want) {
 		t.Fatalf("on Default, Projects lists %v, want %v", got, want)
 	}
 
 	h.deliver(h.press("P")...)
-	if h.model.cfg.Pool.ID != "q7mt" || h.model.view != dashboard.Projects || h.model.period != views.PeriodThirtyDays {
+	if h.model.cfg.Pool.ID != "q7mt" || h.model.view != dashboard.Projects || h.model.period != views.LengthThirtyDays.Now() {
 		t.Fatalf("P turned to %q, showing %v over %v; want Acme, Projects over 30 days", h.model.cfg.Pool.ID, h.model.view, h.model.period)
 	}
 	if got, want := projectRequests(h), map[string]int{"/code/api": 5}; !maps.Equal(got, want) {

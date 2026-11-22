@@ -99,7 +99,7 @@ func TestTheLogNamesEachSessionOfThePeriodAsItsLastLineToNameAPlaceNamedIt(t *te
 		projectAsks(clientSession, "/code/client/api", "/code/client/api", "work", october(7, 12, 30)),
 	)...)
 
-	log := days.SessionLog(projectsIn(views.PeriodThisWeek, now))
+	log := days.SessionLog(projectsIn(views.LengthThisWeek.Now(), now))
 
 	type shown struct {
 		project string
@@ -134,7 +134,7 @@ func TestRowsThatShowAlikeShowTheirIDs(t *testing.T) {
 		namedAsks("deploy", projectAsks(ownSession, "/code/own/api", "/code/own/api", "work", october(6, 11, 0))),
 		projectAsks(clientSession, "/code/own/api", "/code/own/api", "work", october(6, 12, 0)),
 	)...)
-	in := projectsIn(views.PeriodThisWeek, now)
+	in := projectsIn(views.LengthThisWeek.Now(), now)
 	listed := map[string]views.ShownName{
 		repoSession:     {Name: "deploy", ID: repoSession},
 		worktreeSession: {Name: "deploy", ID: worktreeSession},
@@ -194,7 +194,7 @@ func TestRowsNamedByIDsAlikeShowAsMuchOfThemAsTellsThemApart(t *testing.T) {
 		projectAsks(other, "/code/web", "/code/web", "work", october(6, 12, 0)),
 	)...)
 	want := map[string]views.ShownName{first: {Name: "c1a0aa"}, second: {Name: "c1a0ab"}, third: {Name: "c1a0b"}, other: {Name: "c1a0"}}
-	if got := rowsShown(days.SessionLog(projectsIn(views.PeriodThisWeek, now)).Sessions); !maps.Equal(got, want) {
+	if got := rowsShown(days.SessionLog(projectsIn(views.LengthThisWeek.Now(), now)).Sessions); !maps.Equal(got, want) {
 		t.Errorf("the List shows %+v, want %+v", got, want)
 	}
 }

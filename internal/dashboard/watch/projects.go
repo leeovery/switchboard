@@ -51,7 +51,10 @@ func runningOf(list views.SessionList) []runningKey {
 // it's built of has changed, as projectsRebuilt has it, else telling what
 // its sessions running are doing, as projectsLive has it, and shown, as
 // projectsShown has it. Where there are no days to build it of, it waits, as
-// projectsWaiting has it. Never a frame at a time, which takes nothing in.
+// projectsWaiting has it; and where the fold of the day gone it charts by
+// the hour is yet to land, as hoursReady has it, it's let go to await it, as
+// projectsAwaited has it, as only a step of the dial to another day leaves
+// it unread. Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame || m.view != dashboard.Projects {
 		return m
@@ -59,6 +62,9 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	now := m.now()
 	if !m.daysReady(now) {
 		return m.projectsWaiting(now)
+	}
+	if !m.hoursReady(now) {
+		return m.projectsAwaited()
 	}
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
 	built := m.projectsRebuilt(now, list)
@@ -196,7 +202,7 @@ func (m Model) chosenBuilt(now time.Time) Model {
 	if chosen := (projectOf{page: t.pages, chosen: t.shown.Chosen}); t.projectOf != chosen {
 		t.shown.Project, t.projectOf = nil, chosen
 		if p, ok := t.shown.Page.Project(chosen.chosen); ok {
-			t.shown.Project, t.shown.Measured = &p, dashboard.MeasureSessions(&p, m.moment(now), now)
+			t.shown.Project, t.shown.Measured = &p, dashboard.MeasureSessions(&p, m.moment(now), now, m.dial(now))
 		}
 		t.projects++
 	}
@@ -227,27 +233,31 @@ func (t projectsTab) chosenIn(page views.ProjectsPage) string {
 }
 
 // projectsSteps are the ways Projects' keys move: back, -1, or on, 1.
-var projectsSteps = map[string]int{"<": -1, ">": 1, "left": -1, "right": 1, "up": -1, "down": 1}
+var projectsSteps = map[string]int{"left": -1, "right": 1, "up": -1, "down": 1}
 
 // projectsKey acts on a key of Projects', reporting false for a key it
-// doesn't take, or on another tab, and the command it starts, if any: < and
-// > step the period, as periodStepped has it; ↑ and ↓ choose a project in
+// doesn't take, or on another tab, and the command it starts, if any: the
+// dial's keys step the period, as periodStepped has it; ↑ and ↓ choose a project in
 // the list, or a session in SESSIONS, as Choosing has it; → and ← move
 // between the two, as Moved has it; and enter opens the session selected,
 // in SESSIONS, as openSession opens it. A key that changes what's shown
-// shows it as showProjects has it.
+// shows it as showProjects has it; ↑ or ↓ in SESSIONS scrolls it as
+// ProjectsSessionsStepScroll has it, whether the selection moved or stood
+// at an end.
 func (m Model) projectsKey(key string) (Model, tea.Cmd, bool) {
 	if m.shownView() != dashboard.Projects {
 		return m, nil, false
 	}
+	if stepped, ok := m.periodStepped(key); ok {
+		return stepped, nil, true
+	}
 	s, by := m.projects.shown, projectsSteps[key]
 	var next dashboard.ProjectsShown
-	var changed bool
+	var changed, chose bool
 	switch key {
-	case "<", ">":
-		return m.periodStepped(by), nil, true
 	case "up", "down":
 		next, changed = s.Choosing(by)
+		chose = true
 	case "left", "right":
 		next, changed = s.Moved(by)
 	case "enter":
@@ -261,6 +271,10 @@ func (m Model) projectsKey(key string) (Model, tea.Cmd, bool) {
 	}
 	if changed {
 		m = m.showProjects(next)
+	}
+	if chose && m.projects.shown.InSessions {
+		now := m.now()
+		m.scroll = m.frame(now).ProjectsSessionsStepScroll(m.doc, now, m.projects.shown.Selection())
 	}
 	return m, nil, true
 }
@@ -325,21 +339,19 @@ func (m Model) projectsClick(t dashboard.Target) (tea.Model, tea.Cmd, bool) {
 // projectsListings are Projects' own keys, each move in a group of its own,
 // as the key line sets them: in the list, ↑↓ through the projects, and →
 // into the chosen one's sessions, where it has any; in SESSIONS, ↑↓ through
-// them, ← back to the list and enter opening the one selected; then < > and
-// the period. A phone's line keeps the moves, → worded sessions, and the
-// period without its name, but in SESSIONS.
-func (m Model) projectsListings() []keyListing {
+// them, ← back to the list and enter opening the one selected; then the
+// dial's keys, of its period as dial says it, as dialListings has them, a
+// phone's line naming < > at now in the list alone. A phone's line keeps
+// the moves, → worded sessions.
+func (m Model) projectsListings(dial views.Dial) []keyListing {
 	shown := m.shownView() == dashboard.Projects
 	s := m.projects.shown
 	list, sessions := shown && !s.InSessions, shown && s.InSessions
-	period := m.periodKey()
-	return []keyListing{
+	return slices.Concat([]keyListing{
 		{Key: dashboard.Key{Key: "↑↓", Does: "project"}, works: list, apart: true},
 		{Key: dashboard.Key{Key: "→", Does: "its sessions"}, works: list && s.Project != nil && len(s.Project.Sessions) > 0, apart: true, phoneDoes: "sessions"},
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: sessions, apart: true},
 		{Key: dashboard.Key{Key: "←", Does: "projects"}, works: sessions, apart: true},
 		{Key: dashboard.Key{Key: "enter", Does: "its page", Off: !s.Opens()}, works: sessions, apart: true},
-		{Key: period, works: list, apart: true, phoneDoes: "period"},
-		{Key: period, works: sessions, apart: true, wide: true},
-	}
+	}, dialListings(dial, shown, list))
 }

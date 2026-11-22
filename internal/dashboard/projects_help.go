@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // projectsHelp are Projects' parts as help explains them, after its keys, in
@@ -22,17 +21,19 @@ func projectsHelp() []helpPart {
 				said("The list ranks each project with a session in the period by its worth at API prices, the greatest " +
 					"first, its bar its worth against the top project's, split by model family in the families' colours, as " +
 					"Trends' BY MONTH splits a month's. Live counts its sessions running now, and last says when its last " +
-					"request came, now while one of them is busy. All projects totals them, a session counted once."),
+					"request came, now while one of them is busy. A past period has no live column, as none of its " +
+					"sessions runs now, and its last is a time, with its day where the period runs over days. All projects " +
+					"totals them, a session counted once."),
 				said("`↑` and `↓` choose the project its page under the list shows; the list scrolls with the choice past " +
 					"the rows it shows, up to a third of the view's rows."),
-				said(periodsRun + " `<` and `>` step through " + prose.List(views.PeriodNames()) + ", the period Accounts and Sessions' List share."),
+				said(periodsRun + " " + dialStepped() + ", the period Accounts and Sessions' List share."),
 			},
 		},
 		{
 			heading: "THE PROJECT",
 			says: []line{
-				said("Its head gives its path and its sessions running; under it, its numbers over the period: its " +
-					"sessions, requests and worth, its share of every project's worth, and its tokens."),
+				said("Its head gives its path and its sessions running, none over a past period; under it, its numbers " +
+					"over the period: its sessions, requests and worth, its share of every project's worth, and its tokens."),
 				said("WORTH BY charts its worth in the finest bucket that fits: today by hour where a column an hour " +
 					"fits, else by two hours; this week by day; 30 days and 12 weeks by day where a column a day fits, " +
 					"else by week; and 12 months by week where a column a week fits, else by month, the peak under it. BY MODEL is each version's share of its worth, those " +

@@ -364,6 +364,8 @@ func TestTheRouterGoneHasPPinFaint(t *testing.T) {
 var everyInput = []tea.Msg{
 	tea.KeyPressMsg{Code: tea.KeyTab}, tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift},
 	tea.KeyPressMsg{Code: '<', Text: "<"}, tea.KeyPressMsg{Code: '>', Text: ">"}, tea.KeyPressMsg{Code: 'g', Text: "g"},
+	tea.KeyPressMsg{Code: '-', Text: "-"}, tea.KeyPressMsg{Code: '+', Text: "+"}, tea.KeyPressMsg{Code: '=', Text: "="},
+	tea.KeyPressMsg{Code: 'n', Text: "n"},
 	tea.KeyPressMsg{Code: tea.KeyLeft}, tea.KeyPressMsg{Code: tea.KeyRight}, tea.KeyPressMsg{Code: tea.KeyUp}, tea.KeyPressMsg{Code: tea.KeyDown},
 	tea.KeyPressMsg{Code: tea.KeySpace, Text: " "}, tea.KeyPressMsg{Code: 's', Text: "s"}, tea.KeyPressMsg{Code: 'u', Text: "u"},
 	tea.KeyPressMsg{Code: 'c', Text: "c"}, tea.KeyPressMsg{Code: 'b', Text: "b"},

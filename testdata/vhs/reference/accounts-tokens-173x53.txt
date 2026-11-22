@@ -50,4 +50,4 @@ Mon 28 Sep    6 models                0.8M        0.5M        7.5M          121M
 
 worth: what the same tokens would cost through the API, at its prices as of 1 Oct 2026
 
-tab views   [ ] view    < > period: this week    v split: by account    p pin    ? help  q quit
+tab views   [ ] view    - + period: this week    < > back · on    v split: by account    p pin    ? help  q quit

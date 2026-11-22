@@ -29,7 +29,7 @@ func TestAccountsTokensPageIsBuiltWhileTokensShows(t *testing.T) {
 		page := h.model.accounts.tokens
 		want := h.model.past.last.past.Since(nil, h.model.now()).TokensOver(period)
 		if page == nil || !reflect.DeepEqual(*page, want) {
-			t.Fatalf("Tokens' page is %+v, want it built over %s, %+v", page, period.Name(), want)
+			t.Fatalf("Tokens' page is %+v, want it built over %s, %+v", page, period.Length().Name(), want)
 		}
 		if drawn := h.model.frame(h.model.now()).Accounts.Tokens; drawn != page {
 			t.Errorf("the frame draws Tokens' page %p, want the one built, %p", drawn, page)
@@ -37,7 +37,7 @@ func TestAccountsTokensPageIsBuiltWhileTokensShows(t *testing.T) {
 		return page
 	}
 	h.keyed("] ]")
-	built := builtOver(views.PeriodThisWeek)
+	built := builtOver(views.LengthThisWeek.Now())
 
 	h.update(frameMsg{gen: h.model.frames})
 	h.update(tea.WindowSizeMsg{Width: 120, Height: 37})
@@ -46,12 +46,12 @@ func TestAccountsTokensPageIsBuiltWhileTokensShows(t *testing.T) {
 	}
 
 	h.tickUntilAsked()
-	if looked := builtOver(views.PeriodThisWeek); looked == built {
+	if looked := builtOver(views.LengthThisWeek.Now()); looked == built {
 		t.Errorf("a look that read today's days left Tokens' page as it was built, want it built afresh")
 	}
 
-	h.keyed("<")
-	builtOver(views.PeriodToday)
+	h.keyed("-")
+	builtOver(views.LengthToday.Now())
 }
 
 // v cycles Tokens' split, its rows back at their top, and the preferences
@@ -92,12 +92,12 @@ func TestAccountsTokensAtTodayAsksNoReadOfTheTail(t *testing.T) {
 	h.start()
 	h.tickUntilAsked()
 	h.keyed("[")
-	h.keyed("<")
+	h.keyed("-")
 	read := h.model.tail.tailRead
 	at := h.clock.now.Add(-time.Second)
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)
 	h.tickUntilAsked()
-	if h.model.accounts.shown.View() != dashboard.AccountsTokens || h.model.period != views.PeriodToday {
+	if h.model.accounts.shown.View() != dashboard.AccountsTokens || h.model.period != views.LengthToday.Now() {
 		t.Fatalf("after [ and <, Accounts shows %d at %s; want Tokens at today", h.model.accounts.shown.View(), h.model.period)
 	}
 	if !h.model.tail.due || h.model.tail.tailRead != read || h.model.tailFollowed() {

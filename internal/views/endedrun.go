@@ -42,11 +42,20 @@ func lastEnded(days []ledger.AccountDay, key string) (endedRun, bool) {
 	if i := slices.IndexFunc(resets, func(r ledger.Reset) bool { return r.At.Equal(end.At) }); i > 0 {
 		last = resets[i-1].At
 	}
-	run := endedRun{left: millionthsOf(end.Before).left().share()}
-	if at, ok := lastLimit(days, key, runBegan(key, last, end.At), end.At); ok {
+	return ranOver(days, key, runBegan(key, last, end.At), end.At, millionthsOf(end.Before)), true
+}
+
+// ranOver is the run of the window with the given key from start to end,
+// where a reset ended it, its use read just before that reset peak, as an
+// account's days tell it: the share it had left as it reset, and the date
+// of the local day it last reached its limit in it, "" where it reached
+// none.
+func ranOver(days []ledger.AccountDay, key string, start, end time.Time, peak millionths) endedRun {
+	run := endedRun{left: peak.left().share()}
+	if at, ok := lastLimit(days, key, start, end); ok {
 		run.ranOut = dayfile.DateOf(at)
 	}
-	return run, true
+	return run
 }
 
 // runBegan is when a run of the window with the given key that ended at end

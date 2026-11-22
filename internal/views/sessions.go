@@ -461,9 +461,16 @@ func inListOrder(a, b ListedSession) int {
 		}
 		return 1
 	case a.Running:
-		return cmp.Or(startedFirst(a.Started, b.Started), strings.Compare(a.Session, b.Session))
+		return byStart(a, b)
 	}
 	return cmp.Or(b.Ended.Compare(a.Ended), strings.Compare(a.Session, b.Session))
+}
+
+// byStart orders sessions as the List orders those running: the oldest
+// started first, one whose start isn't known last, each by its id where
+// that doesn't tell them apart.
+func byStart(a, b ListedSession) int {
+	return cmp.Or(startedFirst(a.Started, b.Started), strings.Compare(a.Session, b.Session))
 }
 
 // startedFirst orders starts, the earliest first, and an unknown one, zero,

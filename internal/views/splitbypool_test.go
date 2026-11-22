@@ -102,10 +102,10 @@ func TestHistoryReadsTheSameWhicheverWayItsDaysSplitByPool(t *testing.T) {
 		"Weeks":                  func(p views.Past) any { return p.Weeks() },
 		"the Year":               func(p views.Past) any { return p.Year(views.YearAsk{}) },
 		"the Year of an account": func(p views.Past) any { return p.Year(views.YearAsk{Account: "work"}) },
-		"Tokens":                 func(p views.Past) any { return p.TokensOver(views.PeriodTwelveWeeks) },
+		"Tokens":                 func(p views.Past) any { return p.TokensOver(views.LengthTwelveWeeks.Now()) },
 		"WHEN YOU WORK":          func(p views.Past) any { return p.Hours() },
-		"Accounts, today":        func(p views.Past) any { return p.Accounts(views.PeriodToday) },
-		"Accounts, this week":    func(p views.Past) any { return p.Accounts(views.PeriodThisWeek) },
+		"Accounts, today":        func(p views.Past) any { return p.Accounts(views.LengthToday.Now()) },
+		"Accounts, this week":    func(p views.Past) any { return p.Accounts(views.LengthThisWeek.Now()) },
 		"the lanes' summaries":   func(p views.Past) any { return windowsOf(p.Summaries(on("2026-10-05"), now)) },
 	}
 	// A page is held to what it gives, as its JSON says: some keep the Past

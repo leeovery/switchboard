@@ -90,8 +90,8 @@ func TestComparesHelpTellsOfNoFocusWithNoAccounts(t *testing.T) {
 func TestComparesFormNeverHangsOnTheData(t *testing.T) {
 	versions := comparedVersions(t)
 	pages := []*views.AccountsPage{nil}
-	for _, period := range views.Periods() {
-		pages = append(pages, new(comparedPage(period, versions, compareWork, comparePersonal, compareSide, compareAll)))
+	for _, period := range views.Lengths() {
+		pages = append(pages, new(comparedPage(period.Now(), versions, compareWork, comparePersonal, compareSide, compareAll)))
 	}
 	doc := usageWorld(extraOff)
 	f := compareFrame(t, threeFramed, views.AccountsPage{})
@@ -193,7 +193,7 @@ func TestComparesMovesAreBoundByTheirShortestForm(t *testing.T) {
 // aren't known, says how many are, as its ratio is of those alone: so no
 // form drops it while a shorter one holds it.
 func TestAllAccountsAgainstItsPriceKeepsThePlansKnownInEveryForm(t *testing.T) {
-	page := comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
+	page := comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	page.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}
 	for _, form := range againstForms(page, page.All) {
 		if said := plainLines([]line{fitParts(200, form...)})[0]; !strings.Contains(said, "2 of 3") && !strings.Contains(said, "2/3") {
@@ -250,9 +250,9 @@ func TestComparesValuesCutNoFigureAtAnyWidth(t *testing.T) {
 	for _, w := range comparedWorlds() {
 		t.Run(w.name, func(t *testing.T) {
 			doc := w.doc.WorkedOut(claudeLike)
-			from := map[views.Period]int{}
-			for _, period := range views.Periods() {
-				f := compareFrame(t, w.configured, comparedPage(period, versions, w.rows...))
+			from := map[views.Length]int{}
+			for _, period := range views.Lengths() {
+				f := compareFrame(t, w.configured, comparedPage(period.Now(), versions, w.rows...))
 				f.Look = Look{}
 				taken := map[string][]formTaken{}
 				for f.Width = compareWidthsFrom; f.Width <= compareWidthsTo; f.Width++ {

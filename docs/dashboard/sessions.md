@@ -58,6 +58,12 @@ If the sessions don't all fit, the row over the key line says how many are out o
 `▲ 12 more sessions · ▼ 130 more sessions`. The rule for a day stays at the top while its sessions
 scroll under it, so the day always shows.
 
+Step the dial back to list the sessions of a past period, as [Accounts](accounts.md) explains.
+No session runs in the past, so none comes first as running. A session that went on past the
+period comes first instead, marked `went on`, with only the requests of the period. The ledger
+keeps the sessions of a day only as long as it keeps that day. If a past period reaches back
+further, the List says so once, after its last row: `sessions before 14 Sep no longer kept`.
+
 ## Session names: your terminal's
 
 ```
@@ -113,7 +119,9 @@ windows of the account depend on the height:
 | `↑` `↓` | Chooses a session: a call on the Switchboard, or a row on the List. If it's out of view, the view scrolls to it. |
 | `enter` | Opens [the session page](session-page.md) for the chosen session, ended or running. |
 | `esc` | Deselects it. |
-| `<` `>` | On the List only, steps the period. |
+| `<` `>` | On the List only, steps the period back and on in time. |
+| `-` `+` | On the List only, changes the length of the period. |
+| `n` | On the List only, goes back to now. |
 | `j` `k` | Scroll the List a row. |
 
 The keys every page shares are on [Every page](every-page.md).

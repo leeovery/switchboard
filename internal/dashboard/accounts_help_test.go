@@ -212,8 +212,8 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 		{name: "three accounts, on Detail, wider", shown: threeShown, width: 200, cells: 2},
 		{name: "one account, wide", shown: oneShown, width: 160, cells: 2},
 		{name: "one account, 120 wide", shown: oneShown, width: 120, cells: 2},
-		{name: "three accounts at 12 weeks, the list beside the panel", shown: threeShown, period: views.PeriodTwelveWeeks, width: 173, cells: 1},
-		{name: "one account at 12 weeks, wider", shown: oneShown, period: views.PeriodTwelveWeeks, width: 220, cells: 2},
+		{name: "three accounts at 12 weeks, the list beside the panel", shown: threeShown, period: views.LengthTwelveWeeks.Now(), width: 173, cells: 1},
+		{name: "one account at 12 weeks, wider", shown: oneShown, period: views.LengthTwelveWeeks.Now(), width: 220, cells: 2},
 		{name: "one account at 100, its period's weeks too many for two-cell days", shown: oneShown, width: 100, cells: 1},
 		{name: "three accounts stacked, 105 wide", shown: threeShown, width: 105, cells: 2},
 		{name: "one account on a phone", shown: oneShown, width: 52, cells: 1},
@@ -231,7 +231,7 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 			}
 			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
 			doc := usageWorld(extraOff)
-			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Period: tt.period, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
+			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look, Policy: claudeLike}.over(tt.period).At(doc, routedAt).accountsHelp()
 			glyphs := parts[slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == "DETAIL" })].glyphs
 			var got []line
 			for _, g := range glyphs[:len(glyphs)-1] {
@@ -276,8 +276,8 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"worth at API prices", "what the same tokens would have cost through the API, each version at its own prices"},
 		{"why worth is unpriced", "of a model the price table doesn't know or of requests that went upstream without their usage"},
 		{"how a period is priced", "a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve months'"},
-		{"how the periods run", "today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before"},
-		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare, Detail and Tokens sharing the period, the one Projects and Sessions' List share."},
+		{"how the periods run", "a period is a length and the day it ends on. Today is that day, this week its week, 30 days and 12 months run back from it, and 12 weeks over its week and the 11 before"},
+		{"the periods stepped through", "and n goes back to now, Compare, Detail and Tokens sharing the period, the one Projects and Sessions' List share."},
 		{"Tokens' total", "The whole period's row leads, named for it, its figures its rows' summed, but its models, each counted once"},
 		{"Tokens' rows", "a day each over this week and 30 days, a week each over 12 weeks and a month each over 12 months"},
 		{"a part-way row priced by its days", "but for one that begins part-way through, as the oldest month at 12 months or the one the ledger began in, priced by its days from then"},
@@ -295,6 +295,9 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"the weeks an account's facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in"},
 		{"the weeks all accounts' facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in, or of all accounts"},
 		{"all accounts' table", "Where Detail is stacked, as on a phone, a table gives the same"},
+		{"what leaves a past period", "In a past period, what tells now leaves: the accounts' states, the token lines, WEEK USED, USAGE and SESSIONS. LATELY tells each account's events up to the period's end."},
+		{"a past Detail's head and THIS WEEK", "In a past period, the head names the account alone, and where Detail is wide, THIS WEEK stands beside BY MODEL."},
+		{"a past LATELY", "LATELY tells every event the router has for the account, in a past period those up to its end, newest first, down to the key line"},
 	} {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)
@@ -305,7 +308,7 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 // With one account, Compare gone, help says Detail and Tokens share the
 // period, with Projects and Sessions' List.
 func TestAccountsHelpOfOneAccountSaysItsViewsShareThePeriod(t *testing.T) {
-	if said, want := accountsHelpSaid(oneShown), "12 weeks and 12 months, Detail and Tokens sharing the period, the one Projects and Sessions' List share."; !strings.Contains(said, want) {
+	if said, want := accountsHelpSaid(oneShown), "and n goes back to now, Detail and Tokens sharing the period, the one Projects and Sessions' List share."; !strings.Contains(said, want) {
 		t.Errorf("help reads\n%s\nwant it to say %q", said, want)
 	}
 }
@@ -330,10 +333,14 @@ func TestAccountsHelpOfOneAccountExplainsWhatItDraws(t *testing.T) {
 	for _, want := range []string{
 		"the limits it hit, by window",
 		"Extra usage is on where Claude bills past the plan's limit",
+		"In a past period, what tells now leaves: the account's state, its token line, USAGE and SESSIONS. LATELY tells its events up to the period's end.",
 	} {
 		if !strings.Contains(said, want) {
 			t.Errorf("help of one account reads\n%s\nwant it to say %q", said, want)
 		}
+	}
+	if strings.Contains(said, "WEEK USED") {
+		t.Errorf("help of one account reads\n%s\nwant nothing of WEEK USED, which only Compare draws", said)
 	}
 	if strings.Contains(said, "all accounts") {
 		t.Errorf("help of one account reads\n%s\nwant nothing of all accounts", said)

@@ -79,10 +79,11 @@ func (f compareFramed) row() views.AccountsRow {
 	return row
 }
 
-// comparedPage is Accounts' page over the period given of the rows given,
-// the last every account's, using each of the versions given.
+// comparedPage is Accounts' page over the period given at now, its weeks
+// ending at this week, of the rows given, the last every account's, using
+// each of the versions given.
 func comparedPage(period views.Period, versions []ledger.Version, rows ...compareFramed) views.AccountsPage {
-	page := views.AccountsPage{Period: period, Recorded: true, Versions: versions}
+	page := views.AccountsPage{Period: period, Recorded: true, ThisWeek: true, Versions: versions}
 	for _, f := range rows[:len(rows)-1] {
 		page.Rows = append(page.Rows, f.row())
 	}
@@ -176,8 +177,8 @@ var threeFramed = config.Accounts{{ID: "work"}, {ID: "personal", Primary: true},
 func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsPage) Frame {
 	f := frameOf(160, 37)
 	f.View, f.Look, f.WeekWindow, f.VersionNameCells = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
-	f.Period, f.Accounts = page.Period, AccountsShown{Accounts: configured, Page: &page}
-	return f
+	f.Accounts = AccountsShown{Accounts: configured, Page: &page}
+	return f.over(page.Period)
 }
 
 // extraOff has every account's extra usage read off, as Compare's frames
@@ -191,7 +192,7 @@ func extraOff(d *status.Document) {
 // threeCompared is Compare of the auto world's three accounts this week, as
 // text alone, of a terminal the size given.
 func threeCompared(t *testing.T, width, height int) (Frame, status.Document) {
-	f := compareFrame(t, threeFramed, comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
+	f := compareFrame(t, threeFramed, comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
 	f.Width, f.Height, f.Look = width, height, Look{}
 	return f, usageWorld(extraOff)
 }
@@ -199,7 +200,7 @@ func threeCompared(t *testing.T, width, height int) (Frame, status.Document) {
 // tenOnCompare is Compare of ten accounts this week, as text alone, of a
 // terminal the size given, its columns from the first shown given.
 func tenOnCompare(t *testing.T, width, height, first int) (Frame, status.Document) {
-	f := compareFrame(t, tenFramed, comparedPage(views.PeriodThisWeek, comparedVersions(t), tenRows()...))
+	f := compareFrame(t, tenFramed, comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), tenRows()...))
 	f.Width, f.Height, f.Look = width, height, Look{}
 	f.Accounts.First = first
 	return f, usageWorld(tenCompared, extraOff)
@@ -707,7 +708,7 @@ func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 			left: "  left at its last reset  0% (limit Fri)                    15%                              40%                              —"},
 		{name: "a fresh install", page: func(p *views.AccountsPage) {
 			for i := range p.Rows {
-				p.Rows[i].WeekLeft, p.Rows[i].RanOut = nil, ""
+				p.Rows[i].WeekLeft, p.Rows[i].RanOutOn = nil, ""
 			}
 		}, left: "  left at its last reset  —                                 —                                —                                —"},
 	}
@@ -911,7 +912,7 @@ func TestComparesBarsGrowWithTheirColumnsToTheMost(t *testing.T) {
 // cells after it, and a version's name past it is cut to it.
 func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	f, doc := threeCompared(t, 160, 60)
-	f.Period = views.PeriodThirtyDays
+	f = f.over(views.LengthThirtyDays.Now())
 	f.Accounts.Page.Versions[0].Name = "Opus 5.5 with a name long past the most"
 	rows := f.Draw(doc, routedAt)
 	labels := compareLabels()

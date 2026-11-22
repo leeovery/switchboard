@@ -49,7 +49,7 @@ func figuresOf(t *testing.T, name string, totals views.ProjectTotals) projectFig
 // mobile, all of whose sessions ran yesterday or today, as their lines tell
 // them, what the design gives them besides going to the other four.
 func TestTheProjectsOfThisWeekAreTheDesignsWorld(t *testing.T) {
-	page := projectsOf(autoWorld(), views.PeriodThisWeek)
+	page := projectsOf(autoWorld(), views.LengthThisWeek.Now())
 	var got []projectFigures
 	for _, r := range page.Rows {
 		got = append(got, figuresOf(t, r.Name, r.ProjectTotals))
@@ -70,7 +70,7 @@ func TestTheProjectsOfThisWeekAreTheDesignsWorld(t *testing.T) {
 // directories: three in its worktrees, fix-login, and pools twice, and one
 // in release, whose lines are from before projects.
 func TestSwitchboardsSessionsKeepTheirWorktreesNames(t *testing.T) {
-	page, ok := projectsOf(autoWorld(), views.PeriodThisWeek).Project(switchboardProject)
+	page, ok := projectsOf(autoWorld(), views.LengthThisWeek.Now()).Project(switchboardProject)
 	if !ok {
 		t.Fatal("this week has no switchboard")
 	}
@@ -89,7 +89,7 @@ func TestSwitchboardsSessionsKeepTheirWorktreesNames(t *testing.T) {
 // and $24,736; kit last active on Saturday 13 June, the design's Sunday 14
 // June being a day of no requests, and old-site on 2 March.
 func TestTheProjectsOfTwelveMonthsAreTheDesignsWorld(t *testing.T) {
-	page := projectsOf(autoWorld(), views.PeriodTwelveMonths)
+	page := projectsOf(autoWorld(), views.LengthTwelveMonths.Now())
 	sessions, last := make(map[string]int), make(map[string]string)
 	for _, r := range page.Rows {
 		sessions[r.Name], last[r.Name] = r.Sessions, r.Last.Local().Format(time.DateOnly)
@@ -104,5 +104,44 @@ func TestTheProjectsOfTwelveMonthsAreTheDesignsWorld(t *testing.T) {
 	all := figuresOf(t, "every project", page.All)
 	if all.live != 6 || all.sessions != 1688 || all.requests != 212885 || (all.cents+50)/100 != 24736 {
 		t.Errorf("every project's 12 months are %+v, want 6 live, 1,688 sessions, 212,885 requests and $24,736", all)
+	}
+}
+
+// This week's runs, each session's of a day, share their worth among their
+// requests, each spending some, summing to the run's.
+func TestARunsWorthIsSharedAmongItsRequests(t *testing.T) {
+	runs := autoWorld().records().runs
+	for _, d := range []int{thisWeek, thisWeek + 1, today - 1} {
+		for _, run := range runs[dateOf(d)] {
+			reads := 0
+			for _, l := range run.lines() {
+				tokens, _ := ledger.Reply{Usage: l.Usage}.Tokens()
+				if tokens.CacheRead == 0 {
+					t.Errorf("%s's request %s spends nothing", run.session, l.Request)
+				}
+				reads += tokens.CacheRead
+			}
+			if reads != run.reads {
+				t.Errorf("%s's requests of %s read %d tokens, want the run's %d", run.session, dateOf(d), reads, run.reads)
+			}
+		}
+	}
+}
+
+// Tuesday's runs carry on to 23:30, so Detail over Tue 29 Sep charts hours of
+// them; Monday's and yesterday's take a request each 40 seconds or so.
+func TestTuesdaysRunsCarryOnTo2330(t *testing.T) {
+	runs := autoWorld().records().runs
+	for _, d := range []int{thisWeek, thisWeek + 1, today - 1} {
+		for _, run := range runs[dateOf(d)] {
+			lines := run.lines()
+			first, last := lines[0].At, lines[len(lines)-1].At
+			if tuesday := d == thisWeek+1; tuesday != last.After(dayAt(worldsNow().now, d, 23, 29, 0)) {
+				t.Errorf("%s's run of %s ends at %s", run.session, dateOf(d), last.Local().Format("15:04"))
+			}
+			if d != thisWeek+1 && last.Sub(first) > time.Duration(len(lines))*41*time.Second {
+				t.Errorf("%s's run of %s takes %s for %d requests", run.session, dateOf(d), last.Sub(first), len(lines))
+			}
+		}
 	}
 }

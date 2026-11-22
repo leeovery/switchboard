@@ -221,7 +221,7 @@ func TestTheDaysTheTailsDaysOweAreReadThoughNoReaderWantsThem(t *testing.T) {
 	if owed := fed.Owed(turned); len(owed) > 0 {
 		t.Errorf("fed the day gone whole, the days owe %v, want none", owed)
 	}
-	in := views.PeriodInput{Period: views.PeriodThisWeek, Names: status.Names{}, Prices: ledger.Pricing, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: turned}
+	in := views.PeriodInput{Period: views.LengthThisWeek.Now(), Names: status.Names{}, Prices: ledger.Pricing, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: turned}
 	if got := fed.Projects(in).All.Requests; got != 5 {
 		t.Errorf("fed the day gone whole, the days count %d requests, want its 4 and today's 1", got)
 	}
@@ -305,7 +305,7 @@ func TestALaterReadOfADayGoneStandsForTheTailsCopy(t *testing.T) {
 	h.read(routerDocument(three()...))
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", night.Add(20*time.Second), 1)...)
 	h.clock.now = onTheDay(24+10, 0, 0)
-	h.deliver(h.press(">")...)
+	h.deliver(h.press("+")...)
 	sameAsFresh(t, h, 8, "a step to 30 days at ten read the day gone again")
 	if d := h.model.sessionDays; d.tailed.Told(d.tailed.Without(*d.days)) {
 		t.Error("the tail's days hold what Without lets go of, want the watch to have let go of it")
@@ -339,7 +339,7 @@ func TestATailReadUnderWayAsProjectsFirstShowsBuildsItsPageAgain(t *testing.T) {
 func TestProjectsCountsAsFedOnlyWhatChangedItsDays(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
 	h.start()
-	h.deliver(h.press(">")...)
+	h.deliver(h.press("+")...)
 	d, now := h.model.sessionDays, h.clock.now
 	later := now.Add(time.Second)
 	gamma := projectAsks(gammaOnly, "/code/gamma", now.AddDate(0, 0, -1), 1)
@@ -410,7 +410,7 @@ func TestALateLineOfTheDayGoneReachesProjectsThroughAnotherReadersRead(t *testin
 func TestAReadFurtherBackKeepsTheLinesTheTailGaveMeanwhile(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
 	h.start()
-	held := holdingBack[daysReadMsg](h, h.press(">")...)
+	held := holdingBack[daysReadMsg](h, h.press("+")...)
 	if len(held) != 1 {
 		t.Fatalf("a step to 30 days held %d reads, want one", len(held))
 	}
@@ -435,14 +435,14 @@ func heldDates(h *harness) []string {
 func TestTheDaysHeldAreBoundedToThePeriodAsTheDaysTurn(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
 	h.start()
-	h.keyed("> <")
+	h.keyed("+ -")
 	asked := h.model.sessionDays.asked
 	for day := 1; day <= 9; day++ {
 		at := start.AddDate(0, 0, day)
 		projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at.Add(-time.Hour), 1)...)
 		h.clock.now = at
 		h.read(routerDocument(three()...))
-		first := dayfile.DateOf(views.PeriodThisWeek.From(at, time.Monday))
+		first := dayfile.DateOf(views.LengthThisWeek.Now().From(at, time.Monday))
 		if held := heldDates(h); len(held) > 0 && held[0] < first {
 			t.Errorf("on %s, the days held are %v, want none before this week's first, %s", dayfile.DateOf(at), held, first)
 		}
@@ -453,7 +453,7 @@ func TestTheDaysHeldAreBoundedToThePeriodAsTheDaysTurn(t *testing.T) {
 	if got := h.model.sessionDays.asked; got != asked {
 		t.Errorf("as the days turned, the days were read %d times, want none", got-asked)
 	}
-	h.keyed(">")
+	h.keyed("+")
 	if got := h.model.sessionDays.asked; got != asked+1 {
 		t.Errorf("a step back to 30 days read the days %d times, want once", got-asked)
 	}

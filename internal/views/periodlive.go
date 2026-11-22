@@ -10,9 +10,11 @@ import (
 // the page was built of, as doingAlike has it: each row's activity, as
 // doingIn has it, and the List each project's page is built of, as Project
 // builds it; nothing else built afresh, so list must list running the
-// sessions the page was built of, where they were and on what.
+// sessions the page was built of, where they were and on what. A page of a
+// period gone tells nothing afresh, as it lists none of the List, as lists
+// has it.
 func (p ProjectsPage) Live(list SessionList) (ProjectsPage, bool) {
-	if doingAlike(p.in.List, list) {
+	if !p.in.lists() || doingAlike(p.in.List, list) {
 		return p, false
 	}
 	p.in.List, p.Rows = list, slices.Clone(p.Rows)
@@ -37,12 +39,13 @@ func (p ProjectsPage) ProjectLive(page ProjectPage) ProjectPage {
 // lists running are doing, where it tells otherwise of any than the List
 // the log was built of, as doingAlike has it: their rows', as liveRows has
 // them; nothing else built afresh, so list must list running the sessions
-// the log was built of, where they were and on what.
+// the log was built of, where they were and on what. A log of a period gone
+// tells nothing afresh, as Projects' page doesn't.
 func (l SessionLog) Live(list SessionList) (SessionLog, bool) {
-	if doingAlike(l.list, list) {
+	if !l.in.lists() || doingAlike(l.in.List, list) {
 		return l, false
 	}
-	l.list, l.Sessions = list, liveRows(l.Sessions, list)
+	l.in.List, l.Sessions = list, liveRows(l.Sessions, list)
 	return l, true
 }
 

@@ -3,6 +3,8 @@ package views
 import (
 	"testing"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/dayfile"
 )
 
 // Every period's coarsest chart has no more than BucketsMost buckets, on
@@ -10,14 +12,14 @@ import (
 // given or not, so a drawing that fits so many fits every period's; and it
 // reaches BucketsMost, as the constant says.
 func TestEveryPeriodsCoarsestChartHoldsBucketsMostAtMost(t *testing.T) {
-	var hours [24]Worth
 	most := 0
 	for day := range 366 {
 		now := time.Date(2026, time.January, 1, 13, 0, 0, 0, time.Local).AddDate(0, 0, day)
+		hours := hourWorths{date: dayfile.DateOf(now)}
 		for starts := time.Sunday; starts <= time.Saturday; starts++ {
-			for _, period := range Periods() {
-				for _, given := range []*[24]Worth{nil, &hours} {
-					n := len(worthCharts(period, now, starts, time.Time{}, dayWorths{}, given).Coarsest().Buckets)
+			for _, period := range Lengths() {
+				for _, given := range []*hourWorths{nil, &hours} {
+					n := len(worthCharts(period.Now(), now, starts, time.Time{}, dayWorths{}, given).Coarsest().Buckets)
 					if n > BucketsMost {
 						t.Fatalf("on %s, weeks from %s, %s's coarsest chart has %d buckets, want %d at most", now.Format(time.DateOnly), starts, period.Name(), n, BucketsMost)
 					}

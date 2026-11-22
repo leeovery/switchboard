@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -36,8 +37,8 @@ var (
 		right: line{{"830 hidden", secondaryInk}, spaces(3), {"f", keyInk}, {" what it shows", mutedInk}},
 	}
 	steppedBack = heading{name: "RUNWAY", state: line{{"Mon 21 Sep – Sun 27 Sep", faintInk}}}
-	comparing   = heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, period: "this week"}
-	fourTabs    = heading{name: "EXAMPLE", subTabs: []string{"Feed", "Queue", "Logs", "Alerts"}, period: "last 12 months"}
+	comparing   = heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, period: dialed{name: "this week"}}
+	fourTabs    = heading{name: "EXAMPLE", subTabs: []string{"Feed", "Queue", "Logs", "Alerts"}, period: dialed{name: "last 12 months"}}
 	filtering   = heading{
 		name: fourTabs.name, subTabs: fourTabs.subTabs, period: fourTabs.period, least: "personal only",
 		state:   line{{"Work only, every model  ·  ", faintInk}, {"v", keyInk}, {" for all, a model or an account", faintInk}},
@@ -119,12 +120,12 @@ func TestTheHeadingRow(t *testing.T) {
 		},
 		{
 			name: "on a phone, a tab without sub-tabs keeps its rule and its window, as runway-phone-52 draws it", width: 52, phone: true,
-			heading: heading{name: "RUNWAY", period: "5-hour"},
+			heading: heading{name: "RUNWAY", period: dialed{name: "5-hour"}},
 			want:    []string{"RUNWAY  " + rule(32) + "  < 5-hour >"},
 		},
 		{
 			name: "the state cut short, to leave the period room", width: 100,
-			heading: heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, state: line{{"accounts 1–6 of 10  ·  ", faintInk}, {"←→", keyInk}, {" moves along them; all accounts stays put", faintInk}}, period: "this week"},
+			heading: heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, state: line{{"accounts 1–6 of 10  ·  ", faintInk}, {"←→", keyInk}, {" moves along them; all accounts stays put", faintInk}}, period: dialed{name: "this week"}},
 			want:    []string{"ACCOUNTS    Compare  Detail  [ ]   accounts 1–6 of 10  ·  ←→ moves along them; all a…  < this week >"},
 		},
 		{
@@ -166,8 +167,76 @@ func TestTheHeadingRow(t *testing.T) {
 	}
 }
 
+// The dial's period is drawn as it stands: its name in text.muted at now
+// and in accent.attention gone, so it never reads as now; < and > in bold
+// accent.key, each faint, still bold, where it does nothing.
+func TestTheDialIsDrawnAsItStands(t *testing.T) {
+	tests := []struct {
+		name           string
+		dial           dialed
+		back, said, on ink
+	}{
+		{name: "now", dial: dialed{name: "this week", onOff: true}, back: keyInk, said: mutedInk, on: stepOffInk},
+		{name: "now, at the ledger's first day", dial: dialed{name: "this week", backOff: true, onOff: true}, back: stepOffInk, said: mutedInk, on: stepOffInk},
+		{name: "a period gone", dial: dialed{name: "last week", gone: true}, back: keyInk, said: warningInk, on: keyInk},
+		{name: "a period gone, at the ledger's first day", dial: dialed{name: "week of 14 Sep", gone: true, backOff: true}, back: stepOffInk, said: warningInk, on: keyInk},
+	}
+	for _, tt := range tests {
+		pieces := periodPieces(tt.dial)
+		got := []ink{pieces[0].line[0].ink, pieces[1].line[0].ink, pieces[2].line[0].ink}
+		if want := []ink{tt.back, tt.said, tt.on}; !slices.Equal(got, want) || pieces[1].line.plain() != " "+tt.dial.name+" " {
+			t.Errorf("%s: <, %q and > are in %+v, want %+v", tt.name, pieces[1].line.plain(), got, want)
+		}
+	}
+	if want := (ink{token: theme.TextFaint, bold: true}); stepOffInk != want || warningInk != (ink{token: theme.AccentAttention}) {
+		t.Errorf("a step that does nothing is in %+v and a period gone in %+v, want %+v and accent.attention", stepOffInk, warningInk, want)
+	}
+}
+
+// The heading draws the dial as views says it: at now, its length's name,
+// > doing nothing; gone, its own name; < doing nothing on a period holding
+// the ledger's first day; and it keeps room for the widest of the lengths'
+// names at now.
+func TestTheHeadingDrawsTheDialAsViewsSaysIt(t *testing.T) {
+	week := views.LengthThisWeek.Now()
+	last, _ := week.Back(routedAt, time.Monday, time.Time{})
+	began := last.From(routedAt, time.Monday)
+	tests := []struct {
+		name string
+		dial views.Dial
+		want dialed
+	}{
+		{name: "now", dial: views.DialOf(week, routedAt, time.Monday, time.Time{}), want: dialed{name: "this week", widest: "this week", onOff: true}},
+		{name: "a week gone", dial: views.DialOf(last, routedAt, time.Monday, time.Time{}), want: dialed{name: "last week", widest: "this week", gone: true}},
+		{name: "the week holding the ledger's first day", dial: views.DialOf(last, routedAt, time.Monday, began), want: dialed{name: "last week", widest: "this week", gone: true, backOff: true}},
+	}
+	for _, tt := range tests {
+		if got := periodDial(tt.dial); got != tt.want {
+			t.Errorf("%s: the heading draws %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+}
+
+// A phone's heading holds the room for the widest of the lengths' names at
+// now, so stepping through them never moves it between one row and two; a
+// period gone named wider may.
+func TestAPhonesHeadingHoldsStillAtNowAndAWiderPastNameMayMoveIt(t *testing.T) {
+	const edge = 61
+	for _, length := range views.Lengths() {
+		f := headingFrame(edge, Accounts, accountsAt(threeConfigured, AccountsCompare, length.Now()), false)
+		if rows := f.heading().rows(f.Width, f.phone()); rows != 1 {
+			t.Errorf("at %d columns over %q, the heading takes %d rows, want 1", edge, f.Dial.Name(), rows)
+		}
+	}
+	year, _ := views.LengthTwelveMonths.Now().Back(now, time.Monday, time.Time{})
+	f := headingFrame(edge, Accounts, accountsAt(threeConfigured, AccountsCompare, year), false)
+	if rows := f.heading().rows(f.Width, f.phone()); rows != 2 {
+		t.Errorf("at %d columns over %q, the heading takes %d rows, want 2, its name wider than now's", edge, f.Dial.Name(), rows)
+	}
+}
+
 func TestTheHeadingRowsInks(t *testing.T) {
-	c, _ := laidOn(heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, shown: 1, period: "this week"}, 160, false)
+	c, _ := laidOn(heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, shown: 1, period: dialed{name: "this week"}}, 160, false)
 	tests := []struct {
 		name string
 		x    int
@@ -236,9 +305,9 @@ func TestViewTabsAreTargetsOverTheirNamesAndACellEitherSide(t *testing.T) {
 		name    string
 		heading heading
 	}{
-		{name: "Accounts' Compare", heading: AccountsShown{Shown: AccountsCompare, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
-		{name: "Accounts' Detail", heading: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
-		{name: "Accounts' Tokens", heading: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
+		{name: "Accounts' Compare", heading: AccountsShown{Shown: AccountsCompare, Accounts: threeConfigured}.heading(views.DialOf(views.LengthThisWeek.Now(), routedAt, time.Monday, time.Time{}))},
+		{name: "Accounts' Detail", heading: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}.heading(views.DialOf(views.LengthThisWeek.Now(), routedAt, time.Monday, time.Time{}))},
+		{name: "Accounts' Tokens", heading: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}.heading(views.DialOf(views.LengthThisWeek.Now(), routedAt, time.Monday, time.Time{}))},
 	}
 	for _, hh := range headings {
 		for _, width := range []int{52, 160} {
@@ -292,7 +361,10 @@ func headingFrame(width int, view View, shown func(*Frame), loading bool) Frame 
 // accountsAt has a frame show Accounts' sub-tab given over the period given,
 // of the accounts given.
 func accountsAt(accounts config.Accounts, sub AccountsView, period views.Period) func(*Frame) {
-	return func(f *Frame) { f.Period, f.Accounts = period, AccountsShown{Shown: sub, Accounts: accounts} }
+	return func(f *Frame) {
+		*f = f.over(period)
+		f.Accounts = AccountsShown{Shown: sub, Accounts: accounts}
+	}
 }
 
 // A phone's period sits at the right of the heading's row from the width its
@@ -306,10 +378,10 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 		shown func(*Frame)
 		edge  int
 	}{
-		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.PeriodThisWeek), edge: 61},
-		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.PeriodToday), edge: 61},
-		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.PeriodThisWeek), edge: 52},
-		{name: "Accounts' Tokens", view: Accounts, shown: accountsAt(threeConfigured, AccountsTokens, views.PeriodThisWeek), edge: 61},
+		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.LengthThisWeek.Now()), edge: 61},
+		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.LengthToday.Now()), edge: 61},
+		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.LengthThisWeek.Now()), edge: 52},
+		{name: "Accounts' Tokens", view: Accounts, shown: accountsAt(threeConfigured, AccountsTokens, views.LengthThisWeek.Now()), edge: 61},
 	}
 	for _, tt := range tests {
 		for _, width := range []int{tt.edge - 1, tt.edge} {
@@ -358,13 +430,13 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 		s.view, s.forms = view, append(s.forms, form)
 		sweeps[name] = s
 	}
-	for _, period := range views.Periods() {
-		add("Accounts' Compare", Accounts, accountsAt(threeConfigured, AccountsCompare, period))
-		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period))
-		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period))
+	for _, period := range views.Lengths() {
+		add("Accounts' Compare", Accounts, accountsAt(threeConfigured, AccountsCompare, period.Now()))
+		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period.Now()))
+		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period.Now()))
 	}
-	for _, period := range views.Periods() {
-		add("Accounts' Tokens", Accounts, accountsAt(threeConfigured, AccountsTokens, period))
+	for _, period := range views.Lengths() {
+		add("Accounts' Tokens", Accounts, accountsAt(threeConfigured, AccountsTokens, period.Now()))
 	}
 	for name, s := range sweeps {
 		for width := 30; width <= 140; width++ {

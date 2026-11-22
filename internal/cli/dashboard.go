@@ -202,7 +202,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		View:          dashboard.ViewKept(kept.Tab),
 		Sections:      dashboard.SectionsNamed(kept.Sections),
 		By:            keptBy(kept.By, cfg.Usage.By),
-		Period:        dashboard.PeriodKept(kept),
+		Period:        dashboard.LengthKept(kept).Now(),
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),

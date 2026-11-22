@@ -22,7 +22,7 @@ func listHarness(t *testing.T, size Size) *harness {
 	h := projectsHarness(t, dashboard.Sessions)
 	h.start()
 	h.deliver(h.update(tea.WindowSizeMsg{Width: size.Width, Height: size.Height})...)
-	h.keyed("] >")
+	h.keyed("] +")
 	return h
 }
 
@@ -48,8 +48,8 @@ func TestTheListLogsThePeriodsSessions(t *testing.T) {
 	if view := h.view(); !strings.Contains(view, "ended today") || !strings.Contains(view, "ended yesterday") || !strings.Contains(view, "< 30 days >") {
 		t.Errorf("over 30 days, the screen reads\n%s\nwant ended today and ended yesterday ruled, and the dial at 30 days", view)
 	}
-	h.keyed("< <")
-	if got, want := loggedIDs(h), []string{betaOnly, alphaSecond, alphaFirst}; h.model.period != views.PeriodToday || !slices.Equal(got, want) {
+	h.keyed("- -")
+	if got, want := loggedIDs(h), []string{betaOnly, alphaSecond, alphaFirst}; h.model.period != views.LengthToday.Now() || !slices.Equal(got, want) {
 		t.Fatalf("today, the List lists %v, want %v", got, want)
 	}
 	var today []string
@@ -98,19 +98,19 @@ func TestTheListLoadsAsProjectsDoes(t *testing.T) {
 	}
 }
 
-// The dial shows on the List alone: there < and > step the shared period,
+// The dial shows on the List alone: there its keys step the shared period,
 // and the key line lists them; on the Switchboard, they step nothing, and
 // the key line leaves them out.
 func TestTheDialStepsOnTheListAlone(t *testing.T) {
 	h := projectsHarness(t, dashboard.Sessions)
 	h.start()
-	h.keyed(">")
-	if line := h.keyLine(); h.model.period != views.PeriodThisWeek || strings.Contains(line, "< >") {
-		t.Errorf("on the Switchboard, > left %q, the key line reading %q; want this week, no < >", h.model.period.Name(), line)
+	h.keyed("+ <")
+	if line := h.keyLine(); h.model.period != views.LengthThisWeek.Now() || strings.Contains(line, "- +") || strings.Contains(line, "< >") {
+		t.Errorf("on the Switchboard, + and < left %q, the key line reading %q; want this week, no - + nor < >", h.model.period.Length().Name(), line)
 	}
-	h.keyed("] >")
-	if line := h.keyLine(); h.model.period != views.PeriodThirtyDays || !strings.Contains(line, "< > period: 30 days") {
-		t.Errorf("on the List, > left %q, the key line reading %q; want 30 days, < > period: 30 days", h.model.period.Name(), line)
+	h.keyed("] +")
+	if line := h.keyLine(); h.model.period != views.LengthThirtyDays.Now() || !strings.Contains(line, "- + period: 30 days · < > back · on") {
+		t.Errorf("on the List, + left %q, the key line reading %q; want 30 days, - + period: 30 days · < > back · on", h.model.period.Length().Name(), line)
 	}
 }
 
@@ -121,7 +121,7 @@ func TestTheListsChoiceStaysInViewAndOpensAnEndedSession(t *testing.T) {
 	h := withDelta(projectsHarness(t, dashboard.Sessions))
 	h.start()
 	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 16})...)
-	h.keyed("] >")
+	h.keyed("] +")
 	ids := loggedIDs(h)
 	if len(ids) != 10 {
 		t.Fatalf("over 30 days, the List lists %v, want ten sessions", ids)
@@ -163,7 +163,7 @@ func TestTheListsLogIsBuiltOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	if got := h.model.sessionsTab.logs; got != logs {
 		t.Errorf("a look on, nothing changed, the log was built %d times more, want none", got-logs)
 	}
-	h.keyed("<")
+	h.keyed("-")
 	if got := h.model.sessionsTab.logs; got != logs+1 {
 		t.Errorf("the period stepped, the log was built %d times more, want once", got-logs)
 	}
@@ -225,7 +225,7 @@ func steppedWaiting(t *testing.T, at time.Time) (*harness, string) {
 	h.clock.now = at
 	h.start()
 	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 16})...)
-	h.keyed("] >")
+	h.keyed("] +")
 	h.keys(downKey)
 	first := h.model.sessionsTab.shown.Chosen.Session
 	h.keyed("j j j j j j")
@@ -240,13 +240,13 @@ func steppedWaiting(t *testing.T, at time.Time) (*harness, string) {
 // is let go for its read, and built as it lands, the session revealed.
 func TestAStepAwaitingTheDaysReadRevealsTheChosenSessionAsItLands(t *testing.T) {
 	h, first := steppedWaiting(t, start)
-	held := holdingBack[daysReadMsg](h, h.press(">")...)
+	held := holdingBack[daysReadMsg](h, h.press("+")...)
 	if len(held) != 1 || h.model.sessionsTab.shown.Log != nil {
 		t.Fatalf("stepped to 12 weeks, %d reads held, its log %v; want the read held, no log", len(held), h.model.sessionsTab.shown.Log)
 	}
 	h.deliver(held...)
-	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
-		t.Errorf("the read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	if h.model.period != views.LengthTwelveWeeks.Now() || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
 	}
 }
 
@@ -255,10 +255,10 @@ func TestAStepAwaitingTheDaysReadRevealsTheChosenSessionAsItLands(t *testing.T) 
 func TestAStepBackBeforeTheReadLandsLeavesTheListWhereItWas(t *testing.T) {
 	h, first := steppedWaiting(t, start)
 	scroll := h.model.scroll
-	holdingBack[daysReadMsg](h, h.press(">")...)
-	h.keyed("<")
-	if h.model.period != views.PeriodThirtyDays || h.model.sessionsTab.shown.Log == nil || h.model.scroll != scroll || h.model.sessionsTab.shown.Chosen.Session != first {
-		t.Errorf("stepped back before the read landed, %q shown, log %v, scroll %d, %s chosen; want 30 days built, scroll %d, %s chosen", h.model.period.Name(), h.model.sessionsTab.shown.Log != nil, h.model.scroll, h.model.sessionsTab.shown.Chosen.Session, scroll, first)
+	holdingBack[daysReadMsg](h, h.press("+")...)
+	h.keyed("-")
+	if h.model.period != views.LengthThirtyDays.Now() || h.model.sessionsTab.shown.Log == nil || h.model.scroll != scroll || h.model.sessionsTab.shown.Chosen.Session != first {
+		t.Errorf("stepped back before the read landed, %q shown, log %v, scroll %d, %s chosen; want 30 days built, scroll %d, %s chosen", h.model.period.Length().Name(), h.model.sessionsTab.shown.Log != nil, h.model.scroll, h.model.sessionsTab.shown.Chosen.Session, scroll, first)
 	}
 }
 
@@ -266,14 +266,14 @@ func TestAStepBackBeforeTheReadLandsLeavesTheListWhereItWas(t *testing.T) {
 // view once the log is built of the second.
 func TestTwoStepsAwaitingTheirReadsRevealTheChosenSessionAsTheLogIsBuilt(t *testing.T) {
 	h, first := steppedWaiting(t, start)
-	held := holdingBack[daysReadMsg](h, h.press(">")...)
-	held = append(held, holdingBack[daysReadMsg](h, h.press(">")...)...)
+	held := holdingBack[daysReadMsg](h, h.press("+")...)
+	held = append(held, holdingBack[daysReadMsg](h, h.press("+")...)...)
 	if h.model.sessionsTab.shown.Log != nil {
 		t.Fatalf("stepped twice, its log %v; want no log while its reads are out", h.model.sessionsTab.shown.Log)
 	}
 	h.deliver(held...)
-	if h.model.period != views.PeriodTwelveMonths || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
-		t.Errorf("the reads landed, %q shown, %s chosen, in view %v; want 12 months, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	if h.model.period != views.LengthTwelveMonths.Now() || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the reads landed, %q shown, %s chosen, in view %v; want 12 months, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
 	}
 }
 
@@ -283,13 +283,13 @@ func TestTwoStepsAwaitingTheirReadsRevealTheChosenSessionAsTheLogIsBuilt(t *test
 func TestAStepPastMidnightRevealsTheChosenSessionAsTheTailsReadLands(t *testing.T) {
 	h, first := steppedWaiting(t, onTheDay(23, 59, 30))
 	h.clock.now = onTheDay(24, 0, 5)
-	held := holdingBack[tailedMsg](h, h.press(">")...)
+	held := holdingBack[tailedMsg](h, h.press("+")...)
 	if len(held) != 1 || h.model.sessionsTab.shown.Log != nil {
 		t.Fatalf("stepped past midnight, %d reads of the tail held, its log %v; want the read held, no log", len(held), h.model.sessionsTab.shown.Log)
 	}
 	h.deliver(held...)
-	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
-		t.Errorf("the tail's read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	if h.model.period != views.LengthTwelveWeeks.Now() || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the tail's read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
 	}
 }
 
@@ -300,7 +300,7 @@ func TestASteppedPeriodKeepsTheChosenSessionInView(t *testing.T) {
 	h := withDelta(projectsHarness(t, dashboard.Sessions))
 	h.start()
 	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 16})...)
-	h.keyed("] >")
+	h.keyed("] +")
 	ids := loggedIDs(h)
 	for range ids {
 		h.keys(downKey)
@@ -312,12 +312,43 @@ func TestASteppedPeriodKeepsTheChosenSessionInView(t *testing.T) {
 	inView := func() bool {
 		return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == last })
 	}
-	h.keyed(">")
-	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != last || !inView() {
-		t.Errorf("stepped to %q, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, inView(), last)
+	h.keyed("+")
+	if h.model.period != views.LengthTwelveWeeks.Now() || h.model.sessionsTab.shown.Chosen.Session != last || !inView() {
+		t.Errorf("stepped to %q, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen.Session, inView(), last)
 	}
-	h.keyed("< < < <")
-	if h.model.period != views.PeriodToday || h.model.sessionsTab.shown.Chosen != (dashboard.Plug{}) || h.model.scroll != 0 {
-		t.Errorf("stepped to %q, %+v chosen, scrolled %d; want today, none chosen, the List from its top", h.model.period.Name(), h.model.sessionsTab.shown.Chosen, h.model.scroll)
+	h.keyed("- - - -")
+	if h.model.period != views.LengthToday.Now() || h.model.sessionsTab.shown.Chosen != (dashboard.Plug{}) || h.model.scroll != 0 {
+		t.Errorf("stepped to %q, %+v chosen, scrolled %d; want today, none chosen, the List from its top", h.model.period.Length().Name(), h.model.sessionsTab.shown.Chosen, h.model.scroll)
+	}
+}
+
+// The List's log over last week is measured as it's built, as the dial of
+// the period gone says its starts: a session that started on Monday 21
+// September and ended on the Saturday measures as prose.PastAt dates its
+// start, never as now's rules name its day.
+func TestTheListOverAPeriodGoneIsMeasuredByItsDial(t *testing.T) {
+	h := projectsHarness(t, dashboard.Sessions)
+	const spans = "e1000000-0000-4000-8000-000000000005"
+	projectsLedgerOf(h).write(slices.Concat(
+		projectAsks(spans, "/code/epsilon", start.AddDate(0, 0, -7), 1),
+		projectAsks(spans, "/code/epsilon", start.AddDate(0, 0, -2), 1),
+	)...)
+	h.start()
+	h.keyed("] <")
+	log := h.model.sessionsTab.shown.Log
+	if log == nil || !slices.Contains(loggedIDs(h), spans) {
+		t.Fatalf("over last week, the List lists %v, want %s among them", loggedIDs(h), spans)
+	}
+	now := h.clock.now
+	gone := views.DialOf(h.model.period, now, time.Monday, time.Time{})
+	if !gone.Gone() {
+		t.Fatalf("the dial of %s isn't gone", gone.Name())
+	}
+	if got, want := h.model.sessionsTab.shown.Measured, dashboard.MeasureLog(log, now, gone); got != want {
+		t.Errorf("over last week, the log is measured %+v, want %+v, as the period gone says it", got, want)
+	}
+	atNow := views.DialOf(views.LengthThisWeek.Now(), now, time.Monday, time.Time{})
+	if dashboard.MeasureLog(log, now, gone) == dashboard.MeasureLog(log, now, atNow) {
+		t.Errorf("the log measures alike by last week's dial and now's, want %s's start measured apart", spans)
 	}
 }

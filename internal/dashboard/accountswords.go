@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -205,12 +204,12 @@ func atCapParts(t views.AccountTotals, k ink) []part {
 }
 
 // leftParts say what an account's week had left as it last reset, as
-// leftShort says it, and where it ran out, the day it did, as "0% (limit
-// Fri)".
+// leftShort says it, and where it ran out, the day it did, as RanOutOn
+// names it, "0% (limit Fri)", or in a period gone "0% (limit 30 Sep)".
 func leftParts(row views.AccountsRow, k ink) []part {
 	left := leftShort(row, k)
-	if day, ok := dayfile.Civil(row.RanOut); ok && row.WeekLeft != nil {
-		left = append(left, wordsIn(" (limit "+prose.Weekday(day.Weekday())+")", k))
+	if row.RanOutOn != "" && row.WeekLeft != nil {
+		left = append(left, wordsIn(" (limit "+row.RanOutOn+")", k))
 	}
 	return left
 }
@@ -339,7 +338,7 @@ func worthParts(row views.AccountsRow, k ink) []part {
 // plans known", then shorter, and the last compact, "4.4× · 2/3".
 func againstForms(page views.AccountsPage, row views.AccountsRow) partForms {
 	a := row.Plan.Against
-	priced := againstPriced(a, page.Period.Unit())
+	priced := againstPriced(a, page.Period.Length().Unit())
 	known := knownForms(a.Plans)
 	if !pricedAgainst(a) || known == nil {
 		return partForms{priced, againstCompact(row)}
@@ -369,19 +368,21 @@ func againstCompact(row views.AccountsRow) []part {
 	return said
 }
 
-// detailFacts are Weeks' facts on an account's weeks as Detail's line under
-// WEEKS says them, its verdict's words unsaid, in text.muted, in their
-// forms: how many of its whole weeks it hit its limit in, and what they left
-// at a reset, on average, "limit hit 3 of the last 7 weeks · 9% left at a
-// reset, on average"; then shorter, "limit hit 3 of 7 weeks · 9% left at a
-// reset"; then the limits alone. "not enough weeks yet", in text.subtle,
-// where no whole week is judged.
-func detailFacts(v views.AccountVerdict) partForms {
+// detailFacts are Weeks' facts on an account's weeks of the page as Detail's
+// line under WEEKS says them at now, its verdict's words unsaid, in
+// text.muted, in their forms: how many of its whole weeks it hit its limit
+// in, as the page's LimitHitOver says it, and what they left at a reset, on
+// average, "limit hit 3 of the last 7 weeks · 9% left at a reset, on
+// average", or in a period gone "limit hit 3 of the 7 weeks to Sun 27 Sep ·
+// …"; then shorter, "limit hit 3 of 7 weeks · 9% left at a reset"; then the
+// limits alone. "not enough weeks yet", in text.subtle, where no whole week
+// is judged.
+func detailFacts(page *views.AccountsPage, v views.AccountVerdict, now time.Time) partForms {
 	if v.Weeks == 0 {
 		return partForms{{wordsIn(views.NotEnoughWeeks, dimInk)}}
 	}
-	full := saidParts(views.LimitHitOfTheLast(v.Limits, v.Weeks), mutedInk)
-	short := saidParts(views.LimitHit(v.Limits, v.Weeks), mutedInk)
+	fullHit, shortHit := page.LimitHitOver(v.Limits, v.Weeks, now)
+	full, short := saidParts(fullHit, mutedInk), saidParts(shortHit, mutedInk)
 	if v.LeftAtReset == nil {
 		return partForms{full, short}
 	}

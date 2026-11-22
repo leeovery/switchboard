@@ -145,8 +145,8 @@ func TestOnTheWeeksFirstDayTheDaysAskedForFromItAreToday(t *testing.T) {
 	got := map[string]string{
 		"history's plans":     jsonOf(t, history.Plans[len(history.Plans)-1].Cost),
 		"its tokens' row":     jsonOf(t, history.Tokens[len(history.Tokens)-1].Cost),
-		"Accounts' this week": jsonOf(t, past.Accounts(views.PeriodThisWeek).All.Plan.Cost),
-		"Accounts' today":     jsonOf(t, past.Accounts(views.PeriodToday).All.Plan.Cost),
+		"Accounts' this week": jsonOf(t, past.Accounts(views.LengthThisWeek.Now()).All.Plan.Cost),
+		"Accounts' today":     jsonOf(t, past.Accounts(views.LengthToday.Now()).All.Plan.Cost),
 	}
 	want := map[string]string{
 		"history's plans": "7.232876712328", "its tokens' row": "50.769230769231",

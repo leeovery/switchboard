@@ -39,7 +39,7 @@ var chartedWorth = [][]float64{{40, 90, 148, 60}, {20, 45, 74, 30}, {0, 0, 0, 0}
 // column's peaks and facts as chartedPeaks has them, and its worth by day,
 // as chartedWorth has it.
 func chartedPage(t *testing.T) views.AccountsPage {
-	page := comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
+	page := comparedPage(views.LengthThisWeek.Now(), comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	first := time.Date(2026, time.August, 10, 0, 0, 0, 0, time.UTC)
 	for i := range 8 {
 		week := first.AddDate(0, 0, 7*i)
@@ -169,7 +169,7 @@ func TestWEEKSMarksTheCapWhereAReserveIsKept(t *testing.T) {
 // though its fullest week may be.
 func TestWEEKSSaysAMonthIsItsFullestAt12Months(t *testing.T) {
 	page := chartedPage(t)
-	page.Period = views.PeriodTwelveMonths
+	page.Period = views.LengthTwelveMonths.Now()
 	_, rows := chartedCompare(t, 173, 60, page)
 	head := rowWith(rows, "WEEKS  each week at its peak, a month its fullest")
 	if head < 0 {
@@ -184,7 +184,7 @@ func TestWEEKSSaysAMonthIsItsFullestAt12Months(t *testing.T) {
 // from its own column's first cell, as compareSlots lays the columns.
 func TestWEEKSAxisEndsOnTheCurrentMonthAt12Months(t *testing.T) {
 	page := chartedPage(t)
-	page.Period = views.PeriodTwelveMonths
+	page.Period = views.LengthTwelveMonths.Now()
 	first := time.Date(2025, time.October, 1, 0, 0, 0, 0, time.UTC)
 	page.Reach = nil
 	for i := range 13 {
@@ -306,7 +306,7 @@ func TestWORTHsPeakTakesTheFullestFormItHolds(t *testing.T) {
 // week where 84 days don't fit a column, by day where they do.
 func TestWORTHTakesTheFinestBucketTheNarrowestColumnHolds(t *testing.T) {
 	page := chartedPage(t)
-	page.Period = views.PeriodTwelveWeeks
+	page.Period = views.LengthTwelveWeeks.Now()
 	days, weeks := views.WorthBy{Unit: views.ByDay, Peak: -1}, views.WorthBy{Unit: views.ByWeek, Peak: -1}
 	days.Buckets, weeks.Buckets = make([]views.WorthBucket, 84), make([]views.WorthBucket, 12)
 	for _, row := range []*views.AccountsRow{&page.Rows[0], &page.Rows[1], &page.Rows[2], &page.All} {
@@ -326,7 +326,7 @@ func TestWORTHTakesTheFinestBucketTheNarrowestColumnHolds(t *testing.T) {
 // price names their unit, as every period names its own.
 func TestAt12MonthsAgainstItsPriceNamesThe12Months(t *testing.T) {
 	page := chartedPage(t)
-	page.Period = views.PeriodTwelveMonths
+	page.Period = views.LengthTwelveMonths.Now()
 	for _, row := range []*views.AccountsRow{&page.Rows[0], &page.Rows[1], &page.Rows[2]} {
 		row.Plan.Cost, row.Plan.Ratio = usd(2400), new(3.4)
 	}
@@ -404,19 +404,19 @@ func TestWORTHsScaleIsEveryAccountsShownOrNot(t *testing.T) {
 // buckets as any period's coarsest chart has.
 func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
 	in := views.HistoryInput{Ledger: ledger.Empty{}, Now: routedAt, Prices: ledger.Pricing, Accounts: tenFramed[:4], WeekStarts: time.Monday, WeekWindow: "7d"}
-	fed := views.ReadSessionDays(ledger.Empty{}, routedAt, routedAt, views.PoolRead{}).Tailed(nil, true, nil, nil, routedAt, views.PoolRead{})
+	fed := views.ReadSessionDays(ledger.Empty{}, routedAt, routedAt, views.PoolRead{}).Tailed(nil, true, nil, nil, routedAt, views.PoolRead{}).TodayFold()
 	ten := tenRows()
 	tests := []struct {
 		width int
 		units map[views.Period]views.BucketUnit
 	}{
 		{83, map[views.Period]views.BucketUnit{
-			views.PeriodToday: views.ByTwoHours, views.PeriodThisWeek: views.ByDay, views.PeriodThirtyDays: views.ByWeek,
-			views.PeriodTwelveWeeks: views.ByWeek, views.PeriodTwelveMonths: views.ByMonth,
+			views.LengthToday.Now(): views.ByTwoHours, views.LengthThisWeek.Now(): views.ByDay, views.LengthThirtyDays.Now(): views.ByWeek,
+			views.LengthTwelveWeeks.Now(): views.ByWeek, views.LengthTwelveMonths.Now(): views.ByMonth,
 		}},
 		{173, map[views.Period]views.BucketUnit{
-			views.PeriodToday: views.ByHour, views.PeriodThisWeek: views.ByDay, views.PeriodThirtyDays: views.ByWeek,
-			views.PeriodTwelveWeeks: views.ByWeek, views.PeriodTwelveMonths: views.ByMonth,
+			views.LengthToday.Now(): views.ByHour, views.LengthThisWeek.Now(): views.ByDay, views.LengthThirtyDays.Now(): views.ByWeek,
+			views.LengthTwelveWeeks.Now(): views.ByWeek, views.LengthTwelveMonths.Now(): views.ByMonth,
 		}},
 	}
 	for _, tt := range tests {
@@ -438,11 +438,11 @@ func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
 			}
 			by := page.All.WorthBy.Fitting(chartFits(head))
 			if by.Unit != unit || !chartFits(head)(len(by.Buckets)) {
-				t.Errorf("%s at %d columns, its head %d cells, WORTH is by %s in %d buckets, want by %s, fitting", period.Name(), tt.width, head, bucketWord[by.Unit], len(by.Buckets), bucketWord[unit])
+				t.Errorf("%s at %d columns, its head %d cells, WORTH is by %s in %d buckets, want by %s, fitting", period.Length().Name(), tt.width, head, bucketWord[by.Unit], len(by.Buckets), bucketWord[unit])
 			}
 			rows := textOf(f.Draw(usageWorld(tenCompared, extraOff, heldFirst(4)), routedAt))
 			if said := "WORTH  at API prices, by " + bucketWord[unit]; rowWith(rows, said) < 0 {
-				t.Errorf("%s at %d columns, no heading reads %q", period.Name(), tt.width, said)
+				t.Errorf("%s at %d columns, no heading reads %q", period.Length().Name(), tt.width, said)
 			}
 		}
 	}

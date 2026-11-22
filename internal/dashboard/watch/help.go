@@ -21,7 +21,7 @@ type helping struct {
 func (m Model) openHelp() Model {
 	m = m.cover(helpOpen)
 	now := m.now()
-	m.help = helping{over: m.keys(m.running(now), m.pool(now))}
+	m.help = helping{over: m.keys(m.running(now), m.pool(now), m.dial(now))}
 	return m
 }
 

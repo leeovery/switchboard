@@ -37,7 +37,7 @@ func TestAccountsTotalsAndPlansAreHistorysOverThePeriod(t *testing.T) {
 			priced := rows
 			if isThisWeeksFirstDay(am) {
 				today := am
-				today.Period = views.PeriodToday
+				today.Period = views.LengthToday.Now()
 				page, _ := accountsAt(today)
 				priced = append(slices.Clone(page.Rows), page.All)
 			}
@@ -72,14 +72,14 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 		period views.Period
 		want   string
 	}{
-		{name: "this week, the ledger holding no day yet", began: "2026-10-09", empty: true, period: views.PeriodThisWeek,
+		{name: "this week, the ledger holding no day yet", began: "2026-10-09", empty: true, period: views.LengthThisWeek.Now(),
 			want: "21.698630136986"},
-		{name: "this week, begun on its Wednesday", began: "2026-10-07", period: views.PeriodThisWeek, want: "36.164383561644"},
-		{name: "this week, begun on its first day, whole", began: "2026-10-05", period: views.PeriodThisWeek, want: "50.769230769231"},
-		{name: "today, begun today, whole", began: "2026-10-09", period: views.PeriodToday, want: "7.232876712328"},
-		{name: "the last 30 days, begun on the Wednesday, its 3 days to today", began: "2026-10-07", period: views.PeriodThirtyDays,
+		{name: "this week, begun on its Wednesday", began: "2026-10-07", period: views.LengthThisWeek.Now(), want: "36.164383561644"},
+		{name: "this week, begun on its first day, whole", began: "2026-10-05", period: views.LengthThisWeek.Now(), want: "50.769230769231"},
+		{name: "today, begun today, whole", began: "2026-10-09", period: views.LengthToday.Now(), want: "7.232876712328"},
+		{name: "the last 30 days, begun on the Wednesday, its 3 days to today", began: "2026-10-07", period: views.LengthThirtyDays.Now(),
 			want: "21.698630136986"},
-		{name: "the last 12 weeks, begun a month before, its days to this week's end", began: "2026-09-09", period: views.PeriodTwelveWeeks,
+		{name: "the last 12 weeks, begun a month before, its days to this week's end", began: "2026-09-09", period: views.LengthTwelveWeeks.Now(),
 			want: "238.684931506849"},
 	}
 	for _, tt := range tests {
@@ -98,7 +98,7 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 				"history":  jsonOf(t, views.NewHistory(in).Plans[len(in.Accounts)].Cost),
 			}
 			want := map[string]string{"Accounts": tt.want, "history": tt.want}
-			if tt.period == views.PeriodThisWeek {
+			if tt.period == views.LengthThisWeek.Now() {
 				tokens := views.NewHistory(in).Tokens
 				got["Tokens"], want["Tokens"] = jsonOf(t, tokens[len(tokens)-1].Cost), tt.want
 			}
@@ -115,19 +115,19 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 // totals are alike.
 func TestOnAWeeksFirstDayHistoryFromTodayIsAccountsTodayNotThisWeek(t *testing.T) {
 	am := accountsMoment(t, onceItsReFiled)
-	from := views.PeriodToday.From(am.Now, am.WeekStarts)
-	if !from.Equal(views.PeriodThisWeek.From(am.Now, am.WeekStarts)) {
+	from := views.LengthToday.Now().From(am.Now, am.WeekStarts)
+	if !from.Equal(views.LengthThisWeek.Now().From(am.Now, am.WeekStarts)) {
 		t.Fatalf("on %s, today and this week begin apart", am.Now.Weekday())
 	}
 	history := historySince(am, from)
 	cost := map[string]string{"history": jsonOf(t, history.Plans[len(history.Plans)-1].Cost)}
-	for _, period := range []views.Period{views.PeriodToday, views.PeriodThisWeek} {
+	for _, period := range []views.Period{views.LengthToday.Now(), views.LengthThisWeek.Now()} {
 		am.Period = period
 		page, _ := accountsAt(am)
 		if got, want := jsonOf(t, page.All.Totals), jsonOf(t, history.Totals.Accounts[len(history.Totals.Accounts)-1]); got != want {
-			t.Errorf("every account's %s counts\n%s\nhistory's\n%s", period.Name(), got, want)
+			t.Errorf("every account's %s counts\n%s\nhistory's\n%s", period.Length().Name(), got, want)
 		}
-		cost[period.Name()] = jsonOf(t, page.All.Plan.Cost)
+		cost[period.Length().Name()] = jsonOf(t, page.All.Plan.Cost)
 	}
 	want := map[string]string{"history": "13.150684931506", "today": "13.150684931506", "this week": "92.307692307692"}
 	if !maps.Equal(cost, want) {
@@ -138,7 +138,7 @@ func TestOnAWeeksFirstDayHistoryFromTodayIsAccountsTodayNotThisWeek(t *testing.T
 // isThisWeeksFirstDay reports whether am is of THIS WEEK on its first day,
 // whose plans history prices as today's.
 func isThisWeeksFirstDay(am viewstest.AccountsMoment) bool {
-	return am.Period == views.PeriodThisWeek && am.Period.From(am.Now, am.WeekStarts).Equal(views.PeriodToday.From(am.Now, am.WeekStarts))
+	return am.Period == views.LengthThisWeek.Now() && am.Period.From(am.Now, am.WeekStarts).Equal(views.LengthToday.Now().From(am.Now, am.WeekStarts))
 }
 
 // historySince is history at the moment am, asked for from the time given,

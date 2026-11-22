@@ -16,28 +16,28 @@ func TestEachPeriodBeginsOnItsFirstDay(t *testing.T) {
 	thursday := time.Date(2026, 10, 1, 14, 42, 7, 0, time.Local)
 	tests := []struct {
 		name   string
-		period views.Period
+		period views.Length
 		now    time.Time
 		starts time.Weekday
 		want   time.Time
 	}{
-		{name: "today", period: views.PeriodToday, now: thursday, starts: time.Monday, want: on("2026-10-01")},
-		{name: "this week from Monday", period: views.PeriodThisWeek, now: thursday, starts: time.Monday, want: on("2026-09-28")},
-		{name: "this week from Sunday", period: views.PeriodThisWeek, now: thursday, starts: time.Sunday, want: on("2026-09-27")},
-		{name: "30 days", period: views.PeriodThirtyDays, now: thursday, starts: time.Monday, want: on("2026-09-02")},
-		{name: "12 weeks from Monday", period: views.PeriodTwelveWeeks, now: thursday, starts: time.Monday, want: on("2026-07-13")},
-		{name: "12 weeks from Sunday", period: views.PeriodTwelveWeeks, now: thursday, starts: time.Sunday, want: on("2026-07-12")},
-		{name: "today at a second to midnight", period: views.PeriodToday, now: on("2026-10-02").Add(-time.Second), starts: time.Monday, want: on("2026-10-01")},
-		{name: "today at a second after midnight", period: views.PeriodToday, now: on("2026-10-02").Add(time.Second), starts: time.Monday, want: on("2026-10-02")},
-		{name: "this week at midnight on its first day", period: views.PeriodThisWeek, now: on("2026-10-05"), starts: time.Monday, want: on("2026-10-05")},
-		{name: "this week a second before its first day", period: views.PeriodThisWeek, now: on("2026-10-05").Add(-time.Second), starts: time.Monday, want: on("2026-09-28")},
-		{name: "12 months", period: views.PeriodTwelveMonths, now: thursday, starts: time.Monday, want: on("2025-10-02")},
-		{name: "12 months at a second after midnight", period: views.PeriodTwelveMonths, now: on("2026-10-02").Add(time.Second), starts: time.Monday, want: on("2025-10-03")},
+		{name: "today", period: views.LengthToday, now: thursday, starts: time.Monday, want: on("2026-10-01")},
+		{name: "this week from Monday", period: views.LengthThisWeek, now: thursday, starts: time.Monday, want: on("2026-09-28")},
+		{name: "this week from Sunday", period: views.LengthThisWeek, now: thursday, starts: time.Sunday, want: on("2026-09-27")},
+		{name: "30 days", period: views.LengthThirtyDays, now: thursday, starts: time.Monday, want: on("2026-09-02")},
+		{name: "12 weeks from Monday", period: views.LengthTwelveWeeks, now: thursday, starts: time.Monday, want: on("2026-07-13")},
+		{name: "12 weeks from Sunday", period: views.LengthTwelveWeeks, now: thursday, starts: time.Sunday, want: on("2026-07-12")},
+		{name: "today at a second to midnight", period: views.LengthToday, now: on("2026-10-02").Add(-time.Second), starts: time.Monday, want: on("2026-10-01")},
+		{name: "today at a second after midnight", period: views.LengthToday, now: on("2026-10-02").Add(time.Second), starts: time.Monday, want: on("2026-10-02")},
+		{name: "this week at midnight on its first day", period: views.LengthThisWeek, now: on("2026-10-05"), starts: time.Monday, want: on("2026-10-05")},
+		{name: "this week a second before its first day", period: views.LengthThisWeek, now: on("2026-10-05").Add(-time.Second), starts: time.Monday, want: on("2026-09-28")},
+		{name: "12 months", period: views.LengthTwelveMonths, now: thursday, starts: time.Monday, want: on("2025-10-02")},
+		{name: "12 months at a second after midnight", period: views.LengthTwelveMonths, now: on("2026-10-02").Add(time.Second), starts: time.Monday, want: on("2025-10-03")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.period.From(tt.now, tt.starts); !got.Equal(tt.want) {
-				t.Errorf("%q.From(%v, %v) = %v, want %v", tt.period, tt.now, tt.starts, got, tt.want)
+			if got := tt.period.Now().From(tt.now, tt.starts); !got.Equal(tt.want) {
+				t.Errorf("%q.Now().From(%v, %v) = %v, want %v", tt.period, tt.now, tt.starts, got, tt.want)
 			}
 		})
 	}
@@ -48,14 +48,14 @@ func TestEachPeriodBeginsOnItsFirstDay(t *testing.T) {
 // words after what's in it, as the List says it has no session in it.
 func TestEachPeriodIsNamedTitledAndPriced(t *testing.T) {
 	tests := []struct {
-		period                    views.Period
+		period                    views.Length
 		name, title, unit, within string
 	}{
-		{period: views.PeriodToday, name: "today", title: "TODAY", unit: "day", within: "today"},
-		{period: views.PeriodThisWeek, name: "this week", title: "THIS WEEK", unit: "week", within: "this week"},
-		{period: views.PeriodThirtyDays, name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days"},
-		{period: views.PeriodTwelveWeeks, name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks"},
-		{period: views.PeriodTwelveMonths, name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months"},
+		{period: views.LengthToday, name: "today", title: "TODAY", unit: "day", within: "today"},
+		{period: views.LengthThisWeek, name: "this week", title: "THIS WEEK", unit: "week", within: "this week"},
+		{period: views.LengthThirtyDays, name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days"},
+		{period: views.LengthTwelveWeeks, name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks"},
+		{period: views.LengthTwelveMonths, name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,11 +68,26 @@ func TestEachPeriodIsNamedTitledAndPriced(t *testing.T) {
 			}
 		})
 	}
-	if views.Period("a fortnight").Known() {
+	if views.Length("a fortnight").Known() {
 		t.Error("a period read back that isn't one is known")
 	}
-	if got, want := len(views.Periods()), len(tests); got != want {
+	if got, want := len(views.Lengths()), len(tests); got != want {
 		t.Errorf("there are %d periods, want %d, each named here", got, want)
+	}
+}
+
+// A length's period now is of that length, each length's its own.
+func TestALengthsPeriodNowIsOfThatLength(t *testing.T) {
+	seen := map[views.Period]views.Length{}
+	for _, length := range views.Lengths() {
+		period := length.Now()
+		if got := period.Length(); got != length {
+			t.Errorf("%q.Now() is of %q", length, got)
+		}
+		if other, ok := seen[period]; ok {
+			t.Errorf("%q.Now() is %q.Now()", length, other)
+		}
+		seen[period] = length
 	}
 }
 
@@ -81,16 +96,16 @@ func TestEachPeriodIsNamedTitledAndPriced(t *testing.T) {
 // stands.
 func TestThePeriodStepsShorterAndLongerStoppingAtTheEnds(t *testing.T) {
 	tests := []struct {
-		period          views.Period
-		shorter, longer views.Period
+		period          views.Length
+		shorter, longer views.Length
 		shortened       bool
 		lengthened      bool
 	}{
-		{period: views.PeriodToday, shorter: views.PeriodToday, longer: views.PeriodThisWeek, lengthened: true},
-		{period: views.PeriodThisWeek, shorter: views.PeriodToday, shortened: true, longer: views.PeriodThirtyDays, lengthened: true},
-		{period: views.PeriodThirtyDays, shorter: views.PeriodThisWeek, shortened: true, longer: views.PeriodTwelveWeeks, lengthened: true},
-		{period: views.PeriodTwelveWeeks, shorter: views.PeriodThirtyDays, shortened: true, longer: views.PeriodTwelveMonths, lengthened: true},
-		{period: views.PeriodTwelveMonths, shorter: views.PeriodTwelveWeeks, shortened: true, longer: views.PeriodTwelveMonths},
+		{period: views.LengthToday, shorter: views.LengthToday, longer: views.LengthThisWeek, lengthened: true},
+		{period: views.LengthThisWeek, shorter: views.LengthToday, shortened: true, longer: views.LengthThirtyDays, lengthened: true},
+		{period: views.LengthThirtyDays, shorter: views.LengthThisWeek, shortened: true, longer: views.LengthTwelveWeeks, lengthened: true},
+		{period: views.LengthTwelveWeeks, shorter: views.LengthThirtyDays, shortened: true, longer: views.LengthTwelveMonths, lengthened: true},
+		{period: views.LengthTwelveMonths, shorter: views.LengthTwelveWeeks, shortened: true, longer: views.LengthTwelveMonths},
 	}
 	for _, tt := range tests {
 		t.Run(tt.period.Name(), func(t *testing.T) {
@@ -123,7 +138,7 @@ func TestTwelveMonthsAreTheYearsLastTwelveMonths(t *testing.T) {
 	for _, tt := range tests {
 		for _, starts := range []time.Weekday{time.Monday, time.Sunday, time.Wednesday} {
 			t.Run(tt.name+" from "+starts.String(), func(t *testing.T) {
-				first, last := views.PeriodTwelveMonths.Spans(tt.now, starts)
+				first, last := views.LengthTwelveMonths.Spans(tt.now, starts)
 				yearFirst, yearLast := views.YearsTwelveMonths(tt.now, starts)
 				if got, want := [2]string{first, last}, [2]string{tt.first, tt.last}; got != want {
 					t.Errorf("12 months at %v run %v, want %v", tt.now, got, want)
@@ -145,24 +160,24 @@ func TestAPeriodsPlansArePricedWhole(t *testing.T) {
 	monthly := ultra.Price("2026-10-05")
 	tests := []struct {
 		name   string
-		period views.Period
+		period views.Length
 		now    time.Time
 		want   string
 	}{
-		{name: "today", period: views.PeriodToday, now: on("2026-10-05").Add(time.Hour), want: "$7"},
-		{name: "this week on its first day", period: views.PeriodThisWeek, now: on("2026-10-05").Add(time.Hour), want: "$46"},
-		{name: "this week on its last day", period: views.PeriodThisWeek, now: on("2026-10-11").Add(time.Hour), want: "$46"},
-		{name: "30 days", period: views.PeriodThirtyDays, now: on("2026-10-05").Add(time.Hour), want: "$200"},
-		{name: "12 weeks", period: views.PeriodTwelveWeeks, now: on("2026-10-05").Add(time.Hour), want: "$554"},
-		{name: "12 months", period: views.PeriodTwelveMonths, now: on("2026-10-05").Add(time.Hour), want: "$2,400"},
-		{name: "12 months holding a 29 February", period: views.PeriodTwelveMonths, now: on("2028-03-01").Add(time.Hour), want: "$2,400"},
+		{name: "today", period: views.LengthToday, now: on("2026-10-05").Add(time.Hour), want: "$7"},
+		{name: "this week on its first day", period: views.LengthThisWeek, now: on("2026-10-05").Add(time.Hour), want: "$46"},
+		{name: "this week on its last day", period: views.LengthThisWeek, now: on("2026-10-11").Add(time.Hour), want: "$46"},
+		{name: "30 days", period: views.LengthThirtyDays, now: on("2026-10-05").Add(time.Hour), want: "$200"},
+		{name: "12 weeks", period: views.LengthTwelveWeeks, now: on("2026-10-05").Add(time.Hour), want: "$554"},
+		{name: "12 months", period: views.LengthTwelveMonths, now: on("2026-10-05").Add(time.Hour), want: "$2,400"},
+		{name: "12 months holding a 29 February", period: views.LengthTwelveMonths, now: on("2028-03-01").Add(time.Hour), want: "$2,400"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			days := daysTo(tt.now.AddDate(-1, -1, 0).Format(time.DateOnly), tt.now)
 			in := input(days)
 			in.Now = tt.now
-			plan := views.NewPast(in, days).Accounts(tt.period).Rows[0].Plan
+			plan := views.NewPast(in, days).Accounts(tt.period.Now()).Rows[0].Plan
 			if plan.Price == nil || *plan.Price != monthly || plan.Cost == nil || plan.Cost.GroupedDollars() != tt.want {
 				t.Errorf("work's plan over %s costs %v of %v a month, want %s of %v", tt.name, plan.Cost, plan.Price, tt.want, monthly)
 			}

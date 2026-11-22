@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+
+ Overview  Accounts  Projects  Sessions  Runway  Trends  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+PROJECTS  ────────────────────────────────────────────────  < yesterday >
+
+  project       sessions   worth                          requests  last
+▸ switchboard          7    $109                               954  18:46
+  website              3  $40.25          ▏                    348  14:23
+  infra                4  $32.03        ▌                      319  16:27
+  api                  2  $27.80       ▋                       257  23:53
+  docs                 1   $2.49  ▌                             34  19:15
+  ───────────────────────────────────────────────────────────────────────
+  all projects        17    $212                             1,912
+
+switchboard  ~/Code/switchboard
+7 sessions · 954 requests · $109 at API prices · 52% of all use
+155M tokens
+
+WORTH BY HOUR
+
+                                           ▇▇
+                                        ▂▂    ▆▆    ▁▁
+                                  ▆▆                    ▇▇
+                                     ▃▃
+                               ▂▂
+00 01 02 03 04 05  06 07 08 09 10 11 12 13 14 15 16 17  18 19 20 21 22 23
+peak 16:00 $23.33
+
+BY MODEL
+  ● Opus 5.5    94%
+  ● Sonnet 5.5   6%
+
+ON ACCOUNTS
+  side                                         ▋                      62%
+  work                      ▎                                         24%
+  personal    ◆        ▏                                              14%
+
+SESSIONS
+  session              on        state        started    requests   worth
+  ended yesterday  ──────────────────────────────────────────────────────
+▸ dashboard            side      ended 18:46  13:20           595  $73.00
+  settings             personal  ended 16:45  Mon 12:08        89   $9.10
+  fix-login            personal  ended 15:23  Mon 11:37        61   $6.23
+  pools 1cb3           side      ended 13:27  Mon 10:39        67   $6.78
+  pools 0084           side      ended 12:17  Mon 13:27        63   $6.44
+  router-fix           side      ended 11:33  Mon 12:34        36   $3.60
+  release              work      ended 11:23  Mon 09:36        43   $4.28
+
+
+
+
+
+
+
+
+
+
+tab views   ↑↓ project   < > back · on   n now   ? keys   q quit

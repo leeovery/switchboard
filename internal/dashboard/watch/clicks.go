@@ -128,7 +128,7 @@ func (m Model) onPicker(x int) bool {
 
 // namedPresses are the presses of the keys the key line names by a word, an
 // arrow or a pair. A pair, which moves either way, is pressed as the way on:
-// ↓, ], > and →.
+// ↓, ], + and →; but the dial's < >, pressed as <, back.
 var namedPresses = map[string]tea.KeyPressMsg{
 	"tab":   {Code: tea.KeyTab},
 	"enter": {Code: tea.KeyEnter},
@@ -140,18 +140,18 @@ var namedPresses = map[string]tea.KeyPressMsg{
 	"→":     {Code: tea.KeyRight},
 	"↑↓":    {Code: tea.KeyDown},
 	"[ ]":   {Code: ']', Text: "]"},
-	"< >":   {Code: '>', Text: ">"},
+	"< >":   {Code: '<', Text: "<"},
+	"- +":   {Code: '+', Text: "+"},
 	"←→":    {Code: tea.KeyRight},
 }
 
-// stepPress is the press of the key that steps a period, or Runway's
-// week, the way given, as a click on < or > by it does: < back, for -1,
-// and > on.
+// stepPress is the press of the key that steps the dial's period the way
+// given, as a click on < or > by it does: < back, for -1, and > on.
 func stepPress(way int) tea.KeyPressMsg {
 	if way < 0 {
-		return tea.KeyPressMsg{Code: '<', Text: "<"}
+		return namedPresses["< >"]
 	}
-	return namedPresses["< >"]
+	return tea.KeyPressMsg{Code: '>', Text: ">"}
 }
 
 // pressOf is the key press a click on a key of the key line, named as the
