@@ -5097,7 +5097,9 @@ a column an account; **Detail**, one account, or all of them, in full; and **Tok
 over the dial's period, drawn in the Paper file
 *Switchboard · Entities*, page p-2-0, and kept as `accounts-tokens-173x53` and
 `accounts-tokens-73x61`; over a past period, signed off on 20 November 2026, as
-`accounts-tokens-30-days-to-1-sep-73x61`, a phone's 30 days to 1 Sep. Compare and Detail are drawn in the Paper
+`accounts-tokens-30-days-to-1-sep-73x61`, a phone's 30 days to 1 Sep. Compare over a past period is
+kept as `accounts-compare-last-week-73x61`, a phone's last week, and
+`accounts-compare-week-of-14-sep-173x53`. Compare and Detail are drawn in the Paper
 file *Switchboard · Accounts*, on its page **FINAL · accounts · signed off 5 Oct 2026 · revised 6
 Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `accounts-compare-ten-160`,
 `accounts-compare-month-160`, `accounts-compare-bad-hour-160`, `accounts-detail-all-160`,
@@ -5360,8 +5362,10 @@ its periods, as Trends has none:
   read of the day, today is by the day. Today's page, Accounts' and Projects' alike, is built
   afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. A past
   day's hours are that day's lines', read as the dial steps to it and folded as today's are, its
-  page saying `loading…` till they land; yesterday's, read just after midnight, are read again once
-  the tail has read the day's owed lines. Where a past day's lines are no longer kept, the day is
+  page saying `loading…` till they land. A day gone that the tail's fold still stands for, as
+  yesterday just after midnight, isn't read early: its page waits on a read of the tail, asked at
+  once, then reads the day once. A day read while the tail last read before it is read early, then
+  again at the next look. Where a past day's lines are no longer kept, the day is
   one bucket. A past period's chart marks no bucket as now's, and counts none as to come. At
   173 columns with three accounts that's an hour a column today, a day at this week and 30 days,
   a week at 12 weeks and a month at 12 months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
@@ -5555,8 +5559,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     in capitals, `TUE 29 SEP`, `LAST WEEK`, `30 DAYS TO 1 SEP`.
   - In a past period it heads on BY MODEL's row, two rows under the head, and BY MODEL's bar ends
     a cell before it; the rule sits two rows under the lower of BY MODEL's last row and THIS
-    WEEK's. Where the wide form starts holds as at now, so a step in time never turns Detail
-    stacked or wide (see Wide, from where it fits).
+    WEEK's. Where the title is wider than its column, as `12 MONTHS TO 30 SEP 2025` is with one
+    account or two, it's right-aligned to the weeks' edge, and BY MODEL's bar and its versions end
+    a cell before wherever it starts; THIS WEEK's items stay at its column. Where the wide form
+    starts holds as at now, so a step in time never turns Detail stacked or wide (see Wide, from
+    where it fits).
 - **BY MODEL,** row 15: the period's share of use as a stacked bar, from `cx`, 12 cells into the
   panel, at column 36, to the weeks' edge below, 104 cells at 160; from row 16, from `cx`, each
   version with a share, `● Opus 5.5 55%`, two cells apart, as many as fit the row, the rest on the
@@ -5642,7 +5649,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   does: `api started on side, the best`. In a past period it tells the latest events up to the
   end of the period's last day, as LATELY at now tells them up to now: the router's events of the
   week to that day's end, and the facts that reach further, read once for each last day, a read
-  the dial has stepped past dropped as it lands.
+  the dial has stepped past dropped as it lands. A past period with no events to tell says
+  `nothing lately` once they're held, and nothing while they're read.
 - **In a past period** there's no SESSIONS, as it tells what runs now: LATELY keeps its rows, and
   `→` doesn't act. `enter its page` is drawn faint, as a key that can't act now is, and pressed,
   it says `no sessions in a past period` in the key line's place, as other refusals do (see The
@@ -5804,7 +5812,7 @@ way in, its splits and its footnote.
   into the first count's cells, to a cell before its figure; where it doesn't fit even so, the row
   is named by the dial's short name (`Dial.Short()`), the heading naming the period in full: the
   length's name, as `30 days`; `the week` of a week, never `this week`; and a day's own name, as
-  `yesterday`, or in another year its date, as `31 Dec 2025`. Its
+  `yesterday`, even on 1 January, or a date of another year with its year, as `31 Dec 2025`. Its
   tokens and worth are its rows' summed, and its models count the versions the period used, each
   once, never a sum. Its against its price is
   Compare's all accounts' over the period, the one figure (`views` works it out once), its unit the
@@ -6021,7 +6029,8 @@ of stepping back through periods draw it (20 November 2026), `projects-yesterday
   the period's last seven days, `Sun 21:40`, else with its date, `21 Aug 21:40`, with its year
   where it isn't now's, `21 Aug 2025 21:40`. WORTH BY over a
   past day is by the hour of that day's lines, as Accounts' WORTH charts it, and no chart marks a
-  bucket as now's. SESSIONS lists the period's sessions as the List does in a past period (see
+  bucket as now's. ON ACCOUNTS names its accounts without `▲` and without the marks of one out of
+  the pool, as both tell now. SESSIONS lists the period's sessions as the List does in a past period (see
   Sessions, The List), and says as it does, once, after its last row, where the period reaches
   back before the first day whose sessions are kept: `sessions before 14 Sep no longer kept`.
 - **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
@@ -6146,7 +6155,8 @@ Switchboard stays live, with no dial. The frames are in the Paper file
 `sessions-switchboard-mixed-160` (work and personal without a 5-hour window). The List as a log is
 in the Paper file *Switchboard · Entities*, on page `p-3-0` (round 3, signed off 13 November 2026),
 and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73x61` and
-`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. The List under `nerd_font` is
+`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`; over a past period, it's
+`sessions-list-last-week-108x44`. The List under `nerd_font` is
 `sessions-list-nerd-font-160`. Columns and rows are at 160 by 37
 unless they say otherwise.
 
@@ -6492,7 +6502,7 @@ each at least its least and at most its natural, but `session`, which grows wher
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted`; in a past period, `went on` in `text.muted`, of a session that went on after the period's last day |
-| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS). As wide as the widest of the whole log says, the ended sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
+| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS); in a past period dated as `prose.PastAt` dates it (see A past period). As wide as the widest of the whole log says, the ended and gone-on sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
 | `requests` | 8 | 8, right-aligned | Its requests in the period, as `1,240`, in `text.muted`: today's over today |
 | `worth` | 7, or the widest the log says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |

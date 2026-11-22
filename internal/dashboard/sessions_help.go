@@ -82,7 +82,9 @@ func (f Frame) sessionsHelp() []helpPart {
 					"order they started, a new one at their foot; then those ended, the newest end first, under a rule for the day " +
 					"they ended. A row moves only as its session ends, or as it asks again, so rows never slide from under the " +
 					"choice. Its mark says it's asking or answering, or that it moved to the account it's on. " +
-					dialStepped() + ", the period Accounts and Projects share."),
+					dialStepped() + ", the period Accounts and Projects share. In a past period, the sessions that went on past " +
+					"its end come first, their state saying went on, and where some of its days are no longer kept, a line " +
+					"after the rows says which."),
 				said("On is the account its latest request went to, and model that request's model. State says when it ended, on the " +
 					"day its rule names, and started when it began, with its day where that was another. Requests counts its " +
 					"requests in the period that spend quota, and worth is theirs at API prices, at today's; routing says how it " +

@@ -27,7 +27,7 @@ period, and so do [Projects](projects.md) and the List on [Sessions](sessions.md
 | `n` | Goes back to now. |
 
 Changing the length keeps the last day of the period. For example, `+` on last week gives the 30
-days to the Sunday that ended it. The key line reads `- + period: this week    < > back · on`, and
+days to the last day of that week. The key line reads `- + period: this week    < > back · on`, and
 adds `n now` while a past period shows. A key that can't act is drawn faint: `>` at now, and `<`
 at the first day switchboard recorded.
 
@@ -42,7 +42,7 @@ at the first day switchboard recorded.
 A period is never a billing month, because switchboard doesn't know when a plan renews. The
 dashboard always opens on now, and remembers only the length from one run to the next.
 
-## A past period: what leaves
+## Past periods: what leaves
 
 A past period names itself in a colour of its own in the heading, so it never reads as now. It
 stays put as midnight passes. What tells the moment leaves, because it says nothing of the past:
@@ -50,8 +50,8 @@ stays put as midnight passes. What tells the moment leaves, because it says noth
 | View | In a past period |
 |---|---|
 | Compare | The state rows, the token rows and WEEK USED leave. |
-| Detail | The state, USAGE and SESSIONS leave. LATELY tells the events of the account up to the end of the period. |
-| Tokens | Nothing leaves. The first row names the period, as `30 days to 1 Sep`. |
+| Detail | The state, the token line, the state marks in the list, USAGE and SESSIONS leave. LATELY tells the events of the account up to the end of the period. |
+| Tokens | Nothing leaves. The first row names the period, for example `30 days to 1 Sep`. |
 
 The rest counts over the days of the past period, by the same rules as now.
 

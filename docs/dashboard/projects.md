@@ -72,7 +72,7 @@ as tells the two apart, at least 4 characters.
 Only the part where `↑` and `↓` act, the list or the sessions, lights its chosen row. The other
 keeps its chosen row bold, marked `▸`.
 
-## A past period: what ran then
+## Past periods: what ran then
 
 Step the dial back to see where last week went, project by project. The dial and its keys work as
 on [Accounts](accounts.md). In a past period:
