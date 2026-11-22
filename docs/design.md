@@ -11570,45 +11570,47 @@ background activity once, under the signer's name, rather than at every upgrade.
 quarantine a formula's files, so notarising serves a binary downloaded by other means; a bare
 binary can't have its ticket stapled, so macOS looks it up online.
 
-- **Built before the tag,** in mint's `pre_tag`, once the gate has passed (`scripts/release-build`):
-  from a clean checkout of what's to be tagged, where untracked files, which no checkout of the
+- **Built before the tag,** in mint's `pre_tag`, once the gate has passed, by press, the owner's
+  release tool (`press prepare`; one script in kit-config, `~/bin/press`, reading what switchboard
+  builds and ships from `.press.toml` and how the Mac signs from `~/.config/press/config.toml`):
+  from a clean worktree of what's to be tagged, where untracked files, which no checkout of the
   commit holds, stop nothing, in a folder of its own outside the repository. First the
-  notifications' app (see Notifications, "How they're posted"): `swiftc` for arm64 and x86_64,
-  joined by `lipo`, put together as a bundle with its `Info.plist` and its icon, compiled by
-  `actool` from Icon Composer's layered format (`AppIcon.icon`), as macOS 26 sets an icon of the
-  older kind on a white plate, with the older kind beside it for the macOS before; signed as the binaries
-  are but under its own identifier, `io.github.leeovery.switchboard.notify`, verified, and zipped
-  into the checkout for the binaries to embed; a tree from before the app, an older tag built
-  again to finish its upload, is built as it was, with no app and no tag. Then switchboard, for
-  arm64 and amd64, with the build tag `notifyapp`, the version mint is about to tag (`MINT_NEW_VERSION`) set in each; each
-  signed by `codesign` with the signing keychain's Developer ID Application certificate, the
-  hardened runtime and a secure timestamp, under the identifier `io.github.leeovery.switchboard`,
-  the LaunchAgent's label, and run to check it reports that version; the two, with the app, sent
-  together to Apple's notary service by
-  `notarytool`, under the keychain profile `notarytool` in the signing keychain, the Mac's one
-  login for notarising, and waited on until it answers, for
-  about an hour at most, as mint gives a hook no time limit; then archived and summed under the
-  names the Homebrew formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
+  notifications' app (see Notifications, "How they're posted"), laid out by
+  `scripts/notify-app --release`: `swiftc` for arm64 and x86_64, joined by `lipo`, put together as
+  a bundle with its `Info.plist` and its icon, compiled by `actool` from Icon Composer's layered
+  format (`AppIcon.icon`), as macOS 26 sets an icon of the older kind on a white plate, with the
+  older kind beside it for the macOS before; signed by press as the binaries are but under its own
+  identifier, `io.github.leeovery.switchboard.notify`, verified, and zipped into the worktree for
+  the binaries to embed. Then switchboard, for arm64 and amd64, with the build tag `notifyapp`,
+  which press checks each carries exactly, the version mint is about to tag (`MINT_NEW_VERSION`)
+  set in each; each signed by `codesign` with the signing keychain's Developer ID Application
+  certificate, the hardened runtime and a secure timestamp, under the identifier
+  `io.github.leeovery.switchboard`, the LaunchAgent's label, and run to check it reports that
+  version; the two, with the app, sent together to Apple's notary service by `notarytool`, under
+  the keychain profile `notarytool` in the signing keychain, the Mac's one login for notarising,
+  and waited on until it answers, for about an hour at most, as mint gives a hook no time limit;
+  then archived, each archive unpacked and checked again, and summed under the names the Homebrew
+  formula reads, `switchboard_<version>_darwin_<arch>.tar.gz` and
   `switchboard_<version>_checksums.txt`, and kept, with the commit they were built from, in
-  `~/Library/Caches/switchboard/release/<version>/`, in place of any other version's, as one
-  release is made at a time. A failure anywhere in that, the build, the signing, the certificate
-  or the notary's login gone, or Apple refusing or not answering, stops the release before its
-  tag, for mint to be run again once it's put right: nothing is public yet.
-- **Uploaded after it,** in mint's `post_release` (`scripts/release-upload`): the files kept for the
-  version uploaded to the release mint made, then the tap told the version and the two archives'
-  sums, as the latest release only, and its update waited on, for 15 minutes at most by the clock,
-  or until `gh` has failed to read it for a minute. Under mint, a release GitHub doesn't name the
-  latest, asked a few times, fails, with the command that tells the tap; by hand, an older
-  version's leaves the formula where it is. A pre-release, such as `1.2.3-rc.1`, is built and
-  uploaded, but Homebrew isn't told, as mint marks no GitHub release a pre-release and GitHub
-  would name it the latest. The files are taken only where the
-  commit they were built from lies under the tag with nothing a build reads changed between, as
-  mint's own commits, its changelog and its answers in `.mint.toml`, change nothing; else they're
-  built again from the tag. A failure here leaves the release without its binaries and Homebrew on
-  the version before, as mint only warns; `scripts/release-upload <version>`, run by hand,
-  finishes it, uploading what's kept, which needs no signing or Apple again. Only the latest
-  version built is kept, so finishing an older one, or one after a `0.0.0-check` run, builds it
-  again, which signs and goes to Apple.
+  `~/Library/Caches/press/switchboard/<version>/`, kept releases pruned after 30 days. A failure
+  anywhere in that, the build, the signing, the certificate or the notary's login gone, or Apple
+  refusing or not answering, stops the release before its tag, for mint to be run again once it's
+  put right: nothing is public yet.
+- **Uploaded after it,** in mint's `post_release` (`press upload`): the files kept for the
+  version uploaded to the release mint made, each checked listed at its size, then the tap told
+  the version and the two archives' sums, as the latest release only, and its update waited on,
+  for 15 minutes at most by the clock, or until `gh` has failed to read it for a minute. Under
+  mint, a release GitHub doesn't name the latest, asked a few times, fails, with the command that
+  tells the tap; by hand, an older version's leaves the formula where it is. A pre-release, such as
+  `1.2.3-rc.1`, is built and uploaded, but Homebrew isn't told, as mint marks no GitHub release a
+  pre-release and GitHub would name it the latest. The files are taken only where the commit they
+  were built from lies under the tag with nothing a build reads changed between, as mint's own
+  commits, its changelog and its answers in `.mint.toml`, change nothing; else they're built again
+  from the tag, with the tag's `.press.toml`. A failure here leaves the release without its
+  binaries and Homebrew on the version before, as mint only warns; `press upload <version>`, run
+  by hand, finishes it, uploading what's kept, which needs no signing or Apple again
+  (`press upload <version> --dry-run` says what it would upload and send). A kept release is
+  pruned only once 30 days old, so a `0.0.0-check` run never costs a release its kept files.
 - **Why before the tag:** every failure that's about the binary, or the means of signing it, comes
   before mint's point of no return, so a release is never published that can't have its binaries,
   and what's left after it is moving files already right. Waiting on Apple costs nothing: a tag
@@ -11619,13 +11621,14 @@ binary can't have its ticket stapled, so macOS looks it up online.
   profile, in the signing keychain, `~/Library/Keychains/signing.keychain-db`, a keychain of their
   own that kit's developer-id and notarytool steps make. It opens with the certificate's `.p12`
   password, `DEVELOPER_ID_P12_PASSWORD`, which kit writes to `~/.secrets.zsh`, and never locks once
-  unlocked; `scripts/release-build` unlocks it itself before anything signs, and its key lets
-  `codesign` use it with no dialog, so a release asks nothing, at the Mac or over SSH alike.
-  `scripts/release-build 0.0.0-check` signs and notarises and releases nothing, to check it.
-- Each run logs to `~/Library/Logs/switchboard/release-<version>.log`, as mint shows nothing of a
+  unlocked; press unlocks it itself before anything signs, and its key lets `codesign` use it with
+  no dialog, so a release asks nothing, at the Mac or over SSH alike. `press check`, mint's
+  `preflight`, checks all of that in seconds, before mint writes notes, and
+  `press prepare 0.0.0-check` signs and notarises and releases nothing, to check it.
+- Each run logs to `~/Library/Logs/press/switchboard-<version>.log`, as mint shows nothing of a
   hook that succeeds and only the stderr of one that fails. mint's dry run runs neither hook. The
   owner's call, 5 November 2026, in place of signing in GitHub's workflow from secrets (built 4
-  November, never used).
+  November, never used); the scripts that did it moved into press, 20 November 2026.
 
 ## The skill
 
