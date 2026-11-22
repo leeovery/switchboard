@@ -889,17 +889,22 @@ func TestABarOfEighthsEndsInItsLastPartsBlock(t *testing.T) {
 	}
 }
 
-// Each help of a tab with the dial says what its keys do: - and + its
-// length, keeping the last day, = as +; < and > back and on in time, to
-// either end; and n back to now; and that the tabs share it. Accounts' and
+// Each help of a tab with the dial says how the heading's readout names the
+// period and what its keys do: - and + its length, keeping the last day, =
+// as +; < and > back and on in time, to either end, each sign faint where
+// it stops and taking a click; and n back to now; and that the tabs share
+// it. Accounts' and
 // Projects' say how the periods run besides.
 func TestEachDialsHelpSaysWhatItsKeysDo(t *testing.T) {
 	const (
 		periodsRun = "a period is a length and the day it ends on. Today is that day, this week its week, 30 days and 12 " +
-			"months run back from it, and 12 weeks over its week and the 11 before. The period that reaches today is now"
-		steps = "- and + step through today, this week, 30 days, 12 weeks and 12 months, keeping the period's last day, = as " +
-			"+; < and > step back and on in time, a period at a time, < stopping at the ledger's first day and > at now, " +
-			"each faint where it stops; and n goes back to now"
+			"months run back from it, and 12 weeks over its week and the 11 before. The period that reaches today is now; " +
+			"any other is past, and its when shows in its own colour."
+		steps = "The heading's right names the period's range between - and +, and when it is between < and >, as - 30 " +
+			"days +  < to 1 Sep >. - and + step through day, week, 30 days, 12 weeks and 12 months, keeping the " +
+			"period's last day, = as +; < and > step back and on in time, a period at a time, < stopping at the ledger's " +
+			"first day and > at now; each sign is faint where it stops, and a click on it steps as its key does; and n " +
+			"goes back to now"
 	)
 	f := frameOf(160, 37)
 	f.Accounts = AccountsShown{Accounts: threeConfigured}

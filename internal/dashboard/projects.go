@@ -26,7 +26,7 @@ type ProjectsShown struct {
 }
 
 // heading is Projects' heading row: its name, and at its right, the dial's
-// period given between < and >, as periodDial has it.
+// period's readout, as periodDial has it.
 func (s ProjectsShown) heading(dial views.Dial) heading {
 	return heading{name: strings.ToUpper(Projects.Title()), period: periodDial(dial)}
 }

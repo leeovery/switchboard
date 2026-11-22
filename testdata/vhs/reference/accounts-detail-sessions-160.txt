@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────   - week +  < this week >
 
  all accounts       │
                     │   BY MODEL
@@ -34,4 +34,4 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │                                                   08:31      ▲ website started here, the best
                     │     enter opens d28c's page                       Wed 23:47  ▲ api started here, the best
                         ▲ 8 more above · ▼ 2 more below · j/k
-tab views   [ ] view    - + period: this week    < > back · on    ↑↓ session  ← accounts  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ↑↓ session  ← accounts  enter its page    p pin    ? help  q quit

@@ -4,7 +4,7 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-ACCOUNTS   Compare  Detail  Tokens                          < this week >
+ACCOUNTS   Compare  Detail  Tokens                - week +  < this week >
 
 day             cache read         total  worth     against its price
 

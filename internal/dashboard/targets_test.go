@@ -27,10 +27,15 @@ func under(rows []string, t Target) string {
 
 // pressedOver reports whether what's drawn under a target a click on which
 // presses the key given is what stands for it: a Graphs section's heading,
-// from its name to its key; or the Log's ▼ N new, which end follows.
+// from its name to its key; the Log's ▼ N new, which end follows; or the
+// period's readout's - or +, the sign itself.
 func pressedOver(drawn, key string) bool {
 	if section, ok := GraphsSectionKeyed(key); ok {
 		return strings.HasPrefix(drawn, section.heading()+" ") && strings.HasSuffix(drawn, "─ "+key)
+	}
+	switch key {
+	case "-", "+":
+		return drawn == key
 	}
 	return key == "end" && strings.HasPrefix(drawn, "▼ ") && strings.HasSuffix(drawn, " new")
 }
@@ -95,7 +100,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 		if want := []string{"tab", "< >", "?"}; !slices.Equal(keys, want) {
 			t.Errorf("at %d columns, the key line's targets are %q, want %q: never p pin, as no click opens the routing card, nor q quit", f.Width, keys, want)
 		}
-		if want := map[View][]string{Graphs: {"w"}, Log: {"end"}}[f.View]; !slices.Equal(presses, want) {
+		if want := map[View][]string{Graphs: {"w"}, Log: {"end"}, Projects: {"-", "+"}}[f.View]; !slices.Equal(presses, want) {
 			t.Errorf("at %d columns on %s, the targets a click on which presses a key press %q, want %q", f.Width, f.View, presses, want)
 		}
 	}

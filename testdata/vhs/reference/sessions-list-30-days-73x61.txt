@@ -4,7 +4,7 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-SESSIONS   Switchboard  List                                  < 30 days >
+SESSIONS   Switchboard  List                         - 30 days +  < now >
 
   session                     on        model       state        requests
 ▸ infra       terraform       side      opus-5-5    idle 50s          153
@@ -58,4 +58,4 @@ SESSIONS   Switchboard  List                                  < 30 days >
   website     2ed2            work      opus-5-5    ended 17:36       186
 30 days  162 sessions · 26,469 requests · $3,061.31 at API prices
   ▼ 119 more sessions
-tab views   ↑↓ session   [ ] view   < > back · on   ? keys   q quit
+tab views   ↑↓ session   [ ] view   ? keys   q quit

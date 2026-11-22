@@ -21,6 +21,7 @@ const (
 	readingLayout      = "Mon 2 Jan 15:04"
 	dayLayout          = "Mon 2 Jan"
 	dayInYearLayout    = "Mon 2 Jan 2006"
+	dateLayout         = "2"
 	dayMonthLayout     = "2 Jan"
 	dayMonthYearLayout = "2 Jan 2006"
 	monthLayout        = "Jan"
@@ -401,6 +402,22 @@ func DayMonthAt(now, d time.Time) string {
 		return DayMonthYear(d)
 	}
 	return DayMonth(d)
+}
+
+// DaysAt names the days from first to last as they're named at now, an en
+// dash between: within a month, the first by its date alone, as "14–20 Sep";
+// across months, by its date and month, as "28 Sep–4 Oct". The last carries
+// its year where it isn't now's, as DayMonthAt has it, "1–7 Jun 2025", and
+// the first where it isn't the last's, "29 Dec 2025–4 Jan".
+func DaysAt(now, first, last time.Time) string {
+	from := DayMonth(first)
+	switch {
+	case first.Year() != last.Year():
+		from = DayMonthYear(first)
+	case first.Month() == last.Month():
+		from = first.Format(dateLayout)
+	}
+	return from + "–" + DayMonthAt(now, last)
 }
 
 // DayMonthTime shows t as its date, month and 24-hour time in now's time

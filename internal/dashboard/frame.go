@@ -137,7 +137,7 @@ type Frame struct {
 	// Period is the period the entity tabs count over, one dial they share,
 	// as < and > step it through time and - and + its length; and Dial is it
 	// as it's said at the moment drawn, as views.DialOf says it, which the
-	// heading, the key line and every title naming it read.
+	// heading's readout and every title naming it read.
 	Period views.Period
 	Dial   views.Dial
 	// Accounts is Accounts' sub-tab shown, what's chosen in it, and its

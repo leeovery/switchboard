@@ -82,8 +82,9 @@ func TestOneAccountIsShownInDetailAlone(t *testing.T) {
 
 // Accounts' heading row names it and its sub-tabs, Compare, Detail and
 // Tokens, the one drawn picked out, and [ ] after them; with one account,
-// Detail and Tokens, Compare gone; and at its right its period between <
-// and >, which the frames draw before the sweep of keys as p and the period.
+// Detail and Tokens, Compare gone; and at its right its period's readout,
+// the range between - and +, when between < and >, the rule ending three
+// cells short of it.
 func TestAccountsHeadingRow(t *testing.T) {
 	const named = "ACCOUNTS    Compare  Detail  Tokens  [ ]  "
 	tests := []struct {
@@ -94,13 +95,13 @@ func TestAccountsHeadingRow(t *testing.T) {
 		other  int
 		want   string
 	}{
-		{name: "Compare, this week", shown: AccountsShown{Accounts: threeConfigured}, picked: 11, other: 20, want: named + rule(103) + "  < this week >"},
-		{name: "Detail, today", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}, period: views.LengthToday.Now(), picked: 20, other: 28, want: named + rule(107) + "  < today >"},
-		{name: "Tokens, this week", shown: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}, picked: 28, other: 11, want: named + rule(103) + "  < this week >"},
-		{name: "the last 30 days", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthThirtyDays.Now(), picked: 11, other: 20, want: named + rule(105) + "  < 30 days >"},
-		{name: "the last 12 weeks", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthTwelveWeeks.Now(), picked: 11, other: 20, want: named + rule(104) + "  < 12 weeks >"},
-		{name: "the last 12 months", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthTwelveMonths.Now(), picked: 11, other: 20, want: named + rule(103) + "  < 12 months >"},
-		{name: "one account, Compare gone", shown: AccountsShown{Accounts: threeConfigured[:1]}, picked: 11, other: 19, want: "ACCOUNTS    Detail  Tokens  [ ]  " + rule(112) + "  < this week >"},
+		{name: "Compare, this week", shown: AccountsShown{Accounts: threeConfigured}, picked: 11, other: 20, want: named + rule(92) + "   - week +  < this week >"},
+		{name: "Detail, today", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}, period: views.LengthToday.Now(), picked: 20, other: 28, want: named + rule(97) + "   - day +  < today >"},
+		{name: "Tokens, this week", shown: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}, picked: 28, other: 11, want: named + rule(92) + "   - week +  < this week >"},
+		{name: "the last 30 days", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthThirtyDays.Now(), picked: 11, other: 20, want: named + rule(95) + "   - 30 days +  < now >"},
+		{name: "the last 12 weeks", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthTwelveWeeks.Now(), picked: 11, other: 20, want: named + rule(94) + "   - 12 weeks +  < now >"},
+		{name: "the last 12 months", shown: AccountsShown{Accounts: threeConfigured}, period: views.LengthTwelveMonths.Now(), picked: 11, other: 20, want: named + rule(93) + "   - 12 months +  < now >"},
+		{name: "one account, Compare gone", shown: AccountsShown{Accounts: threeConfigured[:1]}, picked: 11, other: 19, want: "ACCOUNTS    Detail  Tokens  [ ]  " + rule(101) + "   - week +  < this week >"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,7 +126,7 @@ func TestAccountsHeadingRow(t *testing.T) {
 }
 
 // On a phone, Accounts' heading sets its sub-tabs two cells after its name, its
-// period on the row under them, at the right, and the view starts two rows
+// period's readout on the row under them, at the right, and the view starts two rows
 // on, as accounts-phone-compare-52 draws it.
 func TestAccountsHeadingOnAPhone(t *testing.T) {
 	f := frameOf(52, 49)
@@ -135,7 +136,7 @@ func TestAccountsHeadingOnAPhone(t *testing.T) {
 	if got, want := rows[7], "ACCOUNTS   Compare  Detail  Tokens"; strings.TrimRight(got, " ") != want {
 		t.Errorf("row 8 reads %q, want %q", got, want)
 	}
-	if got, want := rows[8], blanks(39)+"< this week >"; got != want {
+	if got, want := rows[8], blanks(29)+"- week +  < this week >"; got != want {
 		t.Errorf("row 9 reads %q, want %q", got, want)
 	}
 	if top := f.top(); top != 10 {

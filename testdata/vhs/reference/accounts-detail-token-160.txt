@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────   - week +  < this week >
 
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │            token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one
@@ -34,4 +34,4 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
                     │
                     │               Mon               Tue               Wed               Thu              Fri               Sat               Sun
                         ▼ 12 more below · j/k
-tab views   [ ] view    - + period: this week    < > back · on    ↑↓ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ↑↓ account  enter its page    p pin    ? help  q quit

@@ -10,7 +10,8 @@ import (
 // cells wide, and what's there, as On says: a tab, Tab; a sub-tab, by its
 // place among them, SubTab; < or > by a period or a window, Step, -1 or 1; a
 // key of the key line, Key, as the line names it; something on the page
-// that presses a key, Key, as a Graphs section's heading presses its own and
+// that presses a key, Key, as the heading's - and + by a period press theirs, a
+// Graphs section's heading its own and
 // the pool's label presses P; a
 // row of the view, Row, by its index; an Overview's section, Section; an
 // account, by its id, Account, or Compare's column of one, "" for all

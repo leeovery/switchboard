@@ -27,7 +27,7 @@ var keysSaid = map[string]string{
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
 		"and ↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are.",
 	"Accounts": "- and + change the length of the period Compare, Detail and Tokens count over, the one Projects and " +
-		"Sessions' List share: " + prose.List(views.LengthNames()) + ", = as +. < and > step it back and on in time, " +
+		"Sessions' List share: " + prose.List(views.RangeNames()) + ", = as +. < and > step it back and on in time, " +
 		"and n goes back to now. " +
 		"←→ moves along Compare's accounts, and enter opens one in Detail; there ↑↓ chooses an account, " +
 		"→ moves into its SESSIONS and ← back, and enter opens the session chosen.",

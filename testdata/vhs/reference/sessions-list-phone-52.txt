@@ -6,7 +6,7 @@
 ● healthy · auto · 6 sessions · new → ▲ side
 
 SESSIONS   Switchboard  List
-                                       < this week >
+                             - week +  < this week >
 
   session            on        state        requests
 ▸ infra  terraform   side      idle 50s          153
@@ -30,4 +30,4 @@ SESSIONS   Switchboard  List
 this week  27 sessions · 5,410 requests
 $635.00 at API prices
   ▼ 11 more sessions
-↑↓ session   [ ] view   ? keys   q quit
+tab views   ↑↓ session   [ ] view   ? keys   q quit

@@ -1,5 +1,10 @@
 version: "2"
 
+run:
+  # golangci-lint's lock is one for the whole machine: without this, a run in
+  # another project fails the gate rather than waiting for it.
+  allow-serial-runners: true
+
 issues:
   # Report every finding; the defaults silently truncate repeats.
   max-same-issues: 0

@@ -4,7 +4,7 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-PROJECTS  ────────────────────────────────────────────────  < yesterday >
+PROJECTS  ──────────────────────────────────────   - day +  < yesterday >
 
   project       sessions   worth                          requests  last
 ▸ switchboard          7    $109                               954  18:46
@@ -58,4 +58,4 @@ SESSIONS
 
 
 
-tab views   ↑↓ project   < > back · on   n now   ? keys   q quit
+tab views   ↑↓ project   → sessions   n now   ? keys   q quit

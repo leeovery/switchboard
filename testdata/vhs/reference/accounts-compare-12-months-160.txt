@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 months >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────   - 12 months +  < now >
 
                           work                              personal ◆                       side                             all accounts
                           ● at cap                          ● open                           ● open                           2 open · 1 at cap
@@ -34,4 +34,4 @@ WORTH  at API prices, by month
                           Oct Dec Feb Apr Jun Aug Oct       Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct
                           peak Aug $1,307                   peak Sep $1,094                  peak Sep $775                    peak Sep $3,120 · its own scale
 ▼ 16 more below · j/k
-tab views   [ ] view    - + period: 12 months    < > back · on    ←→ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ←→ account  enter its page    p pin    ? help  q quit

@@ -40,8 +40,9 @@ period in a colour of its own, and what tells the moment leaves, as
 [Accounts](dashboard/accounts.md) explains.
 
 **Period.** The days that Accounts, Projects and the List on Sessions count over, set by the dial
-at the right of the heading. A period has a length, from today to 12 months, that `-` and `+`
-change. The period that reaches today is now, and every other one is a past period.
+at the right of the heading, as `- week +  < last week >`. A period has a length, from a day to 12
+months, that `-` and `+` change, and `<` and `>` step it through time. The period that reaches
+today is now, and every other one is a past period.
 
 **Pin.** Your choice of account for new sessions, or for one running session, in place of the
 router's choice. A pin gives way when its account hits a limit.

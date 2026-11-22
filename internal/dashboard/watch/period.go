@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -101,56 +102,27 @@ func (m Model) periodShown(period views.Period) Model {
 	return m
 }
 
-// The dial's keys as the key line and help name them: - and + its length,
-// and < and > its steps back and on.
-const (
-	lengthKeys = "- +"
-	stepKeys   = "< >"
-)
-
 // dialListings are the dial's keys, as the key line and help list them on a
-// tab the dial shows on, where works says, the dial's period said as d says
-// it, each in a group of its own: - + and the period's name; < > back · on;
-// and while a past period shows, n now. At now, a phone's line names < >
-// alone, and only where phoned says, as on Projects' list and the List,
-// never Accounts; while a past period shows, it names - +, its name left
-// off, after the page's other keys, so it gives way first, and keeps < > and
-// n to the last, as dashboard.KeyLine's PhoneKept keeps them.
-func dialListings(d views.Dial, works, phoned bool) []keyListing {
-	gone := d.Gone()
+// tab the dial shows on, where works says, of the dial's period as d says
+// it: - + range and < > time, which the key line leaves to help, as the
+// heading's readout names them; and while a past period shows, n now, in a
+// group of its own, which a phone's line keeps to the last, as
+// dashboard.KeyLine's PhoneKept keeps it.
+func dialListings(d views.Dial, works bool) []keyListing {
 	return []keyListing{
-		{Key: dashboard.Key{Key: lengthKeys, Does: "period", State: d.Name()}, works: works, apart: true, wide: !gone, yields: gone, phoneDoes: "period"},
-		{Key: dashboard.Key{Key: stepKeys, Does: "back · on"}, works: works, apart: true, wide: !gone && !phoned, kept: gone},
-		{Key: dashboard.Key{Key: "n", Does: "now"}, works: works && gone, apart: true, kept: true},
+		{Key: dashboard.Key{Key: "- +", Does: "range"}, works: works, helpful: true},
+		{Key: dashboard.Key{Key: "< >", Does: "time"}, works: works, helpful: true},
+		{Key: dashboard.Key{Key: "n", Does: "now"}, works: works && d.Gone(), apart: true, kept: true},
 	}
 }
 
 // dialNarrower are the narrower forms of a wide key line of the groups
-// given, the dial's keys among them, in the order it gives way where the
-// one before doesn't fit, before a phone's line takes its place: the
-// period's name after - + period left off; then p pin; then - + period
-// whole.
+// given, on a tab the dial shows on, before a phone's line takes its place:
+// p pin left off.
 func dialNarrower(groups [][]dashboard.Key) [][][]dashboard.Key {
-	unnamed := keysKept(groups, func(k dashboard.Key) (dashboard.Key, bool) {
-		if k.Key == lengthKeys {
-			k.State = ""
-		}
-		return k, true
-	})
-	unpinned := keysKept(unnamed, func(k dashboard.Key) (dashboard.Key, bool) { return k, k.Key != pinWord.Key })
-	return [][][]dashboard.Key{unnamed, unpinned, keysKept(unpinned, func(k dashboard.Key) (dashboard.Key, bool) { return k, k.Key != lengthKeys })}
-}
-
-// keysKept are the groups given, each key as keep has it, but those it
-// reports false of, a group left empty where it keeps none of it.
-func keysKept(groups [][]dashboard.Key, keep func(dashboard.Key) (dashboard.Key, bool)) [][]dashboard.Key {
-	kept := make([][]dashboard.Key, len(groups))
+	unpinned := make([][]dashboard.Key, len(groups))
 	for i, group := range groups {
-		for _, k := range group {
-			if k, ok := keep(k); ok {
-				kept[i] = append(kept[i], k)
-			}
-		}
+		unpinned[i] = slices.DeleteFunc(slices.Clone(group), func(k dashboard.Key) bool { return k.Key == pinWord.Key })
 	}
-	return kept
+	return [][][]dashboard.Key{unpinned}
 }

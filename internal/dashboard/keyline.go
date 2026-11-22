@@ -36,7 +36,7 @@ type KeyLine struct {
 	Phone     []Key
 	PhoneHelp string
 	// PhoneKept are the keys a phone's line keeps after Phone's, last to
-	// give way, as the dial's < > and n while a past period shows; where
+	// give way, as the dial's n while a past period shows; where
 	// there are any, tab views gives way after Phone's, not before, the one
 	// exception to the phone's order.
 	PhoneKept []Key
@@ -44,7 +44,7 @@ type KeyLine struct {
 	// has them, tried in their order where the one before doesn't fit whole,
 	// before a phone's line takes its place: as a page of toggles leaves out
 	// its keys kept to a line wider than a phone's, a group at a time, or as
-	// the dial's keys give way.
+	// a tab with the dial leaves p pin out.
 	Narrower [][][]Key
 	// Note says what the last key did, or why it couldn't, in the line's
 	// place, while that's news: "" otherwise.

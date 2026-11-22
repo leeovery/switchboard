@@ -24,32 +24,39 @@ func KeepLength(prefs *theme.Prefs, length views.Length) {
 	prefs.Period, prefs.Accounts.Period = string(length), ""
 }
 
-// dialed is the dial's period as a heading draws it at its right: its name;
-// the widest name it keeps room for, so nothing moves the heading at now;
-// whether it's gone, its name then in accent.attention, never read as now;
-// and whether < or > does nothing, at the ledger's first day or at now,
+// dialed is the dial's period as a heading's readout draws it at its right:
+// its range, which - and + change, and when it is, which < and > change;
+// the range and when of the widest readout it keeps room for, so no step
+// moves the heading; whether it's gone, when then in accent.attention,
+// never read as now; and whether - or + does nothing, at the shortest
+// range or the longest, and < or >, at the ledger's first day or at now,
 // each then faint.
 type dialed struct {
-	name, widest   string
-	gone           bool
-	backOff, onOff bool
+	ranged, when             string
+	widestRanged, widestWhen string
+	gone                     bool
+	shorterOff, longerOff    bool
+	backOff, onOff           bool
 }
 
 // periodDial is the dial's period given as a heading draws it, as dialed
 // has it.
 func periodDial(d views.Dial) dialed {
-	return dialed{name: d.Name(), widest: d.Widest(), gone: d.Gone(), backOff: d.Earliest(), onOff: d.AtNow()}
+	widestRanged, widestWhen := d.Widest()
+	return dialed{
+		ranged: d.Range(), when: d.When(), widestRanged: widestRanged, widestWhen: widestWhen, gone: d.Gone(),
+		shorterOff: d.Shortest(), longerOff: d.Longest(), backOff: d.Earliest(), onOff: d.AtNow(),
+	}
 }
 
 // shown reports whether the heading has a dial to draw.
 func (d dialed) shown() bool {
-	return d.name != ""
+	return d.when != ""
 }
 
-// atWidest is the dial at the widest it takes, as the heading keeps room for
-// it: its widest name, or its own where that's wider, as a period gone's may
-// be.
+// atWidest is the readout at the widest it keeps room for, as the heading
+// keeps room for it.
 func (d dialed) atWidest() dialed {
-	d.name = widestOf([]string{d.widest, d.name})
+	d.ranged, d.when = d.widestRanged, d.widestWhen
 	return d
 }

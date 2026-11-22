@@ -2,7 +2,7 @@
 
 ● healthy  ·  pinned to personal and side  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────   - week +  < this week >
 
                           work                              personal ◆                       side                             all accounts
                           ■ refused                         ■ limit                          ● open                           1 open · 1 limit · 1 refused
@@ -34,4 +34,4 @@ WORTH  at API prices, by day
                           Mon Tue Wed Thu Fri Sat Sun       Mon Tue Wed Thu Fri Sat Sun      Mon Tue Wed Thu Fri Sat Sun      Mon Tue Wed Thu Fri Sat Sun
                           peak Mon $57.70                   peak Wed $81.32                  peak Wed $108                    peak Wed $212 · its own scale
 ▼ 16 more below · j/k
-tab views   [ ] view    - + period: this week    < > back · on    ←→ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    ←→ account  enter its page    p pin    ? help  q quit

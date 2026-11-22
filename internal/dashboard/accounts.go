@@ -125,7 +125,7 @@ func (s AccountsShown) Account() string {
 
 // heading is Accounts' heading row: its name and its sub-tabs drawn, as
 // views has them, the one drawn picked out; and at its right, the dial's
-// period given between < and >, as periodDial has it.
+// period's readout, as periodDial has it.
 func (s AccountsShown) heading(dial views.Dial) heading {
 	h := heading{name: strings.ToUpper(Accounts.Title())}
 	for i, v := range s.views() {
@@ -140,7 +140,8 @@ func (s AccountsShown) heading(dial views.Dial) heading {
 
 // accountsHeading is the frame's heading row on Accounts, as its heading has
 // it, and after [ ], on Compare, which of its accounts it shows, in the forms
-// compareState says it in.
+// compareState says it in, the least of them held at their widest as ←→
+// steps along the accounts, as they say it from the last place they reach.
 func (f Frame) accountsHeading() heading {
 	h := f.Accounts.heading(f.Dial)
 	if f.Accounts.View() != AccountsCompare {
@@ -148,10 +149,11 @@ func (f Frame) accountsHeading() heading {
 	}
 	if forms := f.compareState(); len(forms) > 0 {
 		h.state, h.shorter = forms[0], forms[1:]
-		// The least is held at the clause, so a phone's heading lays out as
-		// it did before the bare form: the bare form is a wide heading's
-		// last resort, never what keeps a phone's state beside its sub-tabs.
-		h.least = forms[1].plain()
+		// The least is held at the clause, so a compact heading lays out as
+		// it did before the bare form: the bare form is a ruled heading's
+		// last resort, never what keeps a compact state beside its sub-tabs.
+		widest := f.compareStateAt(f.compareLast())
+		h.least, h.shortest = widest[1].plain(), widest[2].plain()
 	}
 	return h
 }

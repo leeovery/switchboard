@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────  < week of 14 Sep >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────────   - week +  < 14–20 Sep >
 
                           work                                 personal ◆                           side                                all accounts
 
@@ -50,4 +50,4 @@ VALUE
 
 
 
-tab views   [ ] view    - + period: week of 14 Sep    < > back · on    n now    ←→ account  enter its page    p pin    ? help  q quit
+tab views   [ ] view    n now    ←→ account  enter its page    p pin    ? help  q quit

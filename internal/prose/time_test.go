@@ -458,6 +458,36 @@ func TestADayNamedAtNowCarriesItsYearOnlyWhereItIsntNows(t *testing.T) {
 	}
 }
 
+// Days from one to another are named by their dates, an en dash between:
+// within a month the first by its date alone, across months by its date
+// and month; the last with its year where it isn't now's, and the first
+// where it isn't the last's.
+func TestDaysAreNamedFromTheFirstToTheLast(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC)
+	day := func(year int, month time.Month, d int) time.Time {
+		return time.Date(year, month, d, 0, 0, 0, 0, time.UTC)
+	}
+	tests := []struct {
+		name        string
+		first, last time.Time
+		want        string
+	}{
+		{name: "within a month", first: day(2026, 9, 14), last: day(2026, 9, 20), want: "14–20 Sep"},
+		{name: "across months", first: day(2026, 9, 28), last: day(2026, 10, 4), want: "28 Sep–4 Oct"},
+		{name: "across years, the last in now's", first: day(2025, 12, 29), last: day(2026, 1, 4), want: "29 Dec 2025–4 Jan"},
+		{name: "within a month of another year", first: day(2025, 6, 1), last: day(2025, 6, 7), want: "1–7 Jun 2025"},
+		{name: "across months of another year", first: day(2025, 9, 29), last: day(2025, 10, 5), want: "29 Sep–5 Oct 2025"},
+		{name: "across years, neither now's", first: day(2024, 12, 30), last: day(2025, 1, 5), want: "30 Dec 2024–5 Jan 2025"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.DaysAt(now, tt.first, tt.last); got != tt.want {
+				t.Errorf("DaysAt(%v, %v, %v) = %q, want %q", now, tt.first, tt.last, got, tt.want)
+			}
+		})
+	}
+}
+
 // A time with its date is told in now's time zone, by its date, month and
 // time, whatever the day.
 func TestDayMonthTimeIsInNowsTimeZone(t *testing.T) {

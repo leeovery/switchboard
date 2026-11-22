@@ -91,7 +91,7 @@ func statesHelp() []glyph {
 // periodsRun is how the periods run, as Accounts' and Projects' helps say it.
 const periodsRun = "The periods are never billing months, as switchboard knows no renewal date: a period is a length and the " +
 	"day it ends on. Today is that day, this week its week, 30 days and 12 months run back from it, and 12 weeks over its " +
-	"week and the 11 before. The period that reaches today is now; any other is past, its name drawn in its own colour."
+	"week and the 11 before. The period that reaches today is now; any other is past, and its when shows in its own colour."
 
 // pastLeaves is what leaves a past period, as Accounts' help says it: of
 // one account, alone, without WEEK USED, which only Compare draws.
@@ -104,12 +104,14 @@ func pastLeaves(alone bool) string {
 		"and SESSIONS. LATELY tells each account's events up to the period's end."
 }
 
-// dialStepped is how the dial's keys step the period, as each help of a tab
-// the dial shows on says it.
+// dialStepped is how the heading's readout names the period and how the
+// dial's keys step it, as each help of a tab the dial shows on says it.
 func dialStepped() string {
-	return "`-` and `+` step through " + prose.List(views.LengthNames()) + ", keeping the period's last day, `=` as `+`; " +
-		"`<` and `>` step back and on in time, a period at a time, `<` stopping at the ledger's first day and `>` at now, " +
-		"each faint where it stops; and `n` goes back to now"
+	return "The heading's right names the period's range between `-` and `+`, and when it is between `<` and `>`, as " +
+		"`- 30 days +  < to 1 Sep >`. `-` and `+` step through " + prose.List(views.RangeNames()) + ", keeping the " +
+		"period's last day, `=` as `+`; `<` and `>` step back and on in time, a period at a time, `<` stopping at the " +
+		"ledger's first day and `>` at now; each sign is faint where it stops, and a click on it steps as its key does; " +
+		"and `n` goes back to now"
 }
 
 // valueHelp is what the period's use was worth as help explains it: worth at
