@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-22
+
+Dashboard heading shows the period as a clickable range and time readout.
+
+🔧 Changed
+- The period readout in the heading now shows its range between `-` and `+` and when it is between `<` and `>`, such as `- 30 days +  < to 1 Sep >` — a past week reads as a date span like `14–20 Sep`.
+- Clicking `-` or `+` in the heading steps the period's length, as pressing the key does.
+- The key line no longer shows the period keys, leaving them to help, and a phone's line keeps only `n` for returning to now while a past period shows.
+- Compare's heading holds room for its widest state as `←→` steps along accounts, so the heading no longer shifts between one row and two.
+- The period lengths listed in help and key descriptions are now named day, week, 30 days, 12 weeks and 12 months.
+
 ## [1.1.0] - 2026-11-22
 
 Step back through past periods on the dashboard's Accounts, Projects and Sessions tabs to see what happened on an earlier day, week or month.
