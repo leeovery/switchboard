@@ -3,7 +3,7 @@
 # Builds switchboard's notifications' app, Switchboard.app, from
 # internal/notify/app into the folder given: one binary for arm64 and x86_64,
 # its Info.plist carrying the version given and its icon. A release's comes
-# from press, Lee's release tool, as .press.toml says: with --release it lays
+# from press, the owner's release tool, as .press.toml says: with --release it lays
 # the app out under its real bundle identifier,
 # io.github.leeovery.switchboard.notify, unsigned, and press signs it with the
 # Mac's Developer ID, then zips it into the tree for each binary to embed.
