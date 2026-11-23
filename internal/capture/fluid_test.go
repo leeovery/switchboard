@@ -20,10 +20,12 @@ import (
 
 // ownersSizes are the terminals the fluid sweep draws every view at, as the
 // owner uses them: a phone upright, tall and short, and on its side, tall and
-// short; an iPad, tall and short; a desktop; and a MacBook's side screen.
+// short; an iPad, tall and short; a desktop; a MacBook's side screen; and a
+// Duo upright.
 var ownersSizes = []watch.Size{
 	{Width: 73, Height: 61}, {Width: 73, Height: 36}, {Width: 138, Height: 30}, {Width: 138, Height: 15},
 	{Width: 108, Height: 44}, {Width: 108, Height: 24}, {Width: 173, Height: 53}, {Width: 109, Height: 53},
+	{Width: 104, Height: 58},
 }
 
 // longNamesViews are the world of long names on each view no fixture draws
@@ -124,14 +126,27 @@ func (k known) breaking() []string {
 // break. A fixture named at a size where it no longer draws it fails the
 // sweep, so the list holds only what's drawn.
 var knownBreaks = []known{
-	// The Switchboard's directories at their most, as the List's; and at 108
-	// and 109, where the cells past the leasts go to the directory alone, the
-	// directory at 14 and 15 and the account a call came from at its least,
-	// as the design gives them at 108.
+	// The Switchboard's directories at their most, as the List's; and at 104,
+	// 108 and 109, where the cells past the leasts go to the directory alone,
+	// the directory at 10, 14 and 15 and the account a call came from at its
+	// least, as the design gives them at 108: at 104, switchboard too is cut.
 	{
 		byDesign: "the Switchboard's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes:    []string{"73x61", "73x36", "138x30", "138x15", "173x53"},
 		fixtures: []string{"sessions-switchboard-long-names-108x44"},
+	},
+	{
+		byDesign: "the Switchboard's names past its leasts at 104", cuts: append(dirCuts(10), "work-…"), rule: cutWithRoom,
+		sizes: []string{"104x58"}, fixtures: []string{"sessions-switchboard-long-names-108x44"},
+	},
+	{
+		byDesign: "the Switchboard's directory past its leasts at 104", cuts: []string{"switchboa…"}, rule: cutWithRoom,
+		sizes: []string{"104x58"}, fixtures: []string{
+			"page-sessions-120x30", "page-sessions-chosen", "page-sessions-not-answering", "page-sessions-short",
+			"sessions-108x44", "sessions-moved-108x44", "sessions-moved-160", "sessions-phone-52", "sessions-pinned-160",
+			"sessions-refused-160", "sessions-switchboard-160", "sessions-switchboard-fable-160",
+			"sessions-switchboard-fable-73x61", "sessions-switchboard-mixed-160", "sessions-ten-accounts-160",
+		},
 	},
 	{
 		byDesign: "the Switchboard's names past its leasts at 108", cuts: append(dirCuts(14), "work-…"), rule: cutWithRoom,
@@ -143,7 +158,7 @@ var knownBreaks = []known{
 	},
 	{
 		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
-		sizes: []string{"108x44", "109x53"}, fixtures: []string{"sessions-moved-160", "sessions-moved-108x44", "sessions-pinned-160"},
+		sizes: []string{"104x58", "108x44", "109x53"}, fixtures: []string{"sessions-moved-160", "sessions-moved-108x44", "sessions-pinned-160"},
 	},
 	{
 		byDesign: "the account a call came from at its least", cuts: []string{"perso…"}, rule: cutWithRoom,
@@ -151,11 +166,12 @@ var knownBreaks = []known{
 	},
 	// The Log's sessions' directories, as views.SessionDirName cuts them, with
 	// room at every size they show at with room; and the Requests' on, its
-	// share past the columns' leasts at 73, 108 and 109, as the design gives
-	// it.
+	// share past the columns' leasts at 73, 104, 108 and 109, as the design
+	// gives it: at 104, on is cut toward its least before out leaves and
+	// stopped is cut, so it has fewer cells than at 73.
 	{
 		byDesign: "the Log's directories at their most", cuts: logDirCuts(), rule: cutWithRoom,
-		sizes:    []string{"138x30", "138x15", "108x44", "108x24", "173x53", "109x53"},
+		sizes:    []string{"138x30", "138x15", "108x44", "108x24", "173x53", "109x53", "104x58"},
 		fixtures: []string{"log-requests-long-names-108x44"},
 	},
 	{
@@ -165,6 +181,10 @@ var knownBreaks = []known{
 	{
 		byDesign: "on's share at 73", cuts: []string{"personal-res…"}, rule: cutWithRoom,
 		sizes: []string{"73x61", "73x36"}, fixtures: []string{"log-requests-long-names-108x44"},
+	},
+	{
+		byDesign: "on's share at 104", cuts: []string{"personal-…", "side-hust…"}, rule: cutWithRoom,
+		sizes: []string{"104x58"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
 	{
 		byDesign: "on's share at 108", cuts: []string{"personal-rese…", "side-hustle-c…"}, rule: cutWithRoom,
@@ -183,7 +203,7 @@ var knownBreaks = []known{
 	},
 	{
 		byDesign: "Detail's LATELY's directories, as the Log cuts them", cuts: logDirCuts(), rule: cutWithRoom,
-		sizes:    []string{"73x61", "108x44", "173x53", "109x53"},
+		sizes:    []string{"73x61", "108x44", "173x53", "109x53", "104x58"},
 		fixtures: []string{"long-names-accounts-detail"},
 	},
 	// Detail's list, which gives way first, its names cut to what the panel
@@ -216,7 +236,7 @@ var knownBreaks = []known{
 	// keeps its rows whatever the project's sessions leave blank at the foot.
 	{
 		byDesign: "the project list at its third, or at 5 rows while the sections stay, whatever the chosen project's sessions leave at the foot",
-		rule:     foldWithRowsSpare, sizes: []string{"73x61", "138x30", "173x53", "109x53"}, fixtures: []string{"projects-many-114x40"},
+		rule:     foldWithRowsSpare, sizes: []string{"73x61", "138x30", "173x53", "109x53", "104x58"}, fixtures: []string{"projects-many-114x40"},
 	},
 }
 
