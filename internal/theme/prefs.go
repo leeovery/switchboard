@@ -175,22 +175,41 @@ func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 		logger.Warn("can't read the preferences file; the defaults stand", "path", f.path, "error", err)
 		return Prefs{}, nil
 	}
+	p, others, err := prefsOf(data)
+	if err != nil {
+		f.setAside(err)
+		return Prefs{}, nil
+	}
+	return p, others
+}
+
+// PrefsOf reads preferences written as the preferences file holds them, as
+// Read reads the file's: a key they don't know is passed over, and a key
+// they don't hold reads as a file without it does. It fails where data
+// holds no such preferences.
+func PrefsOf(data []byte) (Prefs, error) {
+	p, _, err := prefsOf(data)
+	return p, err
+}
+
+// prefsOf reads preferences from data as PrefsOf does, and the keys of data
+// they don't know, as read has them.
+func prefsOf(data []byte) (Prefs, map[string]json.RawMessage, error) {
 	var p Prefs
 	var others map[string]json.RawMessage
-	err = json.Unmarshal(data, &p)
+	err := json.Unmarshal(data, &p)
 	if err == nil {
 		err = json.Unmarshal(data, &others)
 	}
 	if err != nil {
-		f.setAside(err)
-		return Prefs{}, nil
+		return Prefs{}, nil, err
 	}
 	p.Accounts.Split = cmp.Or(p.Accounts.Split, historySplit(others["history"]))
 	for _, key := range slices.Concat(prefsKeys, retiredKeys) {
 		delete(others, key)
 	}
 	p.Sections = withoutRetired(p.Sections)
-	return p, others
+	return p, others, nil
 }
 
 // historySplit is the split History's Tokens kept, as history.tokens.split,

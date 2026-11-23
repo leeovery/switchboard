@@ -34,10 +34,12 @@ func Run(ctx context.Context, cfg Config, out io.Writer, environ []string) error
 // it starts and stops, its model run as turns runs it, and puts back the
 // terminal's background as it stops, however it stops, then has unread throw
 // away what was typed and never read, as backdrop.Run has it, then keeps the
-// preferences changed that it hadn't yet, as keepLeft has it.
+// preferences changed that it hadn't yet, as keepLeft has it. A restart onto
+// an upgrade has unread throw it away too.
 func run(ctx context.Context, cfg Config, out io.Writer, unread func(), opts ...tea.ProgramOption) error {
 	logger.Info("watch started", "interval", cfg.Interval)
 	started := time.Now()
+	cfg.unread = unread
 	last, err := backdrop.Run(turns{New(ctx, cfg)}, out, unread, append(opts, tea.WithContext(ctx))...)
 	last.keepLeft()
 	logger.Info("watch stopped", "ran", time.Since(started).Round(time.Second))

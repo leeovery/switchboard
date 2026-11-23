@@ -7,10 +7,12 @@
 // its own notifications, as the config asks, when an account has room again
 // or a window passes the warning. Probing as asked while the router answers,
 // it leaves them to the router all the same. It redraws as the clock moves,
-// every second, and eases each bar to its new reading. Beyond its log, the
-// model does no I/O of its own: it's handed its source, its clock, its
-// notifier, where it keeps its preferences, and the readers of the request
-// ledger, the readings history and the router's events, so tests drive it as
+// every second, and eases each bar to its new reading. Left open across an
+// upgrade of its binary, it restarts itself onto the new version. Beyond its
+// log, the model does no I/O of its own: it's handed its source, its clock,
+// its notifier, where it keeps its preferences, the readers of the request
+// ledger, the readings history and the router's events, and what looks at
+// its binary, asks it and replaces the process with it, so tests drive it as
 // a terminal would.
 package watch
 
@@ -207,6 +209,10 @@ type Config struct {
 	KeepGraphs bool
 	Log        dashboard.LogTicks
 	Prefs      Prefs
+	// Opened are the preferences View, Sections and the rest were read from,
+	// which the watch changes as it keeps each change, so a restart onto an
+	// upgrade carries what it shows, as Shown has it.
+	Opened theme.Prefs
 	// Period is the period the entity tabs open counting over: now, of the
 	// length the preferences keep, as dashboard.LengthKept reads it, which
 	// Prefs keeps as it changes; or the one shown where the pool turns, past
@@ -255,11 +261,23 @@ type Config struct {
 	// the way the fingers move: the zero Scrolling, swipe.Natural, macOS's
 	// default.
 	Scrolling swipe.Direction
+	// Upgrade is how the dashboard restarts itself onto an upgrade of the
+	// binary it was started as, as Upgrade says: the zero Upgrade never
+	// restarts.
+	Upgrade Upgrade
 	// readsWhole has the Log read each past day whole, through no filter, as
 	// it read them before it read them through its filters. Only the
 	// package's tests set it, for a Log of the same history read whole that
 	// they hold one read through its filters to.
 	readsWhole bool
+	// handOver gives the terminal over to a restart onto an upgrade, and
+	// takes it back where the restart fails, as tea.Exec does, which nil
+	// has. Only the package's tests set it, to run the restart in place.
+	handOver func(tea.ExecCommand, tea.ExecCallback) tea.Cmd
+	// unread throws away what was typed at the terminal and never read, as
+	// Run has backdrop.Unread do as the watch stops, which a restart does
+	// too: nil throws away nothing. run sets it.
+	unread func()
 }
 
 // Size is a terminal's size in cells.
@@ -465,6 +483,8 @@ type Model struct {
 
 	// keeping is the preferences changed, as they're kept.
 	keeping keeping
+	// upgrade is what the watch holds of an upgrade of its binary.
+	upgrade upgrading
 
 	// poolTurns counts the pools P has turned to, as freshIn has it, for
 	// turns to drop what a command of a pool shown before sends back;
@@ -541,6 +561,10 @@ type fetchedMsg struct {
 	listed   bool
 	err      error
 	stamp    filestate.State
+	// binary is how the binary the dashboard was started as stood once the
+	// read was made, as Upgrade's Look finds it: none where it looks at
+	// nothing.
+	binary filestate.State
 }
 
 // tickMsg wakes the model to redraw, and to read again once that's due.
@@ -565,7 +589,7 @@ func New(ctx context.Context, cfg Config) Model {
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
 		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
-		keeping:     keeping{gate: new(prefsGate)},
+		keeping:     keeping{gate: new(prefsGate), shown: cfg.Opened},
 	}
 	m.accounts.shown.Accounts = cfg.Accounts
 	if m.after == nil {
@@ -627,6 +651,8 @@ func (m Model) started() tea.Cmd {
 // screen and its frames see the layout the page will draw and the numbers
 // it brightens, shows the page, drawing frames while anything on it moves.
 // The view is drawn again after each, which is all a note's lapsing asks.
+// Last, it notes how it stands for a restart onto an upgrade decided on, as
+// noteRestart has it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
@@ -659,6 +685,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
+	tuned.noteRestart()
 	return tuned, tea.Batch(cmd, closed, stream, past, projected, hours, told, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
 }
 
@@ -772,7 +799,8 @@ func (m Model) render() Model {
 // ledger's days read, the router carrying out an order, the
 // sessions listed to price the routing card's moves, the request stream
 // opening, telling of requests or falling due to be asked for again, a tick,
-// a frame, a session's page read, or what's shown of the pool P turned to.
+// a frame, a session's page read, what's shown of the pool P turned to, or
+// an upgrade of the binary asked about, or restarted onto in vain.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -859,6 +887,10 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.pastDayRead(msg), nil
 	case turnedMsg:
 		return m.turnedTo(msg)
+	case upgradeAskedMsg:
+		return m.upgradeAsked(msg)
+	case restartFailedMsg:
+		return m.restartFailed(msg), nil
 	}
 	return m, nil
 }
@@ -1097,13 +1129,17 @@ func (m Model) read(r status.Read) (Model, tea.Cmd) {
 	return m, m.fetch(r)
 }
 
-// fetch reads the source as r asks, as fetchFrom reads it, asked now.
+// fetch reads the source as r asks, as fetchFrom reads it, asked now, then
+// looks at how the config file and the binary stand.
 func (m Model) fetch(r status.Read) tea.Cmd {
-	ctx, source, policy, asked, stamp := m.ctx, m.cfg.Source, m.cfg.Policy, m.now(), m.cfg.ConfigStamp
+	ctx, source, policy, asked, stamp, binary := m.ctx, m.cfg.Source, m.cfg.Policy, m.now(), m.cfg.ConfigStamp, m.cfg.Upgrade.Look
 	return func() tea.Msg {
 		msg := fetchFrom(ctx, source, r, policy, asked)
 		if stamp != nil {
 			msg.stamp = stamp()
+		}
+		if binary != nil {
+			msg.binary = binary()
 		}
 		return msg
 	}
@@ -1152,7 +1188,8 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // last document's, as status's AccountsChanged has it, or the pools told,
 // as ErrPoolsTold says, where they couldn't be, but not again once that was
 // in vain, as toldInVain has it, it reads the pool shown again, as
-// followConfig has it.
+// followConfig has it. Whatever the read found, where it finds the binary
+// upgraded, it asks whether to restart onto it, as upgradeLooked has it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
@@ -1187,13 +1224,14 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		logRead(msg, look, m.plan.due)
 	}
 	m, following := m.followConfig(msg.stamp, changed)
+	m, upgrade := m.upgradeLooked(msg.binary, msg.router)
 	m.chain++
 	var again tea.Cmd
 	if m.again {
 		m.again = false
 		m, again = m.reread()
 	}
-	return m, tea.Batch(shown, m.armTick(now), again, following)
+	return m, tea.Batch(shown, m.armTick(now), again, following, upgrade)
 }
 
 // logRead notes a read: where it came from, the accounts it read and those it
