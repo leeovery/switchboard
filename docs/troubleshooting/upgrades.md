@@ -27,7 +27,7 @@ the config right, this is what you'll see:
 |---|---|
 | `switchboard status` | The router's status document, with the restart put off, then the config error. |
 | `usage`, or a dashboard you open now | They fail on the config. |
-| A dashboard already open | `restart put off (upgraded)` on the status line. |
+| A dashboard already open | `restart put off (upgraded)` on the status line. It stays on the old version, like the router. |
 | Each `claude` you start | It says it couldn't read the config, and goes through the router all the same. |
 | The router's log | The refusal, at warn. |
 
