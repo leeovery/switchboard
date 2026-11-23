@@ -149,7 +149,7 @@ func checkAccountAgainstStatus(t *testing.T, doc status.Document, a status.Accou
 		t.Errorf("%s stands as\n%+v\nwant\n%+v", a.ID, gotFacts, want)
 	}
 	for i, w := range a.Windows {
-		checkWindowAgainstStatus(t, doc, a, w, got.Windows[i], now)
+		checkWindowAgainstStatus(t, doc, a, w, got.Windows[i], outOfQuota, want.Back, now)
 	}
 }
 
@@ -172,8 +172,10 @@ func withoutUnreported(a status.AccountNow) status.AccountNow {
 // read, standing at now as got, against the function it takes the place of:
 // all but its kind, why it's stale, when what that says comes, its even pace
 // and its allowance, which the window tests hold through the moment, and each
-// fact here is read against.
-func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Account, w quota.Window, got status.WindowNow, now time.Time) {
+// fact here is read against; but that it has no allowance where its account,
+// out of quota as given, is held back till at least its next reset: back, as
+// given, no earlier, or not known.
+func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Account, w quota.Window, got status.WindowNow, outOfQuota bool, back, now time.Time) {
 	t.Helper()
 	want := status.WindowNow{
 		WindowName: got.WindowName,
@@ -185,26 +187,32 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		stands, _ := a.WindowAt(w.Key, now, policy)
 		out, runsOut := doc.RunsOut(a, w, now, policy)
 		want.Used, want.Pace, want.Next = stands.Utilization, got.Pace, stands.ResetsAt
+		hold, limited := a.Held(now, policy)
+		heldThrough := outOfQuota && (back.IsZero() || !want.Next.IsZero() && !back.Before(want.Next))
 		want.Allowance, want.Room = got.Allowance, got.Room
+		if heldThrough {
+			want.Allowance = quota.Allowance{}
+		}
 		want.Start, want.Length, _ = stands.Span()
 		want.ResetSinceRead, want.Lapsed = w.ResetBy(now), a.HasLapsed(w.Key, now, policy)
 		want.Held = want.Kind == status.WindowLimited
 		if want.Held {
 			want.Back, want.Since = want.At, got.Since
 		}
-		hold, limited := a.Held(now, policy)
 		want.HeldAsOwn = limited && slices.Contains(hold.Windows, w.Key)
 		want.Capped = doc.ReserveHolds(a) && slices.Contains(a.ReachedReserve(now), w.Key)
 		want.CappedAsRead = doc.ReserveHolds(a) && slices.Contains(a.AtReserve, w.Key)
+		heldItself := limited && hold.Holds(w.Key) || want.Capped
+		want.WithAccount = heldThrough && !heldItself && (want.Held || want.Kind == status.WindowCapped)
 		want.RunsOut, want.Out = want.Kind == status.WindowRunsOut, out
-		if want.Held {
+		if want.Held || want.WithAccount {
 			want.Unheld = unheldKindOf(a, want, runsOut, now)
 		}
-		want.RunsOutAhead = want.RunsOut || want.Held && want.Unheld == status.WindowRunsOut
+		want.RunsOutAhead = want.RunsOut || (want.Held || want.WithAccount) && want.Unheld == status.WindowRunsOut
 		if share, ok := dashboardProjected(want.Kind, out.Projection); ok {
 			want.Projected = &share
 		}
-		want.Unused = !want.Shared && want.Kind != status.WindowStale && !want.Held && !want.Capped && want.Used == 0
+		want.Unused = !want.Shared && want.Kind != status.WindowStale && !want.Held && !want.Capped && !want.WithAccount && want.Used == 0
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("%s's %s stands as\n%+v\nwant\n%+v", a.ID, w.Key, got, want)
@@ -212,8 +220,8 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 }
 
 // unheldKindOf is the kind of account a's window, standing at now as w has
-// it, running out where runsOut says it does, once the limit holding it
-// lifts: stale where its token is refused, not started where it has lapsed,
+// it, running out where runsOut says it does, once the limit holding it, or
+// its account's hold, lifts: stale where its token is refused, not started where it has lapsed,
 // stale where its last read failed, at its cap, running out, else open.
 func unheldKindOf(a status.Account, w status.WindowNow, runsOut bool, now time.Time) status.WindowKind {
 	switch {

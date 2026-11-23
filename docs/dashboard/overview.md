@@ -77,9 +77,10 @@ work and side have used Fable this week, and personal hasn't.
 |---|---|
 | An account has used the Fable week | Its bar, percentage and words. |
 | A limit names an account's Fable week | The FABLE section, even at 0%, with that account's bar and words, such as `limit · back Sun`. |
-| The FABLE section shows, and any limit holds an account | That account's words, such as `limit · back Sun`. |
+| The FABLE section shows, and a limit or the cap keeps an account from every request until the Fable week resets | That account's words, such as `limit · back Sun` or `at cap · back Sun`, used or not, side by side or stacked. |
+| The FABLE section shows, and a limit that names no window holds an account | That account's words, such as `limit · back 15:54`, even if the limit lifts before the Fable week resets. |
 | An account hasn't used the Fable week, side by side | `no Fable use`, or `no use` if room is short or USAGE is by account. |
-| An account hasn't used the Fable week, stacked | Nothing: the account is left out of the FABLE section. |
+| An account hasn't used the Fable week, stacked | Nothing: the account is left out of the FABLE section, unless a hold keeps it from every request until the Fable week resets. |
 | No account has used the Fable week, and no limit names it | No FABLE section at all. |
 
 The section goes once the Fable week of every account resets to 0 and no limit names it. It

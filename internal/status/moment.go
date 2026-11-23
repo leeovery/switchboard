@@ -214,9 +214,9 @@ type WindowNow struct {
 	Shared, Started, Pressure bool
 	// Kind is how it stands at Now, the first that holds of the kinds in
 	// their order, and At when what Kind says comes, or came, as Of has them.
-	// Unheld is how it stands with any limit holding it set aside, as it
-	// stands once that lifts, as unheldOf has it: Kind where no limit holds
-	// it.
+	// Unheld is how it stands with any limit holding it set aside, and its
+	// account's hold, where that holds it, as WithAccount says, as it stands
+	// once those lift, as unheldOf has it: Kind where neither holds it.
 	Kind, Unheld WindowKind
 	At           time.Time
 	// TokenForeign is set where its Kind is WindowTokenless as the token its
@@ -231,9 +231,10 @@ type WindowNow struct {
 	// is its even pace, and Allowance what can be spent of it and still last
 	// to its reset, as of when the document was read, of the window so
 	// standing, as measure has them: nil where it isn't running or its reset
-	// isn't known, and no allowance where a limit holds it as its own. Next
-	// is its next reset as it stands at Now: zero where it has lapsed, or
-	// that isn't known.
+	// isn't known, and no allowance where a limit holds it as its own, or
+	// its account's hold lasts till it next resets, as heldThrough says, as
+	// it can take nothing till then. Next is its next reset as it stands at
+	// Now: zero where it has lapsed, or that isn't known.
 	Used      float64
 	Pace      *float64
 	Allowance quota.Allowance
@@ -253,9 +254,18 @@ type WindowNow struct {
 	// Held is set where Claude's limit holds it at Now, as Kind says. Back is
 	// when room returns, as At has it, zero where that isn't known, and
 	// Since when the account reached the limit in it, as the router's event
-	// of it tells, as reachedIn has it, zero where none tells.
+	// of it tells, as reachedIn has it, zero where none tells: of one held
+	// with its account, as WithAccount says, when the account reached the
+	// limit holding it back from every request, as its LimitSince has it.
 	Held        bool
 	Back, Since time.Time
+	// WithAccount is set where Kind is what holds its account back from
+	// every request, a limit or its cap, rather than what holds it itself:
+	// no limit holds it, and it would offer room, running out or open, but
+	// that hold lasts till it next resets, so it can take nothing till its
+	// account is back, At, as withAccount says. A stale window, or one not
+	// started, keeps its own Kind.
+	WithAccount bool
 	// Capped is set where its use has reached its account's cap at Now, which
 	// holds the account back, as reachedReserve judges it. CappedAsRead is
 	// set where the router noted it at its reserve as it built the document,
@@ -268,9 +278,10 @@ type WindowNow struct {
 	// whose token is refused or whose last read failed doesn't, whatever its
 	// projection says. RunsOutAhead is set where it runs out ahead of Now, as
 	// a timeline draws it, at its Out: where Unheld is WindowRunsOut. It's
-	// RunsOut where no limit holds it; where one does, as one naming no
-	// window can, it's set where it runs out once the limit lifts, but not
-	// where it's stale, not started or at its cap.
+	// RunsOut where no limit holds it, nor its account's hold; where one
+	// does, as one naming no window can, or its account's, as WithAccount
+	// says, it's set where it runs out once that lifts, but not where it's
+	// stale, not started or at its cap.
 	RunsOut, RunsOutAhead bool
 	// Out is where it runs out at Now at the pace it's heading at, as
 	// runOutOf says, projected from when the document was read, whatever
@@ -289,10 +300,10 @@ type WindowNow struct {
 	HeldAsOwn bool
 	// Unused is set where it's a model's own window, as Fable's week, that
 	// its account is known not to have used: read fresh with a usable
-	// token, neither stale nor held by a limit or its cap, as heldOrStale
-	// says, and none of it used as it stands at Now, as used says, as once
-	// it resets. A view listing windows as they stand leaves the account out
-	// of it, as Without says.
+	// token, neither stale nor held by a limit or its cap, its own or its
+	// account's, as heldOrStale says, and none of it used as it stands at
+	// Now, as used says, as once it resets. A view listing windows as they
+	// stand leaves the account out of it, as Without says.
 	Unused bool
 	// Read is the window as it was read.
 	Read AsRead
@@ -684,6 +695,11 @@ func (m Moment) accountNow(place int, j judgedAccount, names map[string]WindowNa
 	if an.Hold.Every {
 		an.LimitSince = m.ranOn(a.ID, WasLimited, an.LimitSince)
 	}
+	for i, w := range an.Windows {
+		if w.Held && w.WithAccount {
+			an.Windows[i].Since = an.LimitSince
+		}
+	}
 	return an
 }
 
@@ -703,11 +719,12 @@ func (m Moment) ranOn(id string, kind WasKind, from time.Time) time.Time {
 // of the windows it holds came to be held, each as the event of the limit
 // holding it tells, as reachedIn has it, as firstHeld has them; of a hold of
 // every request, those every model shares, which hold it back from every
-// request, else each it holds.
+// request, else each it holds. A window held with its account, as
+// WithAccount says, isn't one it holds.
 func limitSince(hold Hold, windows []WindowNow) time.Time {
 	var since []time.Time
 	for _, w := range windows {
-		if w.Held && (w.Shared || !hold.Every) {
+		if w.Held && !w.WithAccount && (w.Shared || !hold.Every) {
 			since = append(since, w.Since)
 		}
 	}
@@ -763,7 +780,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	if wn.Kind == WindowStale {
 		wn.Stale = s.stale
 	}
-	wn.Held = wn.Kind == WindowLimited
+	wn.Held, wn.WithAccount = wn.Kind == WindowLimited, s.withAccount(w, wn.Unheld)
 	if wn.Held {
 		wn.Back, wn.Since = wn.At, m.doc.reachedIn(a, w.window, m.Now)
 	}
@@ -781,12 +798,13 @@ func (w WindowNow) used() bool {
 	return w.Used > 0
 }
 
-// heldOrStale reports whether what the window reads at Now may not be all
-// its account has used: its read stale, or a limit or its account's cap
-// holding it, as a limit may still hold a window read again at 0% once it
-// resets.
+// heldOrStale reports whether the window reads other than its use at Now:
+// its read stale, as that may not be all its account has used; a limit or
+// its account's cap holding it, as a limit may still hold a window read
+// again at 0% once it resets; or its account's hold, as WithAccount says, as
+// it can take nothing till its account is back.
 func (w WindowNow) heldOrStale() bool {
-	return w.Kind == WindowStale || w.Held || w.Capped
+	return w.Kind == WindowStale || w.Held || w.Capped || w.WithAccount
 }
 
 // Without reports whether a view listing windows as they stand leaves the

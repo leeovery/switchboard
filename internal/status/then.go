@@ -202,8 +202,8 @@ func untold(told []Span, s Span, now time.Time) []Span {
 // now, none at any moment; a limit told of naming no window, or a window
 // read spent, holding at t; its token refused, as told of; nothing read by
 // t; its cap, where its reserve holds now, a window read at where its
-// reserve, as configured now, starts, as the readings keep no reserve; and
-// room. Of a hold, Since is when the first part of what holds it at t began:
+// reserve starts, the reserve configured now, not the one each reading
+// records; and room. Of a hold, Since is when the first part of what holds it at t began:
 // a told hold's From; of a window's, the router's event of it, as reachedAt
 // finds it, else the first reading, of those given, of the unbroken run of
 // the window's readings that shows it; a limit's or a cap's then begun as
@@ -252,7 +252,9 @@ func stoodAt(a AccountNow, windows map[string]windowRead, told []Span, t time.Ti
 // a limit held it back too, and none from Now on where its read is refused,
 // as its RefusedRead has it, which is known as of Now alone; none in the
 // window a request starts, as the policy names it, while a limit or its cap
-// held it back from every request; else the window's room to where the
+// held it back from every request, nor in a window those holds lasted
+// through, from when quotaUntil has them all lift, as outlasts judges it,
+// till its next reset as it stood then; else the window's room to where the
 // account runs out, its Floor, as its last reading by t has it, as
 // score.Room has it, none where it was read spent, or not read by then. It
 // reports false where nothing was read of the account by then, so how it
@@ -263,7 +265,8 @@ func (m Moment) RoomThen(a AccountNow, read Readings, told []Span, key string, t
 		return 0, true
 	}
 	windows := m.readBy(a, read, Reach{}, t)
-	switch was := stoodAt(a, windows, told, t); {
+	was := stoodAt(a, windows, told, t)
+	switch {
 	case was.Kind == WasUnread:
 		return 0, false
 	case len(toldAt(told, WasRefused, t)) > 0, a.heldByRead() && !t.Before(m.Now), was.Kind != WasRoom && key == m.policy.Started:
@@ -273,7 +276,31 @@ func (m Moment) RoomThen(a AccountNow, read Readings, told []Span, key string, t
 	if !ok {
 		return 0, true
 	}
+	if until, held := quotaUntil(a, windows, told, t); held && outlasts(until, score.Current(w, t).ResetsAt) {
+		return 0, true
+	}
 	return score.Room(w, a.Floor, t), true
+}
+
+// quotaUntil is when every hold of the account a's quota for every request
+// standing at t has lifted, by its windows read by then, as readBy has them,
+// and the holds told: the last lift of its limit's parts and, where its
+// reserve holds, its cap's, zero where one lifts at no known time, as
+// lastLift has it, as the moment's back has it of a limit and a cap at once.
+// It reports false where neither holds.
+func quotaUntil(a AccountNow, windows map[string]windowRead, told []Span, t time.Time) (time.Time, bool) {
+	parts := slices.Concat(toldAt(told, WasLimited, t), shownAt(windows, told, WasLimited, t))
+	if a.ReserveHolds {
+		parts = append(parts, shownAt(windows, told, WasCapped, t)...)
+	}
+	if len(parts) == 0 {
+		return time.Time{}, false
+	}
+	lifts := make([]time.Time, len(parts))
+	for i, p := range parts {
+		lifts[i] = p.until
+	}
+	return lastLift(lifts), true
 }
 
 // readOf is the account a's window with the given key as its last reading

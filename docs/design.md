@@ -209,7 +209,8 @@ lost (see Choosing an account).
    every candidate were, rather than to the one whose quota can't be judged, as they would once none
    of the pin's accounts can be scored at all (step 4 of the order below). The readings outlast a
    restart: as it starts, the router takes them up, baselines included, from its readings history,
-   which holds each change of a window's use (see Files), but for a window that has reset since.
+   which holds each change of a window's use (see Files), but for a window that has reset since,
+   and passing over the lines that record a window again as its account's reserve changed.
 4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`), its pool and the model, and remembered as it's chosen, then
    forgotten unless the request is answered with success. Caches are per model anyway, so a
@@ -3620,8 +3621,8 @@ in the words History's Weeks gave it till the dashboard by entity left the verdi
 (`views.VerdictWeeks`, 7).
 
 **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
-router stops sending it new sessions: 100% less its reserve, the reserve the config has now, as a
-week's own isn't recorded beyond the moments an account was held at its cap, and 100% without one.
+router stops sending it new sessions: 100% less its reserve, the reserve the config has now, not
+the reserve the readings history recorded through the week, and 100% without one.
 What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
 The verdict takes its form for many accounts where it can name one to drop, one fewer being short on
 no more weeks than now; otherwise its form for few.
@@ -4341,8 +4342,8 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | Its subscription has ended: its last read was answered 403, the message saying OAuth authentication is currently not allowed for its organization, in any case, which is how an ended subscription is answered; the last reading, faded (below) | `subscription lapsed` | `lapsed` | `state.destructive` |
   | Its token is refused: the router saw it refused, or its last read was answered 401; the last reading, faded (below) | `token refused` | `refused` | `state.destructive` |
   | Its last read failed otherwise, a 403 with another message among them: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
-  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window | `limit · back 15:54` | `limit · back Sun`, `limit · back 12 Nov` a week on; narrower, `limit · Sun`, then `back Sun` | `state.destructive` |
-  | Its use has reached the cap, which holds the account back | `at cap · back 17:10` | `cap · back Mon`, `cap · back 12 Nov` a week on; narrower, `cap · Mon`, then `back Mon` | `accent.attention` |
+  | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window; or a limit holds back the account's every request till at least the window's next reset, the window not at its cap, and lifts after any cap doing so (below) | `limit · back 15:54` | `limit · back Sun`, `limit · back 12 Nov` a week on; narrower, `limit · Sun`, then `back Sun` | `state.destructive` |
+  | Its use has reached the cap, which holds the account back; or the cap holds back the account's every request till at least the window's next reset, and lifts after any limit doing so (below) | `at cap · back 17:10` | `cap · back Mon`, `cap · back 12 Nov` a week on; narrower, `cap · Mon`, then `back Mon` | `accent.attention` |
   | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
   | A model's own window the account is known not to have used: read fresh, and neither a limit nor its cap holding it (below) | `no Fable use` | `no use` | `text.subtle` |
@@ -4371,6 +4372,24 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   the last read's error, and the words leave the rest of the message out (the owner's call, 16
   November 2026). A read refused, as any failed read, comes after a 5-hour window not started:
   only the router's refusal of the token comes before it.
+- **A window held with its account:** where a limit or the cap in a window every model shares
+  holds the account back from every request, a window it holds back till at least that window's
+  next reset can take nothing before it resets, whatever room its reading shows. That window reads
+  what holds the account, the one that lifts last, as the table has it, with the account's `back`:
+  a week at its limit makes the 5-hour and Fable's week read `limit · back Sun`, and a week at its
+  cap `at cap · back Sun`. A hold that lifts before the window resets, as a 5-hour cap back at
+  17:10 under a week that resets on Sunday, leaves the window its own words and allowance, as it
+  can be used again once the hold lifts; one that lifts just as it resets holds it. A hold whose
+  end isn't known, as while the account's read is refused, outlasts every window; a window whose
+  next reset isn't known outlasts any hold that ends. Of the two holds, the one that lifts at no
+  known time lifts last. The hold replaces only words that offer room: an allowance, the room
+  itself near the reset, `out ~…`, or `no Fable use`. A window held itself, by a limit naming it or
+  its own cap, keeps its own words and time, and a limit naming no window holds every window as
+  the table has it. A stale reading keeps its words and its fade, so a lapsed subscription, a
+  refused token or a failed read still says why, and so does a 5-hour window not started; neither
+  has an allowance while the hold outlasts it. Before, Overview's FABLE WEEK read
+  `31%/day till Sun` on an account whose week was at its limit, room it didn't have. The pool and
+  COMING UP follow: neither counts room nor tells a reset of a window the hold outlasts.
 - **A reading that's stale,** of an account whose subscription has ended, whose token is refused
   or whose last read failed, shows as it was last read, faded, whatever its words say: its bar,
   fill, track and marks keep 35% of their colour, which is 65% toward the canvas, nothing bold;
@@ -4391,7 +4410,9 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   be more than the room left (34% over six hours is `136%/day`), so the room itself shows,
   `34% till 16:30`. A window that has reset since it was read counts from full: all its room, over
   the time to its next reset, a length on. The allowance shows from the window's first minute
-  (settled in the plan).
+  (settled in the plan). A window held with its account has none, as it can take nothing before
+  it resets (see A window held with its account, above), and `status --json` leaves its
+  `allowance` out.
 - **A global pin spends the caps** of the accounts it names (see Pinning): theirs count to 100%, as
   an account without a cap's do, and never read `at cap`; the cap's mark stays on their bars
   (settled in the plan).
@@ -4427,12 +4448,14 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   it reaches in the window (see Choosing an account, step 6); the router keeps which request that
   was in memory alone, as the state file's readings count as read before any.
 - **At cap:** the window's use has reached the cap, and the cap holds the account back; `back` is
-  the window's reset, when room returns.
+  the window's reset, when room returns. A window held with its account by the cap reads `at cap`
+  too, its `back` the account's.
 - **The pool,** wherever there's more than one account, totals the room new sessions can go to now:
   every account on auto, only those the global pin names when pinned. Each window's room is summed
   to each account's cap, `cap − used` and never below 0, but to its limit for an account the global
   pin names, as the pin spends its reserve, with nothing from the 5-hour window of an
-  account at its limit or its cap, nor from any window of an account without a usable token, its
+  account at its limit or its cap, nor from a window that account's hold outlasts (see A window
+  held with its account), nor from any window of an account without a usable token, its
   token or its read refused (see 401s and 403s), or not read. Its percentage is its accounts' mean
   use of the window, each as its row shows it, leaving out one without a usable token, not read,
   whose token or read is refused, or that hasn't reported the window; where none is left it shows `—`, its bar empty, as a window nothing is read of (the
@@ -4468,12 +4491,16 @@ last token's line where it has any, with no blank line after it, as a shell's pr
     and words. So does one held on it by a limit naming it, or its cap reached in it, at 0% or not,
     as a limit may still hold a window read again at 0% once it resets. A limit naming no window
     holds every window alike, so says nothing of a model's use, and never brings the window up alone
-    (the owner's rule: shown where used); where another account's use shows it, the held account's
-    row reads by its kind, `limit · back Sun`. It's live: as an account's resets to 0, its bar goes,
-    and the window goes once no account has use left in it, or a hold on it; the first use on any
-    account brings it back.
+    (the owner's rule: shown where used); nor does a hold of the account's every request held in
+    another window (see A window held with its account). Where another account's use shows it, an
+    account a limit naming no window holds reads by its kind, with its own `back`:
+    `limit · back 15:54`. An account a hold in another window keeps from every request reads that
+    hold, `limit · back Sun`, only where the hold lasts till the week resets. It's live: as an
+    account's resets to 0, its bar goes, and the window goes once no account has use left in it,
+    or a hold on it; the first use on any account brings it back.
   - An account known not to have used it goes without it, as an account without a 5-hour window
-    does: read fresh, neither stale nor held by a limit or its cap, and at 0% as it stands. Stacked,
+    does: read fresh, neither stale nor held by a limit or its cap, its own or the account's, and
+    at 0% as it stands. Stacked,
     its section leaves the account out; side by side, in the matrix and by account, its words alone
     from where its bar would start, `no Fable use`, or `no use` where the words are short or its
     label beside them names the window, in `text.subtle`. Its row draws nothing else: no bar, no
@@ -7197,7 +7224,8 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   `rejected` is at its limit until that reset, or until a later reading before it no longer shows
   it, as one of a window reset by hand doesn't, the hold lifting as the router read the window start
   again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
-  config gives now, as the readings keep none, and lifts alike. A column with no reading of its
+  config gives now (settled in the plan), not from the reserve each line of the readings history
+  records, and lifts alike. A column with no reading of its
   account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
   14 October 2026), but before the first reading of an account new in the view, which is dotted
   (see An account new in the view, above).
@@ -7231,12 +7259,13 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   read claims only the span it read whole. The Overview's LATELY reads the document's alone.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
 - **A week stepped back to:** the readings history, each change of a window's use, its reset and its
-  status, a limit running from a reading `rejected` to its window's reset; each day's summary's
-  `limits`, each with its `at` and `resets_at`, and under each name the week's `highest`; today's,
-  before it's summarised, its readings and lines as they're read (see The request ledger). A cap on
-  a day gone is drawn from the reserve the config gives now, as the readings keep none (settled in
-  the plan). A week older than the readings history's keep draws its lanes from its summaries'
-  limits and resets alone (settled in the plan).
+  status, and the window again at each change of the reserve its account was held to, a limit
+  running from a reading `rejected` to its window's reset; each day's summary's `limits`, each with
+  its `at` and `resets_at`, and under each name the week's `highest`; today's, before it's
+  summarised, its readings and lines as they're read (see The request ledger). A cap on a day gone
+  is drawn from the reserve the config gives now (settled in the plan), not from the reserve each
+  line of the readings history records. A week older than the readings history's keep draws its
+  lanes from its summaries' limits and resets alone (settled in the plan).
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
@@ -7456,8 +7485,9 @@ them at the section's width, from a day before now, for a week:
   out, then its floor to its reset, then full, as nothing is known of its next window, in its hue
   mixed with the canvas so 50% of it shows, as its moment's room ahead has it: a window a limit
   holds has none till the limit lifts, or the refusal of its token ends where that's later, and
-  none at all where its read is refused, as no time lifts that (see 401s and 403s), which Graphs'
-  cards draw alike.
+  none at all where its read is refused, as no time lifts that (see 401s and 403s), and a window
+  its account's cap holds with it keeps the room it has till the account is back (see `usage`,
+  the printout), which Graphs' cards draw alike.
 - **Now:** `│` in `text.primary` down now's column, through every row.
 - **Under it,** Runway's axis, its three rows as Runway draws them at that width; then its key: each
   account's `█` in its hue and its name in `text.muted`, a faint `█` and ` faint: heading, as
@@ -10141,9 +10171,19 @@ from the first day a router that has it runs, so nothing before then is in it.
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a
       window read `rejected` or used up, each from the reading that put it there to the one that
-      took it away, its reset, or the day's end, a minute at both counting as at a limit. The cap is
-      the config's as the summary is made, as the readings history keeps none. Windows of a model's
-      own, as Fable's week, hold back only that model, and count toward neither.
+      took it away, its reset, or the day's end, a minute at both counting as at a limit. Each
+      reading is judged by the cap in force as the router took it in: 1 less the `reserve` its line
+      records, which is 0, no cap, where the pool's pin spent it (see the readings history in
+      Files). So a day summarised after a reserve changed, or summarised again, counts each stretch
+      by the cap that held it then. A reserve that changes while the use reads as it did starts a
+      stretch of its own, as the router records the account's windows again under it: as it
+      changes, for each window read in the 15 minutes before; and for a window whose reading was
+      stale by then, as of an account whose read is refused, only at its next reading, so its
+      stretch is judged again from there, the time between judged by the reserve before. A line
+      from before the history recorded reserves is judged by the config's cap as the summary is
+      made.
+      Windows of a model's own, as Fable's week, hold back only that model, and count toward
+      neither.
     - Of an account the readings history held none of the windows of, in the day or the week
       before it, as once it has pruned them, its keep being its own, `rise`, `resets` and the
       minutes are left out, as never read, never as none.
@@ -10693,6 +10733,11 @@ from the first day a router that has it runs, so nothing before then is in it.
   - The table holds the models on the page, but those the API retired before 7 October 2026, the
     day the ledger began recording, as no answer of theirs is in it to price, and the Mythos
     models, open only to verified organizations.
+  - The table is checked against Anthropic's prices before each release, and a price that changed,
+    or a model launched, goes into that release as a dated row (the owner's call, 23 November
+    2026). Nothing watches for a change between releases. Claude Haiku 5.5, which charges more
+    for a prompt over 100,000 tokens, is priced at its lower rate whatever a prompt's length (the
+    owner's call, 11 October 2026).
   - A count the usage holds that the table can't price is left out of the worth, which names it
     unpriced, rather than guessed at: a server tool's it doesn't know, writes to the cache the usage
     doesn't break down by how long they last, and the turns of another model, as an advisor's,
@@ -10719,8 +10764,7 @@ from the first day a router that has it runs, so nothing before then is in it.
     2026, before the ledger began recording. So no request the ledger holds pays one, but Claude
     Haiku 5.5's: from its launch on 7 October 2026 it prices a prompt of over 100,000 tokens
     higher, which the table doesn't keep, so every Haiku 5.5 request is priced at its rate for
-    prompts up to 100,000, the owner's call (11 October 2026), until how the table is kept is
-    settled (see Backlog: keeping the price table current).
+    prompts up to 100,000, the owner's call (11 October 2026).
   - **Plans:** beside the models, the table prices the plans a subscription is on, each a month, in
     US dollars, with its size in Pro weeks, which the forecast and the capacity verdict's replay of a week
     weigh an account by (see Forecasting run-outs and The capacity verdict): `pro`, Pro, $20 and 1; `max`, Max, $100
@@ -11881,8 +11925,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
   and `misses` (see The router's rounds), and of a read refused why and since when, `refused_read`
-  and `refused_since`, and whether that hold has been told, `held_told` (see 401s and 403s), the
-  hold curve, `hold` (see Forecasting run-outs), and
+  and `refused_since`, and whether that hold has been told, `held_told` (see 401s and 403s), and
+  the reserve the readings history last recorded each window under, by its key, `recorded_under`
+  (see the readings history, below), the hold curve, `hold` (see Forecasting run-outs), and
   the hashes of every configured account's tokens, with a usable token or not: see Accounts and
   tokens; and the token-year notifications told, an account's against the token they were told
   for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
@@ -11896,7 +11941,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   one whose readings lack when each window was read as windows unread (see The router's rounds), one
   without the probes as accounts none of whose probes has ended, which a router from before them,
   ignoring the fields, takes them all for, one without `windows_absent` as accounts that have every
-  window they report, one without `hold`, or with one of a shape it doesn't know, as a curve of no
+  window they report, one without `recorded_under` as windows the router records again, as it
+  starts or at their next reading (see the readings history, below), one without `hold`, or with
+  one of a shape it doesn't know, as a curve of no
   answers, a reading that holds nothing else as none, and a pin that names its account alone, as
   pins did before they named several, as a pin to that one, a session's assignment without a pool as
   the first pool's, and its own pin without one as the pin in the pool it was routed in last, the
@@ -11920,12 +11967,32 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **Readings history:** `<state dir>/history/readings-<local date>.jsonl`, a file a day, 0600 in a
   0700 directory, for looking back at how the accounts were used. The router appends a line, as
   the file is opened to append, for each reading that changes how a window of an account reads,
-  its use, its reset or its status, and for nothing else, so a request that moves nothing writes
-  nothing: `{"at": "2026-09-28T13:12:00Z", "account": "work", "window": "5h", "utilization":
-  0.23, "resets_at": "2026-09-28T18:10:00Z", "status": "allowed", "source": "answer"}`, `at` when
-  the router took it in, in UTC, `resets_at` and `status` left out when the reading didn't give
-  them, and `source` where it came from: `answer`, off the answer to a routed request; `probe`, the
-  router's rounds' included; or `prime`. An account appears by its id alone: never a token or a
+  its use, its reset or its status, or the reserve the router holds the account to, and for
+  nothing else, so a request that moves nothing writes nothing: `{"at": "2026-09-28T13:12:00Z",
+  "account": "work", "window": "5h", "utilization": 0.23, "resets_at": "2026-09-28T18:10:00Z",
+  "status": "allowed", "source": "answer", "reserve": 0.1}`, `at` when the router took it in, in
+  UTC, `resets_at` and `status` left out when the reading didn't give them, `source` where it came
+  from: `answer`, off the answer to a routed request; `probe`, the router's rounds' included;
+  `prime`; or `reserve`, below; and `reserve` the share of every window of the account the router
+  left unused then: the reserve the config gives it, or 0 where it has none or the pool's pin
+  names it, as a pin spends the reserves of the accounts it names (see Pinning). A day's summary
+  judges the account's minutes at its cap by it (see The request ledger). Where that reserve
+  changes, as the pool's pin comes to name the account or stops, the account moves to another
+  pool, leaving a pin that named it, or the router starts on a config that changed it, the router
+  appends a line for each of the account's windows it read in the
+  last 15 minutes, its measure of a reading gone stale (see Choosing an account), and that hasn't
+  reset since, as it holds them then, with `source` `reserve`, under the new one: so the change
+  shows in the history though the use reads as it did. A window read longer ago, as of an account
+  whose read is refused or that has no usable token, isn't restated, as its reading may be long
+  out of date: the next reading of it the router counts is appended under the new reserve, so its
+  stretch is judged again from then. The router knows what each window's last
+  line was appended under by `recorded_under` in `state.json`, which it updates only once the line
+  is queued, a line dropped as the queue is full being appended at the window's next reading; a
+  window it kept none for, as from a router from before or a `state.json` lost, takes its line
+  so too. A line a router from before wrote has no `reserve`, and a summary judges it by the
+  config's cap as the summary is made, as it does a line whose `reserve` no account could have,
+  below 0 or the whole window and more; a router from before passes the field over, and reads a
+  `reserve` line as any other reading. An account appears by its id alone: never a token or a
   label. Fields may be added to a line, never renamed, and a reader passes over those it doesn't
   know. The router removes a day's file once its day ended as long ago as `[history] keep` says, 400
   days unless it's set, and never where it says `forever` (see Config), as it starts and on each day
@@ -11950,7 +12017,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   before the older of the two has no baseline to
   take up. It passes over a line that doesn't read as a reading, as one cut short, or one over
   4 KiB, which no reading makes and which it skips without holding, one of an account no longer
-  configured, and those of a window that has reset since, as `state.json` has it. A reading that
+  configured, one with `source` `reserve`, which records no reading, as the router took none then,
+  and those of a window that has reset since, as `state.json` has it. A reading that
   can't be put as a line, as one whose use isn't a number, goes unwritten, logged once. A day's file
   is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of
   them would otherwise run to hundreds of megabytes: the plain file's lines streamed into a gzip
@@ -12319,8 +12387,8 @@ probing.
 | `export` | *router* How the export on a schedule stands, since the router started: `{dir, at, error, running}`, `dir` the folder `[export] dir` names, resolved, `at` when an export into it last succeeded, `error` why the last failed, in plain words, and `running` when the export under way began, as one waiting on macOS's prompt waits; `at` left out before one has succeeded, `error` once one succeeds, and `running` while none is under way. Left out where `[export] dir` isn't set (see On a schedule) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
 | `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, pool, session, model, dir, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `held`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap, a refusal or a hold counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
-| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
-| `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's; none while the account's read is refused, which no time lifts), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
+| `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in a window that account's hold outlasts (see A window held with its account), nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
+| `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's; none while the account's read is refused, which no time lifts), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, or brings no room, as a hold of every request outlasts it (see A window held with its account), and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
 | `accounts` | Every configured account, in the config's order, as below |
 
@@ -12337,7 +12405,7 @@ Each account:
 | `token_taken` | When switchboard took its token, as the record it wrote beside the token says (see Accounts and tokens); left out when that isn't known, as of a token written by anything else |
 | `token_good_until` | When its token's year is up: `token_taken` and 365 days, a setup token's lifetime; left out with `token_taken` |
 | `fetched_at` | When its usage was last read; left out when it never was |
-| `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status, restarted_at, pace, allowance}`, without a window the account's answers don't report, as a verified Ultra account's carry no `5h`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. `restarted_at` is *router*: when the window started again, as a reset made by hand that keeps its reset starts it, which its pace and projection measure from until its next reset; left out otherwise, when it runs a whole length before its reset. `pace` is its even pace: the share of its length that has passed since it started, its reset less its length, or its `restarted_at`, so where even use would have put its utilization now, as `usage` marks it; left out where it isn't running, as a 5-hour window that has lapsed, which `usage` says hasn't started, or where its reset isn't known. `allowance` is what can be spent of it and still last to its reset: `{share, per}`, the room left below its cap, where its reserve holds it back, else its limit, as a fraction of the window, divided by the time to its reset: `per` `hour` for a window of a day or less, as the 5-hour, and `day` for a longer one, as a week; and where its reset comes within one `per`, the room itself, `per` left out. Left out where it has no room left, isn't running, or its reset isn't known. A window whose reset has passed since it was read counts from empty, its pace from that reset and its next reset a length after it. Left out when none has been read |
+| `windows` | Its windows as last read, shortest first: `{key, label, utilization, resets_at, status, restarted_at, pace, allowance}`, without a window the account's answers don't report, as a verified Ultra account's carry no `5h`. `key` is the API's, such as `5h`, `7d` or `7d_oi`; `resets_at` is left out when unknown, and `status` (`allowed`, `allowed_warning` or `rejected`) when not given: a 5-hour window that has lapsed reads 0, with neither. `restarted_at` is *router*: when the window started again, as a reset made by hand that keeps its reset starts it, which its pace and projection measure from until its next reset; left out otherwise, when it runs a whole length before its reset. `pace` is its even pace: the share of its length that has passed since it started, its reset less its length, or its `restarted_at`, so where even use would have put its utilization now, as `usage` marks it; left out where it isn't running, as a 5-hour window that has lapsed, which `usage` says hasn't started, or where its reset isn't known. `allowance` is what can be spent of it and still last to its reset: `{share, per}`, the room left below its cap, where its reserve holds it back, else its limit, as a fraction of the window, divided by the time to its reset: `per` `hour` for a window of a day or less, as the 5-hour, and `day` for a longer one, as a week; and where its reset comes within one `per`, the room itself, `per` left out. Left out where it has no room left, isn't running, or its reset isn't known, and in a window of an account a limit or its cap holds back from every request till at least that window's next reset, or at no known time, as it can take nothing before it resets. A window whose reset has passed since it was read counts from empty, its pace from that reset and its next reset a length after it. Left out when none has been read |
 | `lapsed` | The keys of its windows that have lapsed: the 5-hour window, once its reset has passed with nothing read since, which isn't running, and reads empty, until a request starts it (see Priming). Left out when none has |
 | `at_reserve` | The keys of the windows at or past its reserve but short of their limit, that haven't reset since they were read; left out otherwise. The router's own choices pass the account over, for the requests those windows count, while there are any; a pin spends the reserve |
 | `extra_usage` | Its extra usage, the API's overage, as the last answer or probe to give its `anthropic-ratelimit-unified-overage-*` headers left it: `{status, utilization, resets_at}`, from its `overage-status`, `overage-utilization` and `overage-reset` headers, as they've been seen: `status` as given (`allowed`, `allowed_warning` or `rejected`), `utilization` a fraction, and `resets_at` when its period resets. It's on, so the account can be served past its limit and billed for it, while its `status` isn't `rejected` (see What doesn't go through the router). The headers are read with the windows', and never count as a window. Left out where none has given them |
@@ -13555,7 +13623,7 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-10-14--doctor.md`); this table is their index. An idea built or dropped leaves the table,
+(`2026-11-18--pins-that-stay.md`); this table is their index. An idea built or dropped leaves the table,
 and its file goes: what was built is in its pull request and the design proper, and where why one
 was dropped binds a later choice, the design proper says so.
 
@@ -13564,12 +13632,7 @@ was dropped binds a later choice, the design proper says so.
 | The Trends build's loose ends, built as Graphs: one owner of the accounts' order, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the order's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after v1: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: after v1; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026, Fable 5.2 on 17 November | [current-prices](../ideas/2026-10-09--current-prices.md) |
-| Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
-| Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
-| Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
@@ -13578,3 +13641,4 @@ was dropped binds a later choice, the design proper says so.
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
 | Pins that keep sessions on their accounts at a limit, waiting rather than spending the others | open: to discuss with its owner, 18 November 2026 | [pins-that-stay](../ideas/2026-11-18--pins-that-stay.md) |
+| Past caps judged by the reserve recorded then: Runway's and Trends' past lanes, the pool's past room, the capacity verdict and the router's seed, which still judge past readings by today's reserve | open: any time | [past-caps-by-recorded-reserve](../ideas/2026-11-23--past-caps-by-recorded-reserve.md) |

@@ -62,8 +62,8 @@ func (f Frame) lanesHelp() helpPart {
 				"counted reset. A column with no reading of its account by then is blank, as an account not read yet; but an " +
 				"account newly added, read first while others were read before it, is dotted ┈ before its first reading, the " +
 				"words under it saying since when. A cap is " +
-				"drawn by the reserve the config gives now, as the readings keep none: change a reserve, and the caps of days gone " +
-				"are drawn again by it."),
+				"drawn by the reserve the config gives now, not the one each reading records: change a reserve, and the caps of " +
+				"days gone are drawn again by it."),
 			said("The legend sits at the foot, over the key line. As rows run short, LATELY under COMING UP goes first; then an " +
 				"account takes two rows, the blank rows " +
 				"go and COMING UP shows the lines it can; then the legend gives way, then COMING UP, then the blank row under " +

@@ -127,8 +127,30 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 		without []string
 	}{
 		{
-			name: "every account at 0%, a 99.99% reserve putting the floor at 0.01%: not listed", listed: []string{"7d", "5h"},
-			doc:     routerDocOf(work(0, reserveAll), with(side(windowIn("7d_oi", 0, 3*day)), reserveAll)),
+			name: "every window at 0%, a 99.99% reserve putting the floor at 0.01%: not listed", listed: []string{"7d", "5h"},
+			doc: routerDocOf(
+				with(readAt("work", windowIn("5h", 0, 2*time.Hour), windowIn("7d", 0, 3*day), windowIn("7d_oi", 0, 3*day)), reserveAll),
+				with(readAt("side", windowIn("5h", 0, 4*time.Hour), windowIn("7d", 0, 3*day), windowIn("7d_oi", 0, 3*day)), reserveAll),
+			),
+			without: []string{"work", "side"},
+		},
+		{
+			name: "every one at 0%, one's cap holding it back from every request: not listed, that one keeping it, held with its account", listed: []string{"7d", "5h"},
+			doc:     routerDocOf(work(0, reserveAll), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"side"},
+		},
+		{
+			name: "every one at 0%, a limit naming the session holding one back from every request till its model's week resets: not listed, that one keeping it, held with its account", listed: []string{"7d", "5h"},
+			doc: routerDocOf(work(0, func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(3 * day)}
+			}), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"side"},
+		},
+		{
+			name: "every one at 0%, a limit naming the session lifting before its model's week resets: not listed, none keeping it", listed: []string{"7d", "5h"},
+			doc: routerDocOf(work(0, func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
+			}), side(windowIn("7d_oi", 0, 3*day))),
 			without: []string{"work", "side"},
 		},
 		{

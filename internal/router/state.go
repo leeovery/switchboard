@@ -115,6 +115,11 @@ type usage struct {
 	// reserved are the keys of the windows last found to have reached the
 	// account's reserve.
 	reserved []string
+	// recordedUnder holds, by key, the reserve the readings history last
+	// queued a line of each window under, as note has it, which the state
+	// file keeps: none of a window whose last line isn't known so, as one a
+	// router from before wrote, or one read before a state file was lost.
+	recordedUnder map[string]float64
 	// trails are how its windows have been read lately, which their paces
 	// are measured over.
 	trails trails
@@ -269,11 +274,11 @@ type state struct {
 	// reads as before, and how a probe went. Both hear with s.mu held: they
 	// mustn't block, nor call s.
 	changed, routine func()
-	// history hears, with s.mu held, of each reading that changes how a window
-	// reads, for the readings history: it mustn't block, nor call s. New has
-	// it the router's history's, which drops what it hears until Run opens
-	// it; newState's hears nothing.
-	history func([]readings.Reading)
+	// history hears, with s.mu held, of each line for the readings history,
+	// as recording gives them, and reports whether it queued them: it mustn't
+	// block, nor call s. New has it the router's history's, which drops what
+	// it hears until Run opens it; newState's queues nothing.
+	history func([]readings.Reading) bool
 	// moments counts the moments marked.
 	moments atomic.Uint64
 
@@ -315,7 +320,7 @@ func newState(accounts accounts, pools *membership, policy score.Policy, family 
 		now:      now,
 		changed:  changed,
 		routine:  routine,
-		history:  func([]readings.Reading) {},
+		history:  func([]readings.Reading) bool { return false },
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
 		grouped:  pools.current(),
@@ -325,15 +330,16 @@ func newState(accounts accounts, pools *membership, policy score.Policy, family 
 	s.sizes = s.sizesIn(s.grouped)
 	for _, a := range accounts {
 		s.usage[a.ID] = &usage{
-			windows:   make(map[string]quota.Window),
-			taken:     make(map[string]moment),
-			readAt:    make(map[string]time.Time),
-			forbidden: make(map[string]refusals),
-			trails:    make(trails),
-			fast:      make(map[string]forecast.Fast),
-			resetBy:   make(map[string]moment),
-			absent:    make(map[string]moment),
-			tokenless: !a.hasToken(),
+			windows:       make(map[string]quota.Window),
+			taken:         make(map[string]moment),
+			readAt:        make(map[string]time.Time),
+			forbidden:     make(map[string]refusals),
+			trails:        make(trails),
+			fast:          make(map[string]forecast.Fast),
+			resetBy:       make(map[string]moment),
+			absent:        make(map[string]moment),
+			tokenless:     !a.hasToken(),
+			recordedUnder: make(map[string]float64),
 		}
 	}
 	return s
@@ -353,7 +359,8 @@ func (s *state) mark() moment {
 // stand, but those a whole reading retires, as take says. It returns the news
 // of each limit of the account's the reading shows lifted early, as
 // liftedSince has it. The state file keeps a reading off an answer as a
-// routine change, and a window retired or back as news.
+// routine change, and a window retired or back, or its line recorded under
+// another reserve than its last, as news.
 func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, whole bool) []LimitLifted {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -361,13 +368,13 @@ func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, who
 	u := s.usage[id]
 	was := slices.Clone(u.reached)
 	changed, took, news := s.take(id, windows, at, sent, whole)
+	renoted := s.toHistory(id, changed, at, readings.FromAnswer)
 	switch {
-	case news:
+	case news || renoted:
 		s.changed()
 	case took:
 		s.routine()
 	}
-	s.history(readings.Of(id, changed, at, readings.FromAnswer))
 	return u.liftedSince(id, was, at)
 }
 
@@ -432,13 +439,14 @@ func (u *usage) retire(windows []quota.Window, shared []string, sent, taken mome
 }
 
 // forget forgets the window named key: its reading, when and by what it was
-// taken in, any reset by hand it was read to have had, and its rates, as
-// forgetRates says.
+// taken in, any reset by hand it was read to have had, the reserve its last
+// line was recorded under, and its rates, as forgetRates says.
 func (u *usage) forget(key string) {
 	delete(u.windows, key)
 	delete(u.taken, key)
 	delete(u.readAt, key)
 	delete(u.resetBy, key)
+	delete(u.recordedUnder, key)
 	u.forgetRates(key)
 }
 
@@ -556,8 +564,8 @@ func (u *usage) liftedSince(id string, was []limit, now time.Time) []LimitLifted
 // keeps how a probe on the account's own token went, its error with nothing
 // shaped like a token in it, as a routine change, but a hold it starts, as
 // news, so a router stopped soon after never tells it again; and a reading
-// that reads otherwise than before, or retires a window or has one back, as
-// news.
+// that reads otherwise than before, or retires a window or has one back, or
+// records a window's line under another reserve than its last, as news.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) probeTaken {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -592,9 +600,9 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	}
 	changed, took, windowNews := s.take(id, probed.Windows, at, sent, probed.Admitted)
 	tookExtra, newExtra := u.takeExtra(probed.Extra, sent)
-	news := windowNews || newExtra || len(changed) > 0
+	renoted := s.toHistory(id, changed, at, from)
+	news := windowNews || newExtra || len(changed) > 0 || renoted
 	took = took || tookExtra
-	s.history(readings.Of(id, changed, at, from))
 	for key, models := range probed.Models {
 		for _, model := range models {
 			news = s.see(key, model) || news
@@ -1685,9 +1693,10 @@ func (s *state) saved() savedUsage {
 
 // saved is what the state file keeps of the account's usage: its windows as
 // last read, and when, the account and each window, the windows retired, its
-// extra usage, and how its probes went, a read refused, why and when it
-// began among it, which its token lost keeps. It reports false where there's
-// none of that to keep.
+// extra usage, how its probes went, a read refused, why and when it began
+// among it, which its token lost keeps, and the reserve the readings history
+// last recorded each window under. It reports false where there's none of
+// that to keep.
 func (u *usage) saved() (savedReading, bool) {
 	if len(u.windows) == 0 && len(u.absent) == 0 && !u.extra.Given() && u.probed.IsZero() && u.probeErr == "" {
 		return savedReading{}, false
@@ -1696,7 +1705,7 @@ func (u *usage) saved() (savedReading, bool) {
 		ReadAt: u.updated, Windows: u.latest(), WindowsReadAt: u.windowsReadAt(),
 		WindowsAbsent: slices.Sorted(maps.Keys(u.absent)), Extra: u.extra,
 		Probed: u.probed, ProbeError: u.probeErr, RefusedRead: u.refusedRead, Misses: u.misses, RefusedSince: u.refusedSince,
-		HeldTold: u.heldTold,
+		HeldTold: u.heldTold, RecordedUnder: maps.Clone(u.recordedUnder),
 	}, true
 }
 
@@ -1742,8 +1751,9 @@ func (s *state) recall(saved savedUsage, holding func(id string) tokenKept) (cha
 
 // recall takes in what the state file kept of the account, at now: its
 // reading, the windows retired, as retire has them, each absent from before
-// every moment, and, where it holds the token it held then, as token says,
-// how its probes went, which a stopped router's probes count for as they
+// every moment, the reserve each window was last recorded under, none of one
+// it kept none of, and, where it holds the token it held then, as token
+// says, how its probes went, which a stopped router's probes count for as they
 // would have, had it run on, but for its read refused alone where that token
 // isn't usable now, as on its loss, as probesAfreshOnItsToken has it; and
 // where it doesn't hold that one usable, its token's to be checked, as
@@ -1768,6 +1778,7 @@ func (u *usage) recall(kept savedReading, token tokenKept, shared func(key strin
 		}
 	}
 	u.updated, u.extra = kept.ReadAt.UTC(), kept.Extra
+	maps.Copy(u.recordedUnder, kept.RecordedUnder)
 	if token.same {
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
 		u.probeErr, u.refusedRead = redact.Text(kept.ProbeError), kept.RefusedRead

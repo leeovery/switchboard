@@ -146,7 +146,8 @@ priced. Every share is exact too.
           "utilization": 0.42,
           "resets_at": "…",
           "status": "allowed",
-          "source": "answer"
+          "source": "answer",
+          "reserve": 0.1
         }
       ]
     }

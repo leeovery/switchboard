@@ -143,13 +143,18 @@ func TestFallingBehindDropsWhatsNotedRatherThanWait(t *testing.T) {
 	const queue = 4
 	w := testWriter(readingsHistory(t.TempDir()), at(start), queue)
 	one := noted{at: start, text: "one"}
+	var queued []bool
 	fill := func() {
+		queued = nil
 		for range queue + 2 {
-			w.Note(one)
+			queued = append(queued, w.Note(one))
 		}
 	}
 
 	fill()
+	if want := []bool{true, true, true, true, false, false}; !slices.Equal(queued, want) {
+		t.Errorf("Note() reported %v, want %v: queued while the queue had room, then dropped", queued, want)
+	}
 	if got := len(linesWith(log, "fell behind")); got != 1 {
 		t.Errorf("log reads\n%s\nwant what was dropped noted once", log)
 	}

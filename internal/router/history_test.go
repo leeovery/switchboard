@@ -164,14 +164,14 @@ func TestTheHistoryHoldsEachReadingThatChangesAWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"resets_at":"2026-09-28T18:10:00Z","status":"allowed","source":"answer"}
-{"at":"2026-09-28T13:12:00Z","account":"work","window":"7d","utilization":0.93,"resets_at":"2026-10-02T21:00:00Z","status":"allowed_warning","source":"answer"}
-{"at":"2026-09-28T13:13:00Z","account":"work","window":"5h","utilization":0.31,"resets_at":"2026-09-28T18:10:00Z","status":"allowed","source":"answer"}
-{"at":"2026-09-28T13:13:00Z","account":"side","window":"5h","utilization":0.23,"resets_at":"2026-09-28T18:10:00Z","status":"allowed","source":"probe"}
-{"at":"2026-09-28T13:13:00Z","account":"side","window":"7d","utilization":0.93,"resets_at":"2026-10-02T21:00:00Z","status":"allowed_warning","source":"prime"}
+	want := `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"resets_at":"2026-09-28T18:10:00Z","status":"allowed","source":"answer","reserve":0}
+{"at":"2026-09-28T13:12:00Z","account":"work","window":"7d","utilization":0.93,"resets_at":"2026-10-02T21:00:00Z","status":"allowed_warning","source":"answer","reserve":0}
+{"at":"2026-09-28T13:13:00Z","account":"work","window":"5h","utilization":0.31,"resets_at":"2026-09-28T18:10:00Z","status":"allowed","source":"answer","reserve":0}
+{"at":"2026-09-28T13:13:00Z","account":"side","window":"5h","utilization":0.23,"resets_at":"2026-09-28T18:10:00Z","status":"allowed","source":"probe","reserve":0}
+{"at":"2026-09-28T13:13:00Z","account":"side","window":"7d","utilization":0.93,"resets_at":"2026-10-02T21:00:00Z","status":"allowed_warning","source":"prime","reserve":0}
 `
 	if string(data) != want {
-		t.Errorf("the history holds\n%s\nwant a line for each reading that changed a window, where it came from, and nothing else\n%s", data, want)
+		t.Errorf("the history holds\n%s\nwant a line for each reading that changed a window, where it came from, the reserve its account was held to, and nothing else\n%s", data, want)
 	}
 	for path, mode := range map[string]fs.FileMode{dir: fs.ModeDir | 0o700, historyOf(dir, start): 0o600} {
 		info, err := os.Stat(path)

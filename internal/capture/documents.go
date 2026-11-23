@@ -538,6 +538,29 @@ func (a accountWorlds) fableNearing() accountWorld {
 	})
 }
 
+// personalsFable is how much of personal's Fable week the world of its week's
+// limit has used: the Fable world reads none.
+const personalsFable = .09
+
+// fableWeekLimit is the Fable world with personal's week read spent at
+// 14:20, the router's limit of it holding till the week resets on Sunday at
+// 02:00, its Fable week used too: held back from every request, its 5-hour
+// and Fable week read the limit, as its week does, with no allowance.
+func (a accountWorlds) fableWeekLimit() accountWorld {
+	return a.kept("fableWeekLimit", func() accountWorld {
+		t := a.today().withFable()
+		t.work()
+		t.session("personal", t.at(6, 30, 0), false, level{t.at(11, 10, 0), .18})
+		t.session("personal", t.at(11, 30, 0), true, level{t.at(14, 40, 0), .39})
+		t.week("personal", personalsFable, level{t.at(13, 32, 41), .65}, level{t.at(14, 20, 0), 1})
+		t.side(sidesFable)
+		w := a.autoOf(t)
+		week, _, _, _ := a.year.soFar("personal")
+		w.limits = map[string]status.Limit{"personal": {ID: todaysLimit, Windows: []string{weekKey}, Until: week.resets.UTC()}}
+		return w
+	})
+}
+
 // sidesPlanUnknown is the auto world with side on no plan the config names,
 // so every account's worth against the plans is over work's and personal's
 // alone, 2 of the 3.

@@ -725,11 +725,11 @@ func (m *modelTally) line(l *Line) {
 // limits, as the true reading of that run it is, but not toward the climb of
 // the run since.
 func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Time, readBefore func(accountWindow) bool) {
-	last := make(map[accountWindow]quota.Window)
+	last := make(map[accountWindow]readings.Reading)
 	var day []readings.Reading
 	for r := range history {
 		if r.At.Before(start) {
-			last[windowOf(r)] = r.Window()
+			last[windowOf(r)] = r
 			continue
 		}
 		day = append(day, r)
@@ -739,25 +739,25 @@ func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Ti
 		before[w] = true
 	}
 	seen := maps.Clone(before)
-	maps.DeleteFunc(last, func(_ accountWindow, w quota.Window) bool { return w.ResetBy(start) })
+	maps.DeleteFunc(last, func(_ accountWindow, r readings.Reading) bool { return r.Window().ResetBy(start) })
 	days := windowDays{start: start, until: until, days: make(map[accountWindow]*windowDay)}
 	for w := range before {
 		if began, ok := last[w]; ok {
 			days.of(w).carry(began)
-			t.account(w.account).peak(began)
+			t.account(w.account).peak(began.Window())
 		} else {
 			days.of(w).afresh()
 		}
 	}
 	for _, r := range day {
 		a, w, read := t.account(r.Account), windowOf(r), r.Window()
-		stands := days.of(w).take(read, r.At)
+		stands := days.of(w).take(r)
 		a.peak(read)
-		if reached(last[w], read, stands) && (seen[w] || !readBefore(w)) {
+		if reached(last[w].Window(), read, stands) && (seen[w] || !readBefore(w)) {
 			a.limits = append(a.limits, Limit{Window: r.Key, At: r.At.UTC(), ResetsAt: r.ResetsAt.UTC()})
 		}
 		if stands {
-			last[w] = read
+			last[w] = r
 		}
 		seen[w], a.read = true, true
 	}

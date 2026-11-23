@@ -50,6 +50,8 @@ func TestWindowsAreEachAccountsWindowsReadingsOverTheDaysAskedFor(t *testing.T) 
 	limit.Status, limit.ResetsAt = quota.StatusRejected, onAt("2026-10-06", "23:10").UTC()
 	probed := reading("side", "7d_oi", "2026-10-07", "08:00", 0.2)
 	probed.Source, probed.Status = readings.FromProbe, ""
+	// Work's week recorded under its reserve, the rest under none recorded.
+	reserved := readings.Under([]readings.Reading{reading("work", "7d", "2026-10-07", "09:00", 0.41)}, 0.1)[0]
 	history := historyOf{
 		reading("work", "5h", "2026-10-05", "23:59", 0.1),
 		reading("former", "5h", "2026-10-06", "09:00", 0.5),
@@ -57,7 +59,7 @@ func TestWindowsAreEachAccountsWindowsReadingsOverTheDaysAskedFor(t *testing.T) 
 		reading("work", "5h", "2026-10-06", "21:00", 0.9),
 		limit,
 		probed,
-		reading("work", "7d", "2026-10-07", "09:00", 0.41),
+		reserved,
 		reading("side", "7d", "2026-10-07", "12:00", 0.6),
 		reading("work", "5h", "2026-10-08", "00:00", 0.2),
 	}
@@ -70,7 +72,7 @@ func TestWindowsAreEachAccountsWindowsReadingsOverTheDaysAskedFor(t *testing.T) 
 	want := `{"windows":[` +
 		`{"account":"work","window":"5h","readings":[{"at":"` + heldAt("2026-10-06", "21:00") + `","utilization":0.9,"status":"allowed","source":"answer"},` +
 		`{"at":"` + heldAt("2026-10-06", "22:14") + `","utilization":1,"resets_at":"` + heldAt("2026-10-06", "23:10") + `","status":"rejected","source":"answer"}]},` +
-		`{"account":"work","window":"7d","readings":[{"at":"` + heldAt("2026-10-07", "09:00") + `","utilization":0.41,"status":"allowed","source":"answer"}]},` +
+		`{"account":"work","window":"7d","readings":[{"at":"` + heldAt("2026-10-07", "09:00") + `","utilization":0.41,"status":"allowed","source":"answer","reserve":0.1}]},` +
 		`{"account":"side","window":"5h","readings":[{"at":"` + heldAt("2026-10-06", "10:00") + `","utilization":0.3,"status":"allowed","source":"answer"}]},` +
 		`{"account":"side","window":"7d","readings":[{"at":"` + heldAt("2026-10-07", "12:00") + `","utilization":0.6,"status":"allowed","source":"answer"}]},` +
 		`{"account":"side","window":"7d_oi","readings":[{"at":"` + heldAt("2026-10-07", "08:00") + `","utilization":0.2,"source":"probe"}]},` +

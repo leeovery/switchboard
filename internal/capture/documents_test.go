@@ -85,6 +85,12 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 			},
 		},
 		{
+			name: "the Fable world, personal's week at its limit", world: worlds.fableWeekLimit(), best: "side",
+			words: []string{
+				"personal 5h 39% pace 64%", "personal 7d 100% pace 65%", "personal 7d_oi 9% pace 65%",
+			},
+		},
+		{
 			name: "pinned to personal since 14:02", world: worlds.pinned(), best: "personal",
 			words: []string{"pool 5h 39% 0.6 left", "pool 7d 66% 0.3 left", "pool 7d_oi 0% 1.0 left"},
 		},

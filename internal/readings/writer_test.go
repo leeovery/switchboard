@@ -68,13 +68,17 @@ func TestTheWriterFilesEachReadingAsALineUnderTheLocalDayItWasReadOn(t *testing.
 func TestWhatTheWriterWroteReadsBackAsTheReadingsNoted(t *testing.T) {
 	dir := t.TempDir()
 	from := time.Date(2026, 9, 27, 22, 0, 0, 0, time.Local)
-	noted := []readings.Reading{workRead(from, 0.1), workRead(from.Add(90*time.Minute), 0.2), workRead(from.Add(3*time.Hour), 0.3)}
+	// The first recorded no reserve, as one from before; the others the
+	// reserve their account was held to, none where a pin spent it.
+	noted := slices.Concat([]readings.Reading{workRead(from, 0.1)}, readings.Under([]readings.Reading{workRead(from.Add(90*time.Minute), 0.2)}, 0.1),
+		readings.Under([]readings.Reading{workRead(from.Add(3*time.Hour), 0.3)}, 0))
 
 	write(t, dir, from.Add(3*time.Hour), noted[:2], noted[2:])
 
 	got := slices.Collect(readings.Between(readings.Files(dir, logs.For("cli")), from, from.Add(4*time.Hour), nil))
 	if !slices.EqualFunc(got, noted, sameReading) {
-		t.Errorf("Between() = %+v, want %+v: the readings noted, as they were read, across the days' files", got, noted)
+		t.Errorf("Between() = %+v, want %+v: the readings noted, as they were read, across the days' files, each under the reserve it recorded, "+
+			"or none", got, noted)
 	}
 }
 

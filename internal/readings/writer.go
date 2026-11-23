@@ -37,10 +37,11 @@ func Open(files *dayfile.Files, keep time.Duration, now func() time.Time, prunin
 	return w
 }
 
-// Note queues taken, the readings of one taking in, for Run to write. It
-// never waits: with the queue full, they're dropped.
-func (w *Writer) Note(taken []Reading) {
-	w.writer.Note(taken)
+// Note queues taken, the readings of one taking in, for Run to write, and
+// reports whether it did. It never waits: with the queue full, they're
+// dropped.
+func (w *Writer) Note(taken []Reading) bool {
+	return w.writer.Note(taken)
 }
 
 // Run writes the readings noted, and keeps the files, as its writer's Run

@@ -148,9 +148,61 @@ func TestEachWindowsEvenPaceAndAllowance(t *testing.T) {
 			pace:   0.8,
 		},
 		{
-			name: "under the router's limit naming no window: as its reading says",
+			name: "under the router's limit naming no window, lifting before it resets: as its reading says",
 			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
 				a.Limit = status.Limit{Until: built.Add(time.Hour)}
+			})),
+			wantOK:  true,
+			pace:    5.0 / 7,
+			allowed: quota.Allowance{Share: 0.25, Per: quota.PerDay},
+		},
+		{
+			name: "under the router's limit naming no window till just as it resets: none, though it reads some room",
+			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(2 * day)}
+			})),
+			wantOK: true,
+			pace:   5.0 / 7,
+		},
+		{
+			name: "under the router's limit naming no window, its read refused, so its end not known: none, though it reads some room",
+			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(time.Hour)}
+				a.Error, a.RefusedRead = "HTTP 401 · Invalid bearer token", quota.TokenRefused
+			})),
+			wantOK: true,
+			pace:   5.0 / 7,
+		},
+		{
+			name:    "the session spent, which holds back every request till before the week resets: as its reading says",
+			doc:     routerDocOf(readAt("work", week, spentIn("5h", 1, time.Hour))),
+			wantOK:  true,
+			pace:    5.0 / 7,
+			allowed: quota.Allowance{Share: 0.25, Per: quota.PerDay},
+		},
+		{
+			name:    "the session at its cap, which holds back every request till before the week resets: to its cap, as its reading says",
+			doc:     routerDocOf(with(readAt("work", week, windowIn("5h", 0.95, time.Hour)), reserving)),
+			wantOK:  true,
+			pace:    5.0 / 7,
+			allowed: quota.Allowance{Share: 0.2, Per: quota.PerDay},
+		},
+		{
+			name:   "the week spent, which holds back every request past the session's reset: none in the session, though it reads some room",
+			doc:    routerDocOf(readAt("work", windowIn("5h", 0.6, time.Hour), spentIn("7d", 1, 2*day))),
+			wantOK: true,
+			pace:   0.8,
+		},
+		{
+			name:   "the week at its cap, which holds back every request past the session's reset: none in the session, though it reads some room",
+			doc:    routerDocOf(with(readAt("work", windowIn("5h", 0.6, time.Hour), windowIn("7d", 0.95, 2*day)), reserving)),
+			wantOK: true,
+			pace:   0.8,
+		},
+		{
+			name: "a model's own week at its limit, which holds back that model's requests alone: as its reading says",
+			doc: routerDocOf(with(readAt("work", week, spentIn("7d_oi", 1, day)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(day)}
 			})),
 			wantOK:  true,
 			pace:    5.0 / 7,
@@ -629,6 +681,47 @@ func roomOf(m status.Moment, id, key string) float64 {
 	return w.Room
 }
 
+// The pool counts no room in a window that its account's hold of every
+// request lasts through, as it can take nothing before it resets: one the
+// hold lifts before keeps its room, as it can be used again once it does.
+func TestThePoolCountsNoRoomInAWindowItsAccountsHoldOutlasts(t *testing.T) {
+	limitedTill := func(key string, in time.Duration) func(*status.Account) {
+		return func(a *status.Account) { a.Limit = status.Limit{Windows: []string{key}, Until: built.Add(in)} }
+	}
+	side := readAt("side", windowIn("5h", 0.2, time.Hour), windowIn("7d", 0.1, 6*day), windowIn("7d_oi", 0.3, 6*day))
+	tests := []struct {
+		name    string
+		account status.Account
+		want    float64
+	}{
+		{
+			name:    "the week at its limit till the Fable week resets: none",
+			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), spentIn("7d", 1, 2*day), windowIn("7d_oi", 0.4, 2*day)), limitedTill("7d", 2*day)),
+		},
+		{
+			name:    "the week at its cap till the Fable week resets: none",
+			account: with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.95, 2*day), windowIn("7d_oi", 0.4, 2*day)), reserving),
+		},
+		{
+			name:    "the session at its limit, lifting before the Fable week resets: its room",
+			account: with(readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.3, 2*day), windowIn("7d_oi", 0.4, 2*day)), limitedTill("5h", time.Hour)),
+			want:    0.6,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := routerDocOf(tt.account, side).WorkedOut(policy).At(built, policy)
+			if got := roomOf(m, "work", "7d_oi"); math.Abs(got-tt.want) > 1e-9 {
+				t.Errorf("work's Fable week counts %v room, want %v", got, tt.want)
+			}
+			i := slices.IndexFunc(m.Pool().Windows, func(w status.PoolWindowNow) bool { return w.Key == "7d_oi" })
+			if i < 0 || math.Abs(m.Pool().Windows[i].Room-(tt.want+0.7)) > 1e-9 {
+				t.Errorf("the pool's Fable week is %+v, want its room %v, side's 0.7 and work's", m.Pool().Windows, tt.want+0.7)
+			}
+		})
+	}
+}
+
 func TestWhatsComingUp(t *testing.T) {
 	quiet := func(id string, weekIn time.Duration) status.Account {
 		return readAt(id, windowIn("5h", 0.1, 2*time.Hour), windowIn("7d", 0.2, weekIn))
@@ -707,39 +800,51 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), back("fable", "7d_oi", 3*day, false), reset("fable", "7d", 3*day)},
 		},
 		{
-			name: "a cap lifting as the capped week resets",
-			doc:  routerDocOf(with(readAt("work", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, 2*day)), reserving)),
-			want: []status.Upcoming{reset("work", "5h", 2*time.Hour), back("work", "", 2*day, true)},
+			name: "the week at its limit till it resets: back then, and no reset of the session before, as it brings no room",
+			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.1, 2*time.Hour), spentIn("7d", 1, 3*day)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d"}, Until: built.Add(3 * day)}
+			})),
+			want: []status.Upcoming{back("work", "", 3*day, false)},
 		},
 		{
-			name: "a limit and a cap: back once both have lifted, the cap last",
+			name: "the week at its cap till it resets: back then, and no reset of the session before, as it brings no room",
+			doc:  routerDocOf(with(readAt("work", windowIn("5h", 0.1, 2*time.Hour), windowIn("7d", 0.95, 3*day)), reserving)),
+			want: []status.Upcoming{back("work", "", 3*day, true)},
+		},
+		{
+			name: "a cap lifting as the capped week resets, no reset of the session before then, as it brings no room",
+			doc:  routerDocOf(with(readAt("work", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, 2*day)), reserving)),
+			want: []status.Upcoming{back("work", "", 2*day, true)},
+		},
+		{
+			name: "a limit and a cap: back once both have lifted, the cap last, no reset before then",
 			doc: routerDocOf(with(readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.95, 2*day)), func(a *status.Account) {
 				a.Reserve, a.Limit = 0.1, status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
 			})),
-			want: []status.Upcoming{reset("work", "5h", time.Hour), back("work", "", 2*day, true)},
+			want: []status.Upcoming{back("work", "", 2*day, true)},
 		},
 		{
-			name: "a limit and a cap: back once both have lifted, the limit last",
+			name: "a limit and a cap: back once both have lifted, the limit last, the capped week's reset before then not told",
 			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.5, 3*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
 				a.Reserve, a.Limit = 0.1, status.Limit{Until: built.Add(2 * time.Hour)}
 			})),
-			want: []status.Upcoming{reset("work", "7d", time.Hour), back("work", "", 2*time.Hour, false), reset("work", "5h", 3*time.Hour)},
+			want: []status.Upcoming{back("work", "", 2*time.Hour, false), reset("work", "5h", 3*time.Hour)},
 		},
 		{
-			name: "a limit and its token refused: back once both have lifted, the refusal last, from the refusal",
+			name: "a limit and its token refused: back once both have lifted, the refusal last, from the refusal, no reset before then",
 			doc: routerDocOf(with(readAt("work", spentIn("5h", 1, time.Hour), windowIn("7d", 0.3, 3*day)), func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
 				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
 			})),
-			want: []status.Upcoming{reset("work", "5h", time.Hour), backFromRefusal("work", 90*time.Minute), reset("work", "7d", 3*day)},
+			want: []status.Upcoming{backFromRefusal("work", 90*time.Minute), reset("work", "7d", 3*day)},
 		},
 		{
-			name: "a cap and its token refused: back once both have lifted, the refusal last, from the refusal",
+			name: "a cap and its token refused: back once both have lifted, the refusal last, from the refusal, no reset before then",
 			doc: routerDocOf(with(readAt("work", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, time.Hour)), func(a *status.Account) {
 				a.Reserve = 0.1
 				a.Refused = status.Refusal{Until: built.Add(90 * time.Minute), Status: 401}
 			})),
-			want: []status.Upcoming{reset("work", "7d", time.Hour), backFromRefusal("work", 90*time.Minute), reset("work", "5h", 2*time.Hour)},
+			want: []status.Upcoming{backFromRefusal("work", 90*time.Minute), reset("work", "5h", 2*time.Hour)},
 		},
 		{
 			name: "a cap and its token refused: back once both have lifted, the cap last, from its cap",
@@ -755,11 +860,11 @@ func TestWhatsComingUp(t *testing.T) {
 			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), back("fable", "7d_oi", 2*day, true), reset("fable", "7d", 3*day)},
 		},
 		{
-			name: "a cap on the week and a limit of a model's own week: back from each as it lifts",
+			name: "a cap on the week and a limit of a model's own week: back from each as it lifts, no reset before the cap lifts",
 			doc: routerDocOf(with(readAt("fable", windowIn("5h", 0.2, 2*time.Hour), windowIn("7d", 0.95, 2*day), spentIn("7d_oi", 1, 4*day)), func(a *status.Account) {
 				a.Reserve, a.Limit = 0.1, status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(4 * day)}
 			})),
-			want: []status.Upcoming{reset("fable", "5h", 2*time.Hour), back("fable", "", 2*day, true), back("fable", "7d_oi", 4*day, false)},
+			want: []status.Upcoming{back("fable", "", 2*day, true), back("fable", "7d_oi", 4*day, false)},
 		},
 		{
 			name: "a limit on every request and a model's own week read spent: back from each as it lifts",

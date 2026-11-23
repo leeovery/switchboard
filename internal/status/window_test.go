@@ -99,10 +99,125 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.3, At: at(1, 15, 54).UTC()},
 		},
 		{
-			name:    "a limit naming another window",
-			account: with(readNow(0.2, 0.3, 0), limited("5h")),
+			name:    "a limit naming a model's own week, which holds back that model's requests alone: not this one",
+			account: with(readNow(0.2, 0.3, 1), limited("7d_oi")),
 			key:     "7d",
 			want:    status.WindowNow{Kind: status.WindowOpen, Used: 0.3, At: at(5, 21, 0).UTC()},
+		},
+		{
+			name:    "a limit naming the session, which holds back every request, lifting before the week resets: the week its own",
+			account: with(readNow(0.2, 0.3, 0.4), limited("5h")),
+			key:     "7d",
+			want:    status.WindowNow{Kind: status.WindowOpen, Used: 0.3, At: at(5, 21, 0).UTC()},
+		},
+		{
+			name:    "a limit naming the session till just as the week resets: the week the account's limit",
+			account: limitedTo(readNow(1, 0.3, 0.4), "5h"),
+			key:     "7d",
+			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.3, At: at(5, 21, 0).UTC()},
+		},
+		{
+			name:    "the week at its cap, which holds back every request: the account's cap, back at the week's reset",
+			account: with(readNow(0.2, 0.97, 0.4), capped),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowCapped, Used: 0.2, At: at(5, 21, 0).UTC()},
+		},
+		{
+			name:    "the week at its cap, a limit naming the session lifting first: the session the limit, as its own",
+			account: with(with(readNow(0.2, 0.97, 0.4), capped), limited("5h")),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.2, At: at(1, 15, 54).UTC()},
+		},
+		{
+			name:    "the week at its cap, a limit naming the session lifting first: the account's cap, the later",
+			account: with(with(readNow(0.2, 0.97, 0.4), capped), limited("5h")),
+			key:     "7d_oi",
+			want:    status.WindowNow{Kind: status.WindowCapped, Used: 0.4, At: at(5, 21, 0).UTC()},
+		},
+		{
+			name:    "the session at its cap, the week read spent, lifting later: the account's limit",
+			account: with(readNow(0.97, 1, 0.4), capped),
+			key:     "7d_oi",
+			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.4, At: at(5, 21, 0).UTC()},
+		},
+		{
+			name:    "a model's own week at its cap, the session read spent: its own cap, not the account's limit",
+			account: with(readNow(1, 0.3, 0.97), capped),
+			key:     "7d_oi",
+			want:    status.WindowNow{Kind: status.WindowCapped, Used: 0.97, At: at(5, 21, 0).UTC()},
+		},
+		{
+			name: "the session not started, the week at its cap: not started, before the account's cap",
+			account: with(with(readNow(0, 0.97, 0), capped), func(a *status.Account) {
+				a.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
+				a.Lapsed = []string{"5h"}
+			}),
+			key:  "5h",
+			want: status.WindowNow{Kind: status.WindowNotStarted},
+		},
+		{
+			name: "the session not started, the week read spent: not started, as its next reset isn't known",
+			account: with(readNow(0, 1, 0), func(a *status.Account) {
+				a.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
+				a.Lapsed = []string{"5h"}
+			}),
+			key:  "5h",
+			want: status.WindowNow{Kind: status.WindowNotStarted},
+		},
+		{
+			name: "the session not started, the week read spent, its read refused, so the hold's end not known: not started, as it offers no room",
+			account: with(with(readNow(0, 1, 0), readRefused), func(a *status.Account) {
+				a.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
+				a.Lapsed = []string{"5h"}
+			}),
+			key:  "5h",
+			want: status.WindowNow{Kind: status.WindowNotStarted},
+		},
+		{
+			name:    "its token refused, a limit naming the week till after the session resets: stale, as it says why, not the account's limit",
+			account: with(with(readNow(0.4, 0.9, 0), refused), limited("7d")),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, Used: 0.4, At: read},
+		},
+		{
+			name:    "its last read refusing its token, a limit naming the week: stale, as it says why, not the account's limit",
+			account: with(with(readNow(0.4, 0.9, 0), readRefused), limited("7d")),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, Used: 0.4, At: read},
+		},
+		{
+			name:    "its subscription ended, the week read spent: stale, as it says why, not the account's limit",
+			account: with(readNow(0.4, 1, 0.3), ended),
+			key:     "7d_oi",
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleLapsed, Used: 0.3, At: read},
+		},
+		{
+			name:    "its last read failed, the week read spent: stale, as last read, not the account's limit",
+			account: with(readNow(0.4, 1, 0.3), failing),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, Used: 0.4, At: read},
+		},
+		{
+			name: "the week at its cap, its reset not known, a limit naming the session: the account's cap, lifting last at no known time",
+			account: with(with(with(readNow(0.2, 0.97, 0.4), capped), limited("5h")), func(a *status.Account) {
+				a.Windows[1].ResetsAt = time.Time{}
+			}),
+			key:  "7d_oi",
+			want: status.WindowNow{Kind: status.WindowCapped, Used: 0.4},
+		},
+		{
+			name: "the session read spent, its reset not known, the week at its cap: the account's limit, lifting last at no known time",
+			account: with(with(readNow(1, 0.97, 0.4), capped), func(a *status.Account) {
+				a.Windows[0].ResetsAt = time.Time{}
+			}),
+			key:  "7d_oi",
+			want: status.WindowNow{Kind: status.WindowLimited, Used: 0.4},
+		},
+		{
+			name:    "its token refused, the week at its cap: stale, before the account's cap",
+			account: with(with(readNow(0.4, 0.97, 0), capped), refused),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, Used: 0.4, At: read},
 		},
 		{
 			name:    "at its cap, though it runs out: back at its reset",
@@ -236,6 +351,88 @@ const (
 	endedSubscription = "HTTP 403 · OAuth authentication is currently not allowed for this organ"
 	tokenRefused      = "HTTP 401 · Invalid bearer token"
 )
+
+// An account a limit or its cap holds back from every request can take
+// nothing till it's back: a window it holds back till at least its next
+// reset, used and with room by its reading, offers no allowance, and reads
+// what holds the account, back as it is, held with it, never as unused. A
+// hold that lifts before the window resets leaves the window its own words
+// and allowance, as it can be used again once the hold lifts; one lifting
+// just as it resets holds it. A limit on the Fable week alone holds back that
+// model's requests, so leaves the rest theirs.
+func TestAnAccountHeldBackFromEveryRequestOffersNoAllowanceInAWindowItOutlasts(t *testing.T) {
+	sessionLimited := func(till time.Time) func(*status.Account) {
+		return func(a *status.Account) { a.Limit = status.Limit{Windows: []string{"5h"}, Until: till.UTC()} }
+	}
+	tests := []struct {
+		name    string
+		account status.Account
+		key     string
+		kind    status.WindowKind
+		at      time.Time
+		held    bool
+	}{
+		{
+			name: "its week at its limit: the session reads the limit", key: "5h",
+			account: limitedTo(readNow(0.3, 1, 0.4), "7d"), kind: status.WindowLimited, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its week at its limit, lifting as the Fable week resets: the Fable week reads the limit", key: "7d_oi",
+			account: limitedTo(readNow(0.3, 1, 0.4), "7d"), kind: status.WindowLimited, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its week at its cap: the session reads the cap", key: "5h",
+			account: with(readNow(0.3, 0.97, 0.4), reservingAWentieth), kind: status.WindowCapped, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its week at its cap, back as the Fable week resets: the Fable week reads the cap", key: "7d_oi",
+			account: with(readNow(0.3, 0.97, 0.4), reservingAWentieth), kind: status.WindowCapped, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its session at its limit till just as the week resets: the week reads the limit", key: "7d",
+			account: with(readNow(1, 0.3, 0.4), sessionLimited(at(5, 21, 0))), kind: status.WindowLimited, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its session at its limit till 15:54, before the week resets: the week its own, with its allowance", key: "7d",
+			account: with(readNow(0.9, 0.3, 0.4), sessionLimited(at(1, 15, 54))), kind: status.WindowOpen, at: at(5, 21, 0),
+		},
+		{
+			name: "its session at its cap till 17:10, before the week resets: the week its own, with its allowance", key: "7d",
+			account: with(readNow(0.97, 0.3, 0.4), reservingAWentieth), kind: status.WindowOpen, at: at(5, 21, 0),
+		},
+		{
+			name: "its Fable week at its limit alone: the session its own, with its allowance", key: "5h",
+			account: limitedTo(readNow(0.3, 0.4, 1), "7d_oi"), kind: status.WindowOpen, at: at(1, 17, 10),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}}
+			got := windowAt(doc, tt.account.ID, tt.key, stateNow, policy)
+			if got.Kind != tt.kind || !got.At.Equal(tt.at) || got.WithAccount != tt.held || got.Unused {
+				t.Errorf("it stands as kind %d at %v, held with its account %v, unused %v; want kind %d at %v, held with it %v, not unused",
+					got.Kind, got.At, got.WithAccount, got.Unused, tt.kind, tt.at, tt.held)
+			}
+			worked, _ := doc.WorkedOut(policy).Accounts[0].Window(tt.key)
+			for _, allowance := range []quota.Allowance{got.Allowance, worked.Allowance} {
+				if offered := allowance != (quota.Allowance{}); offered == tt.held {
+					t.Errorf("on the moment and worked out, as status --json gives it, its allowances are %+v and %+v; want them offered %v", got.Allowance, worked.Allowance, !tt.held)
+				}
+			}
+		})
+	}
+}
+
+// limitedTo is the account a, the router's limit naming the windows with the
+// given keys till each resets.
+func limitedTo(a status.Account, keys ...string) status.Account {
+	return with(a, func(a *status.Account) { a.Limit = status.Limit{Windows: keys, Until: at(5, 21, 0).UTC()} })
+}
+
+// reservingAWentieth has the account keep a twentieth of each window back.
+func reservingAWentieth(a *status.Account) {
+	a.Reserve = 0.05
+}
 
 // A stale reading says why it's stale, the first that holds of: its
 // subscription ended, as the account's refused read says its last read was

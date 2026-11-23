@@ -85,9 +85,9 @@ router has taken it up.
 
 | Words | When they show |
 |---|---|
-| `limit · back 15:54` | Claude's limit is in force on the window. |
+| `limit · back 15:54` | Claude's limit is in force on the window. It also shows on another window if a limit keeps the account from every request until that window resets. |
 | `limit` | Claude's limit is in force on the window, and Anthropic refused the account's last read, so no time brings the account back. Only a clean read does. |
-| `at cap · back 17:10` | The window has reached the cap, so the router keeps the account back. |
+| `at cap · back 17:10` | The window has reached the cap, so the router keeps the account back. It also shows on another window if the cap keeps the account from every request until that window resets. |
 | `out ~16:05` | The window runs out before it resets. Within a day, the time shows. |
 | `out ~Sat` | It runs out more than a day ahead, so the day shows only, because a forecast days out can miss by a day. |
 | `out ~Thu 12 Nov` | It runs out on the same weekday as today, a week on, so the date shows. |
@@ -133,14 +133,17 @@ week shows only if an account has used it.
 
 `usage` learns which windows an account has from the API's answers, never from its plan. A
 verified Ultra account reports no 5-hour window. Stacked, a window leaves out an account that
-doesn't have it. The Fable section also leaves out an account that hasn't used it.
+doesn't have it. The Fable section also leaves out an account that hasn't used it. The
+exception is an account that a limit or the cap keeps from every request until the Fable week
+resets: its row shows that hold.
 
 | If | `usage` |
 |---|---|
 | No account has a window | Leaves the window out. |
 | No account has used the Fable week, and no limit names it | Leaves the Fable week out. |
 | A limit names an account's Fable week | Shows the Fable week, even at 0%. |
-| The Fable week shows, and any limit holds an account | That account's Fable row reads `limit · back Sun`. |
+| The Fable week shows, and a limit or the cap keeps an account from every request until the Fable week resets | That account's Fable row reads `limit · back Sun` or `at cap · back Sun`. |
+| The Fable week shows, and a limit that names no window holds an account | That account's Fable row reads `limit · back 15:54`, even if the limit lifts before the Fable week resets. |
 | The Fable week shows, and an account's last read failed | That account's Fable row shows as last read. |
 | An account isn't read yet | Keeps its rows, because it may have any window. |
 

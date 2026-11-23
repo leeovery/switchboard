@@ -32,6 +32,9 @@ import (
 //     never, Back zero, where its read was refused; then its unheld kind's
 //     course, or, where that kind has none, as stale, not started or heading
 //     nowhere said, the room Used leaves till its reset.
+//   - One its account's cap holds with it, as WithAccount says, keeps the
+//     room Used leaves till its account is back, At; then as one a limit
+//     holds goes once that lifts.
 //   - Past its reset it has all of it, as nothing is known of its next
 //     window. Where its reset, or when a limit lifts, isn't known, it keeps
 //     the room it has.
@@ -54,8 +57,11 @@ func (a AccountNow) RoomAhead(key string, t time.Time) (float64, bool) {
 // courseOf is where the account's window w goes from Now on, as RoomAhead
 // has it, reporting false where nothing ahead is known to draw.
 func (a AccountNow) courseOf(w WindowNow) (course, bool) {
-	if w.Kind == WindowLimited {
-		return a.heldFrom(w), true
+	switch {
+	case w.Kind == WindowLimited:
+		return a.heldFrom(w, 0), true
+	case w.WithAccount:
+		return a.heldFrom(w, 1-w.Used), true
 	}
 	return a.courseFrom(w.Kind, point{a.now, 1 - w.Used}, w)
 }
@@ -75,16 +81,16 @@ func (a AccountNow) courseFrom(kind WindowKind, from point, w WindowNow) (course
 	return nil, false
 }
 
-// heldFrom is the course of window w, which a limit holds, from Now on: none
-// till it has room again, at its Back, where that's known; then from the room
-// its use leaves, as the course of the kind it's Unheld goes, else keeping
-// that room till its reset.
-func (a AccountNow) heldFrom(w WindowNow) course {
-	held := course{{a.now, 0}, {w.Back, 0}}
-	if w.Back.IsZero() {
+// heldFrom is the course of window w, which a limit or its account's hold
+// holds, from Now on: the room given till it's back, At, where that's known;
+// then from the room its use leaves, as the course of the kind it's Unheld
+// goes, else keeping that room till its reset.
+func (a AccountNow) heldFrom(w WindowNow, room float64) course {
+	held := course{{a.now, room}, {w.At, room}}
+	if w.At.IsZero() {
 		return held
 	}
-	lifted := point{w.Back, 1 - w.Used}
+	lifted := point{w.At, 1 - w.Used}
 	if unheld, ok := a.courseFrom(w.Unheld, lifted, w); ok {
 		return append(held, unheld...)
 	}

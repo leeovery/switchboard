@@ -108,9 +108,9 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			},
 		},
 		{
-			name: "an account back from its cap as its week resets",
+			name: "an account back from its cap as its week resets, its 5-hour's reset before then left out, as it brings no room",
 			doc:  routerDoc("capped", 0, capped),
-			want: []string{"15:12 capped's 5-hour resets", "Wed 13:12 capped back from its cap"},
+			want: []string{"Wed 13:12 capped back from its cap"},
 		},
 		{
 			name: "an account back from the cap on a model's own week",
@@ -133,9 +133,9 @@ func TestCOMINGUPSaysWhatsNextSoonestFirst(t *testing.T) {
 			want: []string{"13:22 held back from its limit", "16:12 held's 5-hour resets", "Thu 13:12 held's week resets"},
 		},
 		{
-			name: "an account at its cap, its token refused till before it lets go, back from the cap",
+			name: "an account at its cap, its token refused till before it lets go, back from the cap, its 5-hour's reset before then left out",
 			doc:  routerDoc("capped", 0, cappedRefused),
-			want: []string{"15:12 capped's 5-hour resets", "Wed 13:12 capped back from its cap"},
+			want: []string{"Wed 13:12 capped back from its cap"},
 		},
 	}
 	for _, tt := range tests {
