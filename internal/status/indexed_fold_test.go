@@ -225,7 +225,10 @@ func foldRoomThen(m Moment, a AccountNow, read []readings.Reading, told []Span, 
 			}
 		}
 	}
-	if !ok || was.Kind != WasRoom && outlasts(was.Until, score.Current(w, t).ResetsAt) {
+	if !ok {
+		return 0, true
+	}
+	if until, held := quotaUntil(a, windows, told, t); held && outlasts(until, score.Current(w, t).ResetsAt) {
 		return 0, true
 	}
 	return score.Room(w, a.Floor, t), true

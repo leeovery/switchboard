@@ -4492,11 +4492,12 @@ last token's line where it has any, with no blank line after it, as a shell's pr
     as a limit may still hold a window read again at 0% once it resets. A limit naming no window
     holds every window alike, so says nothing of a model's use, and never brings the window up alone
     (the owner's rule: shown where used); nor does a hold of the account's every request held in
-    another window (see A window held with its account). Where another account's use shows it,
-    the held account's row reads by its kind, `limit · back Sun`, where the hold lasts till the
-    week resets. It's live: as an account's resets to 0, its bar goes,
-    and the window goes once no account has use left in it, or a hold on it; the first use on any
-    account brings it back.
+    another window (see A window held with its account). Where another account's use shows it, an
+    account a limit naming no window holds reads by its kind, with its own `back`:
+    `limit · back 15:54`. An account a hold in another window keeps from every request reads that
+    hold, `limit · back Sun`, only where the hold lasts till the week resets. It's live: as an
+    account's resets to 0, its bar goes, and the window goes once no account has use left in it,
+    or a hold on it; the first use on any account brings it back.
   - An account known not to have used it goes without it, as an account without a 5-hour window
     does: read fresh, neither stale nor held by a limit or its cap, its own or the account's, and
     at 0% as it stands. Stacked,
@@ -7223,7 +7224,8 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   `rejected` is at its limit until that reset, or until a later reading before it no longer shows
   it, as one of a window reset by hand doesn't, the hold lifting as the router read the window start
   again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
-  config gives now, as the readings keep none, and lifts alike. A column with no reading of its
+  config gives now (settled in the plan), not from the reserve each line of the readings history
+  records, and lifts alike. A column with no reading of its
   account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
   14 October 2026), but before the first reading of an account new in the view, which is dotted
   (see An account new in the view, above).
@@ -10762,8 +10764,7 @@ from the first day a router that has it runs, so nothing before then is in it.
     2026, before the ledger began recording. So no request the ledger holds pays one, but Claude
     Haiku 5.5's: from its launch on 7 October 2026 it prices a prompt of over 100,000 tokens
     higher, which the table doesn't keep, so every Haiku 5.5 request is priced at its rate for
-    prompts up to 100,000, the owner's call (11 October 2026), until how the table is kept is
-    settled (see Backlog: keeping the price table current).
+    prompts up to 100,000, the owner's call (11 October 2026).
   - **Plans:** beside the models, the table prices the plans a subscription is on, each a month, in
     US dollars, with its size in Pro weeks, which the forecast and the capacity verdict's replay of a week
     weigh an account by (see Forecasting run-outs and The capacity verdict): `pro`, Pro, $20 and 1; `max`, Max, $100

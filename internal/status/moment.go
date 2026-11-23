@@ -233,9 +233,8 @@ type WindowNow struct {
 	// standing, as measure has them: nil where it isn't running or its reset
 	// isn't known, and no allowance where a limit holds it as its own, or
 	// its account's hold lasts till it next resets, as heldThrough says, as
-	// it can take nothing till then. Next
-	// is its next reset as it stands at Now: zero where it has lapsed, or
-	// that isn't known.
+	// it can take nothing till then. Next is its next reset as it stands at
+	// Now: zero where it has lapsed, or that isn't known.
 	Used      float64
 	Pace      *float64
 	Allowance quota.Allowance
@@ -303,8 +302,8 @@ type WindowNow struct {
 	// its account is known not to have used: read fresh with a usable
 	// token, neither stale nor held by a limit or its cap, its own or its
 	// account's, as heldOrStale says, and none of it used as it stands at
-	// Now, as used says, as once it resets. A view listing windows as they stand leaves the account out
-	// of it, as Without says.
+	// Now, as used says, as once it resets. A view listing windows as they
+	// stand leaves the account out of it, as Without says.
 	Unused bool
 	// Read is the window as it was read.
 	Read AsRead

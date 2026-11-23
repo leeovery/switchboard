@@ -40,7 +40,9 @@ func TestRoomThenAtNowIsTheRoomThePoolCountsAsTheMomentHasIt(t *testing.T) {
 // the window a request starts, the session, from when it began, but not the
 // week's; a refused token takes every window's; one not usable now, too;
 // and where nothing was read by then, it isn't known. A model's own window
-// counts by its own reading.
+// counts by its own reading, but none while a hold of every request lasts
+// till at least its reset, the hold lifting as the last of a limit and the
+// cap holding at once does.
 func TestTheRoomAnAccountHadLeftInAWindowAtAMomentGone(t *testing.T) {
 	// Work keeps a reserve of a tenth, so runs out at 0.9 of each window.
 	// Idle since Monday, its 5-hour window then reset at 16:00, its week read
@@ -56,6 +58,17 @@ func TestTheRoomAnAccountHadLeftInAWindowAtAMomentGone(t *testing.T) {
 	weekSpent := append(idle[:3:3], readOf(at(1, 14, 20), "7d", 1, at(5, 21, 0)))
 	fable := readOf(at(1, 13, 30), "7d_oi", 0.25, at(5, 21, 0))
 	refusal := status.Span{Kind: status.WasRefused, From: at(1, 14, 0), Until: at(1, 15, 0)}
+	// fableResetting is its Fable week read at 13:30 at a quarter, resetting
+	// at the time given.
+	fableResetting := func(resets time.Time) readings.Reading {
+		return readOf(at(1, 13, 30), "7d_oi", 0.25, resets)
+	}
+	// limitAndCap has its session read spent at 14:20 till it resets at
+	// 15:00, and its week at its cap then till it resets on Sunday, its Fable
+	// week resetting on Saturday.
+	limitAndCap := []readings.Reading{
+		readOf(at(1, 14, 20), "5h", 1, at(1, 15, 0)), readOf(at(1, 14, 20), "7d", 0.92, at(4, 21, 0)), fableResetting(at(3, 21, 0)),
+	}
 
 	reserved := workAt(func(d *status.Document) { d.Accounts[0].Reserve = 0.1 })
 	tokenless := workAt(func(d *status.Document) { d.Accounts[0] = status.Account{ID: "work", Label: "work"} })
@@ -83,6 +96,10 @@ func TestTheRoomAnAccountHadLeftInAWindowAtAMomentGone(t *testing.T) {
 		{name: "nothing read by then", moment: reserved, read: idle, key: "5h", t: at(1, 9, 0).AddDate(0, 0, -3), want: 0, known: false},
 		{name: "a model's own week", moment: reserved, read: append(idle[:3:3], fable), key: "7d_oi", t: at(1, 14, 0), want: 0.65, known: true},
 		{name: "a model's own week not read", moment: reserved, read: idle, key: "7d_oi", t: at(1, 14, 0), want: 0, known: true},
+		{name: "its week read spent, a model's own week resetting before it: none", moment: reserved, read: append(weekSpent[:4:4], fableResetting(at(4, 21, 0))), key: "7d_oi", t: at(1, 14, 25), want: 0, known: true},
+		{name: "its week read spent, a model's own week resetting with it: none", moment: reserved, read: append(weekSpent[:4:4], fableResetting(at(5, 21, 0))), key: "7d_oi", t: at(1, 14, 25), want: 0, known: true},
+		{name: "its week read spent, a model's own week resetting after it: its room", moment: reserved, read: append(weekSpent[:4:4], fableResetting(at(6, 21, 0))), key: "7d_oi", t: at(1, 14, 25), want: 0.65, known: true},
+		{name: "its session spent till 15:00, its week at its cap till Sunday, a model's own week resetting Saturday: none, as the cap lifts last", moment: reserved, read: limitAndCap, key: "7d_oi", t: at(1, 14, 25), want: 0, known: true},
 	}
 	for _, tt := range tests {
 		a := tt.moment.Accounts[0]
