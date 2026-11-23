@@ -265,12 +265,15 @@ type Limit struct {
 
 // Reset is a reset of an account's window the readings history saw: its
 // window's key; when it reset, its reset time where it was read, or when the
-// reading that showed it reset by hand came; and the highest use of the run
-// it ended, Before, so a week's peak is the Before of the reset that ended it.
+// reading that showed it reset by hand came; the highest use of the run it
+// ended, Before, so a week's peak is the Before of the reset that ended it;
+// and Reserve, the reserve the window stood under as that run ended, its
+// peak's, as the readings history recorded it, nil where it recorded none.
 type Reset struct {
-	Window string    `json:"window"`
-	At     time.Time `json:"at"`
-	Before float64   `json:"before"`
+	Window  string    `json:"window"`
+	At      time.Time `json:"at"`
+	Before  float64   `json:"before"`
+	Reserve *float64  `json:"reserve,omitempty"`
 }
 
 // Readings returns the readings the readings history holds of times from

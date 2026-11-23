@@ -6,6 +6,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -115,7 +116,7 @@ type judging struct {
 func judgingOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) judging {
 	j := judging{accounts: accounts, r: replayOf(placed, isWhole, accounts, p, key), records: make([]record, len(accounts))}
 	for x := range accounts {
-		j.records[x] = recordOf(placed, isWhole, x, j.r.caps[x], key)
+		j.records[x] = recordOf(placed, isWhole, x, accounts[x], key)
 	}
 	return j
 }
@@ -126,7 +127,7 @@ func (j judging) capacity() Capacity {
 	c := Capacity{Weeks: len(r.weeks), Short: r.count(r.shortAsNow), WithOneMore: r.count(r.shortWithOneMore)}
 	without := make([]int, len(accounts))
 	for x := range accounts {
-		without[x] = r.count(func(week []millionths) bool { return r.shortWithout(week, x) })
+		without[x] = r.count(func(week replayed) bool { return r.shortWithout(week, x) })
 	}
 	c.judge(r, accounts, without)
 	c.Accounts = make([]AccountVerdict, 0, len(accounts)+1)
@@ -185,48 +186,51 @@ func (c Capacity) headline() string {
 	return AboutRight
 }
 
-// replay is the weeks Weeks replays, each account's week's peak in each, in
-// the config's order, the accounts' caps, as capOf has them, and their sizes
-// in Pro weeks, with that of the plan most of them have, usual.
+// replay is the weeks Weeks replays, as replayed has each, and the accounts'
+// sizes in Pro weeks, in the config's order, with that of the plan most of
+// them have, usual.
 type replay struct {
-	weeks [][]millionths
-	caps  []millionths
+	weeks []replayed
 	sizes []int64
 	usual int64
+}
+
+// replayed is a week Weeks replays: each account's week's peak in it, in the
+// config's order, and each one's cap at that peak, as capOf has it.
+type replayed struct {
+	peaks, caps []millionths
 }
 
 // replayOf is the replay of the weeks of placed that isWhole reports are
 // whole and that can be judged, as judged says, the window with the given
 // key, of the accounts given, sized by their plans p.
 func replayOf(placed []placedWeek, isWhole func(week string) bool, accounts config.Accounts, p plans, key string) replay {
-	r := replay{caps: make([]millionths, len(accounts))}
-	for i, a := range accounts {
-		r.caps[i] = capOf(a)
-	}
+	var r replay
 	r.sizes, r.usual = sizesOf(accounts, p.table)
 	for _, w := range placed {
-		if week, ok := w.judged(len(accounts), key); ok && isWhole(w.week) {
+		if week, ok := w.judged(accounts, key); ok && isWhole(w.week) {
 			r.weeks = append(r.weeks, week)
 		}
 	}
 	return r
 }
 
-// judged is each of the accounts' peaks of the window with the given key in
-// the week, reporting false where any's isn't known, or its week hasn't
-// ended: a week the replay can't judge, rather than one in which that account
-// had no room.
-func (p placedWeek) judged(accounts int, key string) ([]millionths, bool) {
-	if accounts == 0 {
-		return nil, false
+// judged is the week as the replay judges it, of the accounts given: each
+// one's peak of the window with the given key in the week, and its cap at
+// that peak, as capOf has it, reporting false where any's peak isn't known,
+// or its week hasn't ended: a week the replay can't judge, rather than one in
+// which that account had no room.
+func (p placedWeek) judged(accounts config.Accounts, key string) (replayed, bool) {
+	if len(accounts) == 0 {
+		return replayed{}, false
 	}
-	week := make([]millionths, accounts)
-	for i := range week {
+	week := replayed{peaks: make([]millionths, len(accounts)), caps: make([]millionths, len(accounts))}
+	for i, a := range accounts {
 		peak, ok := p.peaks[i][key]
 		if !ok || !peak.known || peak.open {
-			return nil, false
+			return replayed{}, false
 		}
-		week[i] = peak.use
+		week.peaks[i], week.caps[i] = peak.use, capOf(a, peak.reserve)
 	}
 	return week, true
 }
@@ -241,15 +245,23 @@ func sizesOf(accounts config.Accounts, table ledger.Table) (sizes []int64, usual
 	return table.Sizes(ids)
 }
 
-// capOf is the share of its week where the account stops taking new sessions,
-// as the router holds it: its cap, where its reserve starts, else its limit.
-// It's the reserve configured now, not the one each reading records.
-func capOf(a config.Account) millionths {
-	return millionthsOf(score.ReserveFrom(a.Reserve))
+// capOf is the share of its week where the account a stopped taking new
+// sessions at a peak, as the router held it then: its cap, where the reserve
+// the readings history recorded the peak under starts, as
+// readings.ReserveThen has it, the reserve configured now where it recorded
+// none; else its limit.
+func capOf(a config.Account, recorded *float64) millionths {
+	return millionthsOf(score.ReserveFrom(readings.ReserveThen(recorded, a.Reserve)))
+}
+
+// atCap reports whether the peak reached the account a's cap then, as capOf
+// has it.
+func (p peak) atCap(a config.Account) bool {
+	return p.use >= capOf(a, p.reserve)
 }
 
 // count counts the weeks short reports short.
-func (r replay) count(short func(week []millionths) bool) int {
+func (r replay) count(short func(week replayed) bool) int {
 	n := 0
 	for _, week := range r.weeks {
 		if short(week) {
@@ -261,7 +273,7 @@ func (r replay) count(short func(week []millionths) bool) int {
 
 // shortAsNow reports whether some account hit its limit in the week, its peak
 // at its cap.
-func (r replay) shortAsNow(week []millionths) bool {
+func (r replay) shortAsNow(week replayed) bool {
 	return r.shortIn(week) != nil
 }
 
@@ -269,17 +281,17 @@ func (r replay) shortAsNow(week []millionths) bool {
 // accounts with the indexes dropped: each one's peak times its size is shared
 // among the rest by their sizes, so each of theirs rises by all of that over
 // all their sizes, and it's short where any would reach its cap.
-func (r replay) shortWithout(week []millionths, dropped ...int) bool {
+func (r replay) shortWithout(week replayed, dropped ...int) bool {
 	var load, room int64
-	for j, use := range week {
+	for j, use := range week.peaks {
 		if slices.Contains(dropped, j) {
 			load += int64(use) * r.sizes[j]
 		} else {
 			room += r.sizes[j]
 		}
 	}
-	for j, use := range week {
-		if !slices.Contains(dropped, j) && int64(use)*room+load >= int64(r.caps[j])*room {
+	for j, use := range week.peaks {
+		if !slices.Contains(dropped, j) && int64(use)*room+load >= int64(week.caps[j])*room {
 			return true
 		}
 	}
@@ -288,10 +300,10 @@ func (r replay) shortWithout(week []millionths, dropped ...int) bool {
 
 // shortIn are the indexes of the accounts that hit their limit in the week,
 // their peaks at their caps.
-func (r replay) shortIn(week []millionths) []int {
+func (r replay) shortIn(week replayed) []int {
 	var short []int
-	for x, use := range week {
-		if use >= r.caps[x] {
+	for x, use := range week.peaks {
+		if use >= week.caps[x] {
 			short = append(short, x)
 		}
 	}
@@ -336,13 +348,13 @@ func (r replay) without(x int) (same, noneNew bool) {
 // account more, of the plan most of the accounts have: every peak falls in
 // proportion, the same use over more room, and it's short where any would
 // still reach its cap.
-func (r replay) shortWithOneMore(week []millionths) bool {
+func (r replay) shortWithOneMore(week replayed) bool {
 	var room int64
 	for _, size := range r.sizes {
 		room += size
 	}
-	for x, use := range week {
-		if int64(use)*room >= int64(r.caps[x])*(room+r.usual) {
+	for x, use := range week.peaks {
+		if int64(use)*room >= int64(week.caps[x])*(room+r.usual) {
 			return true
 		}
 	}
@@ -356,7 +368,7 @@ func (r replay) withTwoFewer(dropped int) *int {
 	without := make([]int, len(r.sizes))
 	for x := range without {
 		if x != dropped {
-			without[x] = r.count(func(week []millionths) bool { return r.shortWithout(week, dropped, x) })
+			without[x] = r.count(func(week replayed) bool { return r.shortWithout(week, dropped, x) })
 		}
 	}
 	return &without[r.fewest(without, dropped)]
@@ -382,7 +394,7 @@ func (r replay) fewest(without []int, except int) int {
 func (r replay) used(x int) millionths {
 	var used millionths
 	for _, week := range r.weeks {
-		used += week[x]
+		used += week.peaks[x]
 	}
 	return used
 }
@@ -411,9 +423,9 @@ func (r replay) together() AccountVerdict {
 // toldOf is what a week the replay judges tells of every account together:
 // the record of each account's week in it, the week, and whether it was
 // short, as the accounts stand.
-func (r replay) toldOf(week []millionths) told {
+func (r replay) toldOf(week replayed) told {
 	t := told{weeks: 1}
-	for _, use := range week {
+	for _, use := range week.peaks {
 		t.rec.add(use)
 	}
 	if r.shortAsNow(week) {
@@ -456,27 +468,28 @@ type record struct {
 	weeks, limits int
 }
 
-// recordOf is the record of the account with index x, its cap that given,
-// over the weeks of placed that isWhole reports are whole and in which its
-// week of the window with the given key is known and ended.
-func recordOf(placed []placedWeek, isWhole func(week string) bool, x int, capAt millionths, key string) record {
+// recordOf is the record of the account a, with index x, over the weeks of
+// placed that isWhole reports are whole and in which its week of the window
+// with the given key is known and ended.
+func recordOf(placed []placedWeek, isWhole func(week string) bool, x int, a config.Account, key string) record {
 	var rec record
 	for _, w := range placed {
 		if isWhole(w.week) {
-			rec = rec.plus(w.recordOf(x, capAt, key))
+			rec = rec.plus(w.recordOf(x, a, key))
 		}
 	}
 	return rec
 }
 
-// recordOf is the record of the account with index x in the week, its cap
-// that given, where its week of the window with the given key is known and
-// ended: none where it isn't.
-func (p placedWeek) recordOf(x int, capAt millionths, key string) record {
+// recordOf is the record of the account a, with index x, in the week, where
+// its week of the window with the given key is known and ended: none where it
+// isn't. It hit its limit where its peak reached its cap then, as capOf has
+// it.
+func (p placedWeek) recordOf(x int, a config.Account, key string) record {
 	var rec record
 	if peak, ok := p.peaks[x][key]; ok && peak.known && !peak.open {
 		rec.add(peak.use)
-		if peak.use >= capAt {
+		if peak.atCap(a) {
 			rec.limits++
 		}
 	}

@@ -413,9 +413,9 @@ func TestASummaryHoldsEachResetOfAWindowTheReadingsHistorySaw(t *testing.T) {
 }
 
 // sameReset reports whether a and b are the same reset, of the same use
-// before it.
+// before it, under the same reserve.
 func sameReset(a, b ledger.Reset) bool {
-	return a.Window == b.Window && a.At.Equal(b.At) && a.Before == b.Before
+	return a.Window == b.Window && a.At.Equal(b.At) && a.Before == b.Before && sameReserve(a.Reserve, b.Reserve)
 }
 
 func TestASummaryHoldsTheMinutesAnAccountSpentAtItsCapAndAtALimit(t *testing.T) {
@@ -581,6 +581,80 @@ func TestADayWhoseReadingsRecordedTheirReservesIsSummarisedAlikeWhateverTheCaps(
 			t.Errorf("summarised with %+v, work spent %v minutes at its cap, want 60, as its readings recorded", c.Reserves, minutes(got.MinutesAtCap))
 		}
 	}
+}
+
+// Each reset records the reserve the window stood under as the run it ended
+// did, its peak's, as the readings history recorded it: the reserve of the
+// run's last line, a `reserve` line's among them, and none where that line
+// recorded none.
+func TestAResetRecordsTheReserveItsRunEndedUnder(t *testing.T) {
+	ends, next := on(0, 11, 0), on(0, 16, 0)
+	afresh := allowed(on(0, 11, 30), "5h", 0.1, next)
+	tests := []struct {
+		name     string
+		readings []readings.Reading
+		want     *float64
+	}{
+		{name: "under a fifth, read again after the reset", readings: []readings.Reading{under(0.2, allowed(on(0, 10, 0), "5h", 0.5, ends)), afresh}, want: new(0.2)},
+		{
+			name:     "under a fifth, recorded again under a tenth before the reset",
+			readings: []readings.Reading{under(0.2, allowed(on(0, 10, 0), "5h", 0.5, ends)), restated(on(0, 10, 30), 0.5, ends, 0.1), afresh},
+			want:     new(0.1),
+		},
+		{name: "under a pin's 0", readings: []readings.Reading{under(0, allowed(on(0, 10, 0), "5h", 0.5, ends)), afresh}, want: new(0.0)},
+		{name: "under a fifth, not read again by the day's end", readings: []readings.Reading{under(0.2, allowed(on(0, 10, 0), "5h", 0.5, ends))}, want: new(0.2)},
+		{name: "a line that recorded none", readings: []readings.Reading{allowed(on(0, 10, 0), "5h", 0.5, ends), afresh}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := workDay(t, reserving, dayDone, tt.readings...).Resets
+			if len(got) == 0 || !sameReset(got[0], ledger.Reset{Window: "5h", At: ends, Before: 0.5, Reserve: tt.want}) {
+				t.Errorf("work's resets are %+v, want the first at %v from 0.5, under %v", got, ends, reserveSaid(tt.want))
+			}
+		})
+	}
+}
+
+// A reset's reserve round-trips through a summary's JSON, and a reset from
+// before resets kept one reads as none, its other fields as before.
+func TestAResetsReserveIsKeptInTheSummary(t *testing.T) {
+	at := time.Date(2026, 10, 5, 11, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		line string
+		want ledger.Reset
+	}{
+		{name: "with a reserve", line: `{"window":"7d","at":"2026-10-05T11:00:00Z","before":0.85,"reserve":0.2}`, want: ledger.Reset{Window: "7d", At: at, Before: 0.85, Reserve: new(0.2)}},
+		{name: "from before resets kept one", line: `{"window":"7d","at":"2026-10-05T11:00:00Z","before":0.85}`, want: ledger.Reset{Window: "7d", At: at, Before: 0.85}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got ledger.Reset
+			if err := json.Unmarshal([]byte(tt.line), &got); err != nil {
+				t.Fatalf("Unmarshal() error = %v", err)
+			}
+			if !sameReset(got, tt.want) {
+				t.Errorf("%s reads as %+v, want %+v", tt.line, got, tt.want)
+			}
+			if b, err := json.Marshal(got); err != nil || string(b) != tt.line {
+				t.Errorf("it's written as %s, %v, want %s", b, err, tt.line)
+			}
+		})
+	}
+}
+
+// sameReserve reports whether two reserves recorded are the one, or both
+// none.
+func sameReserve(a, b *float64) bool {
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
+}
+
+// reserveSaid says a reserve recorded, "none" where it's nil.
+func reserveSaid(r *float64) any {
+	if r == nil {
+		return "none"
+	}
+	return *r
 }
 
 // minutes is n, or "never read" where it's nil.

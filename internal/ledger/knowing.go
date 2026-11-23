@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"cmp"
 	"encoding/json"
 	"maps"
 	"slices"
@@ -157,7 +158,8 @@ func limitsKnowing(limits, held []Limit) []Limit {
 // resetsKnowing returns resets, summarised afresh, with held's, those
 // summarised before, among them, in the order they came: a reset of one
 // window at one time is the same reset, its use before it the higher of the
-// two. It's nil only where both are.
+// two, and its reserve the one summarised afresh, else held's. It's nil only
+// where both are.
 func resetsKnowing(resets, held []Reset) []Reset {
 	if resets == nil && held == nil {
 		return nil
@@ -166,6 +168,7 @@ func resetsKnowing(resets, held []Reset) []Reset {
 	for _, h := range held {
 		if i := slices.IndexFunc(resets, h.same); i >= 0 {
 			resets[i].Before = max(resets[i].Before, h.Before)
+			resets[i].Reserve = cmp.Or(resets[i].Reserve, h.Reserve)
 		} else {
 			resets = append(resets, h)
 		}

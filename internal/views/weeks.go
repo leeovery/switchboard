@@ -101,12 +101,15 @@ func weeklyOf(key string, starts time.Weekday, now time.Time) weekly {
 // ownWeek is a week of an account's window, from one reset of it to the next:
 // peak is its use read just before the reset that ended it, at end, or, of the
 // week still running, open, its highest use so far, which known reports is
-// known.
+// known; and reserve the reserve the readings history recorded its peak
+// under, as the reset that ended it keeps it, nil where none is kept, as of a
+// week still running.
 type ownWeek struct {
 	start, end time.Time
 	open       bool
 	peak       millionths
 	known      bool
+	reserve    *float64
 }
 
 // holds reports whether t falls in the week.
@@ -153,7 +156,7 @@ func (w weekly) ownWeeksOf(days []ledger.AccountDay) ownWeeks {
 			if !quota.WeekLong(r.Window) || !r.At.After(last[r.Window]) {
 				continue
 			}
-			weeks[r.Window] = append(weeks[r.Window], ownWeek{start: w.began(last[r.Window], r.At), end: r.At, peak: millionthsOf(r.Before), known: true})
+			weeks[r.Window] = append(weeks[r.Window], ownWeek{start: w.began(last[r.Window], r.At), end: r.At, peak: millionthsOf(r.Before), known: true, reserve: r.Reserve})
 			last[r.Window], lastDay[r.Window] = r.At, i
 		}
 	}
@@ -250,11 +253,13 @@ func (w weekly) placedUnder(o ownWeek) string {
 }
 
 // peak is an account's week's peak of a window, as its own week placed under
-// a calendar week gives it: its use, where known, and whether the week is
-// still running, which leaves its use so far.
+// a calendar week gives it: its use, where known; whether the week is still
+// running, which leaves its use so far; and the reserve the readings history
+// recorded it under, nil where none is kept.
 type peak struct {
 	use         millionths
 	known, open bool
+	reserve     *float64
 }
 
 // placedWeek is a calendar week, by its first day, with what the configured
@@ -275,7 +280,7 @@ func (p *placedWeek) place(account int, key string, o ownWeek) {
 		p.peaks[account] = make(map[string]peak)
 	}
 	if held, ok := p.peaks[account][key]; !ok || o.open || !held.open && o.peak > held.use {
-		p.peaks[account][key] = peak{use: o.peak, known: o.known, open: o.open}
+		p.peaks[account][key] = peak{use: o.peak, known: o.known, open: o.open, reserve: o.reserve}
 	}
 }
 

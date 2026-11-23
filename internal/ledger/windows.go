@@ -122,7 +122,8 @@ func (d *windowDay) take(r readings.Reading) bool {
 		return true
 	}
 	last, from, read, reserve := d.climb.last, d.climb.at, d.climb.read, d.reserve
-	_, took := d.climb.take(r.Window(), r.At)
+	var took taking
+	d.resetUnder(func() { _, took = d.climb.take(r.Window(), r.At) })
 	if took == taken {
 		if read {
 			d.stand(stood{from: from, to: r.At, window: last, reserve: reserve})
@@ -136,7 +137,18 @@ func (d *windowDay) take(r readings.Reading) bool {
 // then, or until its reset, which ends its run, where that comes first.
 func (d *windowDay) end() {
 	d.stand(stood{from: d.climb.at, to: d.until, window: d.climb.last, reserve: d.reserve})
-	d.climb.End(d.until)
+	d.resetUnder(func() { d.climb.End(d.until) })
+}
+
+// resetUnder has climbing, which takes a reading or ends the day, note each
+// reset it notes under the reserve the window stood under as its run ended,
+// its peak's, as its use only rises through a run.
+func (d *windowDay) resetUnder(climbing func()) {
+	noted := len(d.climb.resets)
+	climbing()
+	for i := noted; i < len(d.climb.resets); i++ {
+		d.climb.resets[i].Reserve = d.reserve
+	}
 }
 
 // stand has s, a reading of the window, stand as it says, or until its reset,
