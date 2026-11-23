@@ -414,10 +414,14 @@ nothing. `run --account` fails for either too, saying what `pin` does of one tha
 (see Launching).
 
 Every pin yields at a limit: a pinned session that hits one moves by the normal rules rather than
-failing. A pin spends the reserves of the accounts it names: the reserve holds back the router's
-own choices, and a pin is the user's. So when an account is at its reserve and every other is out,
-`pin <id> --move` carries the running sessions on there, in place, and `pin auto` hands them back
-to the router, reserve and all.
+failing. A pin that waits at a limit instead, so that room meant to be used up fast, such as a new
+subscription's first week, spends no other account, was weighed and dropped (the owner, 23
+November 2026): that need comes a few times a year, and a reserve of 99.99% on every other
+account, once the router has restarted onto it, already makes sessions wait. A pin spends the
+reserves of the accounts it names: the reserve holds back the router's own choices, and a pin is
+the user's. So when an account is at its reserve and every other is out, `pin <id> --move` carries
+the running sessions on there, in place, and `pin auto` hands them back to the router, reserve and
+all.
 
 A pin stays until it's changed: none ends on its own, at a time, a reset or a level, and there's no
 move of a session that leaves it unpinned (the owner's call, 10 November 2026). Both were for room
@@ -13623,9 +13627,9 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-11-18--pins-that-stay.md`); this table is their index. An idea built or dropped leaves the table,
-and its file goes: what was built is in its pull request and the design proper, and where why one
-was dropped binds a later choice, the design proper says so.
+(`2026-11-23--past-caps-by-recorded-reserve.md`); this table is their index. An idea built or
+dropped leaves the table, and its file goes: what was built is in its pull request and the design
+proper, and where why one was dropped binds a later choice, the design proper says so.
 
 | Idea | Status | File |
 |---|---|---|
@@ -13640,5 +13644,4 @@ was dropped binds a later choice, the design proper says so.
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
-| Pins that keep sessions on their accounts at a limit, waiting rather than spending the others | open: to discuss with its owner, 18 November 2026 | [pins-that-stay](../ideas/2026-11-18--pins-that-stay.md) |
 | Past caps judged by the reserve recorded then: Runway's and Trends' past lanes, the pool's past room, the capacity verdict and the router's seed, which still judge past readings by today's reserve | open: any time | [past-caps-by-recorded-reserve](../ideas/2026-11-23--past-caps-by-recorded-reserve.md) |
