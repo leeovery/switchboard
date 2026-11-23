@@ -143,6 +143,8 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	clock := &testClock{now: start.Add(-time.Hour)}
 	saved := newTestFile(clock.read, testAccounts())
 	saved.load(path)
+	var heard []readings.Reading
+	saved.state.history = queueing(&heard)
 	models := map[string][]string{"5h": {haiku, fable}, "7d": {haiku, fable}, "7d_oi": {fable}}
 	saved.state.recordProbe("side", probed(models, session, week, fableWeek), nil, saved.state.mark(), readings.FromProbe)
 	clock.now = start
@@ -161,6 +163,9 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 		}
 		if !maps.Equal(got.readAt, u.readAt) {
 			t.Errorf("%s loaded its windows as read at %v, want what was saved: %v", id, got.readAt, u.readAt)
+		}
+		if !maps.Equal(got.recordedUnder, u.recordedUnder) {
+			t.Errorf("%s loaded its windows as recorded under %v, want what was saved: %v", id, got.recordedUnder, u.recordedUnder)
 		}
 	}
 	if !reflect.DeepEqual(loaded.state.seen, saved.state.seen) {
@@ -216,7 +221,11 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
         "7d_oi": "2026-09-28T12:12:00Z"
       },
       "probed": "2026-09-28T12:12:00Z",
-      "recorded_under": 0
+      "recorded_under": {
+        "5h": 0,
+        "7d": 0,
+        "7d_oi": 0
+      }
     },
     "work": {
       "read_at": "2026-09-28T13:12:00Z",
@@ -240,7 +249,10 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
         "5h": "2026-09-28T13:12:00Z",
         "7d": "2026-09-28T13:12:00Z"
       },
-      "recorded_under": 0
+      "recorded_under": {
+        "5h": 0,
+        "7d": 0
+      }
     }
   },
   "window_families": {
@@ -409,8 +421,7 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 			t.Errorf("state file holds\n%s\nwant work's probes kept, %s among them", data, want)
 		}
 	}
-	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute), HeldTold: true,
-		RecordedUnder: new(0.0)}
+	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute), HeldTold: true}
 	if got := readState(t, path).Readings["side"]; !reflect.DeepEqual(got, wantSide) {
 		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept, its read refused since it was first", got, wantSide)
 	}

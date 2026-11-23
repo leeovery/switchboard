@@ -102,15 +102,17 @@ func (w *Writer[T]) Files() *Files {
 	return w.files
 }
 
-// Note queues v for Run to write. It never waits: with the queue full, v is
-// dropped.
-func (w *Writer[T]) Note(v T) {
+// Note queues v for Run to write, and reports whether it did. It never
+// waits: with the queue full, v is dropped.
+func (w *Writer[T]) Note(v T) bool {
 	select {
 	case w.queue <- v:
+		return true
 	default:
 		if !w.dropping.Swap(true) {
 			w.files.Logger.Warn(w.files.Name + " fell behind; " + w.items + " dropped from it")
 		}
+		return false
 	}
 }
 

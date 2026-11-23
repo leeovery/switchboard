@@ -89,21 +89,22 @@ func (r Reading) Window() quota.Window {
 }
 
 // valid reports whether the reading, as the history holds it, can be taken
-// up: it names an account and a window, reads a use that can be, and, where
-// it records a reserve, one an account can have, at least 0 and short of the
-// whole window.
+// up: it names an account and a window, and reads a use that can be.
 func (r Reading) valid() bool {
 	return r.Account != "" && r.Key != "" && !r.At.IsZero() &&
-		!math.IsNaN(r.Utilization) && !math.IsInf(r.Utilization, 0) && r.Utilization >= 0 &&
-		(r.Reserve == nil || *r.Reserve >= 0 && *r.Reserve < 1)
+		!math.IsNaN(r.Utilization) && !math.IsInf(r.Utilization, 0) && r.Utilization >= 0
 }
 
 // In returns the reading a line of the history holds, reporting false for one
-// that doesn't read as a reading that can be taken up.
+// that doesn't read as a reading that can be taken up. A reserve no account
+// can have, below 0 or the whole window and more, reads as none recorded.
 func In(line []byte) (Reading, bool) {
 	var r Reading
 	if json.Unmarshal(line, &r) != nil || !r.valid() {
 		return Reading{}, false
+	}
+	if r.Reserve != nil && (*r.Reserve < 0 || *r.Reserve >= 1) {
+		r.Reserve = nil
 	}
 	return r, true
 }

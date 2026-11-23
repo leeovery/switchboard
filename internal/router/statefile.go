@@ -214,12 +214,12 @@ func (s savedUsage) read() int {
 // last ended, why the last read nothing, how many in a row did, and, where
 // that's a read refused, why the API refused it, when the refusal began, and
 // whether the hold it started has been told of; and the reserve the readings
-// history last recorded its windows under. A file from before kept none of
-// the probes, which reads as none ended, and no window retired; one from
-// before kept no refusal, as refusal reads it; one from before the hold was
-// told kept a hold untold; and one from before the reserves were recorded
-// kept none, so the router restates the account's windows as it starts. A
-// router from before reads a file kept with them, ignoring them.
+// history last recorded each window under, by its key. A file from before
+// kept none of the probes, which reads as none ended, and no window retired;
+// one from before kept no refusal, as refusal reads it; one from before the
+// hold was told kept a hold untold; and one from before the reserves were
+// recorded kept none, so the router records each window again, as restate
+// says. A router from before reads a file kept with them, ignoring them.
 type savedReading struct {
 	ReadAt        time.Time            `json:"read_at,omitzero"`
 	Windows       []quota.Window       `json:"windows,omitempty"`
@@ -232,7 +232,7 @@ type savedReading struct {
 	Misses        int                  `json:"misses,omitempty"`
 	RefusedSince  time.Time            `json:"refused_since,omitzero"`
 	HeldTold      bool                 `json:"held_told,omitzero"`
-	RecordedUnder *float64             `json:"recorded_under,omitempty"`
+	RecordedUnder map[string]float64   `json:"recorded_under,omitempty"`
 }
 
 // readRefusals has each reading the file kept say why the API refused its

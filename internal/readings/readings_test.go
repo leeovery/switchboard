@@ -107,15 +107,37 @@ func TestALineReadsAsAReadingWhereItCanBeTakenUp(t *testing.T) {
 		{name: "of no time", line: `{"account":"work","window":"5h","utilization":0.23}`},
 		{name: "of a use that can't be", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":-0.2}`},
 		{name: "of a use that isn't a number", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":"high"}`},
-		{name: "under a reserve", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":0.99}`, want: true},
-		{name: "under a reserve that can't be", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":-0.1}`},
-		{name: "under a reserve of the whole window", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":1}`},
 		{name: "under a reserve that isn't a number", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":"some"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, got := readings.In([]byte(tt.line)); got != tt.want {
 				t.Errorf("In(%s) reports %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
+// A reserve no account can have reads as none recorded, the reading kept,
+// so a summary judges it by its own caps.
+func TestALineReadsUnderTheReserveItRecordsWhereAnAccountCanHaveIt(t *testing.T) {
+	head := `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":`
+	tests := []struct {
+		name    string
+		reserve string
+		want    *float64
+	}{
+		{name: "all but a hundredth", reserve: "0.99", want: new(0.99)},
+		{name: "none", reserve: "0", want: new(0.0)},
+		{name: "below none", reserve: "-0.1"},
+		{name: "the whole window", reserve: "1"},
+		{name: "more than the whole window", reserve: "5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line := head + tt.reserve + "}"
+			if got, ok := readings.In([]byte(line)); !ok || got.Utilization != 0.23 || !sameReserve(got.Reserve, tt.want) {
+				t.Errorf("In(%s) = %+v, %v; want the reading, under %v", line, got, ok, reserveOf(tt.want))
 			}
 		})
 	}

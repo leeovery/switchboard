@@ -18,34 +18,72 @@ func (s *state) reserveOf(a account) float64 {
 	return a.Reserve
 }
 
-// readingsOf returns windows of the account with the given id, read at at
-// from a source, as lines of the readings history, each recorded under the
-// reserve the router holds the account to, as reserveOf judges it. s.mu must
-// be held, the pools regrouped.
-func (s *state) readingsOf(id string, windows []quota.Window, at time.Time, from readings.Source) []readings.Reading {
+// toHistory hands the readings history the lines a taking in of the account
+// with the given id gives, read at at from a source, as recording has them,
+// as note does. s.mu must be held, the pools regrouped.
+func (s *state) toHistory(id string, changed []quota.Window, at time.Time, from readings.Source) {
+	s.note(id, s.recording(id, changed, at, from))
+}
+
+// recording returns the lines of the readings history a taking in of the
+// account with the given id gives, read at at from a source: of changed, the
+// windows that read otherwise, and of each other window the taking read, as
+// its readAt says, whose last line recorded another reserve than the one the
+// router holds the account to, as reserveOf judges it, or none, as of one
+// restate passed over: so its stretch is judged by that reserve from its
+// next reading on. Each is recorded under that reserve. s.mu must be held,
+// the pools regrouped.
+func (s *state) recording(id string, changed []quota.Window, at time.Time, from readings.Source) []readings.Reading {
 	a, _ := s.accounts.byID(id)
-	return readings.Under(readings.Of(id, windows, at, from), s.reserveOf(a))
+	u, reserve := s.usage[id], s.reserveOf(a)
+	lines := slices.Clone(changed)
+	for _, w := range u.latest() {
+		if u.readAt[w.Key].Equal(at) && !u.recordedAs(w.Key, reserve) && !slices.ContainsFunc(changed, func(c quota.Window) bool { return c.Key == w.Key }) {
+			lines = append(lines, w)
+		}
+	}
+	return readings.Under(readings.Of(id, lines, at, from), reserve)
+}
+
+// note hands the readings history lines of the account with the given id,
+// each recorded under a reserve, and, where it queued them, notes that
+// reserve as each window's last line's, reporting whether that changed any
+// window's, as a window's first line does. s.mu must be held.
+func (s *state) note(id string, lines []readings.Reading) (renoted bool) {
+	if len(lines) == 0 || !s.history(lines) {
+		return false
+	}
+	u := s.usage[id]
+	for _, r := range lines {
+		if !u.recordedAs(r.Key, *r.Reserve) {
+			u.recordedUnder[r.Key], renoted = *r.Reserve, true
+		}
+	}
+	return renoted
 }
 
 // restate records each account's windows in the readings history again, as
-// it holds them at at, but those that have reset by then, where the reserve
-// the router holds it to, as reserveOf judges it, isn't the one the history
-// last recorded them under, as recordedUnder says: so a summary judges each
-// stretch of the history by the cap in force through it, though the
-// account's use reads as before. The state file keeps the reserve each is
-// recorded under from then. s.mu must be held, the pools regrouped.
+// the router holds them at at, where the history last recorded them under
+// another reserve than the one the router holds the account to, as
+// reserveOf judges it, or none: so a summary judges each stretch of the
+// history by the cap in force through it, though the use reads as before. A
+// window the router doesn't hold as freshly read at at, as fresh says, is
+// passed over, as its reading may be long out of date: its next reading
+// records it, as recording says. The state file is told of each reserve
+// recorded afresh. s.mu must be held, the pools regrouped.
 func (s *state) restate(at time.Time) {
-	restated := false
+	renoted := false
 	for _, a := range s.accounts {
 		u, reserve := s.usage[a.ID], s.reserveOf(a)
-		if u.recordedUnder != nil && *u.recordedUnder == reserve {
-			continue
+		var due []quota.Window
+		for _, w := range u.latest() {
+			if !u.recordedAs(w.Key, reserve) && u.fresh(w, at) {
+				due = append(due, w)
+			}
 		}
-		running := slices.DeleteFunc(u.latest(), func(w quota.Window) bool { return w.ResetBy(at) })
-		s.history(readings.Under(readings.Of(a.ID, running, at, readings.FromReserve), reserve))
-		u.recordedUnder, restated = new(reserve), true
+		renoted = s.note(a.ID, readings.Under(readings.Of(a.ID, due, at, readings.FromReserve), reserve)) || renoted
 	}
-	if restated {
+	if renoted {
 		s.changed()
 	}
 }
@@ -59,4 +97,19 @@ func (s *state) restateNow() {
 	defer s.mu.Unlock()
 	s.regroup()
 	s.restate(now)
+}
+
+// recordedAs reports whether the readings history last recorded the window
+// named key under reserve.
+func (u *usage) recordedAs(key string, reserve float64) bool {
+	recorded, ok := u.recordedUnder[key]
+	return ok && recorded == reserve
+}
+
+// fresh reports whether the router holds w, a window of the account, as
+// freshly read at at: read no longer ago than staleAfter, past which a
+// choice made afresh probes the account, and not reset since.
+func (u *usage) fresh(w quota.Window, at time.Time) bool {
+	read := u.readAt[w.Key]
+	return !read.IsZero() && at.Sub(read) <= staleAfter && !w.ResetBy(at)
 }
