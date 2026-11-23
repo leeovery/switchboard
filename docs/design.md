@@ -5487,9 +5487,10 @@ its periods, as Trends has none:
     means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
     `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are, its
     words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
-- **Accounts no longer here,** the last line, a blank row under VALUE, scrolling with the rest,
-  wide or turned: `all accounts' totals include 1 account no longer here`, or `2 accounts`, in
-  `text.faint` two cells in, as a section's sub-line sits (the owner's call, 23 November 2026). It
+- **Accounts no longer here,** a line under the table saying how many (the owner's call, 23
+  November 2026): the last line, a blank row under VALUE, scrolling with the rest, wide or
+  turned, `all accounts' totals include 1 account no longer here`, or `2 accounts`, in
+  `text.faint` two cells in, as a section's sub-line sits. It
   counts the accounts removed and those moved to another pool that the period's days name, as
   `history`'s `removed` and `moved` list them (`views.AccountsPage.NoLongerHere`, worked out
   once), so an idle day naming the pool counts its account, as LIMITS counts its limits that day;
