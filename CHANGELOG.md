@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-11-23
+
+✨ Added
+- The readings history now records the reserve each account was held to, and a window reading shows it — summaries judge each stretch of a day by the cap in force at the time.
+- The router records each account's windows again when its reserve changes, as by a config edit or a pin — so the history tells when the change took effect.
+
+🔧 Changed
+- A window that would offer room is now shown as held, and counts no room, allowance or reset, while its account's limit or cap lasts past its next reset — it can take nothing until the account is back.
+- Which hold lifts last, a limit or a cap, is now judged more precisely when the times are unknown or equal, which sets the time an account is shown as back.
+
 ## [1.3.0] - 2026-11-23
 
 ✨ Added
