@@ -1072,7 +1072,7 @@ func TestDetailsWideFormFitsItsWeeksToTheWidth(t *testing.T) {
 func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	whole := []string{
-		"Week ", "34%  19%/day till Sun 21:00", "5-hour ", "95%  at cap · back 17:10",
+		"Week ", "34%  at cap · back 17:10", "5-hour ", "95%  at cap · back 17:10",
 		"requests  1,204", "limits    5-hour ×2", "plan      Ultra", "worth     $184  4.0×", "extra use off",
 	}
 	held := heldYear(detailWork).peaks

@@ -8,7 +8,7 @@ USAGE  ────────────────────────�
 
 WEEK
 
- Acme 1               ▌      ┃           ╎   34%  out ~Sat
+ Acme 1               ▌      ┃           ╎   34%  at cap · back 17:10
 
  Acme 2   ◆                     ┃            66%  out ~Sat
 

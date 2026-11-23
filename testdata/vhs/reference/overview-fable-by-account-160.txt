@@ -4,11 +4,11 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────── u   ROUTING   auto ──────────────────────────────────── r
 
-work          Week                                 ┃                    ╎   34%  out ~Sat                  ● at its cap · back 17:10
+work          Week                                 ┃                    ╎   34%  at cap · back 17:10       ● at its cap · back 17:10
 
               5-hour                             ┃                     ▌╎   95%  at cap · back 17:10       0 sessions
 
-              Fable wk                             ┃                    ╎   12%  25%/day till Sun 21:00    ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+              Fable wk                             ┃                    ╎   12%  at cap · back 17:10       ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
 personal    ◆ Week                                      ┃                   66%  out ~Sat                  ● open
 

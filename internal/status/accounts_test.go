@@ -145,6 +145,14 @@ func TestAccountsSaysHowEachAccountStandsAtEachHardMoment(t *testing.T) {
 			"work": {state: "● open", head: "■ Fable wk limit · other models still come here"},
 			"side": {state: "● open", head: "● open"},
 		},
+		"a week at its limit, its session and a model's own week held with it": {
+			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
+		"a week at its cap, its session and a model's own week held with it": {
+			"work": {state: "● at cap", head: "● at its cap · new sessions go elsewhere"},
+			"side": {state: "● open", head: "● open · new sessions come here"},
+		},
 		"the global pin set from the command line to an account at its limit": {
 			"work": {state: "■ limit", head: "■ limit reached · new sessions go elsewhere"},
 			"side": {state: "● open", head: "● open · new sessions come here"},

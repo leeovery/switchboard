@@ -145,7 +145,7 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 		{name: "at its natural", width: 61, want: []string{
 			"              WEEK",
 			"",
-			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00",
+			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  at cap · back 17:10",
 			"",
 			"personal    ◆ ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat",
 			"",
@@ -159,7 +159,7 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 		{name: "on the narrowest phone", width: 52, want: []string{
 			"              WEEK",
 			"",
-			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day · Sun",
+			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  cap · 17:10",
 			"",
 			"personal    ◆ ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat",
 			"",
@@ -204,7 +204,7 @@ func TestGlancesSparklinesGrowWithTheWidthTheirWordsLinedUp(t *testing.T) {
 			}
 		}
 		figure, words := l.column+l.spark+1, l.column+l.spark+afterBar
-		for y, want := range map[int][2]string{2: {"66%", "19%/day till Sun 21:00"}, 4: {"34%", "out ~Sat"}, 6: {"22%", "out ~Fri"}} {
+		for y, want := range map[int][2]string{2: {"66%", "at cap · back 17:10"}, 4: {"34%", "out ~Sat"}, 6: {"22%", "out ~Fri"}} {
 			cells := []rune(rowOf(c, y) + strings.Repeat(" ", width))
 			if got := [2]string{strings.TrimSpace(string(cells[figure : figure+percentCells])), strings.TrimSpace(string(cells[words:]))}; got != want {
 				t.Errorf("at %d columns, row %d's figure and words read %q, want %q, from %d and %d", width, y, got, want, figure, words)
@@ -263,7 +263,7 @@ func TestGlanceInksItsPartsAsUsageDoes(t *testing.T) {
 		{name: "personal's ◆", x: 11, y: 4, want: primaryInk},
 		{name: "side's ▲", x: 11, y: 6, want: accentInk},
 		{name: "work's week's room, 66%", x: figure + 1, y: 2, want: ink{token: theme.VizRamp1, bold: true}},
-		{name: "work's week's words", x: figure + 6, y: 2, want: mutedInk},
+		{name: "work's week's words, held with its account at its cap", x: figure + 6, y: 2, want: warningInk},
 		{name: "the rule", x: 0, y: 7, want: borderInk},
 		{name: "Σ", x: 0, y: 8, want: dimInk},
 		{name: "pool", x: 2, y: 8, want: noteInk},
@@ -346,6 +346,7 @@ func TestGlanceSaysEachAccountsStateAsItsCardDoes(t *testing.T) {
 	out := trio(pinnedTo("personal", "side"))
 	added := append(trioConfigured(), config.Account{ID: "spare", Label: "spare"})
 	faded := ink{token: theme.VizRamp1, fade: staleFade, dim: true}
+	fadedAtCap := ink{token: theme.AccentAttention, fade: staleFade, dim: true}
 	tests := []struct {
 		name     string
 		doc      status.Document
@@ -361,7 +362,7 @@ func TestGlanceSaysEachAccountsStateAsItsCardDoes(t *testing.T) {
 		{name: "without a usable token", doc: tokenless, row: 2, want: "work                              —  no token", figure: faintInk, words: errorInk, label: titleInk},
 		{name: "lacking the week", doc: weekless, row: 2, want: "work                              —  no week limit", figure: faintInk, words: dimInk, label: titleInk},
 		{name: "stale", doc: stale, row: 2, want: "work          ▇▇▇▇▇▆▆▆▆         66%  not read since 14:42", spark: &faded, figure: dimInk, words: dimInk, label: titleInk},
-		{name: "out of the pool", doc: out, row: 2, want: "work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00", spark: &faded, figure: ink{token: theme.TextFaint, bold: true}, words: faintInk, label: ink{token: theme.TextFaint, bold: true}},
+		{name: "out of the pool", doc: out, row: 2, want: "work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  at cap · back 17:10", spark: &fadedAtCap, figure: ink{token: theme.TextFaint, bold: true}, words: faintInk, label: ink{token: theme.TextFaint, bold: true}},
 		{name: "not in the document yet", doc: trio(), accounts: added, row: 8, want: "spare                             —  not read yet", figure: faintInk, words: dimInk, label: titleInk},
 	}
 	for _, tt := range tests {

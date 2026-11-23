@@ -7,11 +7,11 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │
  work          ●    │   USAGE                                                                                                          THIS WEEK
-                    │   Week                            ▊             ┃                            ╎     34%  out ~Sat                 requests  1,204
+                    │   Week                            ▊             ┃                            ╎     34%  at cap · back 17:10      requests  1,204
  personal    ◆ ●    │                                                                                                                  limits    5-hour ×2
                     │   5-hour                                      ┃                              ╎     95%  at cap · back 17:10      plan      Ultra
  side          ●    │                                                                                                                  worth     $184  4.0×
-                    │   Fable wk         ▍                            ┃                            ╎     12%  25%/day till Sun 21:00   extra use off
+                    │   Fable wk         ▍                            ┃                            ╎     12%  at cap · back 17:10      extra use off
                     │
  ↑↓ choose          │   BY MODEL
                     │               ● Opus 5.5 55%  ● Opus 5 7%  ● Sonnet 5.5 28%  ● Sonnet 5 3%  ● Fable 5.1 5%  ● Haiku 4.5 2%

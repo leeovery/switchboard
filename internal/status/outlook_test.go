@@ -148,9 +148,29 @@ func TestEachWindowsEvenPaceAndAllowance(t *testing.T) {
 			pace:   0.8,
 		},
 		{
-			name: "under the router's limit naming no window: as its reading says",
+			name: "under the router's limit naming no window, which holds back every request: none, though it reads some room",
 			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
 				a.Limit = status.Limit{Until: built.Add(time.Hour)}
+			})),
+			wantOK: true,
+			pace:   5.0 / 7,
+		},
+		{
+			name:   "the session spent, which holds back every request: none in the week, though it reads some room",
+			doc:    routerDocOf(readAt("work", week, spentIn("5h", 1, time.Hour))),
+			wantOK: true,
+			pace:   5.0 / 7,
+		},
+		{
+			name:   "the session at its cap, which holds back every request: none in the week, though it reads some room",
+			doc:    routerDocOf(with(readAt("work", week, windowIn("5h", 0.95, time.Hour)), reserving)),
+			wantOK: true,
+			pace:   5.0 / 7,
+		},
+		{
+			name: "a model's own week at its limit, which holds back that model's requests alone: as its reading says",
+			doc: routerDocOf(with(readAt("work", week, spentIn("7d_oi", 1, day)), func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d_oi"}, Until: built.Add(day)}
 			})),
 			wantOK:  true,
 			pace:    5.0 / 7,

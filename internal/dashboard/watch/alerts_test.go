@@ -276,6 +276,8 @@ func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
 		"probed, one of several at its limit":                                                    {"work · work: 5-hour at 100%"},
 		"every account at its cap, none with room":                                               {"work · work: Week at 92%", "side · side: 5-hour at 95%"},
 		"a model's own window at its limit, its account open to the rest":                        {"work · work: Fable week at 100%"},
+		"a week at its limit, its session and a model's own week held with it":                   {"work · work: Week at 100%"},
+		"a week at its cap, its session and a model's own week held with it":                     {"work · work: Week at 92%"},
 		"the global pin set from the command line to an account at its limit":                    {"work · work: 5-hour at 100%"},
 		"a model's own week at its cap since the day before, the session joining it":             {"work · work: 5-hour at 95%", "work · work: Fable week at 95%"},
 		"a model's own week at its cap since the session's period began, the session joining it": {"work · work: 5-hour at 95%", "work · work: Fable week at 95%"},

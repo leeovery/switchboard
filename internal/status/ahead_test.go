@@ -220,10 +220,11 @@ func TestTheRoomAWindowHasAheadByItsProjection(t *testing.T) {
 // At every hard moment, the room ahead agrees with the moment's own
 // projection: the room now at Now, its floor where it runs out, at Out.At,
 // and the room Projected leaves at its reset where it lasts; at its cap, the
-// room its cap leaves; held, none till it has room again, at Back, then as the
-// course of the kind it's once that lifts, and none for ever where Back isn't
-// known; all of it past its reset, but for that; and something to draw just
-// where the window has a course ahead.
+// room its cap leaves; held by a limit, none till it has room again, at Back,
+// and held with its account by its cap, the room its use leaves till its
+// account is back, At, then as the course of the kind it's once that lifts,
+// and so for ever where that isn't known; all of it past its reset, but for
+// that; and something to draw just where the window has a course ahead.
 func TestTheRoomAheadAgreesWithTheMomentsProjection(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {
@@ -262,13 +263,16 @@ func checkRoomAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 	if lasts {
 		expect(w.Next, 1-*w.Projected, "at its reset")
 	}
-	if w.Kind == status.WindowCapped {
+	held := w.Held || w.WithAccount
+	switch {
+	case w.Held:
+		checkHeldAhead(t, m, a, w, 0, expect)
+	case w.WithAccount:
+		checkHeldAhead(t, m, a, w, 1-w.Used, expect)
+	case w.Kind == status.WindowCapped:
 		expect(m.Now, 1-a.Cap, "now, at its cap")
 	}
-	if w.Kind == status.WindowLimited {
-		checkHeldAhead(t, m, a, w, expect)
-	}
-	if back := !w.Held || !w.Back.IsZero(); drawn && back && !w.Next.IsZero() && !w.Back.After(w.Next) {
+	if drawn && !w.Next.IsZero() && (!held || !w.At.IsZero() && !w.At.After(w.Next)) {
 		expect(w.Next.Add(time.Second), 1, "past its reset")
 	}
 	if _, ok := a.RoomAhead(w.Key, m.Now.Add(-time.Second)); ok {
@@ -277,33 +281,33 @@ func checkRoomAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 }
 
 // checkHeldAhead checks the room ahead of account a's window w, which a limit
-// holds at moment m, as expect checks a room: none till the limit lifts; then,
-// before its reset, as the course of the kind it's once that lifts goes, as
-// an unheld window of that kind's does.
-func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status.WindowNow, expect func(time.Time, float64, string)) {
+// or its account's hold holds at moment m, as expect checks a room: the room
+// held given till it's back, At; then, before its reset, as the course of the
+// kind it's once that lifts goes, as an unheld window of that kind's does.
+func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status.WindowNow, held float64, expect func(time.Time, float64, string)) {
 	t.Helper()
-	expect(m.Now, 0, "now, held")
-	if w.Back.IsZero() {
+	expect(m.Now, held, "now, held")
+	if w.At.IsZero() {
 		if !w.Next.IsZero() {
-			expect(w.Next.Add(time.Second), 0, "past its reset, never known back")
+			expect(w.Next.Add(time.Second), held, "past its reset, never known back")
 		}
 		return
 	}
-	expect(w.Back, 0, "as its limit lifts")
-	if !w.Back.Before(w.Next) {
+	expect(w.At, held, "as its hold lifts")
+	if !w.At.Before(w.Next) {
 		return
 	}
-	lifted := w.Back.Add(time.Second)
+	lifted := w.At.Add(time.Second)
 	switch {
 	case w.Unheld == status.WindowRunsOut:
-		if w.Out.At.After(w.Back) {
-			expect(w.Out.At, 1-a.Floor, "where it runs out once its limit lifts")
+		if w.Out.At.After(w.At) {
+			expect(w.Out.At, 1-a.Floor, "where it runs out once its hold lifts")
 		}
-		if after := score.Later(w.Out.At, w.Back).Add(time.Second); after.Before(w.Next) {
+		if after := score.Later(w.Out.At, w.At).Add(time.Second); after.Before(w.Next) {
 			expect(after, 1-a.Floor, "just after it runs out")
 		}
 	case w.Unheld == status.WindowCapped:
-		expect(lifted, 1-a.Cap, "once its limit lifts, at its cap")
+		expect(lifted, 1-a.Cap, "once its hold lifts, at its cap")
 		expect(w.Next, 1-a.Cap, "at its reset, at its cap")
 	case w.Unheld == status.WindowOpen && w.Out.Kind == score.OnPace:
 		expect(w.Next, 1-w.Out.AtReset, "at its reset, as its heading leaves it")

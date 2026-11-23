@@ -262,15 +262,16 @@ const (
 // its quota before the refusal, and its limit before its cap.
 func (s standing) back(capBack, refused time.Time) (back time.Time, last lastHold) {
 	var lifts []time.Time
-	var quotaBack time.Time
 	if s.every() {
-		lifts, quotaBack = append(lifts, s.held.Until), s.held.Until
+		lifts = append(lifts, s.held.Until)
 	}
 	if s.capped {
 		lifts = append(lifts, capBack)
-		if !s.every() || capBack.After(s.held.Until) {
-			last, quotaBack = lastCap, capBack
-		}
+	}
+	last = s.quotaLast(capBack)
+	quotaBack := s.held.Until
+	if last == lastCap {
+		quotaBack = capBack
 	}
 	if s.refusedRead != 0 {
 		refused = time.Time{}
@@ -282,6 +283,17 @@ func (s standing) back(capBack, refused time.Time) (back time.Time, last lastHol
 		}
 	}
 	return lastLift(lifts), last
+}
+
+// quotaLast is which of the holds of the account's quota lifts last, as back
+// has it, its token's refusal set aside: its cap, where that holds, and lifts,
+// at capBack, after any limit holding back its every request; else that
+// limit.
+func (s standing) quotaLast(capBack time.Time) lastHold {
+	if s.capped && (!s.every() || capBack.After(s.held.Until)) {
+		return lastCap
+	}
+	return lastLimit
 }
 
 // lastLift is when the last of the lifts given comes: zero where there are
@@ -310,13 +322,14 @@ func (s standing) holds(key string) bool {
 // standing as s says: as paceOf and allowanceOf have them, the pace nil where
 // it isn't running, or its length or reset isn't known; and no allowance
 // where a limit holds the window as its own, as holds says, as it has no
-// room.
+// room, nor in any window of an account out of quota, as outOfQuota says, as
+// it can take no request till then.
 func (d Document) measure(a Account, s standing, key string, stands quota.Window, at time.Time) (*float64, quota.Allowance) {
 	var pace *float64
 	if p, ok := d.paceOf(stands, at); ok {
 		pace = &p
 	}
-	if s.holds(key) {
+	if s.outOfQuota() || s.holds(key) {
 		return pace, quota.Allowance{}
 	}
 	return pace, d.allowanceOf(a, stands, at)

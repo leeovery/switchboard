@@ -9,7 +9,7 @@ USAGE  ────────────────────────�
 
 WEEK
 
- work             ▏ ┃    ╎  34%  out ~Sat
+ work             ▏ ┃    ╎  34%  cap · back 17:10
 
  personal   ◆        ▉┃     66%  out ~Sat
 
@@ -29,7 +29,7 @@ WEEK
 
 FABLE
 
- work          ▌    ┃    ╎  12%  25%/day · Sun
+ work          ▌    ┃    ╎  12%  cap · back 17:10
 
  side       ▲ ▌    ┃         4%  25%/day · Mon
 ────────────────────────────────────────────────────

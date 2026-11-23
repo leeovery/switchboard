@@ -447,6 +447,7 @@ var pages = []page{
 	{name: "overview-fable-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.fable},
 	{name: "overview-fable-116x44", size: watch.Size{Width: 116, Height: 44}, world: accountWorlds.fable},
 	{name: "overview-model-nearing-160", size: wide(37), world: accountWorlds.fableNearing},
+	{name: "overview-fable-week-limit-160", size: wide(37), world: accountWorlds.fableWeekLimit},
 	{name: "overview-usage-alone-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("r", "c", "l")},
 	{name: "overview-everything-160x39", size: wide(39), world: accountWorlds.auto, keys: keysOf("s")},
 	{name: "overview-six-accounts-160", size: wide(41), world: manyAccounts(6)},

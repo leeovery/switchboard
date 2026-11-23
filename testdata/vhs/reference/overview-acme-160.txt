@@ -6,7 +6,7 @@ USAGE  ────────────────────────�
 
             WEEK                                                                       5-HOUR
 
-Acme 1                    ▋        ┃                 ╎   34%  out ~Sat                                       ┃                 ▉╎   95%  at cap · back 17:10
+Acme 1                    ▋        ┃                 ╎   34%  at cap · back 17:10                            ┃                 ▉╎   95%  at cap · back 17:10
 
 Acme 2    ◆                             ┃                66%  out ~Sat                                 ▊           ┃                39%  34%/h till 16:30
 

@@ -5,14 +5,14 @@
 SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────
 
 9c2e website        idle 13m               ●━━━━━━━━━━━━━━━━━┓  ○ work          ● at its cap · 17:10
-                                                             ┃  ○  Week         ▊ ┃     34%  19%/day · Sun
+                                                             ┃  ○  Week         ▊ ┃     34%  cap · 17:10
 c61b mobile         ↓ answering            ●━━━━━━━━━━━━━━┓  ┃  ○
 d28c switchboard    idle 6s      ▸ work    ●━━━━━━━━━━━┓  ┃  ┃  ○  5-hour           ┃▋  95%  cap · 17:10
 7f3a api            idle 2m      ▸ work    ●━━━━━━━━┓  ┃  ┃  ┃
 db8a infra          idle 47s     ▸ work    ●━━━━━┓  ┃  ┃  ┃  ┃
 41e0 docs           ↑ asking     ▸ perso…  ●━━┓  ┃  ┃  ┃  ┃  ┃
                                               ┃  ┃  ┃  ┃  ┃  ┃╌╌○ personal    ◆ ■ limit reached · 16:30
-                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉  Week            ┃    66%  14%/day · Sun
+                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉  Week            ┃    66%  limit · 16:30
                                               ┃  ┃  ┃  ┃  ┃     ○
                                               ┃  ┃  ┃  ┃  ┃     ○  5-hour            ┃ 100%  limit · 16:30
                                               ┃  ┃  ┃  ┃  ┃
