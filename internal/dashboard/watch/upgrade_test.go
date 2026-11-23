@@ -176,9 +176,9 @@ func (h *harness) reread() {
 }
 
 // A dashboard restarts onto an upgrade of its binary once a read finds the
-// binary changed, and the router running another version than its own, at
-// the first read, a probing one's among them, or none answering two reads in
-// a row, and the binary says its version, another than its own.
+// binary changed, and a router answering that runs another version than its
+// own, at the first read, a probing one's among them, and the binary says
+// its version, another than its own. With no router answering, it stays.
 func TestADashboardRestartsOntoAnUpgradeOnceTheRouterHasMovedOver(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -198,13 +198,13 @@ func TestADashboardRestartsOntoAnUpgradeOnceTheRouterHasMovedOver(t *testing.T) 
 		{name: "the binary unchanged, the dashboard newer than the router", router: olderVersion, answer: newVersion},
 		{name: "upgraded, the router running the upgrade", upgraded: true, router: newVersion, answer: newVersion, wantAsks: 1, wantExecs: 1},
 		{name: "upgraded, the router still running the dashboard's version", upgraded: true, router: ownVersion, answer: newVersion},
-		{name: "upgraded, no router answering", upgraded: true, answer: newVersion, wantAsks: 1, wantExecs: 1},
+		{name: "upgraded, no router answering", upgraded: true, answer: newVersion},
 		{name: "upgraded, probing, the router running the upgrade", upgraded: true, router: newVersion, probing: true, answer: newVersion, wantAsks: 1, wantExecs: 1},
 		{name: "upgraded, probing, the router still running the dashboard's version", upgraded: true, router: ownVersion, probing: true, answer: newVersion},
-		{name: "upgraded, probing, no router answering", upgraded: true, probing: true, answer: newVersion, wantAsks: 1, wantExecs: 1},
-		{name: "upgraded, the binary failing to say its version", upgraded: true, refusal: errors.New("exit status 1"), wantAsks: 1},
-		{name: "upgraded, the binary not answering in time", upgraded: true, refusal: context.DeadlineExceeded, wantAsks: 1},
-		{name: "upgraded, the binary saying the dashboard's own version, as a dev build does", upgraded: true, answer: ownVersion, wantAsks: 1},
+		{name: "upgraded, probing, no router answering", upgraded: true, probing: true, answer: newVersion},
+		{name: "upgraded, the binary failing to say its version", upgraded: true, router: newVersion, refusal: errors.New("exit status 1"), wantAsks: 1},
+		{name: "upgraded, the binary not answering in time", upgraded: true, router: newVersion, refusal: context.DeadlineExceeded, wantAsks: 1},
+		{name: "upgraded, the binary saying the dashboard's own version, as a dev build does", upgraded: true, router: newVersion, answer: ownVersion, wantAsks: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,59 +223,53 @@ func TestADashboardRestartsOntoAnUpgradeOnceTheRouterHasMovedOver(t *testing.T) 
 			}
 
 			h.start()
-			reads := 1
-			if tt.router == "" {
-				h.reread()
-				reads++
-			}
 			if asks, execs := rig.counts(); asks != tt.wantAsks || execs != tt.wantExecs {
-				t.Errorf("after %d reads, the binary asked its version %d times, the process replaced %d; want %d and %d", reads, asks, execs, tt.wantAsks, tt.wantExecs)
+				t.Errorf("after the first read, the binary asked its version %d times, the process replaced %d; want %d and %d", asks, execs, tt.wantAsks, tt.wantExecs)
 			}
 		})
 	}
 }
 
-// With no router answering, a dashboard moves over only at the second read
-// in a row that finds none: the first is no router gone.
-func TestWithNoRouterADashboardMovesOverAtTheSecondReadThatFindsNone(t *testing.T) {
-	rig := newUpgradeRig(t)
-	h := newHarness(t, calm())
-	h.upgradedBy(rig)
-	rig.upgrade(t)
-	h.start()
-	if asks, _ := rig.counts(); asks != 0 {
-		t.Fatalf("at the first read finding no router, the binary asked %d times, want none", asks)
+// With no router answering, a dashboard upgraded stays on its version,
+// however many reads it makes, a router last seen on its own version
+// missing them among it, as one whose health check times out; once a router
+// answers on the upgrade, as one started since, it moves over at that read.
+func TestWithNoRouterADashboardStaysTillOneRunsTheUpgrade(t *testing.T) {
+	tests := []struct {
+		name string
+		// seen is the version the router runs as the dashboard opens, ""
+		// for none answering.
+		seen string
+	}{
+		{name: "no router ever answering"},
+		{name: "the router seen on the dashboard's version, then not answering", seen: ownVersion},
 	}
-	h.reread()
-	if asks, execs := rig.counts(); asks != 1 || execs != 1 {
-		t.Errorf("at the second, asked %d times, replaced %d; want once each", asks, execs)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rig := newUpgradeRig(t)
+			h := routedHarness(t, routerDocument(three()...))
+			rig.routerOn(h, tt.seen)
+			if tt.seen == "" {
+				rig.routerGone(h)
+			}
+			h.upgradedBy(rig)
+			h.start()
 
-// A router last seen running the dashboard's own version that stops
-// answering, as one under load whose health check times out, or one handing
-// over, is waited on, however many reads it misses, till a read finds it
-// answering.
-func TestARouterLastSeenOnTheDashboardsVersionIsWaitedOnThroughReadsItMisses(t *testing.T) {
-	rig := newUpgradeRig(t)
-	h := routedHarness(t, routerDocument(three()...))
-	rig.routerOn(h, ownVersion)
-	h.upgradedBy(rig)
-	h.start()
-
-	rig.upgrade(t)
-	rig.routerGone(h)
-	for range 3 {
-		h.reread()
-	}
-	if asks, _ := rig.counts(); asks != 0 {
-		t.Fatalf("with the router last seen on the dashboard's version missing three reads, the binary asked %d times, want none", asks)
-	}
-	h.startRouter(routerDocument(three()...))
-	rig.routerOn(h, newVersion)
-	h.reread()
-	if asks, execs := rig.counts(); asks != 1 || execs != 1 {
-		t.Errorf("once a read finds the router on the upgrade, asked %d times, replaced %d; want once each", asks, execs)
+			rig.upgrade(t)
+			rig.routerGone(h)
+			for range 3 {
+				h.reread()
+			}
+			if asks, _ := rig.counts(); asks != 0 {
+				t.Fatalf("with no router answering three reads, the binary asked %d times, want none", asks)
+			}
+			h.startRouter(routerDocument(three()...))
+			rig.routerOn(h, newVersion)
+			h.reread()
+			if asks, execs := rig.counts(); asks != 1 || execs != 1 {
+				t.Errorf("once a read finds a router on the upgrade, asked %d times, replaced %d; want once each", asks, execs)
+			}
+		})
 	}
 }
 
@@ -359,7 +353,7 @@ func TestADashboardWaitsForTheRouterToHandOver(t *testing.T) {
 	h.start()
 	h.reread()
 
-	const waits = `msg="the binary was upgraded; restarting onto it once the router has moved over, or none runs"`
+	const waits = `msg="the binary was upgraded; restarting onto it once a router runs another version"`
 	if asks, _ := rig.counts(); asks != 0 || strings.Count(log.String(), waits) != 1 {
 		t.Fatalf("with the router on the dashboard's version, the binary asked %d times, and the log reads\n%s\nwant none, and the wait noted once", asks, log)
 	}

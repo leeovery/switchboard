@@ -9687,26 +9687,30 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     the path it was run by, by the rule the router judges an upgrade by (Watched's `MovedTo`, see
     The router looking after itself): the path leading to another file, or the same file
     changed. A path leading nowhere for a moment, as while `brew upgrade` moves the link on, isn't
-    one: the dashboard waits for a read that finds it there. Upgraded, it moves over only once the
-    router, where one answers its health check, runs another version than the dashboard's own, so
-    once the router has handed over, never while it still runs the dashboard's version, noted once
-    at `info`. A read that asked the router nothing, as `--probe`'s, asks its health then. The
+    one: the dashboard waits for a read that finds it there. Upgraded, it moves over only once a
+    router answers its health check running another version than the dashboard's own, so once the
+    router has handed over, never while it still runs the dashboard's version, noted once at
+    `info`. A read that asked the router nothing, as `--probe`'s, asks its health then, so a
+    dashboard probing moves over at the first read that finds the router on the new version. The
     look is a stat of the binary on the read the dashboard makes anyway, every 5 seconds while it
     reads the router and every minute while it doesn't, never a loop of its own.
-  - **No router:** the upgrade alone will do only where no router has answered two asks in a row
-    since the binary moved, and the router wasn't last seen, at a read or an ask, running the
-    dashboard's version. One read a router under load doesn't answer, as its health check times
-    out, is no router gone; and a router last seen on the dashboard's version, as one handing
-    over, is waited on, however many reads it misses, till a read finds it answering.
+  - **No router, no restart:** with no router answering, the dashboard stays on its version,
+    however long, and moves over once a router answers on another, as one started since. A router
+    under load whose health check times out is waited on alike. Without a router the dashboard
+    reads its own probes and the recorded files, by its own rules, so the trouble the restart
+    answers doesn't arise; and only a router that has moved over has checked the new version
+    against the config (see Upgrades), so a dashboard restarting without one could land on a
+    version that refuses the config, or waits at a move for a router that isn't there, and vanish
+    from the screen.
   - **The binary asked first:** run with `--version`, in the dashboard's environment, and given
-    10 seconds, it's restarted onto only where it says a version other than
-    the dashboard's own, as `switchboard version 1.4.0`. One that doesn't, as a broken binary, one
-    too slow, or one saying the dashboard's own version, as a dev build does, leaves the dashboard
-    on its version, noted once at `info`, and isn't asked again until the binary changes again; so
-    a dashboard newer than the router, a dev build and a binary answering its own version never
-    restart, nor ask at every read. One ask runs at a time, and none, nor a restart, begins while
-    the pool shown is read, as `P` turns or a change to the config reads it again: the dashboard
-    asks again at the next read.
+    10 seconds, it's restarted onto only where it says a version other than the dashboard's own,
+    as `switchboard version 1.4.0`. One that doesn't, as a broken binary, one too slow, or one
+    saying the dashboard's own version, as a dev build does, leaves the dashboard on its version,
+    noted once at `info`, and isn't asked again until the binary changes again; so a dashboard
+    newer than the router, a dev build and a binary answering its own version never restart, nor
+    ask at every read. One ask runs at a time, and none, nor a restart, begins while the pool shown
+    is read, as `P` turns or a change to the config reads it again: the dashboard asks again at
+    the next read.
   - **Restarting:** Bubble Tea gives the terminal back as a quit does, out of the alternate screen
     and the mouse's modes; the terminal's background is put back and what was typed and never read
     thrown away, as at a quit; the preferences not yet kept are kept, every other write held off
@@ -11936,7 +11940,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/interrupts` | Holding the process's interrupts, SIGINT, SIGTERM and SIGHUP, with SIGPIPE, through work that must run to its end once begun: the service's swap, and a made token's save. One the process ignores, as under `nohup`, stays ignored |
 | `internal/notify` | Posting desktop notifications, through switchboard's own app where a release embeds it (writing it out, registering it, asking macOS once) and through `osascript` otherwise, and the wording and warning threshold the router's and the dashboard's share; the app's Swift source, `Info.plist` and icon in `internal/notify/app` |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
-| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
+| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back; `Reopen` opens a process's log again after `Close` readied it for an exec that failed, saying why first. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown but text to copy, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line, while emoji, keycaps, variants, flags and joining scripts are kept whole. A prepended concatenation mark, such as an Arabic number sign, is dropped too, as the dashboard measures it and the character after it as no cells, so that character would never show; a label refuses one. A direction mark is kept only within text holding a letter written right to left, which it orders, and dropped from any other and from the edges of all, as a terminal that orders text by direction carries a mark at a field's end on to reorder the digits and punctuation of the next. A label is taken by the same rule, after its own refusals, so it's saved as it shows, and two labels clash where they're the same once cleaned; one written by hand, or saved by an earlier release, is read as written and shown cleaned. Where nothing of a label shows once cleaned, an account or a pool is named by its id (`prose.LabelOr`) wherever its label is shown: the dashboard's words, title row, empty-pool page and alerts, setup's cards, the verbs' tables, text and headings, the router's notifications and its answers to Claude Code, and launch's words, an account's title (`work · Work`) giving the id alone; a label kept as data, in the accounts record, an export or the status document's `pool_label`, stays as written. Accepted: a mark dropped can let a joiner or selector after it be judged on the character before the mark, and kept; a directory's name (`status.DirName`) can show a mark that was within the path only through a trailing slash. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. Text to copy, such as setup's lines and a token, keeps all but its control characters (`prose.Visible`), so what's copied is what was given. `prose.Quoted` shows as escapes the characters drawn as nothing that `prose.Clean` drops, the direction marks and the prepended concatenation marks, which would hide the closing quote |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
@@ -13681,6 +13685,9 @@ What's built but hasn't been seen against the real thing:
 - *Milestone 7:* which prompt a background subagent's later requests name, the one that started
   it, as Claude Code's gateway guide says, or the session's newest, as its own record numbers them
   (see Observed): a turn counts a subagent by its first request either way.
+- A dashboard left open across a real `brew upgrade` restarting itself onto it, on the Mac and over
+  SSH from the phone: Bubble Tea handing the terminal back, then `syscall.Exec`, and the dashboard
+  coming back on the tab, views, period and pool it showed (see Live updates).
 
 ## Open-source hygiene
 

@@ -109,8 +109,7 @@ minutes; R has it read them at once. Should the router stop answering, its
 last document stays on screen until it answers again, or the next full read,
 or R, probes the accounts instead. Left open across an upgrade, it waits for
 the router to move over to the new version, then restarts itself onto it,
-keeping what it showed; where no router answers, it restarts after a minute
-or so.
+keeping what it showed; with no router running, it stays as it is.
 
 The interval is how often it probes every account when it probes for itself,
 without the router or with --probe: 30m unless given, and 5m at the least.
