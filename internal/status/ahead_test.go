@@ -294,6 +294,11 @@ func checkHeldAhead(t *testing.T, m status.Moment, a status.AccountNow, w status
 		return
 	}
 	expect(w.At, held, "as its hold lifts")
+	if !w.Next.IsZero() && w.At.After(w.Next) {
+		between := w.Next.Add(w.At.Sub(w.Next) / 2)
+		expect(between, held, "between its own reset and its hold lifting, as it can take nothing till then")
+		expect(w.At.Add(time.Second), 1, "once its hold lifts after its own reset, all of it")
+	}
 	if !w.At.Before(w.Next) {
 		return
 	}

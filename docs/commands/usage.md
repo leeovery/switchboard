@@ -133,7 +133,9 @@ week shows only if an account has used it.
 
 `usage` learns which windows an account has from the API's answers, never from its plan. A
 verified Ultra account reports no 5-hour window. Stacked, a window leaves out an account that
-doesn't have it. The Fable section also leaves out an account that hasn't used it.
+doesn't have it. The Fable section also leaves out an account that hasn't used it. The
+exception is an account that a limit or the cap keeps from every request until the Fable week
+resets: its row shows that hold.
 
 | If | `usage` |
 |---|---|
@@ -141,6 +143,7 @@ doesn't have it. The Fable section also leaves out an account that hasn't used i
 | No account has used the Fable week, and no limit names it | Leaves the Fable week out. |
 | A limit names an account's Fable week | Shows the Fable week, even at 0%. |
 | The Fable week shows, and a limit or the cap keeps an account from every request until the Fable week resets | That account's Fable row reads `limit · back Sun` or `at cap · back Sun`. |
+| The Fable week shows, and a limit that names no window holds an account | That account's Fable row reads `limit · back 15:54`, even if the limit lifts before the Fable week resets. |
 | The Fable week shows, and an account's last read failed | That account's Fable row shows as last read. |
 | An account isn't read yet | Keeps its rows, because it may have any window. |
 

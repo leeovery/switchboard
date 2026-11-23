@@ -262,9 +262,10 @@ type WindowNow struct {
 	Back, Since time.Time
 	// WithAccount is set where Kind is what holds its account back from
 	// every request, a limit or its cap, rather than what holds it itself:
-	// no limit holds it, nor its cap, but that hold lasts till it next
-	// resets, so it can take nothing till its account is back, At, as
-	// withAccount says.
+	// no limit holds it, and it would offer room, running out or open, but
+	// that hold lasts till it next resets, so it can take nothing till its
+	// account is back, At, as withAccount says. A stale window, or one not
+	// started, keeps its own Kind.
 	WithAccount bool
 	// Capped is set where its use has reached its account's cap at Now, which
 	// holds the account back, as reachedReserve judges it. CappedAsRead is

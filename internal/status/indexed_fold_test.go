@@ -202,7 +202,8 @@ func foldRoomThen(m Moment, a AccountNow, read []readings.Reading, told []Span, 
 		return 0, true
 	}
 	windows := foldBy(m, a, read, Reach{}, t)
-	switch was := stoodAt(a, windows, told, t); {
+	was := stoodAt(a, windows, told, t)
+	switch {
 	case was.Kind == WasUnread:
 		return 0, false
 	case len(toldAt(told, WasRefused, t)) > 0, was.Kind != WasRoom && key == m.policy.Started:
@@ -224,7 +225,7 @@ func foldRoomThen(m Moment, a AccountNow, read []readings.Reading, told []Span, 
 			}
 		}
 	}
-	if !ok {
+	if !ok || was.Kind != WasRoom && outlasts(was.Until, score.Current(w, t).ResetsAt) {
 		return 0, true
 	}
 	return score.Room(w, a.Floor, t), true

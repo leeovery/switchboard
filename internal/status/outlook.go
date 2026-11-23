@@ -288,9 +288,17 @@ func (s standing) back(capBack, refused time.Time) (back time.Time, last lastHol
 // quotaLast is which of the holds of the account's quota lifts last, as back
 // has it, its token's refusal set aside: its cap, where that holds, and lifts,
 // at capBack, after any limit holding back its every request; else that
-// limit.
+// limit. One that lifts at no known time, zero, lifts last: the cap where
+// both do.
 func (s standing) quotaLast(capBack time.Time) lastHold {
-	if s.capped && (!s.every() || capBack.After(s.held.Until)) {
+	switch {
+	case !s.capped:
+		return lastLimit
+	case !s.every(), capBack.IsZero():
+		return lastCap
+	case s.held.Until.IsZero():
+		return lastLimit
+	case capBack.After(s.held.Until):
 		return lastCap
 	}
 	return lastLimit
@@ -494,16 +502,21 @@ func (s windowStates) uncounted() bool {
 	return unknown || s.stood.turnedAway()
 }
 
-// poolRoom is the room the account has left in its window w at now, as the
-// pool counts it, to where it runs out, as floor says: none in any window of
-// one the pool counts nothing of, as uncounted says; none in the window a
-// request starts, as the policy names it, of one at its limit or its cap;
-// and none in a window a limit holds as its own, as holds says.
-func (s windowStates) poolRoom(w quota.Window) float64 {
+// poolRoom is the room the account has left in its window, judged as j, at
+// now, as the pool counts it, to where it runs out, as floor says: none in
+// any window of one the pool counts nothing of, as uncounted says; none in
+// the window a request starts, as the policy names it, of one at its limit
+// or its cap; none in a window its account's hold lasts through, as
+// heldThrough says, as it can take nothing before it resets; and none in a
+// window a limit holds as its own, as holds says.
+func (s windowStates) poolRoom(j judged) float64 {
+	w := j.window
 	switch {
 	case s.uncounted():
 		return 0
 	case w.Key == s.policy.Started && s.stood.outOfQuota():
+		return 0
+	case s.heldThrough(j.stands.ResetsAt):
 		return 0
 	case s.stood.holds(w.Key):
 		return 0
@@ -619,9 +632,10 @@ func (j judgedAccount) runningOut() []Upcoming {
 // resets are the windows of the account judged as j resetting, each at its
 // next reset, as it stands: none of a window that has lapsed; none that
 // brings the account back, as one of backs does at the time, of every
-// request, or of the requests the window holds back; and none of a window
-// some models' requests alone count, as a model's own week, where it resets
-// with its week, as resetsWithItsWeek says.
+// request, or of the requests the window holds back; none of a window the
+// account's hold lasts through, as heldThrough says, as its reset brings no
+// room; and none of a window some models' requests alone count, as a model's
+// own week, where it resets with its week, as resetsWithItsWeek says.
 func (j judgedAccount) resets(backs []Upcoming) []Upcoming {
 	var resets []Upcoming
 	for _, w := range j.windows {
@@ -629,7 +643,7 @@ func (j judgedAccount) resets(backs []Upcoming) []Upcoming {
 		back := slices.ContainsFunc(backs, func(b Upcoming) bool {
 			return b.At.Equal(next) && (b.Window == "" || b.Window == key)
 		})
-		if !j.states.stood.running(key) || next.IsZero() || back || j.resetsWithItsWeek(w, next) {
+		if !j.states.stood.running(key) || next.IsZero() || back || j.states.heldThrough(next) || j.resetsWithItsWeek(w, next) {
 			continue
 		}
 		resets = append(resets, Upcoming{At: next, Account: j.states.account.ID, Kind: UpcomingReset, Window: key})

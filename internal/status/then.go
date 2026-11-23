@@ -252,7 +252,9 @@ func stoodAt(a AccountNow, windows map[string]windowRead, told []Span, t time.Ti
 // a limit held it back too, and none from Now on where its read is refused,
 // as its RefusedRead has it, which is known as of Now alone; none in the
 // window a request starts, as the policy names it, while a limit or its cap
-// held it back from every request; else the window's room to where the
+// held it back from every request, nor in a window such a hold lasted
+// through, as outlasts judges it, till its next reset as it stood then;
+// else the window's room to where the
 // account runs out, its Floor, as its last reading by t has it, as
 // score.Room has it, none where it was read spent, or not read by then. It
 // reports false where nothing was read of the account by then, so how it
@@ -263,14 +265,15 @@ func (m Moment) RoomThen(a AccountNow, read Readings, told []Span, key string, t
 		return 0, true
 	}
 	windows := m.readBy(a, read, Reach{}, t)
-	switch was := stoodAt(a, windows, told, t); {
+	was := stoodAt(a, windows, told, t)
+	switch {
 	case was.Kind == WasUnread:
 		return 0, false
 	case len(toldAt(told, WasRefused, t)) > 0, a.heldByRead() && !t.Before(m.Now), was.Kind != WasRoom && key == m.policy.Started:
 		return 0, true
 	}
 	w, ok := m.readOf(windows, a, read, key, t)
-	if !ok {
+	if !ok || was.Kind != WasRoom && outlasts(was.Until, score.Current(w, t).ResetsAt) {
 		return 0, true
 	}
 	return score.Room(w, a.Floor, t), true

@@ -165,25 +165,53 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want: status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
-			name: "the session not started, the week read spent, its read refused: the account's limit, its end not known, before not started",
+			name: "the session not started, the week read spent, its read refused, so the hold's end not known: not started, as it offers no room",
 			account: with(with(readNow(0, 1, 0), readRefused), func(a *status.Account) {
 				a.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
 				a.Lapsed = []string{"5h"}
 			}),
 			key:  "5h",
-			want: status.WindowNow{Kind: status.WindowLimited},
+			want: status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
-			name:    "its token refused, a limit naming the week: the account's limit, back as the later refusal ends",
+			name:    "its token refused, a limit naming the week till after the session resets: stale, as it says why, not the account's limit",
 			account: with(with(readNow(0.4, 0.9, 0), refused), limited("7d")),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.4, At: at(1, 21, 40).UTC()},
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, Used: 0.4, At: read},
 		},
 		{
-			name:    "its last read refusing its token, a limit naming the week: the account's limit, back when not known",
+			name:    "its last read refusing its token, a limit naming the week: stale, as it says why, not the account's limit",
 			account: with(with(readNow(0.4, 0.9, 0), readRefused), limited("7d")),
 			key:     "5h",
-			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.4},
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleRefused, Used: 0.4, At: read},
+		},
+		{
+			name:    "its subscription ended, the week read spent: stale, as it says why, not the account's limit",
+			account: with(readNow(0.4, 1, 0.3), ended),
+			key:     "7d_oi",
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleLapsed, Used: 0.3, At: read},
+		},
+		{
+			name:    "its last read failed, the week read spent: stale, as last read, not the account's limit",
+			account: with(readNow(0.4, 1, 0.3), failing),
+			key:     "5h",
+			want:    status.WindowNow{Kind: status.WindowStale, Stale: status.StaleFailed, Used: 0.4, At: read},
+		},
+		{
+			name: "the week at its cap, its reset not known, a limit naming the session: the account's cap, lifting last at no known time",
+			account: with(with(with(readNow(0.2, 0.97, 0.4), capped), limited("5h")), func(a *status.Account) {
+				a.Windows[1].ResetsAt = time.Time{}
+			}),
+			key:  "7d_oi",
+			want: status.WindowNow{Kind: status.WindowCapped, Used: 0.4},
+		},
+		{
+			name: "the session read spent, its reset not known, the week at its cap: the account's limit, lifting last at no known time",
+			account: with(with(readNow(1, 0.97, 0.4), capped), func(a *status.Account) {
+				a.Windows[0].ResetsAt = time.Time{}
+			}),
+			key:  "7d_oi",
+			want: status.WindowNow{Kind: status.WindowLimited, Used: 0.4},
 		},
 		{
 			name:    "its token refused, the week at its cap: stale, before the account's cap",
