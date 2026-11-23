@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-23
+
+✨ Added
+- Support for Claude Fable 5.2 — it is now included in the Fable model family's usage tracking.
+
+🔧 Changed
+- Conversations on Claude Fable 5.2 are treated as bound to the account that produced their thinking, like Sonnet 5.5 — moving one to another account drops that reasoning.
+
 ## [1.2.0] - 2026-11-22
 
 Dashboard heading shows the period as a clickable range and time readout.
