@@ -246,8 +246,8 @@ func sizesOf(accounts config.Accounts, table ledger.Table) (sizes []int64, usual
 }
 
 // capOf is the share of its week where the account a stopped taking new
-// sessions at a peak, as the router held it then: its cap, where the reserve
-// the readings history recorded the peak under starts, as
+// sessions at a peak, as the router held it then: its cap, where the highest
+// reserve the readings history recorded the peak under starts, as
 // readings.ReserveThen has it, the reserve configured now where it recorded
 // none; else its limit.
 func capOf(a config.Account, recorded *float64) millionths {

@@ -583,11 +583,12 @@ func TestADayWhoseReadingsRecordedTheirReservesIsSummarisedAlikeWhateverTheCaps(
 	}
 }
 
-// Each reset records the reserve the window stood under as the run it ended
-// did, its peak's, as the readings history recorded it: the reserve of the
-// run's last line, a `reserve` line's among them, and none where that line
-// recorded none.
-func TestAResetRecordsTheReserveItsRunEndedUnder(t *testing.T) {
+// Each reset records the highest reserve the peak of the run it ended stood
+// under, as the readings history recorded them: of the lines from the first
+// that read the peak to the reset, `reserve` lines among them, a rise to a
+// new peak starting afresh; none where none of them recorded one. So a week
+// at its cap under any of them was at its cap.
+func TestAResetRecordsTheHighestReserveItsPeakStoodUnder(t *testing.T) {
 	ends, next := on(0, 11, 0), on(0, 16, 0)
 	afresh := allowed(on(0, 11, 30), "5h", 0.1, next)
 	tests := []struct {
@@ -597,8 +598,18 @@ func TestAResetRecordsTheReserveItsRunEndedUnder(t *testing.T) {
 	}{
 		{name: "under a fifth, read again after the reset", readings: []readings.Reading{under(0.2, allowed(on(0, 10, 0), "5h", 0.5, ends)), afresh}, want: new(0.2)},
 		{
-			name:     "under a fifth, recorded again under a tenth before the reset",
+			name:     "under a fifth, recorded again under a tenth at its peak before the reset",
 			readings: []readings.Reading{under(0.2, allowed(on(0, 10, 0), "5h", 0.5, ends)), restated(on(0, 10, 30), 0.5, ends, 0.1), afresh},
+			want:     new(0.2),
+		},
+		{
+			name:     "under a tenth, recorded again under a fifth at its peak before the reset",
+			readings: []readings.Reading{under(0.1, allowed(on(0, 10, 0), "5h", 0.5, ends)), restated(on(0, 10, 30), 0.5, ends, 0.2), afresh},
+			want:     new(0.2),
+		},
+		{
+			name:     "under a fifth below its peak, then a tenth as it rose to it",
+			readings: []readings.Reading{under(0.2, allowed(on(0, 9, 0), "5h", 0.4, ends)), under(0.1, allowed(on(0, 10, 0), "5h", 0.5, ends)), afresh},
 			want:     new(0.1),
 		},
 		{name: "under a pin's 0", readings: []readings.Reading{under(0, allowed(on(0, 10, 0), "5h", 0.5, ends)), afresh}, want: new(0.0)},
@@ -610,6 +621,30 @@ func TestAResetRecordsTheReserveItsRunEndedUnder(t *testing.T) {
 			got := workDay(t, reserving, dayDone, tt.readings...).Resets
 			if len(got) == 0 || !sameReset(got[0], ledger.Reset{Window: "5h", At: ends, Before: 0.5, Reserve: tt.want}) {
 				t.Errorf("work's resets are %+v, want the first at %v from 0.5, under %v", got, ends, reserveSaid(tt.want))
+			}
+		})
+	}
+}
+
+// A reading of a run read late that raises the use its reset ended it at
+// brings its reserve with it; one at that use, the higher of the two; one
+// below it, nothing.
+func TestAReadingReadLateCarriesItsReserveToTheResetItRaises(t *testing.T) {
+	first, late := on(0, 15, 30), on(0, 10, 5)
+	tests := []struct {
+		name string
+		late readings.Reading
+		want ledger.Reset
+	}{
+		{name: "above its peak, under a lower reserve", late: under(0.05, rejected(late, "5h", 0.5, first)), want: ledger.Reset{Before: 0.5, Reserve: new(0.05)}},
+		{name: "at its peak, under a higher reserve", late: under(0.3, allowed(late, "5h", 0.1, first)), want: ledger.Reset{Before: 0.1, Reserve: new(0.3)}},
+		{name: "below its peak", late: under(0.3, allowed(late, "5h", 0.05, first)), want: ledger.Reset{Before: 0.1, Reserve: new(0.2)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := workDay(t, caps, dayDone, under(0.2, allowed(on(0, 10, 0), "5h", 0.1, first)), allowed(on(0, 10, 2), "5h", 0.12, on(0, 15, 40)), tt.late).Resets
+			if len(got) == 0 || got[0].Before != tt.want.Before || !sameReserve(got[0].Reserve, tt.want.Reserve) {
+				t.Errorf("work's resets are %+v, want the first from %v under %v", got, tt.want.Before, reserveSaid(tt.want.Reserve))
 			}
 		})
 	}

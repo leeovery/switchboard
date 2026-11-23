@@ -237,8 +237,8 @@ func TestARestartJudgesThePoolsRoomByTheReserveEachReadingRecorded(t *testing.T)
 		r.Reserve = new(reserve)
 		return r
 	}
-	restated := func(u, reserve float64) readings.Reading {
-		r := under(workReads(start.Add(2*time.Hour), u, resets), reserve)
+	restated := func(after time.Duration, u, reserve float64) readings.Reading {
+		r := under(workReads(start.Add(after), u, resets), reserve)
 		r.Source = readings.FromReserve
 		return r
 	}
@@ -250,16 +250,21 @@ func TestARestartJudgesThePoolsRoomByTheReserveEachReadingRecorded(t *testing.T)
 		{
 			name: "under a fifth, at its cap an hour, then under a tenth from two hours on",
 			history: []readings.Reading{
-				under(workReads(start, 0.5, resets), 0.2), under(workReads(start.Add(time.Hour), 0.85, resets), 0.2), restated(0.85, 0.1),
+				under(workReads(start, 0.5, resets), 0.2), under(workReads(start.Add(time.Hour), 0.85, resets), 0.2), restated(2*time.Hour, 0.85, 0.1),
 			},
 			want: status.Demand{Day: 0.35 / 5, Hours: 5},
 		},
 		{
 			name: "under a pin, which spent its reserve, till a tenth from two hours on",
 			history: []readings.Reading{
-				under(workReads(start, 0.5, resets), 0), under(workReads(start.Add(time.Hour), 0.95, resets), 0), restated(0.95, 0.1),
+				under(workReads(start, 0.5, resets), 0), under(workReads(start.Add(time.Hour), 0.95, resets), 0), restated(2*time.Hour, 0.95, 0.1),
 			},
 			want: status.Demand{Day: 0.45 / 2, Hours: 2},
+		},
+		{
+			name:    "a reserve line first, before any reading, under a fifth at its cap, then under a tenth from two hours on",
+			history: []readings.Reading{restated(0, 0.85, 0.2), restated(2*time.Hour, 0.85, 0.1)},
+			want:    status.Demand{Hours: 4},
 		},
 		{
 			name: "under a fifth, then a line that recorded none, by today's tenth",

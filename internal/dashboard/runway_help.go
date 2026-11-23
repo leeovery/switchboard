@@ -23,10 +23,11 @@ func (f Frame) runwayHelp() []helpPart {
 
 // lanesHelp is the lanes as help explains them: what a column is drawn by,
 // and, where the look blends, that the past is dimmed; the label and the use
-// beside each, and the label collapsed on a; the words under each; what each column is read from, a cap
-// by the reserve the config gives now, so a reserve changed redraws the
-// caps of days gone; how the page compacts; and a key to the lanes' marks,
-// each drawn as a lane draws it.
+// beside each, and the label collapsed on a; the words under each; what each
+// column is read from, a cap by the reserve each reading recorded, today's
+// only where a line recorded none, so a reserve changed leaves the caps of
+// days gone as they were; how the page compacts; and a key to the lanes'
+// marks, each drawn as a lane draws it.
 func (f Frame) lanesHelp() helpPart {
 	dimmed := ""
 	if f.Look.blends() {
@@ -62,8 +63,8 @@ func (f Frame) lanesHelp() helpPart {
 				"counted reset. A column with no reading of its account by then is blank, as an account not read yet; but an " +
 				"account newly added, read first while others were read before it, is dotted ┈ before its first reading, the " +
 				"words under it saying since when. A cap is " +
-				"drawn by the reserve the config gives now, not the one each reading records: change a reserve, and the caps of " +
-				"days gone are drawn again by it."),
+				"drawn by the reserve each reading recorded, today's only where a line recorded none: change a reserve, and the " +
+				"caps of days gone stay as they were."),
 			said("The legend sits at the foot, over the key line. As rows run short, LATELY under COMING UP goes first; then an " +
 				"account takes two rows, the blank rows " +
 				"go and COMING UP shows the lines it can; then the legend gives way, then COMING UP, then the blank row under " +

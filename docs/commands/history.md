@@ -105,7 +105,7 @@ the next.
 | Peak | The use just before the reset that ended the week. A reset you made by hand counts. |
 | Placing | A week goes under the calendar week it began in, up to half-way in, or else the next. |
 | The running week | Always this week. Its peak is its highest so far, read from before the days asked for if its week began earlier. |
-| A short week | A week in which some account hit its cap: 100% less the `reserve` it had at its peak. Weeks from before that was recorded use the reserve it has now. |
+| A short week | A week in which some account hit its cap: 100% less the highest `reserve` it had at its peak. Weeks from before that was recorded use the reserve it has now. |
 | A whole week | One in which every account's week is known and has ended. Only whole weeks are judged. |
 
 `week_starts` in the config sets the day calendar weeks begin on.

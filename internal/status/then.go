@@ -205,16 +205,16 @@ func untold(told []Span, s Span, now time.Time) []Span {
 // t; its cap, a window read at where its reserve starts, the reserve in
 // force as each reading was taken, as readings.ReserveThen has it, today's,
 // as reserveNow has it, where it recorded none; and room. Of a hold, Since
-// is when the first part of what holds it at t began: a told hold's From; of a window's, the router's event of it, as reachedAt
-// finds it, else the first reading, of those given, of the unbroken run of
-// the window's readings that shows it; a limit's or a cap's then begun as
-// the run of the holds reaching back from it did, told of or read, as
-// ranBack has it. Until is when the last part lifts, zero where one lifts at
-// no known time: a told hold's Until; a window's at its reset, or sooner,
-// where a reading of it after t, before that reset, no longer shows it, as a
-// reset made by hand starts the window again, as series.readBy has it. A run
-// begun at either edge of what the readings reach tells no start, as Reach
-// says.
+// is when the first part of what holds it at t began: a told hold's From; of
+// a window's, the router's event of it, as reachedAt finds it, else the first
+// reading, of those given, of the unbroken run of the window's readings that
+// shows it; a limit's or a cap's then begun as the run of the holds reaching
+// back from it did, told of or read, as ranBack has it. Until is when the
+// last part lifts, zero where one lifts at no known time: a told hold's
+// Until; a window's at its reset, or sooner, where a reading of it after t,
+// before that reset, no longer shows it, as a reset made by hand starts the
+// window again, as series.readBy has it. A run begun at either edge of what
+// the readings reach tells no start, as Reach says.
 func (m Moment) Then(a AccountNow, read Readings, reach Reach, told []Span, t time.Time) Was {
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}

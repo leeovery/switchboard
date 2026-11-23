@@ -101,8 +101,8 @@ func weeklyOf(key string, starts time.Weekday, now time.Time) weekly {
 // ownWeek is a week of an account's window, from one reset of it to the next:
 // peak is its use read just before the reset that ended it, at end, or, of the
 // week still running, open, its highest use so far, which known reports is
-// known; and reserve the reserve the readings history recorded its peak
-// under, as the reset that ended it keeps it, nil where none is kept, as of a
+// known; and reserve the highest reserve the readings history recorded its
+// peak under, as the reset that ended it keeps it, nil where none is kept, as of a
 // week still running.
 type ownWeek struct {
 	start, end time.Time
@@ -254,8 +254,8 @@ func (w weekly) placedUnder(o ownWeek) string {
 
 // peak is an account's week's peak of a window, as its own week placed under
 // a calendar week gives it: its use, where known; whether the week is still
-// running, which leaves its use so far; and the reserve the readings history
-// recorded it under, nil where none is kept.
+// running, which leaves its use so far; and the highest reserve the readings
+// history recorded it under, nil where none is kept.
 type peak struct {
 	use         millionths
 	known, open bool

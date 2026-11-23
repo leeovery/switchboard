@@ -267,8 +267,8 @@ type Limit struct {
 // window's key; when it reset, its reset time where it was read, or when the
 // reading that showed it reset by hand came; the highest use of the run it
 // ended, Before, so a week's peak is the Before of the reset that ended it;
-// and Reserve, the reserve the window stood under as that run ended, its
-// peak's, as the readings history recorded it, nil where it recorded none.
+// and Reserve, the highest reserve that use stood under, as the readings
+// history recorded it, nil where it recorded none.
 type Reset struct {
 	Window  string    `json:"window"`
 	At      time.Time `json:"at"`

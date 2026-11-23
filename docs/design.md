@@ -3629,12 +3629,13 @@ in the words History's Weeks gave it till the dashboard by entity left the verdi
 (`views.VerdictWeeks`, 7).
 
 **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
-router stopped sending it new sessions at its peak: 100% less the reserve the readings history
-recorded the peak under, as the day's summary keeps it on the reset that ended the week (see The
-request ledger), and 100% without one. A reserve changed mid-week is judged by the one in force at
-the peak, not by whether an earlier reading reached the cap of its own. Where the summary kept
-none, as one made before resets kept it, or of a week still running, it's the reserve the config
-has now (the owner's call, 23 November 2026).
+router stopped sending it new sessions at its peak: 100% less the highest reserve its peak stood
+under, as the readings history recorded it and the day's summary keeps it on the reset that ended
+the week (see The request ledger), and 100% without one. So a reserve changed while the week stood
+at its peak, lowered or raised, leaves it short where it stood at its cap under either; a reserve
+before the week rose to its peak counts for nothing, even where a reading then reached a cap of its
+own. Where the summary kept none, as one made before resets kept it, or of a week still running,
+it's the reserve the config has now (the owner's call, 23 November 2026).
 What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
 The verdict takes its form for many accounts where it can name one to drop, one fewer being short on
 no more weeks than now; otherwise its form for few.
@@ -5410,7 +5411,8 @@ its periods, as Trends has none:
     160 and 173 columns, touching narrower, as at 100. Where the account keeps a
     reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
     the columns: one level across every week, at the reserve the config has now, though each
-    week's mark and limit are judged at the cap its peak recorded (see The capacity verdict). The
+    week's mark and limit are judged at the cap of the highest reserve its peak stood under (see
+    The capacity verdict). The
     axis names a month where it starts, and at 12 months each month, giving way
     from the last back as WORTH BY's names do; the last is bold at now, and in a past period only
     where this week shows, as Detail's BY DAY has it, so 12 months back names none bold; under
@@ -7287,8 +7289,8 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   ledger). Where a line recorded none, as one from before the history kept them, it judges by the
   reserve in force today: the config's, none where the pool's pin names the account (the owner's
   call, 23 November 2026). So a reserve changed since, or a pin set or lifted since, leaves the past
-  as it stood. The capacity verdict judges a week's peak alike, by the reserve its reset kept (see
-  The capacity verdict). A window read before a reserve changed, too long before for the router to
+  as it stood. The capacity verdict judges a week's peak alike, by the highest reserve it stood
+  under (see The capacity verdict). A window read before a reserve changed, too long before for the router to
   record it again (see the readings history in Files), keeps the reserve before even at now, as
   the pool's room then has it, till its next reading, which a probe brings within minutes; the
   moment's own room is by today's (the owner's call, 23 November 2026).
@@ -10195,11 +10197,14 @@ from the first day a router that has it runs, so nothing before then is in it.
       is the `before` of the reset that ended it. A run whose use never read above nothing, carried
       in or read that day, records no reset: an unopened window's reset moves on with each reading
       (see Observed), and nothing was used to reset. Since 23 November 2026, with no version of its
-      own, as a field added: `reserve`, the reserve the window stood under as the run ended, its
-      peak's, as the run's last line of the readings history recorded it, a `reserve` line's among
-      them; left out where that line recorded none. A day summarised again keeps the one it finds
-      afresh, else the one the summary it replaces kept. The capacity verdict judges a week's peak
-      at its cap by it (see The capacity verdict).
+      own, as a field added: `reserve`, the highest reserve the run's peak stood under, of those
+      the readings history's lines recorded from the first that read the peak to the reset,
+      `reserve` lines among them, a rise to a new peak starting afresh, a line below the peak
+      before it counting for nothing; left out where none of them recorded one. A reading read
+      late that raises `before` brings its line's reserve with it, and one at `before` the higher
+      of the two. A day summarised again keeps the reset from the higher `before`, under the
+      reserve of the summary that read it, the higher of the two where both did. The capacity
+      verdict judges a week's peak at its cap by it (see The capacity verdict).
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a
       window read `rejected` or used up, each from the reading that put it there to the one that
