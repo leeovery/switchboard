@@ -57,14 +57,14 @@ func (h *history) open(dir string) {
 	h.opened.Store(true)
 }
 
-// note queues taken, the readings of one taking in, for run to write. It
-// never waits: with the history not yet opened, or the queue full, they're
-// dropped.
-func (h *history) note(taken []readings.Reading) {
+// note queues taken, the readings of one taking in, for run to write, and
+// reports whether it did. It never waits: with the history not yet opened,
+// or the queue full, they're dropped. A taking in of none isn't queued.
+func (h *history) note(taken []readings.Reading) bool {
 	if len(taken) == 0 || !h.opened.Load() {
-		return
+		return false
 	}
-	h.writer.Note(taken)
+	return h.writer.Note(taken)
 }
 
 // run writes the readings queued, and keeps the history's files, as its

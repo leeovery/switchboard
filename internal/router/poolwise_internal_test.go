@@ -312,7 +312,7 @@ func TestARestartJudgesEachPoolsRoomByItsOwnPinFromWhenItWasSet(t *testing.T) {
 	live, _ := newPairedRouterOf(t, clock.read, reserving)
 	live.file.load(path)
 	var heard []readings.Reading
-	live.state.history = func(read []readings.Reading) { heard = append(heard, read...) }
+	live.state.history = queueing(&heard)
 	steps := []struct {
 		after time.Duration
 		do    func()

@@ -62,7 +62,7 @@ func TestAPlaybackOfTheReadingsHistoryGivesTheRatesAndDemandTheRouterHad(t *test
 	live := newState(resolve(configured, tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken}.Read, unrecorded),
 		unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 	var heard []readings.Reading
-	live.history = func(read []readings.Reading) { heard = append(heard, read...) }
+	live.history = queueing(&heard)
 	p := NewPlayback(configured, testPolicy)
 	read := func(after time.Duration, id string, windows ...quota.Window) {
 		clock.now = start.Add(after)
@@ -116,6 +116,18 @@ func TestAPlaybackPassesOverAReadingOfAnAccountNotConfigured(t *testing.T) {
 	}
 	if _, ok := doc.Account("gone"); ok {
 		t.Error("the document has the account read but not configured, want it left out")
+	}
+}
+
+func TestAPlaybackPassesOverAWindowRecordedAgainAsItsReserveChanged(t *testing.T) {
+	p := NewPlayback(testConfigured, testPolicy)
+	read := readings.Under(readings.Of("work", []quota.Window{week}, start, readings.FromAnswer), 0.1)
+	restated := readings.Under(readings.Of("work", []quota.Window{week}, start.Add(10*time.Minute), readings.FromReserve), 0)
+	p.Read(read[0])
+	p.Read(restated[0])
+
+	if work, _ := p.Document(start.Add(10 * time.Minute)).Account("work"); !work.FetchedAt.Equal(start) {
+		t.Errorf("work reads as read at %v, want %v: the line recorded again as its reserve changed is no reading", work.FetchedAt, start)
 	}
 }
 

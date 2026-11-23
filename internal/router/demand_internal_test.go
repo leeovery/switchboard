@@ -509,7 +509,7 @@ func TestARestartJudgesThePoolsRoomByThePoolsPinFromWhenItWasSet(t *testing.T) {
 			live := newTestRouterOf(t, cfg)
 			live.file.load(path)
 			var heard []readings.Reading
-			live.state.history = func(read []readings.Reading) { heard = append(heard, read...) }
+			live.state.history = queueing(&heard)
 			live.state.record("work", []quota.Window{weekUsed(0.5)}, live.state.mark())
 			clock.now = start.Add(time.Hour)
 			live.state.record("work", []quota.Window{weekUsed(0.92)}, live.state.mark())

@@ -161,7 +161,11 @@ func (s *state) roomy(by rooms, pool string, at time.Time) bool {
 
 // repin notes each pool's pin from now on, as the sessions hold them, and
 // judges the pools' room afresh then, as judgeRooms says, so a pin that
-// spends an account's reserve gives its pool room from its own moment.
+// spends an account's reserve gives its pool room from its own moment; and
+// restates the windows of each account whose reserve it spends, or no longer
+// does, as restate says, so the readings history tells when. Every table of
+// pools swapped in comes here, through the router's fitPins, so an account
+// moved out of the pool whose pin named it is restated as it moves.
 func (s *state) repin(ps pins) {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -169,6 +173,7 @@ func (s *state) repin(ps pins) {
 	s.regroup()
 	s.pins = ps
 	s.judgeRooms(s.roomsNow(), at)
+	s.restate(at)
 }
 
 // recallPins takes in each pool's pin the state file kept, as the router

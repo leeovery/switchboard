@@ -22,7 +22,8 @@ type Windows struct {
 }
 
 // WindowReadings are an account's window's readings, in the order they were
-// read: one each time the window's use, its reset or its status changed.
+// read: one each time the window's use, its reset or its status changed, or
+// the reserve the router held its account to.
 type WindowReadings struct {
 	Account string `json:"account"`
 	status.AccountName
@@ -31,13 +32,15 @@ type WindowReadings struct {
 }
 
 // WindowReading is a reading of a window as the readings history holds it,
-// but for the account and the window, which its WindowReadings name.
+// but for the account and the window, which its WindowReadings name: its
+// Reserve nil where the history recorded none.
 type WindowReading struct {
 	At          time.Time       `json:"at"`
 	Utilization float64         `json:"utilization"`
 	ResetsAt    time.Time       `json:"resets_at,omitzero"`
 	Status      quota.Status    `json:"status,omitempty"`
 	Source      readings.Source `json:"source"`
+	Reserve     *float64        `json:"reserve,omitempty"`
 }
 
 // NewWindows builds the Windows of the local days from from's to today's,
@@ -50,7 +53,8 @@ func NewWindows(history Readings, accounts config.Accounts, from, now time.Time)
 	held := make(map[window][]WindowReading)
 	for r := range history.Between(dayfile.DayStart(from.Local(), 0), dayfile.DayStart(now.Local(), 1)) {
 		w := window{account: r.Account, key: r.Key}
-		held[w] = append(held[w], WindowReading{At: r.At, Utilization: r.Utilization, ResetsAt: r.ResetsAt, Status: r.Status, Source: r.Source})
+		held[w] = append(held[w], WindowReading{At: r.At, Utilization: r.Utilization, ResetsAt: r.ResetsAt, Status: r.Status, Source: r.Source,
+			Reserve: r.Reserve})
 	}
 	order := byConfig(accounts)
 	listed := slices.SortedFunc(maps.Keys(held), func(a, b window) int {

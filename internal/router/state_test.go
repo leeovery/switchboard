@@ -1188,6 +1188,8 @@ func TestAReadingOfARetiredWindowFromBeforeItsRetirementIsStale(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
 			s := newTestState(clock)
+			var lines []readings.Reading
+			s.history = queueing(&lines)
 			s.record("work", []quota.Window{session, week}, s.mark())
 			sent := s.mark()
 			retiring := s.mark()
@@ -1196,8 +1198,7 @@ func TestAReadingOfARetiredWindowFromBeforeItsRetirementIsStale(t *testing.T) {
 			}
 			clock.now = start.Add(time.Minute)
 			s.recordAnswer("work", []quota.Window{week}, retiring, true)
-			var lines []readings.Reading
-			s.history = func(read []readings.Reading) { lines = append(lines, read...) }
+			lines = nil
 
 			busier := session
 			busier.Utilization = 0.31
@@ -1220,11 +1221,11 @@ func TestARetiredWindowReadOffARequestSentSinceIsBack(t *testing.T) {
 	var changes changeCount
 	clock := &testClock{now: start}
 	s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
+	var lines []readings.Reading
+	s.history = queueing(&lines)
 	s.record("work", []quota.Window{session, week}, s.mark())
 	s.recordAnswer("work", []quota.Window{week}, s.mark(), true)
-	var lines []readings.Reading
-	s.history = func(read []readings.Reading) { lines = append(lines, read...) }
-	changes = 0
+	lines, changes = nil, 0
 	clock.now = start.Add(time.Minute)
 
 	s.record("work", []quota.Window{session, week}, s.mark())
@@ -1235,7 +1236,7 @@ func TestARetiredWindowReadOffARequestSentSinceIsBack(t *testing.T) {
 	if len(u.absent) > 0 || !s.primable("work") {
 		t.Errorf("work's windows absent: %v, want none", u.absent)
 	}
-	if want := readings.Of("work", []quota.Window{session}, clock.now, readings.FromAnswer); !reflect.DeepEqual(lines, want) {
+	if want := readings.Under(readings.Of("work", []quota.Window{session}, clock.now, readings.FromAnswer), 0); !reflect.DeepEqual(lines, want) {
 		t.Errorf("the history heard of %+v, want %+v, the session's line", lines, want)
 	}
 	if trail := u.trails["5h"]; len(trail) != 1 || !trail[0].At.Equal(clock.now) {

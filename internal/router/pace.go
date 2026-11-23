@@ -60,8 +60,9 @@ func (u *usage) forgetRates(key string) {
 // refused began to hold it, as judgedAlso has them, where the history read
 // anything before it, as judgeSeeded says, each pool by the accounts in it
 // then: the readings history holds each change of a window's use, so its
-// trail, baseline included, is as it was, and its rates outlast a restart. A
-// window the account doesn't hold, as one its answers no longer report,
+// trail, baseline included, is as it was, and its rates outlast a restart.
+// It passes over what takenUp does. A window the account doesn't hold, as
+// one its answers no longer report,
 // keeps no trail nor fast rate, and nor does one whose reading, as the state
 // file kept it, has another reset than its readings last read, as when it
 // has reset since. It returns how many readings the trails keep.
@@ -79,7 +80,7 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 			}
 		}
 		moves = s.forgetMovedBy(moves, r.At)
-		if u, configured := s.usage[r.Account]; configured {
+		if u, ok := s.takenUp(r); ok {
 			s.takeUpReading(taking, u, r)
 		}
 	}
@@ -121,6 +122,15 @@ func (s *state) judgedAlso() []time.Time {
 	}
 	slices.SortFunc(set, time.Time.Compare)
 	return slices.CompactFunc(set, time.Time.Equal)
+}
+
+// takenUp returns the usage of the account a line of the readings history
+// reads, reporting false where the line is no reading to take up: one of an
+// account not configured, or of a window recorded again as its reserve
+// changed, which nothing read then. s.mu must be held.
+func (s *state) takenUp(r readings.Reading) (*usage, bool) {
+	u, configured := s.usage[r.Account]
+	return u, configured && r.Source != readings.FromReserve
 }
 
 // takeUpReading takes up r, a reading of the history of the account whose

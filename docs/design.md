@@ -209,7 +209,8 @@ lost (see Choosing an account).
    every candidate were, rather than to the one whose quota can't be judged, as they would once none
    of the pin's accounts can be scored at all (step 4 of the order below). The readings outlast a
    restart: as it starts, the router takes them up, baselines included, from its readings history,
-   which holds each change of a window's use (see Files), but for a window that has reset since.
+   which holds each change of a window's use (see Files), but for a window that has reset since,
+   and passing over the lines that record a window again as its account's reserve changed.
 4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`), its pool and the model, and remembered as it's chosen, then
    forgotten unless the request is answered with success. Caches are per model anyway, so a
@@ -3620,8 +3621,8 @@ in the words History's Weeks gave it till the dashboard by entity left the verdi
 (`views.VerdictWeeks`, 7).
 
 **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
-router stops sending it new sessions: 100% less its reserve, the reserve the config has now, as a
-week's own isn't recorded beyond the moments an account was held at its cap, and 100% without one.
+router stops sending it new sessions: 100% less its reserve, the reserve the config has now, not
+the reserve the readings history recorded through the week, and 100% without one.
 What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
 The verdict takes its form for many accounts where it can name one to drop, one fewer being short on
 no more weeks than now; otherwise its form for few.
@@ -7256,12 +7257,13 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   read claims only the span it read whole. The Overview's LATELY reads the document's alone.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
 - **A week stepped back to:** the readings history, each change of a window's use, its reset and its
-  status, a limit running from a reading `rejected` to its window's reset; each day's summary's
-  `limits`, each with its `at` and `resets_at`, and under each name the week's `highest`; today's,
-  before it's summarised, its readings and lines as they're read (see The request ledger). A cap on
-  a day gone is drawn from the reserve the config gives now, as the readings keep none (settled in
-  the plan). A week older than the readings history's keep draws its lanes from its summaries'
-  limits and resets alone (settled in the plan).
+  status, and the window again at each change of the reserve its account was held to, a limit
+  running from a reading `rejected` to its window's reset; each day's summary's `limits`, each with
+  its `at` and `resets_at`, and under each name the week's `highest`; today's, before it's
+  summarised, its readings and lines as they're read (see The request ledger). A cap on a day gone
+  is drawn from the reserve the config gives now (settled in the plan), not from the reserve each
+  line of the readings history records. A week older than the readings history's keep draws its
+  lanes from its summaries' limits and resets alone (settled in the plan).
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
@@ -10167,9 +10169,19 @@ from the first day a router that has it runs, so nothing before then is in it.
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a
       window read `rejected` or used up, each from the reading that put it there to the one that
-      took it away, its reset, or the day's end, a minute at both counting as at a limit. The cap is
-      the config's as the summary is made, as the readings history keeps none. Windows of a model's
-      own, as Fable's week, hold back only that model, and count toward neither.
+      took it away, its reset, or the day's end, a minute at both counting as at a limit. Each
+      reading is judged by the cap in force as the router took it in: 1 less the `reserve` its line
+      records, which is 0, no cap, where the pool's pin spent it (see the readings history in
+      Files). So a day summarised after a reserve changed, or summarised again, counts each stretch
+      by the cap that held it then. A reserve that changes while the use reads as it did starts a
+      stretch of its own, as the router records the account's windows again under it: as it
+      changes, for each window read in the 15 minutes before; and for a window whose reading was
+      stale by then, as of an account whose read is refused, only at its next reading, so its
+      stretch is judged again from there, the time between judged by the reserve before. A line
+      from before the history recorded reserves is judged by the config's cap as the summary is
+      made.
+      Windows of a model's own, as Fable's week, hold back only that model, and count toward
+      neither.
     - Of an account the readings history held none of the windows of, in the day or the week
       before it, as once it has pruned them, its keep being its own, `rise`, `resets` and the
       minutes are left out, as never read, never as none.
@@ -11912,8 +11924,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
   and `misses` (see The router's rounds), and of a read refused why and since when, `refused_read`
-  and `refused_since`, and whether that hold has been told, `held_told` (see 401s and 403s), the
-  hold curve, `hold` (see Forecasting run-outs), and
+  and `refused_since`, and whether that hold has been told, `held_told` (see 401s and 403s), and
+  the reserve the readings history last recorded each window under, by its key, `recorded_under`
+  (see the readings history, below), the hold curve, `hold` (see Forecasting run-outs), and
   the hashes of every configured account's tokens, with a usable token or not: see Accounts and
   tokens; and the token-year notifications told, an account's against the token they were told
   for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
@@ -11927,7 +11940,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   one whose readings lack when each window was read as windows unread (see The router's rounds), one
   without the probes as accounts none of whose probes has ended, which a router from before them,
   ignoring the fields, takes them all for, one without `windows_absent` as accounts that have every
-  window they report, one without `hold`, or with one of a shape it doesn't know, as a curve of no
+  window they report, one without `recorded_under` as windows the router records again, as it
+  starts or at their next reading (see the readings history, below), one without `hold`, or with
+  one of a shape it doesn't know, as a curve of no
   answers, a reading that holds nothing else as none, and a pin that names its account alone, as
   pins did before they named several, as a pin to that one, a session's assignment without a pool as
   the first pool's, and its own pin without one as the pin in the pool it was routed in last, the
@@ -11951,12 +11966,32 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **Readings history:** `<state dir>/history/readings-<local date>.jsonl`, a file a day, 0600 in a
   0700 directory, for looking back at how the accounts were used. The router appends a line, as
   the file is opened to append, for each reading that changes how a window of an account reads,
-  its use, its reset or its status, and for nothing else, so a request that moves nothing writes
-  nothing: `{"at": "2026-09-28T13:12:00Z", "account": "work", "window": "5h", "utilization":
-  0.23, "resets_at": "2026-09-28T18:10:00Z", "status": "allowed", "source": "answer"}`, `at` when
-  the router took it in, in UTC, `resets_at` and `status` left out when the reading didn't give
-  them, and `source` where it came from: `answer`, off the answer to a routed request; `probe`, the
-  router's rounds' included; or `prime`. An account appears by its id alone: never a token or a
+  its use, its reset or its status, or the reserve the router holds the account to, and for
+  nothing else, so a request that moves nothing writes nothing: `{"at": "2026-09-28T13:12:00Z",
+  "account": "work", "window": "5h", "utilization": 0.23, "resets_at": "2026-09-28T18:10:00Z",
+  "status": "allowed", "source": "answer", "reserve": 0.1}`, `at` when the router took it in, in
+  UTC, `resets_at` and `status` left out when the reading didn't give them, `source` where it came
+  from: `answer`, off the answer to a routed request; `probe`, the router's rounds' included;
+  `prime`; or `reserve`, below; and `reserve` the share of every window of the account the router
+  left unused then: the reserve the config gives it, or 0 where it has none or the pool's pin
+  names it, as a pin spends the reserves of the accounts it names (see Pinning). A day's summary
+  judges the account's minutes at its cap by it (see The request ledger). Where that reserve
+  changes, as the pool's pin comes to name the account or stops, the account moves to another
+  pool, leaving a pin that named it, or the router starts on a config that changed it, the router
+  appends a line for each of the account's windows it read in the
+  last 15 minutes, its measure of a reading gone stale (see Choosing an account), and that hasn't
+  reset since, as it holds them then, with `source` `reserve`, under the new one: so the change
+  shows in the history though the use reads as it did. A window read longer ago, as of an account
+  whose read is refused or that has no usable token, isn't restated, as its reading may be long
+  out of date: the next reading of it the router counts is appended under the new reserve, so its
+  stretch is judged again from then. The router knows what each window's last
+  line was appended under by `recorded_under` in `state.json`, which it updates only once the line
+  is queued, a line dropped as the queue is full being appended at the window's next reading; a
+  window it kept none for, as from a router from before or a `state.json` lost, takes its line
+  so too. A line a router from before wrote has no `reserve`, and a summary judges it by the
+  config's cap as the summary is made, as it does a line whose `reserve` no account could have,
+  below 0 or the whole window and more; a router from before passes the field over, and reads a
+  `reserve` line as any other reading. An account appears by its id alone: never a token or a
   label. Fields may be added to a line, never renamed, and a reader passes over those it doesn't
   know. The router removes a day's file once its day ended as long ago as `[history] keep` says, 400
   days unless it's set, and never where it says `forever` (see Config), as it starts and on each day
@@ -11981,7 +12016,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   before the older of the two has no baseline to
   take up. It passes over a line that doesn't read as a reading, as one cut short, or one over
   4 KiB, which no reading makes and which it skips without holding, one of an account no longer
-  configured, and those of a window that has reset since, as `state.json` has it. A reading that
+  configured, one with `source` `reserve`, which records no reading, as the router took none then,
+  and those of a window that has reset since, as `state.json` has it. A reading that
   can't be put as a line, as one whose use isn't a number, goes unwritten, logged once. A day's file
   is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of
   them would otherwise run to hundreds of megabytes: the plain file's lines streamed into a gzip

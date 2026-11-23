@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
@@ -91,6 +92,15 @@ func (s *state) record(id string, windows []quota.Window, sent moment) []LimitLi
 // stillHeld tells of every account that it holds the token the state file
 // kept it holding, usable.
 func stillHeld(string) tokenKept { return tokenKept{same: true, usable: true} }
+
+// queueing is a readings history that queues every line it's handed, onto
+// heard.
+func queueing(heard *[]readings.Reading) func([]readings.Reading) bool {
+	return func(read []readings.Reading) bool {
+		*heard = append(*heard, read...)
+		return true
+	}
+}
 
 // unkept hears of a change for the state file, and keeps nothing of it.
 func unkept() {}

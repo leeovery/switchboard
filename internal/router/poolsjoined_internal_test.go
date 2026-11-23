@@ -298,7 +298,7 @@ func TestARestartAfterAMoveCountsEachReadingInThePoolItsAccountWasInThen(t *test
 	live, _ := newPairedRouterOf(t, clock.read, pairedAccounts())
 	live.file.load(path)
 	var heard []readings.Reading
-	live.state.history = func(read []readings.Reading) { heard = append(heard, read...) }
+	live.state.history = queueing(&heard)
 	steps := []struct {
 		after time.Duration
 		do    func()
@@ -439,7 +439,7 @@ func TestARestartTakesUpTheRatesARouterRunningOnWouldHave(t *testing.T) {
 			live, _ := newPairedRouterOf(t, clock.read, pairedAccounts())
 			live.file.load(path)
 			var heard []readings.Reading
-			live.state.history = func(read []readings.Reading) { heard = append(heard, read...) }
+			live.state.history = queueing(&heard)
 			steps := append([]liveStep{
 				{0, reads("work", 0.5)}, {0, reads("personal", 0.5)}, {0, reads("side", 0.4)}, {40 * time.Minute, reads("side", 0.44)},
 			}, tt.steps...)
