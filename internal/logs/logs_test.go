@@ -364,6 +364,28 @@ func TestInitAgainReplacesTheFirst(t *testing.T) {
 	}
 }
 
+// Reopened after a Close, the log says why before it notes the start, as at
+// the start and exit, so it reads as one process carrying on.
+func TestReopenSaysWhyBeforeTheStart(t *testing.T) {
+	for _, role := range []logs.Role{logs.RoleRouter, logs.RoleCLI} {
+		t.Run(string(role), func(t *testing.T) {
+			opts := logs.Options{Dir: t.TempDir(), Role: role, Level: slog.LevelDebug}
+			path := start(t, opts)
+			logs.Close(0)
+			logs.Reopen(opts, "not replaced; carrying on")
+
+			var notes []string
+			for line := range strings.Lines(readLog(t, path)) {
+				msg, _, _ := strings.Cut(strings.SplitN(line, " msg=", 2)[1], " component=process")
+				notes = append(notes, msg)
+			}
+			if want := []string{"start", "exit", `"not replaced; carrying on"`, "start"}; !slices.Equal(notes, want) {
+				t.Errorf("the log notes %q, want %q", notes, want)
+			}
+		})
+	}
+}
+
 func TestStdLogger(t *testing.T) {
 	errorLog := logs.StdLogger("router", slog.LevelWarn)
 	quiet := logs.StdLogger("router", slog.LevelDebug)

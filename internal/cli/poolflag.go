@@ -30,13 +30,10 @@ Mac's from an import, by the id its history is kept under, naming it as
 removed, or as not configured here, and reads its work as it was recorded,
 never in another pool.`
 
-// poolFlag names the flag addPoolFlag registers.
-const poolFlag = "pool"
-
 // addPoolFlag registers --pool on cmd, naming the pool it reads or acts on,
 // as what says it does, by its id.
 func addPoolFlag(cmd *cobra.Command, pool *string, what string) {
-	cmd.Flags().StringVar(pool, poolFlag, "", what+" pool `ID`, else the only one, else the unfenced one")
+	cmd.Flags().StringVar(pool, "pool", "", what+" pool `ID`, else the only one, else the unfenced one")
 }
 
 // askedPool returns the pool of pools a verb reads or acts on, named or not,

@@ -13,11 +13,13 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/setup/screen"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
@@ -32,17 +34,15 @@ type ran struct {
 }
 
 // upgradable has deps' dashboard run as a switchboard binary of its own at
-// version 1.3.1, by argv, answering 1.4.0 when asked its version, each ask
-// and exec noted in the ran returned, an exec failing; and returns the
-// binary's path.
-func upgradable(t *testing.T, deps *cli.Deps, argv ...string) (string, *ran, *ran) {
+// version 1.3.1, answering 1.4.0 when asked its version, each ask and exec
+// noted in the ran returned, an exec failing; and returns the binary's path.
+func upgradable(t *testing.T, deps *cli.Deps) (string, *ran, *ran) {
 	t.Helper()
 	exe := filepath.Join(t.TempDir(), "switchboard")
 	putBinary(t, exe)
 	var asked, execed ran
 	deps.Version = "1.3.1"
 	deps.Executable = func() (string, error) { return exe, nil }
-	deps.Args = argv
 	deps.Check = func(_ context.Context, path string, argv, env []string) ([]byte, error) {
 		asked = ran{path, argv, env}
 		return []byte("switchboard version 1.4.0\n"), nil
@@ -66,14 +66,17 @@ func valueIn(env []string, name string) string {
 
 // The dashboard restarts onto an upgrade of the binary it was run as: it
 // watches that binary's path from as it starts, asks the router's health,
-// asks the binary its version as --version prints it, run as the dashboard
-// was, and replaces the process with it, run by the dashboard's command line
-// without --pool, in its environment, carrying what it shows.
+// asks the binary its version as --version prints it, and replaces the
+// process with it, run as the dashboard command, with the dashboard's flags
+// and interval but not --pool, never by the command line the process was
+// started by, in its environment, carrying what it shows. Run so, it opens
+// the dashboard as this one was opened.
 func TestTheDashboardRestartsOntoAnUpgradeOfItsBinary(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-	exe, asked, execed := upgradable(t, &srv.deps, "switchboard", "dashboard", "--pool", "b2n8", "15m")
+	exe, asked, execed := upgradable(t, &srv.deps)
+	srv.deps.Args = []string{"switchboard", "status"}
 	cfg := recordWatch(t, &srv.deps)
-	run(t, srv.deps, "dashboard")
+	run(t, srv.deps, "dashboard", "--probe", "--pool", "b2n8", "15m")
 	u := cfg.Upgrade
 
 	if u.Version != "1.3.1" || u.Binary.MovedTo(u.Look()) {
@@ -88,19 +91,23 @@ func TestTheDashboardRestartsOntoAnUpgradeOfItsBinary(t *testing.T) {
 		t.Errorf("Ask() = %q, %v; want 1.4.0", version, err)
 	}
 	environ := slices.Sorted(slices.Values(srv.deps.Environ()))
-	if asked.path != exe || !slices.Equal(asked.argv, []string{"switchboard", "--version"}) || !slices.Equal(slices.Sorted(slices.Values(asked.env)), environ) {
-		t.Errorf("asked %s as %q, want the binary, run as switchboard --version, in the dashboard's environment", asked.path, asked.argv)
+	if asked.path != exe || !slices.Equal(asked.argv, []string{exe, "--version"}) || !slices.Equal(slices.Sorted(slices.Values(asked.env)), environ) {
+		t.Errorf("asked %s as %q, want the binary, run with --version, in the dashboard's environment", asked.path, asked.argv)
 	}
 
 	if err := u.Exec(watch.Shown{Prefs: theme.Prefs{Tab: "runway"}, Pool: "b2n8"}); err == nil {
 		t.Error("Exec() error = nil, want the exec's")
 	}
-	if want := []string{"switchboard", "dashboard", "15m"}; execed.path != exe || !slices.Equal(execed.argv, want) {
+	if want := []string{exe, "dashboard", "--probe", "15m0s"}; execed.path != exe || !slices.Equal(execed.argv, want) {
 		t.Errorf("replaced the process with %s as %q, want the binary, as %q", execed.path, execed.argv, want)
 	}
 	carried := valueIn(execed.env, shownVariable)
 	if got := slices.Sorted(slices.Values(withoutShown(execed.env))); carried == "" || !slices.Equal(got, environ) {
 		t.Errorf("replaced the process in the environment %q, want the dashboard's, and what it shows in %s", execed.env, shownVariable)
+	}
+	again := recordWatch(t, &srv.deps)
+	if got := run(t, srv.deps, cli.Args(execed.argv)...); got != (result{}) || !again.ProbeOnly || again.Interval != 15*time.Minute {
+		t.Errorf("run so, switchboard = %+v, probing %v, every %s; want the dashboard opened probing, every 15m", got, again.ProbeOnly, again.Interval)
 	}
 
 	var pid atomic.Int64
@@ -121,11 +128,11 @@ func withoutShown(env []string) []string {
 }
 
 // A dashboard closes its log before it replaces itself, so the log ends with
-// its exit, and starts it again where it can't.
+// its exit, and opens it again where it can't, saying so before the start.
 func TestTheDashboardsLogEndsWithItsExitAsItRestarts(t *testing.T) {
 	deps := pooledDeps(t, false)
 	deps.Getenv, deps.Environ = withVariable(deps, "SWITCHBOARD_LOG_LEVEL", "debug")
-	upgradable(t, &deps, "switchboard", "dashboard")
+	upgradable(t, &deps)
 	var atExec, after string
 	exec := deps.Exec
 	deps.Exec = func(path string, argv, env []string) error {
@@ -139,11 +146,41 @@ func TestTheDashboardsLogEndsWithItsExitAsItRestarts(t *testing.T) {
 	}
 	run(t, deps, "dashboard")
 
-	if lines := strings.Split(strings.TrimSpace(atExec), "\n"); !strings.Contains(lines[len(lines)-1], "msg=exit") {
-		t.Errorf("as the process was replaced, the log ended %q, want its exit", lines[len(lines)-1])
+	if last := lastLines(atExec, 1); !strings.Contains(last[0], "msg=exit") {
+		t.Errorf("as the process was replaced, the log ended %q, want its exit", last)
 	}
-	if lines := strings.Split(strings.TrimSpace(after), "\n"); !strings.Contains(lines[len(lines)-1], "msg=start") {
-		t.Errorf("once it wasn't, the log ended %q, want it started again", lines[len(lines)-1])
+	last := lastLines(after, 2)
+	if !strings.Contains(last[0], `msg="the dashboard wasn't replaced by its upgrade; it carries on"`) || !strings.Contains(last[1], "msg=start") {
+		t.Errorf("once it wasn't, the log ended %q, want it said so, then started again", last)
+	}
+}
+
+// lastLines are the last n lines of log.
+func lastLines(log string, n int) []string {
+	lines := strings.Split(strings.TrimSpace(log), "\n")
+	return lines[max(0, len(lines)-n):]
+}
+
+// A dashboard opened another way than the dashboard command, as setup opens
+// one at Done, restarts as the dashboard, never as the command the process
+// was started by, with the config file named as it was.
+func TestADashboardSetupOpenedRestartsAsTheDashboard(t *testing.T) {
+	deps := setupDeps(t)
+	exe, _, execed := upgradable(t, &deps)
+	deps.Args = []string{"switchboard", "--config", configAt(t, deps), "setup"}
+	deps.SetupScreen = func(context.Context, screen.Config, io.Writer, []string) (screen.Left, error) {
+		return screen.Left{Ending: screen.ToDashboard}, nil
+	}
+	deps.Watch = func(_ context.Context, cfg watch.Config, _ io.Writer, _ []string) error {
+		_ = cfg.Upgrade.Exec(watch.Shown{})
+		return nil
+	}
+	if printed, code := runSeen(t, deps, deps.Args[1:]...); code != 0 {
+		t.Fatalf("switchboard setup printed %q, exit status %d; want 0", printed, code)
+	}
+
+	if want := []string{exe, "dashboard", "--config", configAt(t, deps)}; !slices.Equal(execed.argv, want) {
+		t.Errorf("restarted as %q, want %q", execed.argv, want)
 	}
 }
 
@@ -184,6 +221,8 @@ func TestARestartedDashboardOpensOnWhatTheOneBeforeShowed(t *testing.T) {
 		{name: "showing no pool", shown: &watch.Shown{Prefs: before}, want: before, pool: "b2n8"},
 		{name: "nothing it can read", written: "runway", want: theme.Prefs{Tab: "log"}, pool: "b2n8", logged: `msg="can't read what the dashboard showed before it restarted; opening as the preferences keep it"`},
 		{name: "preferences it can't read", written: `{"prefs": "runway", "pool": "q7mt"}`, want: theme.Prefs{Tab: "log"}, pool: "b2n8", logged: "level=WARN"},
+		{name: "no preferences", written: `{"prefs": null, "pool": "q7mt"}`, want: theme.Prefs{Tab: "log"}, pool: "b2n8", logged: "holds no preferences"},
+		{name: "preferences missing", written: `{"pool": "q7mt"}`, want: theme.Prefs{Tab: "log"}, pool: "b2n8", logged: "holds no preferences"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -196,7 +235,7 @@ func TestARestartedDashboardOpensOnWhatTheOneBeforeShowed(t *testing.T) {
 				t.Fatal(err)
 			}
 			deps.Getenv, deps.Environ = withVariable(deps, shownVariable, value)
-			_, asked, _ := upgradable(t, &deps, "switchboard", "dashboard")
+			_, asked, _ := upgradable(t, &deps)
 			var cfg watch.Config
 			var environ []string
 			deps.Watch = func(_ context.Context, given watch.Config, _ io.Writer, env []string) error {
@@ -226,7 +265,7 @@ func TestARestartedDashboardOpensOnWhatTheOneBeforeShowed(t *testing.T) {
 func carriedBy(t *testing.T, shown watch.Shown) string {
 	t.Helper()
 	deps := pooledDeps(t, false)
-	_, _, execed := upgradable(t, &deps, "switchboard", "dashboard")
+	_, _, execed := upgradable(t, &deps)
 	deps.Watch = func(_ context.Context, cfg watch.Config, _ io.Writer, _ []string) error {
 		_ = cfg.Upgrade.Exec(shown)
 		return nil
@@ -250,7 +289,7 @@ func TestTheDashboardsUpgradeFailsWhereTheBinaryDoesntSayItsVersion(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps := statusDeps(t, fakeClaudeAPI(t), nil)
-			upgradable(t, &deps, "switchboard", "dashboard")
+			upgradable(t, &deps)
 			deps.Check = func(context.Context, string, []string, []string) ([]byte, error) {
 				return []byte(tt.out), tt.err
 			}
@@ -264,28 +303,15 @@ func TestTheDashboardsUpgradeFailsWhereTheBinaryDoesntSayItsVersion(t *testing.T
 	}
 }
 
-// A dashboard that can't find its binary, or the command line it was run
-// by, never restarts.
+// A dashboard that can't find its binary never restarts.
 func TestTheDashboardWithoutItsBinaryNeverRestarts(t *testing.T) {
-	tests := []struct {
-		name       string
-		executable func() (string, error)
-		args       []string
-	}{
-		{name: "its binary not found", executable: func() (string, error) { return "", errors.New("not found") }, args: []string{"switchboard", "dashboard"}},
-		{name: "its command line not known", executable: func() (string, error) { return "/test/bin/switchboard", nil }},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deps := statusDeps(t, fakeClaudeAPI(t), nil)
-			deps.Executable, deps.Args = tt.executable, tt.args
-			cfg := recordWatch(t, &deps)
-			run(t, deps, "dashboard")
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	deps.Executable = func() (string, error) { return "", errors.New("not found") }
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "dashboard")
 
-			if cfg.Upgrade.Look != nil || cfg.Upgrade.Exec != nil {
-				t.Error("the dashboard's Upgrade looks at a binary, or replaces the process; want the zero Upgrade")
-			}
-		})
+	if cfg.Upgrade.Look != nil || cfg.Upgrade.Exec != nil {
+		t.Error("the dashboard's Upgrade looks at a binary, or replaces the process; want the zero Upgrade")
 	}
 }
 

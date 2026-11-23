@@ -231,12 +231,18 @@ func (m Model) noteRestart() {
 }
 
 // shownNow is what the watch shows, as a restart carries it: the
-// preferences as it shows them, drawn in the theme chosen, where it's drawn
-// in colour, and the pool shown.
+// preferences as it shows them, drawn, where it's drawn in colour, in the
+// theme chosen, each theme picked and not yet kept made in it, as the
+// restart keeps them; and the pool shown.
 func (m Model) shownNow() Shown {
 	prefs := m.keeping.shown
 	if m.coloured() {
 		prefs.Choice = m.choice
+		for _, c := range m.keeping.unkept {
+			if c.pick != (pick{}) {
+				c.change(&prefs)
+			}
+		}
 	}
 	return Shown{Prefs: prefs, Pool: m.cfg.Pool.ID}
 }

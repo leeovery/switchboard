@@ -133,6 +133,20 @@ func StdLogger(component string, level slog.Level) *log.Logger {
 // the mirror, if there is one. Another Init replaces this one without noting
 // an exit.
 func Init(opts Options) {
+	start(opts, "")
+}
+
+// Reopen starts logging again for a process whose log Close closed, as Init
+// starts it, noting first why, as at its start and exit, so the log never
+// reads as one process exiting and another starting: as a process carries
+// on that Close readied to be replaced, as by syscall.Exec, and wasn't.
+func Reopen(opts Options, why string) {
+	start(opts, why)
+}
+
+// start starts logging as Init has it, noting why it starts again first,
+// where it does.
+func start(opts Options, again string) {
 	role := cmp.Or(opts.Role, RoleCLI)
 	level, unknown := opts.level()
 	file, err := opts.file(role)
@@ -141,6 +155,9 @@ func Init(opts Options) {
 		old.close()
 	}
 	slog.SetDefault(standard)
+	if again != "" {
+		process.Log(context.Background(), role.noteLevel(), again)
+	}
 	process.Log(context.Background(), role.noteLevel(), "start",
 		"role", string(role), "version", opts.Version, "command", opts.Command)
 	if unknown != "" {

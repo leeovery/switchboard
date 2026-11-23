@@ -3,30 +3,30 @@ package cli
 import (
 	"slices"
 	"testing"
+	"time"
 )
 
-// A dashboard restarts by its command line as it was, but for the --pool it
-// named, the pool shown being carried in its place.
-func TestARestartedDashboardsCommandLineNamesNoPool(t *testing.T) {
+// A dashboard restarts as the dashboard command, run as the binary, with the
+// config file --config named, and its own flags and interval, the interval
+// only where it isn't the default; never the pool, which is carried.
+func TestARestartedDashboardsCommandLineIsTheDashboards(t *testing.T) {
+	const exe = "/test/bin/switchboard"
 	tests := []struct {
-		name string
-		argv []string
-		want []string
+		name   string
+		opts   dashboardOptions
+		config string
+		want   []string
 	}{
-		{name: "naming none", argv: []string{"switchboard", "dashboard", "15m"}, want: []string{"switchboard", "dashboard", "15m"}},
-		{name: "naming one", argv: []string{"switchboard", "dashboard", "--pool", "b2n8", "--probe"}, want: []string{"switchboard", "dashboard", "--probe"}},
-		{name: "naming one, as one argument", argv: []string{"switchboard", "--pool=b2n8", "dashboard"}, want: []string{"switchboard", "dashboard"}},
-		{name: "naming one last, without its id", argv: []string{"switchboard", "dashboard", "--pool"}, want: []string{"switchboard", "dashboard"}},
-		{name: "its flags ended", argv: []string{"switchboard", "dashboard", "--", "--pool", "15m"}, want: []string{"switchboard", "dashboard", "--", "--pool", "15m"}},
+		{name: "as opened by default, as setup opens it", opts: dashboardOptions{interval: defaultInterval}, want: []string{exe, "dashboard"}},
+		{name: "probing, without notifications", opts: dashboardOptions{probe: true, noNotify: true, interval: defaultInterval}, want: []string{exe, "dashboard", "--probe", "--no-notify"}},
+		{name: "every 15 minutes", opts: dashboardOptions{interval: 15 * time.Minute}, want: []string{exe, "dashboard", "15m0s"}},
+		{name: "of a config named", opts: dashboardOptions{interval: defaultInterval}, config: "/test/work.toml", want: []string{exe, "dashboard", "--config", "/test/work.toml"}},
+		{name: "on a pool named", opts: dashboardOptions{pool: "q7mt", interval: defaultInterval}, want: []string{exe, "dashboard"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			argv := slices.Clone(tt.argv)
-			if got := withoutPool(argv); !slices.Equal(got, tt.want) {
-				t.Errorf("withoutPool(%q) = %q, want %q", tt.argv, got, tt.want)
-			}
-			if !slices.Equal(argv, tt.argv) {
-				t.Errorf("the command line given became %q, want it left as it was", argv)
+			if got := tt.opts.commandLine(exe, tt.config); !slices.Equal(got, tt.want) {
+				t.Errorf("commandLine() = %q, want %q", got, tt.want)
 			}
 		})
 	}

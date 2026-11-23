@@ -318,7 +318,7 @@ type app struct {
 	noted     func() string
 	notedOnce sync.Once
 	// logging is how this invocation's log was started, as startLog started
-	// it, for resumeLog to start it again.
+	// it, for a dashboard whose restart failed to open it again.
 	logging logs.Options
 }
 
@@ -344,12 +344,6 @@ func (a *app) startLog(cmd *cobra.Command) {
 		Version: a.Version,
 		Command: cmd.CommandPath(),
 	}
-	logs.Init(a.logging)
-}
-
-// resumeLog starts this invocation's log again, as startLog started it,
-// once it was closed for an exec that failed.
-func (a *app) resumeLog() {
 	logs.Init(a.logging)
 }
 

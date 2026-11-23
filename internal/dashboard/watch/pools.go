@@ -143,28 +143,37 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 // config without pools nothing more. The stamp found is taken as the one
 // acted on once the ask goes out, so a config that can't be read is asked
 // again only once it changes again, and one found changed during a turn is
-// asked again at the next read. A read that finds neither reads nothing
-// again.
+// asked again at the next read, as is one found during a restart onto an
+// upgrade that didn't replace the process. A read that finds neither reads
+// nothing again.
 func (m Model) followConfig(stamp filestate.State, changed bool) (Model, tea.Cmd) {
 	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
 	// An accounts change found during a turn is dropped, accepted: a turn
 	// lasts milliseconds, the change costs nothing while the config is as
 	// it was, and the stamp, left as it was, catches a config changed. The
 	// pools told during a turn are told again at the next read.
-	if m.cfg.Turn == nil || m.turning || !stamped && !changed {
+	if m.cfg.Turn == nil || m.poolHeld() || !stamped && !changed {
 		return m, nil
 	}
 	m.cfg.Stamp = stamp
 	return m.askPool(SamePool)
 }
 
+// poolHeld reports whether the pool shown is held as it is: while a turn is
+// under way, so a second P turns from the pool the first turned to, and
+// while a restart onto an upgrade is, so the pool it carries is the one
+// shown.
+func (m Model) poolHeld() bool {
+	return m.turning || m.upgrade.restart != nil
+}
+
 // askPool asks for what the dashboard shows of the pool ask says, in a
-// command, of Config's Turn: nothing while a turn is under way, so a second
-// P turns from the pool the first turned to.
+// command, of Config's Turn: nothing while the pool shown is held, as
+// poolHeld has it.
 func (m Model) askPool(ask PoolAsk) (Model, tea.Cmd) {
-	// P during a turn is dropped, accepted: a turn lasts milliseconds, and
-	// one dropped fails safe, pressed again.
-	if m.turning {
+	// P during a turn, or a restart, is dropped, accepted: either lasts
+	// milliseconds, and one dropped fails safe, pressed again.
+	if m.poolHeld() {
 		return m, nil
 	}
 	m.turning = true

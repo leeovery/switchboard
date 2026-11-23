@@ -75,6 +75,9 @@ func shownIn(value string) (watch.Shown, error) {
 	if err := json.Unmarshal([]byte(value), &c); err != nil {
 		return watch.Shown{}, fmt.Errorf("%s: %w", shownVariable, err)
 	}
+	if len(c.Prefs) == 0 || string(c.Prefs) == "null" {
+		return watch.Shown{}, fmt.Errorf("%s holds no preferences", shownVariable)
+	}
 	prefs, err := theme.PrefsOf(c.Prefs)
 	if err != nil {
 		return watch.Shown{}, fmt.Errorf("%s's preferences: %w", shownVariable, err)
@@ -87,31 +90,28 @@ func withoutVariable(env []string, name string) []string {
 	return slices.DeleteFunc(slices.Clone(env), func(kv string) bool { return strings.HasPrefix(kv, name+"=") })
 }
 
-// dashboardUpgrade is how the dashboard restarts itself onto an upgrade of
-// this binary, as watch.Upgrade says: by the path it was run by, as it
-// stands now; the router's health asked as the verbs ask it; the binary
-// asked its version as --version prints it, run as the dashboard was, as
-// versionIn reads it; and the process replaced with it, as restartInto has
-// it. None where the binary, or the command line it was run by, can't be
-// found.
-func (a *app) dashboardUpgrade() watch.Upgrade {
+// dashboardUpgrade is how the dashboard opened with opts restarts itself
+// onto an upgrade of this binary, as watch.Upgrade says: by the path it was
+// run by, as it stands now; the router's health asked as the verbs ask it;
+// the binary asked its version as --version prints it, as versionIn reads
+// it; and the process replaced with it, as restartInto has it, run by the
+// command line commandLine gives, never the one this process was started
+// by, as setup's, which opens a dashboard at Done. None where the binary
+// can't be found.
+func (a *app) dashboardUpgrade(opts dashboardOptions) watch.Upgrade {
 	exe, err := a.Executable()
 	if err != nil {
 		logger.Warn("can't find this switchboard binary, so the dashboard won't restart onto an upgrade", "error", err)
 		return watch.Upgrade{}
 	}
-	if len(a.Args) == 0 {
-		logger.Warn("can't tell how the dashboard was started, so it won't restart onto an upgrade")
-		return watch.Upgrade{}
-	}
-	argv, env := slices.Clone(a.Args), a.Environ()
+	argv, env := opts.commandLine(exe, a.configPath), a.Environ()
 	return watch.Upgrade{
 		Version: a.Version,
 		Binary:  router.Watch(exe),
 		Look:    func() filestate.State { return filestate.Of(exe) },
 		Health:  a.routersHealth,
 		Ask: func(ctx context.Context) (string, error) {
-			out, err := a.Check(ctx, exe, []string{argv[0], "--version"}, env)
+			out, err := a.Check(ctx, exe, []string{exe, "--version"}, env)
 			if err != nil {
 				return "", err
 			}
@@ -123,13 +123,36 @@ func (a *app) dashboardUpgrade() watch.Upgrade {
 	}
 }
 
-// restartInto replaces this process with the binary at exe, run by argv,
-// the command line the dashboard was run by, but without --pool, in env,
-// the environment it was run in, carrying what it shows, shown, in
-// shownVariable: the pool shown among it, which the dashboard opens on where
-// the config still has it, never refusing it. The log is closed first, so
-// it ends with this process's exit, and started again where the process
-// can't be replaced.
+// commandLine is the command line a dashboard opened with o restarts by,
+// run as the binary at exe: the dashboard command, with the config file
+// named, where --config named one, and o's flags and interval, the interval
+// only where it isn't the default, so a release's default is taken up; but
+// never --pool, as the pool shown is carried in shownVariable.
+func (o dashboardOptions) commandLine(exe, config string) []string {
+	argv := []string{exe, dashboardName}
+	if config != "" {
+		argv = append(argv, "--config", config)
+	}
+	for _, flag := range []struct {
+		name string
+		set  bool
+	}{{probeFlag, o.probe}, {noNotifyFlag, o.noNotify}} {
+		if flag.set {
+			argv = append(argv, "--"+flag.name)
+		}
+	}
+	if o.interval != defaultInterval {
+		argv = append(argv, o.interval.String())
+	}
+	return argv
+}
+
+// restartInto replaces this process with the binary at exe, run by argv, in
+// env, the environment the dashboard was run in, carrying what it shows,
+// shown, in shownVariable: the pool shown among it, which the dashboard
+// opens on where the config still has it, never refusing it. The log is
+// closed first, so it ends with this process's exit, and opened again where
+// the process can't be replaced, saying so first.
 func (a *app) restartInto(exe string, argv, env []string, shown watch.Shown) error {
 	value, err := carriedShown(shown)
 	if err != nil {
@@ -137,32 +160,9 @@ func (a *app) restartInto(exe string, argv, env []string, shown watch.Shown) err
 	}
 	env = append(withoutVariable(env, shownVariable), shownVariable+"="+value)
 	logs.Close(0)
-	err = a.Exec(exe, withoutPool(argv), env)
-	a.resumeLog()
-	if err != nil {
+	if err := a.Exec(exe, argv, env); err != nil {
+		logs.Reopen(a.logging, "the dashboard wasn't replaced by its upgrade; it carries on")
 		return fmt.Errorf("replace the dashboard with %s: %w", exe, err)
 	}
 	return nil
-}
-
-// withoutPool is argv, the command line a dashboard was run by, as os.Args
-// gives it, without the --pool it names, if any, before any -- ending the
-// flags.
-func withoutPool(argv []string) []string {
-	flags, rest := argv, []string(nil)
-	if end := slices.Index(argv, "--"); end >= 0 {
-		flags, rest = argv[:end], argv[end:]
-	}
-	named := "--" + poolFlag
-	kept := make([]string, 0, len(argv))
-	for i := 0; i < len(flags); i++ {
-		switch {
-		case flags[i] == named:
-			i++
-		case strings.HasPrefix(flags[i], named+"="):
-		default:
-			kept = append(kept, flags[i])
-		}
-	}
-	return append(kept, rest...)
 }

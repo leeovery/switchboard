@@ -176,9 +176,9 @@ func (h *harness) reread() {
 }
 
 // A dashboard restarts onto an upgrade of its binary once a read finds the
-// binary changed, and the router running another version than its own, or
-// none answering two reads in a row, and the binary says its version,
-// another than its own.
+// binary changed, and the router running another version than its own, at
+// the first read, a probing one's among them, or none answering two reads in
+// a row, and the binary says its version, another than its own.
 func TestADashboardRestartsOntoAnUpgradeOnceTheRouterHasMovedOver(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -223,9 +223,13 @@ func TestADashboardRestartsOntoAnUpgradeOnceTheRouterHasMovedOver(t *testing.T) 
 			}
 
 			h.start()
-			h.reread()
+			reads := 1
+			if tt.router == "" {
+				h.reread()
+				reads++
+			}
 			if asks, execs := rig.counts(); asks != tt.wantAsks || execs != tt.wantExecs {
-				t.Errorf("after two reads, the binary asked its version %d times, the process replaced %d; want %d and %d", asks, execs, tt.wantAsks, tt.wantExecs)
+				t.Errorf("after %d reads, the binary asked its version %d times, the process replaced %d; want %d and %d", reads, asks, execs, tt.wantAsks, tt.wantExecs)
 			}
 		})
 	}
@@ -488,6 +492,52 @@ func TestARestartCarriesThePreferencesOpenedWithAsChangedSince(t *testing.T) {
 	cfg.Opened = opened
 	if got := New(t.Context(), cfg).shownNow().Prefs; !reflect.DeepEqual(got, opened) {
 		t.Errorf("a watch opened on %+v shows %+v, want them", opened, got)
+	}
+}
+
+// A theme picked and not yet kept is carried as chosen, as the restart keeps
+// it, though the watch draws in it only once it's kept.
+func TestARestartCarriesAThemePickedAndNotYetKept(t *testing.T) {
+	h, _ := settledThemedHarness(t, theme.Choice{})
+	h.model.cfg.Prefs = newCountedPrefs(t)
+	h.typed("t", "down")
+	holdingBack[prefsKeptMsg](h, h.press("enter")...)
+
+	want := theme.One("nord-wave")
+	if h.model.choice == want {
+		t.Fatalf("the watch draws in %+v, want the pick not yet kept", h.model.choice)
+	}
+	if got := h.model.shownNow().Prefs.Choice; got != want {
+		t.Errorf("shown in %+v, want %+v, the theme picked", got, want)
+	}
+}
+
+// Once a restart is decided on, P turns to no pool, so the pool it carries
+// is the one shown; where the process isn't replaced, P turns again.
+func TestPTurnsToNoPoolOnceARestartIsDecidedOn(t *testing.T) {
+	rig := newUpgradeRig(t)
+	rig.holding = true
+	h, acme, _ := pooledHarness(t, acmeAccounts)
+	rig.routerOn(h, newVersion)
+	acme.health = rig.health
+	h.upgradedBy(rig)
+	rig.upgrade(t)
+	h.start()
+	shown := h.model.cfg.Pool.ID
+	if len(rig.held) != 1 {
+		t.Fatalf("%d restarts decided on, want one", len(rig.held))
+	}
+
+	if turn := h.press("P"); len(turn) != 0 || h.model.turning {
+		t.Fatalf("P turned, turning %v, sending %v; want nothing asked", h.model.turning, turn)
+	}
+	h.deliver(rig.held[0]())
+	if len(rig.execs) != 1 || rig.execs[0].Pool != shown {
+		t.Fatalf("the restart carried %+v, want the pool shown, %q", rig.execs, shown)
+	}
+	h.deliver(h.press("P")...)
+	if h.model.cfg.Pool.ID == shown {
+		t.Errorf("once the process wasn't replaced, P left %q shown, want it turned", shown)
 	}
 }
 

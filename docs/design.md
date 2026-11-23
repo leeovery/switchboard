@@ -9698,8 +9698,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     dashboard's version. One read a router under load doesn't answer, as its health check times
     out, is no router gone; and a router last seen on the dashboard's version, as one handing
     over, is waited on, however many reads it misses, till a read finds it answering.
-  - **The binary asked first:** run with `--version`, as the dashboard was run, in its
-    environment, and given 10 seconds, it's restarted onto only where it says a version other than
+  - **The binary asked first:** run with `--version`, in the dashboard's environment, and given
+    10 seconds, it's restarted onto only where it says a version other than
     the dashboard's own, as `switchboard version 1.4.0`. One that doesn't, as a broken binary, one
     too slow, or one saying the dashboard's own version, as a dev build does, leaves the dashboard
     on its version, noted once at `info`, and isn't asked again until the binary changes again; so
@@ -9711,17 +9711,22 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     and the mouse's modes; the terminal's background is put back and what was typed and never read
     thrown away, as at a quit; the preferences not yet kept are kept, every other write held off
     meanwhile, so the shared file has this dashboard's last changes too; the log is closed, so the
-    old process's ends with its exit line; and the dashboard is replaced in place (`syscall.Exec`)
-    by the binary, run by its command line, but without `--pool`, and in its environment, with
-    what it shows in `SWITCHBOARD_DASHBOARD_SHOWN`. What it carries and keeps is taken as the
-    restart runs, not as it was decided on, so a key taken in between isn't lost. Where the
-    process can't be replaced, Bubble Tea takes the terminal back, the log is opened again, and the
-    dashboard carries on as it was, saying why at `warn`, and asks again only once the binary
-    changes again.
+    old process's ends with its exit line; and the dashboard is replaced in place
+    (`syscall.Exec`) by the binary, in its environment, with what it shows in
+    `SWITCHBOARD_DASHBOARD_SHOWN`. The binary runs as `switchboard dashboard`, with the `--config`
+    in force and the dashboard's own flags and interval, the interval only where it isn't the
+    default, but never `--pool`: never the command line the process was started by, as
+    `switchboard setup` opens the dashboard at Done in its own process. What it carries and keeps
+    is taken as the restart runs, not as it was decided on, so a key taken in between isn't lost;
+    and from the decision on, `P` and a change to the config read no pool, so the pool carried is
+    the one shown. Where the process can't be replaced, Bubble Tea takes the terminal back, the log
+    is opened again, noting first that the process wasn't replaced, and the dashboard carries on as
+    it was, saying why at `warn`, and asks again only once the binary changes again.
   - **What it showed, carried:** `SWITCHBOARD_DASHBOARD_SHOWN` is one-shot. It holds, as JSON, the
     preferences as the dashboard shows them, in the preferences file's own shape (the tab, its
-    sections, each tab's view, By, the dial's period, the Log's columns, the theme chosen; see
-    Themes, What's remembered), and the pool shown, by its id. The dashboard restarted opens on
+    sections, each tab's view, By, the dial's period, the Log's columns, the theme chosen, a theme
+    picked and not yet kept among it; see Themes, What's remembered), and the pool shown, by its
+    id. A value without the preferences is one it can't read. The dashboard restarted opens on
     them in place of the preferences file, which another dashboard, on another screen, may have
     kept otherwise since, and drops the variable from its environment at once, so nothing it runs,
     nor its own restart, inherits it. It opens on the pool carried where the config still has it,
@@ -9729,9 +9734,9 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     it passes over, and a value it can't read it passes over whole, saying why at `warn` and
     opening as the preferences keep it; so versions either side read it, and its form only ever
     gains fields. A scroll, a week stepped back to, and an open card or help don't come back.
-  - **Flags kept stable:** the restart runs the dashboard's command line again unasked, so a
-    dashboard's flags are kept from one release to the next. A release that renames one leaves a
-    dashboard restarting onto it refused, at the shell (accepted).
+  - **Flags kept stable:** the restart runs the dashboard's flags again unasked, so a dashboard's
+    flags are kept from one release to the next. A release that renames one leaves a dashboard
+    restarting onto it refused, at the shell (accepted, 23 November 2026).
   - The capture harness's fixtures and scenarios give the watch no binary to look at, so they
     never restart (`internal/dashboard/watch`, `upgrade.go`; the command's side,
     `internal/cli/dashboardupgrade.go`).

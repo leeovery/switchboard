@@ -29,6 +29,13 @@ const (
 	minInterval = 5 * time.Minute
 )
 
+// The dashboard command's name, and its flags', but --pool's.
+const (
+	dashboardName = "dashboard"
+	noNotifyFlag  = "no-notify"
+	probeFlag     = "probe"
+)
+
 // dashboardOptions are the dashboard command's flags, and its interval.
 type dashboardOptions struct {
 	noNotify bool
@@ -40,7 +47,7 @@ type dashboardOptions struct {
 func newDashboardCommand(a *app) *cobra.Command {
 	var opts dashboardOptions
 	cmd := &cobra.Command{
-		Use:   "dashboard [interval] [--no-notify] [--probe] [--pool ID]",
+		Use:   dashboardName + " [interval] [--no-notify] [--probe] [--pool ID]",
 		Short: "Show a pool's accounts' usage as a dashboard, full screen",
 		Long:  dashboardLong,
 		Args:  opts.parseArgs,
@@ -53,8 +60,8 @@ func newDashboardCommand(a *app) *cobra.Command {
 		c.Long = strings.Replace(dashboardLong, keysPlace, dashboardKeys(), 1)
 		shown(c, args)
 	})
-	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "post no desktop notifications without the router")
-	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
+	cmd.Flags().BoolVar(&opts.noNotify, noNotifyFlag, false, "post no desktop notifications without the router")
+	cmd.Flags().BoolVar(&opts.probe, probeFlag, false, "probe every account, even while the router runs")
 	addPoolFlag(cmd, &opts.pool, "show the")
 	return cmd
 }
@@ -100,9 +107,10 @@ It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5
 minutes; R has it read them at once. Should the router stop answering, its
 last document stays on screen until it answers again, or the next full read,
-or R, probes the accounts instead. Left open across an upgrade, it restarts
-itself onto the new version once the router has moved over, or at once with
-no router running, keeping what it showed.
+or R, probes the accounts instead. Left open across an upgrade, it waits for
+the router to move over to the new version, then restarts itself onto it,
+keeping what it showed; where no router answers, it restarts after a minute
+or so.
 
 The interval is how often it probes every account when it probes for itself,
 without the router or with --probe: 30m unless given, and 5m at the least.
@@ -176,7 +184,7 @@ func parseInterval(s string) (time.Duration, error) {
 // the pool it showed, where the config still has it.
 func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOptions) error {
 	before, restarted := a.takeShown()
-	upgrade := a.dashboardUpgrade()
+	upgrade := a.dashboardUpgrade(opts)
 	if dir, err := config.StateDir(a.Getenv, a.HomeDir); err == nil {
 		if err := a.awaitMove(ctx, out, dir); err != nil {
 			return err
