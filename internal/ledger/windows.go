@@ -95,10 +95,11 @@ type stood struct {
 
 // carry takes r, the last reading of the window in the week before the day,
 // which hadn't reset by the day's start, as the use the window began the day
-// at, standing from the day's start.
-func (d *windowDay) carry(r readings.Reading) {
+// at, standing from the day's start, its run's peak having stood under under,
+// as the climb of the week before's lines has it.
+func (d *windowDay) carry(r readings.Reading, under *float64) {
 	d.climb.Carry(r.Window(), d.start)
-	d.climb.under, d.reserve = r.Reserve, r.Reserve
+	d.climb.under, d.reserve = under, r.Reserve
 }
 
 // afresh notes that the window began the day empty: read in the week before,
@@ -173,8 +174,8 @@ type Climb struct {
 	latest time.Time
 	rise   float64
 	// under is the highest reserve the run's peak, top, stood under, as the
-	// lines of the readings history taken since the first that read it
-	// recorded them, nil where none did.
+	// lines of the readings history that read it recorded them, nil where
+	// none did.
 	under *float64
 	// resets are the resets that ended its runs that read above nothing, and
 	// ended each such run's reset as its readings gave it.
@@ -239,9 +240,10 @@ const (
 
 // take takes w as Take says, saying what it made of it, its line of the
 // readings history recording the reserve given, nil where it recorded none:
-// the run's peak stood under it where w reads the peak afresh, else under it
-// as well as those before, from the line that first read the peak on, as
-// under has them.
+// where w reads a new peak, the run's peak stood under that reserve alone;
+// where it reads the peak, under it as well as those before, as under has
+// them; and where it reads below the peak, at any point, it says nothing of
+// what the peak stood under.
 func (c *Climb) take(w quota.Window, at time.Time, reserve *float64) (float64, taking) {
 	switch {
 	case w.ResetBy(at):
@@ -258,9 +260,10 @@ func (c *Climb) take(w quota.Window, at time.Time, reserve *float64) (float64, t
 	if !c.based {
 		c.BeginAt(c.began(w))
 	}
-	if w.Utilization > c.top {
+	switch {
+	case w.Utilization > c.top:
 		c.under = reserve
-	} else {
+	case w.Utilization == c.top:
 		c.under = higherReserve(c.under, reserve)
 	}
 	climbed := max(w.Utilization-c.top, 0)

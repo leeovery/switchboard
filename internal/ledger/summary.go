@@ -714,7 +714,10 @@ func (m *modelTally) line(l *Line) {
 // readings tallies each window's highest use on the day that starts at start,
 // and the limits reached on it, from the readings history gives, those of the
 // day and the week before it, in the order they came: the last of a window's
-// before the day is the use it began the day at, unless it had reset by then.
+// before the day is the use it began the day at, unless it had reset by then,
+// its run's peak standing under the highest reserve the climb of the lines
+// before the day has it stood under, as Climb's take judges each line, so a
+// peak's reserve holds across midnight as within a day.
 // The accounts they tell of are tallied, whether or not they served a
 // request: each read in the day, and each a window of which began it at the
 // use its last reading before gave, as one whose window reset in the day by
@@ -729,10 +732,16 @@ func (m *modelTally) line(l *Line) {
 // the run since.
 func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Time, readBefore func(accountWindow) bool) {
 	last := make(map[accountWindow]readings.Reading)
+	climbs := make(map[accountWindow]*Climb)
 	var day []readings.Reading
 	for r := range history {
 		if r.At.Before(start) {
-			last[windowOf(r)] = r
+			w := windowOf(r)
+			if climbs[w] == nil {
+				climbs[w] = NewClimb(w.key, nil)
+			}
+			climbs[w].take(r.Window(), r.At, r.Reserve)
+			last[w] = r
 			continue
 		}
 		day = append(day, r)
@@ -746,7 +755,7 @@ func (t tally) readings(history iter.Seq[readings.Reading], start, until time.Ti
 	days := windowDays{start: start, until: until, days: make(map[accountWindow]*windowDay)}
 	for w := range before {
 		if began, ok := last[w]; ok {
-			days.of(w).carry(began)
+			days.of(w).carry(began, climbs[w].under)
 			t.account(w.account).peak(began.Window())
 		} else {
 			days.of(w).afresh()

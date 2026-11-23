@@ -608,6 +608,11 @@ func TestAResetRecordsTheHighestReserveItsPeakStoodUnder(t *testing.T) {
 			want:     new(0.2),
 		},
 		{
+			name:     "under a tenth at its peak, then a fifth on a line below it after",
+			readings: []readings.Reading{under(0.1, allowed(on(0, 10, 0), "5h", 0.5, ends)), under(0.2, allowed(on(0, 10, 30), "5h", 0.48, ends)), afresh},
+			want:     new(0.1),
+		},
+		{
 			name:     "under a fifth below its peak, then a tenth as it rose to it",
 			readings: []readings.Reading{under(0.2, allowed(on(0, 9, 0), "5h", 0.4, ends)), under(0.1, allowed(on(0, 10, 0), "5h", 0.5, ends)), afresh},
 			want:     new(0.1),
@@ -621,6 +626,51 @@ func TestAResetRecordsTheHighestReserveItsPeakStoodUnder(t *testing.T) {
 			got := workDay(t, reserving, dayDone, tt.readings...).Resets
 			if len(got) == 0 || !sameReset(got[0], ledger.Reset{Window: "5h", At: ends, Before: 0.5, Reserve: tt.want}) {
 				t.Errorf("work's resets are %+v, want the first at %v from 0.5, under %v", got, ends, reserveSaid(tt.want))
+			}
+		})
+	}
+}
+
+// A week's peak keeps the highest reserve it stood under across the days
+// before the one its reset falls on, as within a day: the lines before the
+// day are judged by the one rule, a reset among them starting afresh.
+func TestAPeaksReserveHoldsAcrossMidnight(t *testing.T) {
+	ends := on(0, 12, 0)
+	afresh := allowed(on(0, 13, 0), "7d", 0.01, ends.AddDate(0, 0, 7))
+	week := func(days int, u float64) readings.Reading { return allowed(on(days, 10, 0), "7d", u, ends) }
+	restatedWeek := func(days int, u, reserve float64) readings.Reading {
+		r := under(reserve, week(days, u))
+		r.Source = readings.FromReserve
+		return r
+	}
+	tests := []struct {
+		name     string
+		readings []readings.Reading
+		// before is the use the reset ended the run at, 0.85 where it's
+		// zero.
+		before float64
+		want   *float64
+	}{
+		{name: "peaked under a fifth days before, lowered to a tenth since", readings: []readings.Reading{under(0.2, week(-3, 0.85)), restatedWeek(-1, 0.85, 0.1), afresh}, want: new(0.2)},
+		{name: "peaked under a tenth days before, raised to a fifth since", readings: []readings.Reading{under(0.1, week(-3, 0.85)), restatedWeek(-1, 0.85, 0.2), afresh}, want: new(0.2)},
+		// The day begins the run at its last use before it, 0.83, as it did
+		// before resets kept a reserve; its peak's reserve is the 0.85's.
+		{name: "a fifth on a line below the peak, the day before", readings: []readings.Reading{under(0.1, week(-3, 0.85)), under(0.2, week(-1, 0.83)), afresh}, before: 0.83, want: new(0.1)},
+		{
+			name: "a reset between the earlier run's peak and the run carried in",
+			readings: []readings.Reading{
+				under(0.3, allowed(on(-6, 10, 0), "7d", 0.85, on(-5, 12, 0))), under(0.1, week(-3, 0.85)), afresh,
+			},
+			want: new(0.1),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := workDay(t, reserving, dayDone, tt.readings...).Resets
+			before := cmp.Or(tt.before, 0.85)
+			i := slices.IndexFunc(got, func(r ledger.Reset) bool { return r.At.Equal(ends) })
+			if i < 0 || !sameReset(got[i], ledger.Reset{Window: "7d", At: ends, Before: before, Reserve: tt.want}) {
+				t.Errorf("work's resets are %+v, want one at %v from %v, under %v", got, ends, before, reserveSaid(tt.want))
 			}
 		})
 	}

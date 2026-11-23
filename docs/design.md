@@ -5412,14 +5412,13 @@ its periods, as Trends has none:
     reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
     the columns: one level across every week, at the reserve the config has now, though each
     week's mark and limit are judged at the cap of the highest reserve its peak stood under (see
-    The capacity verdict). The
-    axis names a month where it starts, and at 12 months each month, giving way
-    from the last back as WORTH BY's names do; the last is bold at now, and in a past period only
-    where this week shows, as Detail's BY DAY has it, so 12 months back names none bold; under
-    this week's column, so far, `…`
-    in `text.secondary`, in place of its name, where its columns are weeks: at 12 months none,
-    as a month's column isn't this week's, though its fullest week may be. A past period's last
-    week, but this week, is drawn whole, undimmed and with its name.
+    The capacity verdict). The axis names a month where it starts, and at 12 months each month,
+    giving way from the last back as WORTH BY's names do; the last is bold at now, and in a past
+    period only where this week shows, as Detail's BY DAY has it, so 12 months back names none
+    bold; under this week's column, so far, `…` in `text.secondary`, in place of its name, where
+    its columns are weeks: at 12 months none, as a month's column isn't this week's, though its
+    fullest week may be. A past period's last week, but this week, is drawn whole, undimmed and
+    with its name.
   - **Under it,** the weeks' facts on the reach's whole weeks, never its verdict's words, which stay in
     `switchboard history`: `limit hit 3 of 7 · 9% left at a reset`, in `text.subtle`, its last
     part giving way to `9% left`, then going; `all accounts`, the pool's peaks the mean of the
@@ -7290,10 +7289,10 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   reserve in force today: the config's, none where the pool's pin names the account (the owner's
   call, 23 November 2026). So a reserve changed since, or a pin set or lifted since, leaves the past
   as it stood. The capacity verdict judges a week's peak alike, by the highest reserve it stood
-  under (see The capacity verdict). A window read before a reserve changed, too long before for the router to
-  record it again (see the readings history in Files), keeps the reserve before even at now, as
-  the pool's room then has it, till its next reading, which a probe brings within minutes; the
-  moment's own room is by today's (the owner's call, 23 November 2026).
+  under (see The capacity verdict). A window read before a reserve changed, too long before for
+  the router to record it again (see the readings history in Files), keeps the reserve before
+  even at now, as the pool's room then has it, till its next reading, which a probe brings within
+  minutes; the moment's own room is by today's (the owner's call, 23 November 2026).
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
@@ -10198,11 +10197,11 @@ from the first day a router that has it runs, so nothing before then is in it.
       in or read that day, records no reset: an unopened window's reset moves on with each reading
       (see Observed), and nothing was used to reset. Since 23 November 2026, with no version of its
       own, as a field added: `reserve`, the highest reserve the run's peak stood under, of those
-      the readings history's lines recorded from the first that read the peak to the reset,
-      `reserve` lines among them, a rise to a new peak starting afresh, a line below the peak
-      before it counting for nothing; left out where none of them recorded one. A reading read
-      late that raises `before` brings its line's reserve with it, and one at `before` the higher
-      of the two. A day summarised again keeps the reset from the higher `before`, under the
+      the readings history's lines that read the peak recorded, `reserve` lines among them, a rise
+      to a new peak starting afresh, a line below the peak at any point counting for nothing, and
+      the lines of the days before counting as the day's do; left out where none of them recorded
+      one. A reading read late that raises `before` brings its line's reserve with it, and one at
+      `before` the higher of the two. A day summarised again keeps the reset from the higher `before`, under the
       reserve of the summary that read it, the higher of the two where both did. The capacity
       verdict judges a week's peak at its cap by it (see The capacity verdict).
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
