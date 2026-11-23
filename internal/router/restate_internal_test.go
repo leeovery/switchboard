@@ -3,6 +3,7 @@ package router
 import (
 	"iter"
 	"maps"
+	"math"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -137,20 +138,29 @@ func TestAPinThatSpendsAnAccountsReserveRestatesItsFreshWindows(t *testing.T) {
 
 // A window the pin's restatement missed, its line dropped or its reading too
 // old to stand as read then, is recorded under the reserve in force at its
-// next reading, though that reads as before.
+// next reading, though that reads as before, which the state file keeps as
+// news.
 func TestAWindowNotRestatedIsRecordedAtItsNextReading(t *testing.T) {
+	stale := start.Add(staleAfter + time.Minute)
+	answered := func(s *state) { s.record("work", []quota.Window{session, week}, s.mark()) }
+	probing := func(s *state) { s.recordProbe("work", probed(nil, session, week), nil, s.mark(), readings.FromProbe) }
 	tests := []struct {
 		name     string
 		dropping bool
 		pinnedAt time.Time
+		// read reads work's windows again, from the source given.
+		read func(*state)
+		from readings.Source
 	}{
-		{name: "the restatement dropped, the history's queue full", dropping: true, pinnedAt: start},
-		{name: "read too long before the pin to stand as read then", pinnedAt: start.Add(staleAfter + time.Minute)},
+		{name: "the restatement dropped, the history's queue full", dropping: true, pinnedAt: start, read: answered, from: readings.FromAnswer},
+		{name: "read too long before the pin to stand as read then", pinnedAt: stale, read: answered, from: readings.FromAnswer},
+		{name: "read too long before the pin, then by a probe", pinnedAt: stale, read: probing, from: readings.FromProbe},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			clock := &testClock{now: start}
-			s := newState(workReserving(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+			var changes changeCount
+			s := newState(workReserving(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
 			dropping := false
 			heard := readingsHeard(s, func() bool { return dropping })
 			s.record("work", []quota.Window{session, week}, s.mark())
@@ -162,13 +172,113 @@ func TestAWindowNotRestatedIsRecordedAtItsNextReading(t *testing.T) {
 			if got := heard(); got != nil {
 				t.Fatalf("the history queued %+v at the pin, want nothing", got)
 			}
-			s.record("work", []quota.Window{session, week}, s.mark())
+			changes = 0
+			tt.read(s)
 
-			want := readings.Under(readings.Of("work", []quota.Window{session, week}, tt.pinnedAt, readings.FromAnswer), 0)
+			want := readings.Under(readings.Of("work", []quota.Window{session, week}, tt.pinnedAt, tt.from), 0)
 			if got := heard(); !reflect.DeepEqual(got, want) {
 				t.Errorf("the history heard of %+v, want %+v: work's windows as read, under the reserve the pin left it", got, want)
 			}
+			if changes != 1 {
+				t.Errorf("told of %d changes, want 1: the reserve work's windows are recorded under, for the state file, as news", changes)
+			}
 		})
+	}
+}
+
+// A reading records each window it read whose last line recorded another
+// reserve than the one in force, or none, once, whether it reads otherwise
+// or not, and no window it didn't read.
+func TestAReadingRecordsEachWindowItReadOnceWhereItsReserveIsNew(t *testing.T) {
+	busier := week
+	busier.Utilization = 0.95
+	tests := []struct {
+		name string
+		// held, where it's set, are work's windows read at start, which the
+		// pool's pin comes to name once they're stale.
+		held []quota.Window
+		// read are work's windows read a minute after that, and want those
+		// recorded, under the reserve given.
+		read, want []quota.Window
+		reserve    float64
+	}{
+		{name: "a first reading, each window new", read: []quota.Window{session, week}, want: []quota.Window{session, week}, reserve: 0.1},
+		{name: "the week read alone, as it was, the pin set while both were stale", held: []quota.Window{session, week}, read: []quota.Window{week},
+			want: []quota.Window{week}},
+		{name: "the week read alone, otherwise, the pin set while both were stale", held: []quota.Window{session, week}, read: []quota.Window{busier},
+			want: []quota.Window{busier}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clock := &testClock{now: start}
+			s := newState(workReserving(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+			heard := readingsHeard(s, queuesAll)
+			if tt.held != nil {
+				s.record("work", tt.held, s.mark())
+				clock.now = start.Add(staleAfter + time.Minute)
+				s.repin(pinTo("work"))
+			}
+			heard()
+			clock.now = clock.now.Add(time.Minute)
+
+			s.record("work", tt.read, s.mark())
+
+			want := readings.Under(readings.Of("work", tt.want, clock.now, readings.FromAnswer), tt.reserve)
+			if got := heard(); !reflect.DeepEqual(got, want) {
+				t.Errorf("the history heard of %+v, want %+v: each window read once, where it reads otherwise or its last line recorded another "+
+					"reserve", got, want)
+			}
+		})
+	}
+}
+
+// An account that moves out of the pool whose pin named it is held to its
+// own reserve again, and its windows read lately are recorded under it as it
+// moves.
+func TestAnAccountMovedOutOfThePoolWhosePinNamedItIsRestated(t *testing.T) {
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.Pools = pooledAccounts(), testPools
+	cfg.Accounts[2].Reserve = 0.1
+	r := newTestRouterOf(t, cfg)
+	pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}})
+	heard := readingsHeard(r.state, queuesAll)
+	r.state.record("side", []quota.Window{session, week}, r.state.mark())
+	if got := heard(); len(got) != 2 || got[0].Reserve == nil || *got[0].Reserve != 0 {
+		t.Fatalf("the history heard of %+v, want side's windows under no reserve, its pool's pin spending it", got)
+	}
+	clock.now = start.Add(5 * time.Minute)
+
+	moved := pooledAccounts()
+	moved[2].Pool, moved[2].Reserve = acmePool, 0.1
+	r.proxy.pools.follow(moved, testPools)
+
+	want := readings.Under(readings.Of("side", []quota.Window{session, week}, clock.now, readings.FromReserve), 0.1)
+	if got := heard(); !reflect.DeepEqual(got, want) {
+		t.Errorf("the history heard of %+v, want %+v: side's windows under its own reserve, as it left the pin's pool", got, want)
+	}
+}
+
+// A restart takes up no line that records a window again as its reserve
+// changed, as nothing read it then: a rise is spread over the time since the
+// window was last read.
+func TestARestartPassesOverTheWindowsRecordedAgainAsTheirReserveChanged(t *testing.T) {
+	now := start.Add(2 * time.Hour)
+	h := newHistory(config.History{}, at(now))
+	h.open(t.TempDir())
+	s := newTestState(&testClock{now: now})
+	busier := session
+	busier.Utilization = 0.43
+	s.usage["work"].windows["5h"] = busier
+	read := readings.Reading{At: start, Account: "work", Key: "5h", Utilization: 0.23, ResetsAt: session.ResetsAt, Source: readings.FromAnswer}
+	restated, probedLater := read, read
+	restated.At, restated.Source = start.Add(10*time.Minute), readings.FromReserve
+	probedLater.At, probedLater.Utilization, probedLater.Source = now.Add(-time.Minute), 0.43, readings.FromProbe
+	writeLines(t, h, read, restated, probedLater)
+
+	s.seed(h.readBack(now))
+	if pace, ok := s.usage["work"].pace(testPolicy, now); !ok || !pace.Recent || math.Abs(pace.Rate-0.1) > 1e-9 {
+		t.Errorf("after the restart, work's session is used at %+v, %v, want 10%% an hour, its rise spread over the two hours since it was read", pace, ok)
 	}
 }
 

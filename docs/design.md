@@ -209,8 +209,8 @@ lost (see Choosing an account).
    every candidate were, rather than to the one whose quota can't be judged, as they would once none
    of the pin's accounts can be scored at all (step 4 of the order below). The readings outlast a
    restart: as it starts, the router takes them up, baselines included, from its readings history,
-   which holds each change of a window's use, and the window again at each change of the reserve
-   the router holds its account to (see Files), but for a window that has reset since.
+   which holds each change of a window's use (see Files), but for a window that has reset since,
+   and passing over the lines that record a window again as its account's reserve changed.
 4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
    (`x-claude-code-session-id`), its pool and the model, and remembered as it's chosen, then
    forgotten unless the request is answered with success. Caches are per model anyway, so a
@@ -11950,14 +11950,15 @@ hiding it behind the provider would take a wider interface than it's worth:
   left unused then: the reserve the config gives it, or 0 where it has none or the pool's pin
   names it, as a pin spends the reserves of the accounts it names (see Pinning). A day's summary
   judges the account's minutes at its cap by it (see The request ledger). Where that reserve
-  changes, as the pool's pin comes to name the account or stops, or the router starts on a config
-  that changed it, the router appends a line for each of the account's windows it read in the
+  changes, as the pool's pin comes to name the account or stops, the account moves to another
+  pool, leaving a pin that named it, or the router starts on a config that changed it, the router
+  appends a line for each of the account's windows it read in the
   last 15 minutes, its measure of a reading gone stale (see Choosing an account), and that hasn't
   reset since, as it holds them then, with `source` `reserve`, under the new one: so the change
   shows in the history though the use reads as it did. A window read longer ago, as of an account
   whose read is refused or that has no usable token, isn't restated, as its reading may be long
-  out of date: its next reading is appended under the new reserve, whether or not it reads
-  otherwise, so its stretch is judged again from then. The router knows what each window's last
+  out of date: the next reading of it the router counts is appended under the new reserve, so its
+  stretch is judged again from then. The router knows what each window's last
   line was appended under by `recorded_under` in `state.json`, which it updates only once the line
   is queued, a line dropped as the queue is full being appended at the window's next reading; a
   window it kept none for, as from a router from before or a `state.json` lost, takes its line
@@ -11982,15 +11983,15 @@ hiding it behind the provider would take a wider interface than it's worth:
   day than the clock's, but for a day after tomorrow, into each window's recent readings, its
   baseline included (see Choosing an account): the history holds each change of a window's use, so
   they are as they were, but for when each level was last read again, which it takes as its line's
-  time, a line of a window recorded again as its reserve changed among them, and the recent rates
-  outlast the restart. It reads them in the order they were read,
+  time, and the recent rates outlast the restart. It reads them in the order they were read,
   whichever day's file each is in, holding a day or two of those it asks for at a time to order
   them, one of another time, or another window, passed over as it's read, as every read of the
   history does, and keeps what the recent readings need alone. A window quiet since
   before the older of the two has no baseline to
   take up. It passes over a line that doesn't read as a reading, as one cut short, or one over
   4 KiB, which no reading makes and which it skips without holding, one of an account no longer
-  configured, and those of a window that has reset since, as `state.json` has it. A reading that
+  configured, one with `source` `reserve`, which records no reading, as the router took none then,
+  and those of a window that has reset since, as `state.json` has it. A reading that
   can't be put as a line, as one whose use isn't a number, goes unwritten, logged once. A day's file
   is compressed, as `readings-<local date>.jsonl.gz`, once its day ended two days ago, as a year of
   them would otherwise run to hundreds of megabytes: the plain file's lines streamed into a gzip

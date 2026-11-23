@@ -20,9 +20,11 @@ func (s *state) reserveOf(a account) float64 {
 
 // toHistory hands the readings history the lines a taking in of the account
 // with the given id gives, read at at from a source, as recording has them,
-// as note does. s.mu must be held, the pools regrouped.
-func (s *state) toHistory(id string, changed []quota.Window, at time.Time, from readings.Source) {
-	s.note(id, s.recording(id, changed, at, from))
+// as note does, reporting whether that changed the reserve any window's last
+// line was recorded under, for the state file. s.mu must be held, the pools
+// regrouped.
+func (s *state) toHistory(id string, changed []quota.Window, at time.Time, from readings.Source) (renoted bool) {
+	return s.note(id, s.recording(id, changed, at, from))
 }
 
 // recording returns the lines of the readings history a taking in of the

@@ -359,7 +359,8 @@ func (s *state) mark() moment {
 // stand, but those a whole reading retires, as take says. It returns the news
 // of each limit of the account's the reading shows lifted early, as
 // liftedSince has it. The state file keeps a reading off an answer as a
-// routine change, and a window retired or back as news.
+// routine change, and a window retired or back, or its line recorded under
+// another reserve than its last, as news.
 func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, whole bool) []LimitLifted {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -367,13 +368,13 @@ func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, who
 	u := s.usage[id]
 	was := slices.Clone(u.reached)
 	changed, took, news := s.take(id, windows, at, sent, whole)
+	renoted := s.toHistory(id, changed, at, readings.FromAnswer)
 	switch {
-	case news:
+	case news || renoted:
 		s.changed()
 	case took:
 		s.routine()
 	}
-	s.toHistory(id, changed, at, readings.FromAnswer)
 	return u.liftedSince(id, was, at)
 }
 
@@ -563,8 +564,8 @@ func (u *usage) liftedSince(id string, was []limit, now time.Time) []LimitLifted
 // keeps how a probe on the account's own token went, its error with nothing
 // shaped like a token in it, as a routine change, but a hold it starts, as
 // news, so a router stopped soon after never tells it again; and a reading
-// that reads otherwise than before, or retires a window or has one back, as
-// news.
+// that reads otherwise than before, or retires a window or has one back, or
+// records a window's line under another reserve than its last, as news.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) probeTaken {
 	at := s.now().UTC()
 	s.mu.Lock()
@@ -599,9 +600,9 @@ func (s *state) recordProbe(id string, probed quota.Probe, err error, sent momen
 	}
 	changed, took, windowNews := s.take(id, probed.Windows, at, sent, probed.Admitted)
 	tookExtra, newExtra := u.takeExtra(probed.Extra, sent)
-	news := windowNews || newExtra || len(changed) > 0
+	renoted := s.toHistory(id, changed, at, from)
+	news := windowNews || newExtra || len(changed) > 0 || renoted
 	took = took || tookExtra
-	s.toHistory(id, changed, at, from)
 	for key, models := range probed.Models {
 		for _, model := range models {
 			news = s.see(key, model) || news

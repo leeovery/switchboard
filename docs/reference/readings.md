@@ -60,8 +60,9 @@ change today leaves yesterday's minutes as they were.
 
 A summary counts a line with no `reserve` by the reserve in your config.
 
-If the reserve changes, the router adds a line for each window it read in the last 15 minutes,
-with `source` `reserve`. A window read longer ago records the new reserve at its next reading.
+If the reserve changes, the router adds a line with `source` `reserve` for each window that it
+read in the last 15 minutes and that hasn't reset since. A window read longer ago records the new
+reserve at its next reading.
 
 `history --windows` prints these readings for each account in a pool. See
 [`history` JSON](history-json.md).

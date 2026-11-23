@@ -70,16 +70,15 @@ func NewPlayback(configured config.Accounts, policy score.Policy) *Playback {
 // Read takes in r, a reading of the readings history, as seed takes it up as
 // the router starts, and as the window it reads now stands, as the state
 // file would have kept it: started again at r's time where it shows the
-// window reset by hand, as startedAgain has it. A reading of an account not
-// configured is passed over, as seed passes it over, and so is a window
-// recorded again as its reserve changed, which the router never read then.
-// Readings are given in the order they were read, as the history gives them.
+// window reset by hand, as startedAgain has it. A line takenUp passes over is
+// passed over, as seed passes it over. Readings are given in the order they
+// were read, as the history gives them.
 func (p *Playback) Read(r readings.Reading) {
 	s := p.state
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	u, configured := s.usage[r.Account]
-	if !configured || r.Source == readings.FromReserve {
+	u, ok := s.takenUp(r)
+	if !ok {
 		return
 	}
 	held := u.windows[r.Key]
