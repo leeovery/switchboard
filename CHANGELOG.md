@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-11-23
+
+Dashboard restarts itself onto an upgraded version, keeping what it showed.
+
+✨ Added
+- A dashboard left open across an upgrade waits for the router to move to the new version, then restarts itself onto it — keeping its preferences and the pool it showed.
+- Compare notes how many accounts no longer here the all-accounts totals include.
+
+🔧 Changed
+- Past caps now use the reserve recorded with each reading, falling back to today's reserve only where none was recorded — changing a reserve no longer redraws the caps of past days.
+- Weeks, capacity and limit verdicts judge each week's peak against the reserve it stood under at the time.
+- Pool room in the router is judged by the reserve each reading recorded when replaying history, so it stays steady across restarts and reserve changes.
+
 ## [1.3.1] - 2026-11-23
 
 ✨ Added
