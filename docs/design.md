@@ -10200,9 +10200,12 @@ from the first day a router that has it runs, so nothing before then is in it.
       the readings history's lines that read the peak recorded, `reserve` lines among them, a rise
       to a new peak starting afresh, a line below the peak at any point counting for nothing, and
       the lines of the days before counting as the day's do; left out where none of them recorded
-      one. A reading read late that raises `before` brings its line's reserve with it, and one at
-      `before` the higher of the two. A day summarised again keeps the reset from the higher `before`, under the
-      reserve of the summary that read it, the higher of the two where both did. The capacity
+      one. Where the last line before the day is a reading taken out of turn, lower than the peak,
+      the day carries that line's use as `before`, as it did before `reserve`, under the peak's
+      reserve, and judges the day's lines against the use carried (accepted, 23 November 2026). A
+      reading read late that raises `before` brings its line's reserve with it, and one at `before`
+      the higher of the two. A day summarised again keeps the reset from the higher `before`, under
+      the reserve of the summary that read it, the higher of the two where both did. The capacity
       verdict judges a week's peak at its cap by it (see The capacity verdict).
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a

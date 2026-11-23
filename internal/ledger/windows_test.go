@@ -511,7 +511,13 @@ func under(reserve float64, r readings.Reading) readings.Reading {
 // again at at under the reserve given, as the router does as the reserve it
 // holds work to changes.
 func restated(at time.Time, u float64, resets time.Time, reserve float64) readings.Reading {
-	r := under(reserve, allowed(at, "5h", u, resets))
+	return restating(reserve, allowed(at, "5h", u, resets))
+}
+
+// restating is r recorded again under the reserve given, as the router
+// records a window as the reserve it holds the window's account to changes.
+func restating(reserve float64, r readings.Reading) readings.Reading {
+	r = under(reserve, r)
 	r.Source = readings.FromReserve
 	return r
 }
@@ -548,6 +554,11 @@ func TestEachStretchOfADayIsJudgedByTheReserveItsReadingRecorded(t *testing.T) {
 			readings: []readings.Reading{under(0.1, allowed(on(-1, 22, 0), "5h", 0.95, on(0, 2, 0)))},
 			caps:     noReserve,
 			atCap:    120,
+		},
+		{
+			name: "by the last line's, of the use carried in, not the reserve its peak stood under",
+			readings: []readings.Reading{under(0.1, allowed(on(-2, 10, 0), "7d", 0.95, on(3, 12, 0))),
+				restating(0, allowed(on(-1, 10, 0), "7d", 0.95, on(3, 12, 0)))},
 		},
 		{
 			name:     "at a limit, used up, whatever the reserve",
@@ -638,11 +649,6 @@ func TestAPeaksReserveHoldsAcrossMidnight(t *testing.T) {
 	ends := on(0, 12, 0)
 	afresh := allowed(on(0, 13, 0), "7d", 0.01, ends.AddDate(0, 0, 7))
 	week := func(days int, u float64) readings.Reading { return allowed(on(days, 10, 0), "7d", u, ends) }
-	restatedWeek := func(days int, u, reserve float64) readings.Reading {
-		r := under(reserve, week(days, u))
-		r.Source = readings.FromReserve
-		return r
-	}
 	tests := []struct {
 		name     string
 		readings []readings.Reading
@@ -651,8 +657,8 @@ func TestAPeaksReserveHoldsAcrossMidnight(t *testing.T) {
 		before float64
 		want   *float64
 	}{
-		{name: "peaked under a fifth days before, lowered to a tenth since", readings: []readings.Reading{under(0.2, week(-3, 0.85)), restatedWeek(-1, 0.85, 0.1), afresh}, want: new(0.2)},
-		{name: "peaked under a tenth days before, raised to a fifth since", readings: []readings.Reading{under(0.1, week(-3, 0.85)), restatedWeek(-1, 0.85, 0.2), afresh}, want: new(0.2)},
+		{name: "peaked under a fifth days before, lowered to a tenth since", readings: []readings.Reading{under(0.2, week(-3, 0.85)), restating(0.1, week(-1, 0.85)), afresh}, want: new(0.2)},
+		{name: "peaked under a tenth days before, raised to a fifth since", readings: []readings.Reading{under(0.1, week(-3, 0.85)), restating(0.2, week(-1, 0.85)), afresh}, want: new(0.2)},
 		// The day begins the run at its last use before it, 0.83, as it did
 		// before resets kept a reserve; its peak's reserve is the 0.85's.
 		{name: "a fifth on a line below the peak, the day before", readings: []readings.Reading{under(0.1, week(-3, 0.85)), under(0.2, week(-1, 0.83)), afresh}, before: 0.83, want: new(0.1)},
