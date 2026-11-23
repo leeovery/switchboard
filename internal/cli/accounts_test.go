@@ -219,7 +219,7 @@ label = "Side"
 const tokenShaped = "sk-ant-oat01-fake_token-shaped"
 
 // probedWork is what the Claude API is asked, probing the token it takes.
-var probedWork = []string{"test-token-work claude-fable-5-1", "test-token-work claude-haiku-4-5-20251001"}
+var probedWork = []string{"test-token-work claude-fable-5-2", "test-token-work claude-haiku-4-5-20251001"}
 
 func TestAccountsToken(t *testing.T) {
 	api := newClaudeAPI(t)

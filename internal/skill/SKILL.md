@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 21 -->
+<!-- switchboard skill version: 22 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -91,7 +91,7 @@ once it's done.
   `switchboard logs`.
 
 A move to another account costs one slower turn while the cache rebuilds there, and a
-Claude Sonnet 5.5 session that moves carries on without its earlier reasoning.
+Claude Sonnet 5.5 or Claude Fable 5.2 session that moves carries on without its earlier reasoning.
 
 Artifacts and uploads always live on the primary account of the session's pool, whichever account
 the conversation is on.

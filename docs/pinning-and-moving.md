@@ -50,7 +50,7 @@ switchboard skill runs the same `pin` commands for it.
 
 - A move costs a cold cache. Caches belong to one account, so the first turn after a move costs
   about 40 times a warm turn. The routing card shows the cost before you apply, such as `≈ $6.20`.
-- A Claude Sonnet 5.5 session that moves carries on without its earlier reasoning, because that
+- A Claude Sonnet 5.5 or Claude Fable 5.2 session that moves loses its earlier reasoning. That
   reasoning works only on the account that made it.
 - With pools, each pool has a pin of its own, and it steers only that pool. A pin goes to the pool
   the named accounts are in, and you can't pin a session to an account outside its pool.

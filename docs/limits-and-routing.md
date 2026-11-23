@@ -55,8 +55,8 @@ claude ──▶ switchboard ──▶ Anthropic
 - A move costs a cold cache. A prompt cache belongs to one account, so the first turn after a move
   writes the whole conversation into a new cache. That turn is slower, and costs around 40 times a
   warm turn, which is why sessions stay put.
-- A Claude Sonnet 5.5 session stays on its account however long it idles, because its earlier
-  reasoning works only there. It moves only at a limit, a refusal or a pin.
+- A Claude Sonnet 5.5 or Claude Fable 5.2 session stays on its account however long it idles,
+  because its earlier reasoning works only there. It moves only at a limit, a refusal or a pin.
 - Two more rules spread the load. If the sessions on one account would use up its 5-hour window
   before it resets, new sessions go to another account. After Claude Code compacts a
   conversation, the session can move to an account whose week would otherwise reset with room

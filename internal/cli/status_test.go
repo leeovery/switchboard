@@ -576,7 +576,7 @@ func newClaudeAPI(t *testing.T) *claudeAPI {
 	})
 	usage := map[string]map[string]string{
 		"claude-haiku-4-5-20251001": accountWide,
-		"claude-fable-5-1":          fable,
+		"claude-fable-5-2":          fable,
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {

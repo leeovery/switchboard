@@ -23,11 +23,12 @@ import (
 )
 
 const (
-	haiku      = "claude-haiku-4-5-20251001"
-	fable      = "claude-fable-5-1"
-	fableOlder = "claude-fable-5"
-	token      = "test-token-work"
-	version    = "2.1.300"
+	haiku       = "claude-haiku-4-5-20251001"
+	fable       = "claude-fable-5-2"
+	fableOlder  = "claude-fable-5-1"
+	fableOldest = "claude-fable-5"
+	token       = "test-token-work"
+	version     = "2.1.300"
 	// organization is a placeholder organization id.
 	organization = "test-org-work"
 )
@@ -349,9 +350,10 @@ func TestProbe(t *testing.T) {
 		{
 			name: "a family that reads nothing is a failure, with its last model's error",
 			replies: map[string]reply{
-				haiku:      withUsage(http.StatusOK, session, week),
-				fable:      overloaded,
-				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
+				haiku:       withUsage(http.StatusOK, session, week),
+				fable:       overloaded,
+				fableOlder:  overloaded,
+				fableOldest: apiError(http.StatusNotFound, "model: claude-fable-5"),
 			},
 			want: probed(
 				quota.Usage{
@@ -360,20 +362,21 @@ func TestProbe(t *testing.T) {
 				},
 				map[string][]string{"5h": {haiku}, "7d": {haiku}},
 			),
-			wantAsked: []string{haiku, fable, fableOlder},
+			wantAsked: []string{haiku, fable, fableOlder, fableOldest},
 		},
 		{
 			name: "no failure for a window another family read",
 			replies: map[string]reply{
-				haiku:      withUsage(http.StatusOK, session, week, fableWeek),
-				fable:      overloaded,
-				fableOlder: overloaded,
+				haiku:       withUsage(http.StatusOK, session, week, fableWeek),
+				fable:       overloaded,
+				fableOlder:  overloaded,
+				fableOldest: overloaded,
 			},
 			want: probed(
 				quota.Usage{Windows: []quota.Window{session, week, fableWeek}},
 				map[string][]string{"5h": {haiku}, "7d": {haiku}, "7d_oi": {haiku}},
 			),
-			wantAsked: []string{haiku, fable, fableOlder},
+			wantAsked: []string{haiku, fable, fableOlder, fableOldest},
 		},
 		{
 			name: "both families answering with the weeks alone, as a plan without a session does, no failure",
@@ -438,9 +441,10 @@ func TestProbe(t *testing.T) {
 		{
 			name: "extra usage of a family that read no window left out",
 			replies: map[string]reply{
-				haiku:      withUsage(http.StatusOK, session, week),
-				fable:      apiError(http.StatusNotFound, "model: claude-fable-5-1").withExtra(extraOn),
-				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
+				haiku:       withUsage(http.StatusOK, session, week),
+				fable:       apiError(http.StatusNotFound, "model: claude-fable-5-2").withExtra(extraOn),
+				fableOlder:  apiError(http.StatusNotFound, "model: claude-fable-5-1"),
+				fableOldest: apiError(http.StatusNotFound, "model: claude-fable-5"),
 			},
 			want: probed(
 				quota.Usage{
@@ -449,7 +453,7 @@ func TestProbe(t *testing.T) {
 				},
 				map[string][]string{"5h": {haiku}, "7d": {haiku}},
 			),
-			wantAsked: []string{haiku, fable, fableOlder},
+			wantAsked: []string{haiku, fable, fableOlder, fableOldest},
 		},
 		{
 			name: "the organization the answers name",
@@ -480,9 +484,10 @@ func TestProbe(t *testing.T) {
 		{
 			name: "the organization from an answer that read no window, the family's model tried after it naming none",
 			replies: map[string]reply{
-				haiku:      withUsage(http.StatusOK, session, week),
-				fable:      apiError(http.StatusNotFound, "model: claude-fable-5-1").withOrganization(organization),
-				fableOlder: apiError(http.StatusNotFound, "model: claude-fable-5"),
+				haiku:       withUsage(http.StatusOK, session, week),
+				fable:       apiError(http.StatusNotFound, "model: claude-fable-5-2").withOrganization(organization),
+				fableOlder:  apiError(http.StatusNotFound, "model: claude-fable-5-1"),
+				fableOldest: apiError(http.StatusNotFound, "model: claude-fable-5"),
 			},
 			want: probedIn(
 				organization,
@@ -492,28 +497,30 @@ func TestProbe(t *testing.T) {
 				},
 				map[string][]string{"5h": {haiku}, "7d": {haiku}},
 			),
-			wantAsked: []string{haiku, fable, fableOlder},
+			wantAsked: []string{haiku, fable, fableOlder, fableOldest},
 		},
 		{
 			name: "every family reading no window, an answer of success naming the organization",
 			replies: map[string]reply{
-				haiku:      withUsage(http.StatusOK).withOrganization(organization),
-				fable:      withUsage(http.StatusOK).withOrganization(organization),
-				fableOlder: withUsage(http.StatusOK).withOrganization(organization),
+				haiku:       withUsage(http.StatusOK).withOrganization(organization),
+				fable:       withUsage(http.StatusOK).withOrganization(organization),
+				fableOlder:  withUsage(http.StatusOK).withOrganization(organization),
+				fableOldest: withUsage(http.StatusOK).withOrganization(organization),
 			},
 			want:      quota.Probe{Organization: organization},
 			wantErr:   "HTTP 200",
-			wantAsked: []string{haiku, fable, fableOlder},
+			wantAsked: []string{haiku, fable, fableOlder, fableOldest},
 		},
 		{
 			name: "every family failing, with the base family's error",
 			replies: map[string]reply{
-				haiku:      apiError(http.StatusUnauthorized, "Invalid bearer token"),
-				fable:      overloaded,
-				fableOlder: overloaded,
+				haiku:       apiError(http.StatusUnauthorized, "Invalid bearer token"),
+				fable:       overloaded,
+				fableOlder:  overloaded,
+				fableOldest: overloaded,
 			},
 			wantErr:   "HTTP 401 · Invalid bearer token",
-			wantAsked: []string{haiku, fable, fableOlder},
+			wantAsked: []string{haiku, fable, fableOlder, fableOldest},
 		},
 	}
 	for _, tt := range tests {
@@ -618,7 +625,7 @@ func TestProbeErrorsNeverContainTheToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rejected := apiError(http.StatusUnauthorized, tt.message)
-			api := newFakeAPI(t, map[string]reply{haiku: rejected, fable: rejected, fableOlder: rejected})
+			api := newFakeAPI(t, map[string]reply{haiku: rejected, fable: rejected, fableOlder: rejected, fableOldest: rejected})
 			prober := &claude.Prober{Upstream: api.URL, Version: version}
 
 			_, err := prober.Probe(t.Context(), token)
@@ -806,7 +813,7 @@ func TestProbeSaysWhetherTheAPIRefusedItAndWhatItAnswered(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := newFakeAPI(t, map[string]reply{haiku: tt.reply, fable: tt.reply, fableOlder: tt.reply})
+			api := newFakeAPI(t, map[string]reply{haiku: tt.reply, fable: tt.reply, fableOlder: tt.reply, fableOldest: tt.reply})
 			prober := &claude.Prober{Upstream: api.URL, Version: version, Timeout: 250 * time.Millisecond}
 
 			_, err := prober.Probe(t.Context(), token)
@@ -865,7 +872,7 @@ func TestAProbesErrorSaysWhetherTheAPIRefusedItsTokenOrItsLogin(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			api := newFakeAPI(t, map[string]reply{haiku: tt.reply, fable: tt.reply, fableOlder: tt.reply})
+			api := newFakeAPI(t, map[string]reply{haiku: tt.reply, fable: tt.reply, fableOlder: tt.reply, fableOldest: tt.reply})
 			prober := &claude.Prober{Upstream: api.URL, Version: version, Timeout: 250 * time.Millisecond}
 
 			_, err := prober.Probe(t.Context(), token)

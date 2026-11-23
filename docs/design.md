@@ -125,11 +125,13 @@ Claude Code ──ANTHROPIC_BASE_URL──▶ switchboard ──▶ api.anthropi
   subscriptions aren't linked. A request from another account has them dropped before the model
   sees them, silently, and succeeds: the model carries on without that reasoning, and the next
   response may be slower and use more tokens. Claude Sonnet 5.5 keeps every earlier turn's
-  thinking in context, so a move loses all of it. Claude Opus 5.5's and Claude Fable 5.1's
-  thinking isn't bound to an account.
+  thinking in context, so a move loses all of it. Claude Fable 5.2's thinking, since it launched
+  on 9 November 2026, is bound the same way. Claude Opus 5.5's and Claude Fable 5.1's thinking
+  isn't bound to an account.
 - On Claude Fable 5.1, Claude Opus 5.5 and Claude Sonnet 5.5, the API checks that nothing before
   a thinking block, the system prompt, the tools and every earlier message, has changed since the
   block was produced; for accounts created on or after 31 August 2026, a change is a 400 error.
+  On Claude Fable 5.2 it's a 400 error on every account, whatever its age.
   The token switchboard swaps, the header it strips and the encodings it narrows aren't part of
   that, and it edits nothing else, so its requests pass. Anything that wrote into the
   conversation, such as a notice of a move, would fail it.
@@ -138,9 +140,10 @@ The spike measured cache isolation and the separate caches of models directly. R
 on the same account read 35k tokens from cache; resuming it on a second account read nothing and
 wrote 35k; a second resume there read 35k again; switching model on that account read nothing and
 wrote 44k. The thinking facts are Anthropic's:
-[Preserved thinking](https://platform.claude.com/docs/en/build-with-claude/preserved-thinking)
+[Preserved thinking](https://platform.claude.com/docs/en/build-with-claude/preserved-thinking),
+[What's new in Claude Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5)
 and
-[What's new in Claude Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5).
+[What's new in Claude Fable 5.2](https://platform.claude.com/docs/en/models/fable-5-2/whats-new-fable-5-2).
 
 Hence: move a session only when its cache is already cold or its account can't serve it, and one
 on a model whose thinking is bound to its account only when its account can't serve it. A busy
@@ -228,8 +231,8 @@ lost (see Choosing an account).
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
      account, which another must beat by 20%, so near-equal accounts don't trade places; once one
      does, the choice is made as for a new session. A session on a model whose thinking is bound
-     to its account (Claude Sonnet 5.5 today; `internal/claude` keeps the list) isn't re-scored
-     for idling, as a move would lose its reasoning; or
+     to its account (Claude Sonnet 5.5 and Claude Fable 5.2 today; `internal/claude` keeps the
+     list) isn't re-scored for idling, as a move would lose its reasoning; or
    - its account can't serve the request. An account nothing has been read of counts as able, so
      neither a session nor a pin moves on no evidence.
 
@@ -10740,7 +10743,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   families are drawn in `viz.family.1` to `viz.family.4`; a family with no hue of its own would draw
   in `text.muted` with its versions, in charts and tables alike. Mythos, which no subscription can
   use, is left out of both tables (the owner, 14 Oct 2026). The table assigns `viz.version.1` to
-  `viz.version.6` in its rows' order: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable 5.1, and
+  `viz.version.6` in its rows' order: Opus 5.5 and Opus 5, Sonnet 5.5 and Sonnet 5, Fable 5.2, and
   Haiku 5.5, which took Haiku 4.5's as it was priced on 7 Oct 2026; a release that adds a version
   assigns them afresh. A version without one draws in its family's colour, mixed 30% toward the
   canvas when it's older than the family's newest (see Themes). A version the table doesn't name is shown by its id, `claude-` taken off, `opus-6`, in
@@ -11650,11 +11653,11 @@ which look back through the request ledger, the readings history and the router'
 without the router; `usage`, the user's printout of every account's windows, and `dashboard`, the
 user's live dashboard, which Claude points to rather than runs, as `status` gives it what they show;
 `pin`, to one account or the best of several, a pin its pool's; and `logs`; a move costs one slower
-turn, and a moved Claude Sonnet 5.5 session carries on without its earlier reasoning; artifacts
-always live on the session's pool's primary; and `switchboard --help` for the rest. With pools: a
-session's pool is in `$SWITCHBOARD_POOL`, which Claude passes as `--pool "$SWITCHBOARD_POOL"` to
-every verb that takes it, so it reads and acts on its own pool, named, the variable empty, and
-`--pool ""` no flag, outside a pool (see Reading a pool).
+turn, and a moved Claude Sonnet 5.5 or Claude Fable 5.2 session carries on without its earlier
+reasoning; artifacts always live on the session's pool's primary; and `switchboard --help` for the
+rest. With pools: a session's pool is in `$SWITCHBOARD_POOL`, which Claude passes as
+`--pool "$SWITCHBOARD_POOL"` to every verb that takes it, so it reads and acts on its own pool,
+named, the variable empty, and `--pool ""` no flag, outside a pool (see Reading a pool).
 
 ## The session hook
 
@@ -13479,6 +13482,11 @@ any of it. Times are the Mac's, UTC+1.
   process the same from 5 November on, and macOS asked nothing again and posted no notice of
   background activity (the owner, 8 November 2026). Hence the router's own copy, and signing, hold
   as Its own copy and Signing say.
+- **23 November 2026, 11:14: Claude Fable 5.2 reports Fable's week.** One request on Claude
+  Fable 5.2, through the router, was answered 200 carrying the shared week and Fable's week,
+  `7d_oi`, both with the same reset, as Claude Fable 5.1's answers do. Hence Claude Fable 5.2 at
+  the head of the Fable family, which the probe asks first, falling back to Claude Fable 5.1 and
+  then Claude Fable 5 (see How it works).
 
 ## Checks owed
 
@@ -13502,9 +13510,6 @@ What's built but hasn't been seen against the real thing:
   the window, as the two seen did (see Observed).
 - That the API reports usage in the order it takes requests in: a reading off a request sent after
   another was taken in counting, whatever it reads, rests on it.
-- Whether Claude Fable 5.2 reports Fable's week, `7d_oi`: the probe for it still asks Claude
-  Fable 5.1 first (`internal/claude/families.go`), which is served and reports it. Claude Fable
-  5.2 goes at the head of the family once a request on it has been seen to carry that window.
 - `service install`, `service restart` and setup's service step against the real launchd:
   `restart` of a router from before routers restarted when asked relies on launchd's `KeepAlive`
   starting it again once it stops at the SIGTERM `launchctl kill` sends.
