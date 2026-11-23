@@ -50,6 +50,40 @@ func TestAReadingIsALineOfJSON(t *testing.T) {
 	}
 }
 
+func TestAReadingRecordsTheReserveItsAccountWasHeldTo(t *testing.T) {
+	at := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	windows := []quota.Window{{Key: "5h", Utilization: 0.92, ResetsAt: resets, Status: quota.StatusAllowed}}
+	head := `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.92,"resets_at":"2026-09-28T18:10:00Z","status":"allowed",`
+	tests := []struct {
+		name string
+		read []readings.Reading
+		line string
+		want *float64
+	}{
+		{name: "its reserve", read: readings.Under(readings.Of("work", windows, at, readings.FromAnswer), 0.1),
+			line: head + `"source":"answer","reserve":0.1}`, want: new(0.1)},
+		{name: "none, as where a pin spends it, said as none", read: readings.Under(readings.Of("work", windows, at, readings.FromReserve), 0),
+			line: head + `"source":"reserve","reserve":0}`, want: new(0.0)},
+		{name: "unrecorded, as a line from before or a reading the router didn't take, left out", read: readings.Of("work", windows, at, readings.FromProbe),
+			line: head + `"source":"probe"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line, err := json.Marshal(tt.read[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(line) != tt.line {
+				t.Errorf("the reading's line is\n%s\nwant\n%s", line, tt.line)
+			}
+			got, ok := readings.In(line)
+			if !ok || !sameReading(got, tt.read[0]) || !sameReserve(got.Reserve, tt.want) {
+				t.Errorf("In(%s) = %+v, %v; want the reading it was, its reserve %v", line, got, ok, reserveOf(tt.want))
+			}
+		})
+	}
+}
+
 func TestAReadingIsTheWindowItRead(t *testing.T) {
 	r := workRead(resets.Add(-time.Hour), 0.4)
 
@@ -73,6 +107,10 @@ func TestALineReadsAsAReadingWhereItCanBeTakenUp(t *testing.T) {
 		{name: "of no time", line: `{"account":"work","window":"5h","utilization":0.23}`},
 		{name: "of a use that can't be", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":-0.2}`},
 		{name: "of a use that isn't a number", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":"high"}`},
+		{name: "under a reserve", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":0.99}`, want: true},
+		{name: "under a reserve that can't be", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":-0.1}`},
+		{name: "under a reserve of the whole window", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":1}`},
+		{name: "under a reserve that isn't a number", line: `{"at":"2026-09-28T13:12:00Z","account":"work","window":"5h","utilization":0.23,"reserve":"some"}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -173,9 +211,24 @@ func TestTheHistorysFilesPassOverALineTooLongToHold(t *testing.T) {
 	}
 }
 
-// sameReading reports whether a and b are the same reading.
+// sameReading reports whether a and b are the same reading, recorded under
+// the same reserve.
 func sameReading(a, b readings.Reading) bool {
-	return a.At.Equal(b.At) && a.Account == b.Account && a.Window() == b.Window() && a.Source == b.Source
+	return a.At.Equal(b.At) && a.Account == b.Account && a.Window() == b.Window() && a.Source == b.Source && sameReserve(a.Reserve, b.Reserve)
+}
+
+// sameReserve reports whether a and b are the same reserve, as a reading
+// records it: both unrecorded, or both the same.
+func sameReserve(a, b *float64) bool {
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
+}
+
+// reserveOf is reserve, or "unrecorded" where it's nil.
+func reserveOf(reserve *float64) any {
+	if reserve == nil {
+		return "unrecorded"
+	}
+	return *reserve
 }
 
 // linesOf returns read as the history's lines.

@@ -10141,9 +10141,15 @@ from the first day a router that has it runs, so nothing before then is in it.
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a
       window read `rejected` or used up, each from the reading that put it there to the one that
-      took it away, its reset, or the day's end, a minute at both counting as at a limit. The cap is
-      the config's as the summary is made, as the readings history keeps none. Windows of a model's
-      own, as Fable's week, hold back only that model, and count toward neither.
+      took it away, its reset, or the day's end, a minute at both counting as at a limit. Each
+      reading is judged by the cap in force as the router took it in: 1 less the `reserve` its line
+      records, which is 0, no cap, where the pool's pin spent it (see the readings history in
+      Files). So a day summarised after a reserve changed, or summarised again, counts each stretch
+      by the cap that held it then. A reserve that changes while the use reads as it did starts a
+      stretch of its own, as the router records the account's windows again under it. A line from
+      before the history recorded reserves is judged by the config's cap as the summary is made.
+      Windows of a model's own, as Fable's week, hold back only that model, and count toward
+      neither.
     - Of an account the readings history held none of the windows of, in the day or the week
       before it, as once it has pruned them, its keep being its own, `rise`, `resets` and the
       minutes are left out, as never read, never as none.
@@ -11886,8 +11892,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   restart doesn't scatter sessions or need a probe, the windows its answers stopped reporting,
   `windows_absent` (see How it works), and beside them how its probes went, `probed`, `probe_error`
   and `misses` (see The router's rounds), and of a read refused why and since when, `refused_read`
-  and `refused_since`, and whether that hold has been told, `held_told` (see 401s and 403s), the
-  hold curve, `hold` (see Forecasting run-outs), and
+  and `refused_since`, and whether that hold has been told, `held_told` (see 401s and 403s), and
+  the reserve the readings history last recorded its windows under, `recorded_under` (see the
+  readings history, below), the hold curve, `hold` (see Forecasting run-outs), and
   the hashes of every configured account's tokens, with a usable token or not: see Accounts and
   tokens; and the token-year notifications told, an account's against the token they were told
   for: see Notifications), `control.sock`, `tokens/`, `logs/`, `history/`, `ledger/`, `install-id`,
@@ -11901,7 +11908,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   one whose readings lack when each window was read as windows unread (see The router's rounds), one
   without the probes as accounts none of whose probes has ended, which a router from before them,
   ignoring the fields, takes them all for, one without `windows_absent` as accounts that have every
-  window they report, one without `hold`, or with one of a shape it doesn't know, as a curve of no
+  window they report, one without `recorded_under` as accounts whose windows the router records
+  again as it starts, one without `hold`, or with one of a shape it doesn't know, as a curve of no
   answers, a reading that holds nothing else as none, and a pin that names its account alone, as
   pins did before they named several, as a pin to that one, a session's assignment without a pool as
   the first pool's, and its own pin without one as the pin in the pool it was routed in last, the
@@ -11925,12 +11933,24 @@ hiding it behind the provider would take a wider interface than it's worth:
 - **Readings history:** `<state dir>/history/readings-<local date>.jsonl`, a file a day, 0600 in a
   0700 directory, for looking back at how the accounts were used. The router appends a line, as
   the file is opened to append, for each reading that changes how a window of an account reads,
-  its use, its reset or its status, and for nothing else, so a request that moves nothing writes
-  nothing: `{"at": "2026-09-28T13:12:00Z", "account": "work", "window": "5h", "utilization":
-  0.23, "resets_at": "2026-09-28T18:10:00Z", "status": "allowed", "source": "answer"}`, `at` when
-  the router took it in, in UTC, `resets_at` and `status` left out when the reading didn't give
-  them, and `source` where it came from: `answer`, off the answer to a routed request; `probe`, the
-  router's rounds' included; or `prime`. An account appears by its id alone: never a token or a
+  its use, its reset or its status, or the reserve the router holds the account to, and for
+  nothing else, so a request that moves nothing writes nothing: `{"at": "2026-09-28T13:12:00Z",
+  "account": "work", "window": "5h", "utilization": 0.23, "resets_at": "2026-09-28T18:10:00Z",
+  "status": "allowed", "source": "answer", "reserve": 0.1}`, `at` when the router took it in, in
+  UTC, `resets_at` and `status` left out when the reading didn't give them, `source` where it came
+  from: `answer`, off the answer to a routed request; `probe`, the router's rounds' included;
+  `prime`; or `reserve`, below; and `reserve` the share of every window of the account the router
+  left unused then: the reserve the config gives it, or 0 where it has none or the pool's pin
+  names it, as a pin spends the reserves of the accounts it names (see Pinning). A day's summary
+  judges the account's minutes at its cap by it (see The request ledger). Where that reserve
+  changes, as the pool's pin comes to name the account or stops, or the router starts on a config
+  that changed it, the router appends a line for each of the account's windows as it holds them
+  then, but those that have reset, with `source` `reserve`, under the new one: so the change shows
+  in the history though the use reads as it did. The router tells such a start by the reserve
+  `state.json` keeps as `recorded_under`, and one that keeps none, from a router from before, as a
+  change. A line a router from before wrote has no `reserve`, and a summary judges it by the
+  config's cap as the summary is made; a router from before passes the field over, and reads a
+  `reserve` line as any other reading. An account appears by its id alone: never a token or a
   label. Fields may be added to a line, never renamed, and a reader passes over those it doesn't
   know. The router removes a day's file once its day ended as long ago as `[history] keep` says, 400
   days unless it's set, and never where it says `forever` (see Config), as it starts and on each day
@@ -11953,7 +11973,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   them, one of another time, or another window, passed over as it's read, as every read of the
   history does, and keeps what the recent readings need alone. A window quiet since
   before the older of the two has no baseline to
-  take up. It passes over a line that doesn't read as a reading, as one cut short, or one over
+  take up. It passes over a line that doesn't read as a reading, as one cut short, one whose
+  `reserve` isn't one an account could have, from 0 to short of the whole window, or one over
   4 KiB, which no reading makes and which it skips without holding, one of an account no longer
   configured, and those of a window that has reset since, as `state.json` has it. A reading that
   can't be put as a line, as one whose use isn't a number, goes unwritten, logged once. A day's file

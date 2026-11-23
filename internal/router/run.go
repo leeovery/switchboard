@@ -134,11 +134,14 @@ func (r *Router) openLedger(dir string) {
 
 // openHistory keeps the readings history in the state directory from now
 // on, and takes up the readings it holds of the last half hour, so the
-// recent rates outlast the router's restart.
+// recent rates outlast the router's restart; then restates the windows of
+// each account whose reserve has changed since the history last recorded
+// them, as by a config edited, as restate says.
 func (r *Router) openHistory() {
 	r.history.open(readings.Dir(r.cfg.StateDir))
 	kept := r.state.seed(r.history.readBack(r.cfg.Now()))
 	logger.Info("took up the readings history", "readings", kept)
+	r.state.restateNow()
 }
 
 // listeners are the proxy's listener and the control API's.

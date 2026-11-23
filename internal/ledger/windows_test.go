@@ -500,6 +500,89 @@ func TestASummaryHoldsTheMinutesAnAccountSpentAtItsCapAndAtALimit(t *testing.T) 
 	}
 }
 
+// under is r recorded under the reserve given, as the router records the
+// reserve it held r's account to.
+func under(reserve float64, r readings.Reading) readings.Reading {
+	r.Reserve = new(reserve)
+	return r
+}
+
+// restated is work's session at u of its use, resetting at resets, recorded
+// again at at under the reserve given, as the router does as the reserve it
+// holds work to changes.
+func restated(at time.Time, u float64, resets time.Time, reserve float64) readings.Reading {
+	r := under(reserve, allowed(at, "5h", u, resets))
+	r.Source = readings.FromReserve
+	return r
+}
+
+func TestEachStretchOfADayIsJudgedByTheReserveItsReadingRecorded(t *testing.T) {
+	noReserve := ledger.Caps{Shared: reserving.Shared}
+	resets := on(0, 13, 0)
+	tests := []struct {
+		name     string
+		readings []readings.Reading
+		// caps are the caps the day is summarised with, reserving where
+		// they're zero.
+		caps           ledger.Caps
+		atCap, atLimit int
+	}{
+		{
+			name:     "each by its own, its cap at 90% and then at 95%",
+			readings: []readings.Reading{under(0.1, allowed(on(0, 10, 0), "5h", 0.92, resets)), under(0.05, allowed(on(0, 11, 0), "5h", 0.93, resets))},
+			atCap:    60,
+		},
+		{
+			name: "split where the reserve changed, its use as it was",
+			readings: []readings.Reading{under(0.1, allowed(on(0, 10, 0), "5h", 0.92, resets)), restated(on(0, 11, 0), 0.92, resets, 0),
+				restated(on(0, 12, 0), 0.92, resets, 0.1)},
+			atCap: 120,
+		},
+		{
+			name:     "by the summary's caps, of a reading that recorded none, as one from before",
+			readings: []readings.Reading{allowed(on(0, 10, 0), "5h", 0.92, resets), under(0, allowed(on(0, 11, 0), "5h", 0.92, resets))},
+			atCap:    60,
+		},
+		{
+			name:     "by its own, of the reading carried into the day, whatever the summary's caps",
+			readings: []readings.Reading{under(0.1, allowed(on(-1, 22, 0), "5h", 0.95, on(0, 2, 0)))},
+			caps:     noReserve,
+			atCap:    120,
+		},
+		{
+			name:     "at a limit, used up, whatever the reserve",
+			readings: []readings.Reading{under(0, rejected(on(0, 10, 0), "5h", 1, on(0, 12, 0)))},
+			atLimit:  120,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := reserving
+			if tt.caps.Shared != nil {
+				c = tt.caps
+			}
+			got := workDay(t, c, dayDone, tt.readings...)
+			if got.MinutesAtCap == nil || got.MinutesAtLimit == nil || *got.MinutesAtCap != tt.atCap || *got.MinutesAtLimit != tt.atLimit {
+				t.Errorf("work's minutes at its cap and at a limit are %v and %v, want %d and %d", minutes(got.MinutesAtCap), minutes(got.MinutesAtLimit), tt.atCap, tt.atLimit)
+			}
+		})
+	}
+}
+
+// A day whose readings recorded their reserves counts the same minutes
+// whatever the config gives as it's summarised, so a day summarised again
+// never counts fewer for a reserve changed since, and the more of two
+// summaries' minutes, which a summary written again keeps, is the day's.
+func TestADayWhoseReadingsRecordedTheirReservesIsSummarisedAlikeWhateverTheCaps(t *testing.T) {
+	resets := on(0, 13, 0)
+	read := []readings.Reading{under(0.1, allowed(on(0, 10, 0), "5h", 0.92, resets)), restated(on(0, 11, 0), 0.92, resets, 0)}
+	for _, c := range []ledger.Caps{reserving, {Shared: reserving.Shared}, {Reserves: map[string]float64{"work": 0.5}, Shared: reserving.Shared}} {
+		if got := workDay(t, c, dayDone, read...); got.MinutesAtCap == nil || *got.MinutesAtCap != 60 {
+			t.Errorf("summarised with %+v, work spent %v minutes at its cap, want 60, as its readings recorded", c.Reserves, minutes(got.MinutesAtCap))
+		}
+	}
+}
+
 // minutes is n, or "never read" where it's nil.
 func minutes(n *int) any {
 	if n == nil {

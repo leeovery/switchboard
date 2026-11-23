@@ -1,10 +1,10 @@
 // Package readings is the readings history's format: a line for each reading
 // that changed how a window of an account reads, its use, its reset or its
-// status, in files a day in a directory of the state directory, as
-// internal/dayfile keeps them, writing them and reading them back. Its Writer
-// writes the history for the router, which takes it up as it starts, and the
-// request ledger summarises its days with it, whether or not the router runs,
-// a Day's as it grows.
+// status, or the reserve the router held the account to, in files a day in a
+// directory of the state directory, as internal/dayfile keeps them, writing
+// them and reading them back. Its Writer writes the history for the router,
+// which takes it up as it starts, and the request ledger summarises its days
+// with it, whether or not the router runs, a Day's as it grows.
 package readings
 
 import (
@@ -38,12 +38,16 @@ const (
 	FromProbe Source = "probe"
 	// FromPrime is a prime's reading.
 	FromPrime Source = "prime"
+	// FromReserve is a window as the router held it, recorded again as the
+	// reserve it held the account to changed, so the history tells when.
+	FromReserve Source = "reserve"
 )
 
 // Reading is a line of the readings history: a window of an account as read
-// when its reading changed, by the window's key, and where the reading came
-// from. It holds the account's id and nothing else of the account: never its
-// token or label. Fields may be added to it, never renamed.
+// when its reading changed, by the window's key, where the reading came from,
+// and the reserve the router held the account to then. It holds the
+// account's id and nothing else of the account: never its token or label.
+// Fields may be added to it, never renamed.
 type Reading struct {
 	At          time.Time    `json:"at"`
 	Account     string       `json:"account"`
@@ -52,6 +56,12 @@ type Reading struct {
 	ResetsAt    time.Time    `json:"resets_at,omitzero"`
 	Status      quota.Status `json:"status,omitempty"`
 	Source      Source       `json:"source"`
+	// Reserve is the share of every window of the account the router left
+	// unused as it took the reading in: its reserve, 0 where it had none or
+	// its pool's pin spent it, as a pin spends the reserves of the accounts
+	// it names. It's nil where none was recorded, as on a line written before
+	// the history kept it, or a reading the router didn't take.
+	Reserve *float64 `json:"reserve,omitempty"`
 }
 
 // Of returns windows of the account with the given id, read at a time from a
@@ -64,16 +74,28 @@ func Of(id string, windows []quota.Window, at time.Time, from Source) []Reading 
 	return read
 }
 
+// Under returns read, each of them recorded under the reserve given, as
+// Reading's Reserve says.
+func Under(read []Reading, reserve float64) []Reading {
+	for i := range read {
+		read[i].Reserve = new(reserve)
+	}
+	return read
+}
+
 // Window is the window the reading read.
 func (r Reading) Window() quota.Window {
 	return quota.Window{Key: r.Key, Utilization: r.Utilization, ResetsAt: r.ResetsAt, Status: r.Status}
 }
 
 // valid reports whether the reading, as the history holds it, can be taken
-// up: it names an account and a window, and reads a use that can be.
+// up: it names an account and a window, reads a use that can be, and, where
+// it records a reserve, one an account can have, at least 0 and short of the
+// whole window.
 func (r Reading) valid() bool {
 	return r.Account != "" && r.Key != "" && !r.At.IsZero() &&
-		!math.IsNaN(r.Utilization) && !math.IsInf(r.Utilization, 0) && r.Utilization >= 0
+		!math.IsNaN(r.Utilization) && !math.IsInf(r.Utilization, 0) && r.Utilization >= 0 &&
+		(r.Reserve == nil || *r.Reserve >= 0 && *r.Reserve < 1)
 }
 
 // In returns the reading a line of the history holds, reporting false for one

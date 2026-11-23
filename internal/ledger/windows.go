@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/score"
 )
 
@@ -18,9 +19,11 @@ import (
 // account spent at its cap, and at a limit.
 type Caps struct {
 	// Reserves are the accounts' reserves, by their ids, as the config gives
-	// them as the summary is made, as the readings history keeps none: an
-	// account's cap is 1 less its reserve, and one without a reserve has no
-	// cap.
+	// them as the summary is made: an account's cap is 1 less its reserve,
+	// and one without a reserve has no cap. They place the cap of a reading
+	// the readings history recorded no reserve with, as one recorded before
+	// it kept them; one that recorded the reserve its account was held to is
+	// judged by that.
 	Reserves map[string]float64
 	// Shared are the keys of the windows every model shares: a window of a
 	// model's own, as Fable's week, holds back that model alone, and counts
@@ -72,24 +75,39 @@ func (c Caps) Same(d Caps) bool {
 type windowDay struct {
 	start, until time.Time
 	climb        *Climb
-	stood        []stood
+	// reserve is the reserve the reading the window stands at was recorded
+	// under, as readings.Reading's Reserve says.
+	reserve *float64
+	stood   []stood
 }
 
 func newWindowDay(key string, start, until time.Time) *windowDay {
 	return &windowDay{start: start, until: until, climb: NewClimb(key, func(w quota.Window) float64 { return beganAt(w, start) })}
 }
 
-// stood is a reading of a window, standing from a time until another.
+// stood is a reading of a window, standing from a time until another, and
+// the reserve it was recorded under, nil where it recorded none.
 type stood struct {
 	from, to time.Time
 	window   quota.Window
+	reserve  *float64
 }
 
-// carry takes w, the last reading of the window in the week before the day,
+// reserveOr returns the reserve the reading was recorded under, else
+// fallback.
+func (s stood) reserveOr(fallback float64) float64 {
+	if s.reserve == nil {
+		return fallback
+	}
+	return *s.reserve
+}
+
+// carry takes r, the last reading of the window in the week before the day,
 // which hadn't reset by the day's start, as the use the window began the day
 // at, standing from the day's start.
-func (d *windowDay) carry(w quota.Window) {
-	d.climb.Carry(w, d.start)
+func (d *windowDay) carry(r readings.Reading) {
+	d.climb.Carry(r.Window(), d.start)
+	d.reserve = r.Reserve
 }
 
 // afresh notes that the window began the day empty: read in the week before,
@@ -102,19 +120,23 @@ func (d *windowDay) read() bool {
 	return d.climb.read
 }
 
-// take takes w, a reading of the window read at at, in the day, as its climb
-// takes it: the reading it stood at before stands until then, or its reset.
-// Nor does one read from until on say anything of the window. It reports
-// false of a reading of a run that has reset since, read late, as the window
-// never stood at it.
-func (d *windowDay) take(w quota.Window, at time.Time) bool {
-	if !at.Before(d.until) {
+// take takes r, a reading of the window in the day, as its climb takes it:
+// the reading it stood at before stands until then, or its reset, so one of
+// the same use under another reserve ends that one's stretch too. Nor does
+// one read from until on say anything of the window. It reports false of a
+// reading of a run that has reset since, read late, as the window never stood
+// at it.
+func (d *windowDay) take(r readings.Reading) bool {
+	if !r.At.Before(d.until) {
 		return true
 	}
-	last, from, read := d.climb.last, d.climb.at, d.climb.read
-	_, took := d.climb.take(w, at)
-	if took == taken && read {
-		d.stand(last, from, at)
+	last, from, read, reserve := d.climb.last, d.climb.at, d.climb.read, d.reserve
+	_, took := d.climb.take(r.Window(), r.At)
+	if took == taken {
+		if read {
+			d.stand(stood{from: from, to: r.At, window: last, reserve: reserve})
+		}
+		d.reserve = r.Reserve
 	}
 	return took != late
 }
@@ -122,18 +144,18 @@ func (d *windowDay) take(w quota.Window, at time.Time) bool {
 // end ends the window's day at until: the reading it stands at stands until
 // then, or until its reset, which ends its run, where that comes first.
 func (d *windowDay) end() {
-	d.stand(d.climb.last, d.climb.at, d.until)
+	d.stand(stood{from: d.climb.at, to: d.until, window: d.climb.last, reserve: d.reserve})
 	d.climb.End(d.until)
 }
 
-// stand has w, a reading of the window read at from, stand until to, or until
-// its reset, where that comes first.
-func (d *windowDay) stand(w quota.Window, from, to time.Time) {
-	if w.ResetBy(to) {
-		to = w.ResetsAt
+// stand has s, a reading of the window, stand as it says, or until its reset,
+// where that comes first.
+func (d *windowDay) stand(s stood) {
+	if s.window.ResetBy(s.to) {
+		s.to = s.window.ResetsAt
 	}
-	if from.Before(to) {
-		d.stood = append(d.stood, stood{from: from, to: to, window: w})
+	if s.from.Before(s.to) {
+		d.stood = append(d.stood, s)
 	}
 }
 
@@ -490,11 +512,12 @@ type edge struct {
 }
 
 // minutesAt returns the minutes of the day windows, an account's, held it
-// back at its cap, and at a limit, its reserve the one given: those of its
-// windows every model shares alone, as shared names them, each from the
-// reading that put it there until the next, its reset, or the day's end, as
-// windowDay has them stand. A minute one window holds it at its cap, and
-// another at a limit, is at a limit. Each is rounded to the nearest minute.
+// back at its cap, and at a limit: those of its windows every model shares
+// alone, as shared names them, each from the reading that put it there until
+// the next, its reset, or the day's end, as windowDay has them stand, each
+// judged by the reserve it was recorded under, else by the reserve given. A
+// minute one window holds it at its cap, and another at a limit, is at a
+// limit. Each is rounded to the nearest minute.
 func minutesAt(windows map[string]*windowDay, reserve float64, shared []string) (atCap, atLimit int) {
 	var edges []edge
 	for key, d := range windows {
@@ -502,7 +525,7 @@ func minutesAt(windows map[string]*windowDay, reserve float64, shared []string) 
 			continue
 		}
 		for _, s := range d.stood {
-			if h := score.HoldOf(s.window, reserve); h != score.NotHeld {
+			if h := score.HoldOf(s.window, s.reserveOr(reserve)); h != score.NotHeld {
 				edges = append(edges, edge{at: s.from, hold: h, n: 1}, edge{at: s.to, hold: h, n: -1})
 			}
 		}

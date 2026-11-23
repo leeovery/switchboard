@@ -215,7 +215,8 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
         "7d": "2026-09-28T13:12:00Z",
         "7d_oi": "2026-09-28T12:12:00Z"
       },
-      "probed": "2026-09-28T12:12:00Z"
+      "probed": "2026-09-28T12:12:00Z",
+      "recorded_under": 0
     },
     "work": {
       "read_at": "2026-09-28T13:12:00Z",
@@ -238,7 +239,8 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
       "windows_read_at": {
         "5h": "2026-09-28T13:12:00Z",
         "7d": "2026-09-28T13:12:00Z"
-      }
+      },
+      "recorded_under": 0
     }
   },
   "window_families": {
@@ -407,7 +409,8 @@ func TestTheStateFileKeepsHowEachAccountsProbesWent(t *testing.T) {
 			t.Errorf("state file holds\n%s\nwant work's probes kept, %s among them", data, want)
 		}
 	}
-	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute), HeldTold: true}
+	wantSide := savedReading{Probed: start.Add(-30 * time.Second), ProbeError: refused, RefusedRead: quota.TokenRefused, Misses: 2, RefusedSince: start.Add(-2 * time.Minute), HeldTold: true,
+		RecordedUnder: new(0.0)}
 	if got := readState(t, path).Readings["side"]; !reflect.DeepEqual(got, wantSide) {
 		t.Errorf("state file holds side as %+v, want %+v: never read, its probes alone kept, its read refused since it was first", got, wantSide)
 	}

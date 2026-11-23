@@ -1235,7 +1235,7 @@ func TestARetiredWindowReadOffARequestSentSinceIsBack(t *testing.T) {
 	if len(u.absent) > 0 || !s.primable("work") {
 		t.Errorf("work's windows absent: %v, want none", u.absent)
 	}
-	if want := readings.Of("work", []quota.Window{session}, clock.now, readings.FromAnswer); !reflect.DeepEqual(lines, want) {
+	if want := readings.Under(readings.Of("work", []quota.Window{session}, clock.now, readings.FromAnswer), 0); !reflect.DeepEqual(lines, want) {
 		t.Errorf("the history heard of %+v, want %+v, the session's line", lines, want)
 	}
 	if trail := u.trails["5h"]; len(trail) != 1 || !trail[0].At.Equal(clock.now) {
