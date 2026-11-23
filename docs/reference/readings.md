@@ -48,8 +48,9 @@ gzip -dc readings-2026-11-12.jsonl.gz \
 ## The reserve on each line
 
 Each line records the reserve that applied to the account when the router took the reading. The
-day's summary counts the minutes the account spent at its cap by that reserve. Runway, Trends,
-the forecast and `history`'s short weeks judge the account's past cap by it too. So a reserve you
+day's summary counts the minutes the account spent at its cap by that reserve. Runway, Trends and
+the forecast judge the account's past cap by it too, and `history`'s short weeks by the highest
+reserve each week's peak stood under. So a reserve you
 change today leaves yesterday as it was.
 
 | If | `reserve` reads |

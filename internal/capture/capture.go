@@ -417,7 +417,9 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // having found it so, what was in flight said as last known.
 // Then Runway's frames, each reached from the Overview with tab four times:
 // the week, which it opens on, wide and on a phone; the week before, ← twice,
-// this week and the one before; all over the auto world; the week of ten
+// this week and the one before; all over the auto world; the week before
+// over the world where work kept a 30% reserve, its cap as each reading
+// recorded it; the week of ten
 // accounts; over the mixed world of verified Ultra accounts; and over the
 // world of all three verified Ultra. Among each view's, at the owner's
 // sizes, each named for its size, the frames a fluid layout is checked by:
@@ -435,7 +437,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // Default with team moved to Acme then in place of removed, named alike.
 // And Compare over those 12 weeks, at 160 with team removed, and on a phone
 // with team moved, scrolled to its foot, its last line saying all accounts'
-// totals include team, which has no column.
+// totals include 1 account no longer here: team, which has no column.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},

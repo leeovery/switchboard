@@ -63,13 +63,15 @@ counted.
 |---|---|---|
 | `highest` | object | The highest use of each window that day, by the key of the window. |
 | `rise` | object | How far the use of each window rose that day, from the readings history. |
-| `resets` | list of objects | The resets of the windows that day, as `{window, at, before}`. |
+| `resets` | list of objects | The resets of the windows that day, as `{window, at, before, reserve}`. |
 | `limits` | list of objects | The limits the account reached, as `{window, at, resets_at}`. |
 | `minutes_at_cap` | number | The minutes the account spent at its cap. |
 | `minutes_at_limit` | number | The minutes the account spent at a limit. |
 | `read_before` | list of strings | The windows the readings history read in the week before. |
 
 - **`before`** in a reset is the highest use of the window before the reset.
+- **`reserve`** in a reset is the highest reserve the account had while its use stood at
+  `before`. Days summarised before 23 November 2026 leave it out.
 - **A limit** is a window turning `rejected`.
 - **`rise`, `resets` and the minutes** are left out if the readings history had no window of the
   account, that day or the week before. Then they're unknown, not zero.
