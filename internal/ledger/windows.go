@@ -93,15 +93,6 @@ type stood struct {
 	reserve  *float64
 }
 
-// reserveOr returns the reserve the reading was recorded under, else
-// fallback.
-func (s stood) reserveOr(fallback float64) float64 {
-	if s.reserve == nil {
-		return fallback
-	}
-	return *s.reserve
-}
-
 // carry takes r, the last reading of the window in the week before the day,
 // which hadn't reset by the day's start, as the use the window began the day
 // at, standing from the day's start.
@@ -525,7 +516,7 @@ func minutesAt(windows map[string]*windowDay, reserve float64, shared []string) 
 			continue
 		}
 		for _, s := range d.stood {
-			if h := score.HoldOf(s.window, s.reserveOr(reserve)); h != score.NotHeld {
+			if h := score.HoldOf(s.window, readings.ReserveThen(s.reserve, reserve)); h != score.NotHeld {
 				edges = append(edges, edge{at: s.from, hold: h, n: 1}, edge{at: s.to, hold: h, n: -1})
 			}
 		}

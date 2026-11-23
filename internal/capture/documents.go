@@ -687,6 +687,24 @@ func (a accountWorlds) lapsed() accountWorld {
 	})
 }
 
+// reserveRecorded is the auto world, work having kept a reserve of 30% from
+// Wednesday 23 September till the week ended, as each of its lines of the
+// readings history then records, though it keeps 5% now. Stepped back to
+// that week, Runway draws work at its cap from where its week reached 70%,
+// as each reading recorded it, not as today's reserve would judge it.
+func (a accountWorlds) reserveRecorded() accountWorld {
+	return a.kept("reserveRecorded", func() accountWorld {
+		w := a.autoOf(a.today().three(true))
+		from, to := dayStart(a.now, thisWeek-5), dayStart(a.now, thisWeek)
+		for i, r := range w.history {
+			if r.Account == "work" && !r.At.Before(from) && r.At.Before(to) {
+				w.history[i].Reserve = new(0.3)
+			}
+		}
+		return w
+	})
+}
+
 // failedRead is why an account's last probe read nothing, as the router
 // keeps it: the probe's error, and why the API refused the read, where it
 // did, as the probe's failure says it.

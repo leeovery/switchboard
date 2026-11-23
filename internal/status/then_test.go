@@ -359,6 +359,88 @@ func TestHowAnAccountStoodThen(t *testing.T) {
 	}
 }
 
+// under is the reading r, recorded under the reserve given.
+func under(r readings.Reading, reserve float64) readings.Reading {
+	r.Reserve = new(reserve)
+	return r
+}
+
+// restated is the reading r recorded again at when, under the reserve
+// given, as the router records a window as its account's reserve changes.
+func restated(r readings.Reading, when time.Time, reserve float64) readings.Reading {
+	r.At, r.Source = when, readings.FromReserve
+	return under(r, reserve)
+}
+
+// A past cap is judged by the reserve each reading recorded, holding till
+// the window's next line, a pin's 0 among them, and by the reserve in force
+// today only where a line recorded none: so a reserve changed since, or a
+// pin set or lifted since, leaves the past as it stood.
+func TestThenJudgesACapByTheReserveEachReadingRecorded(t *testing.T) {
+	resets := at(1, 17, 10)
+	// Work's session at 0.85 from 14:00, under a fifth, its cap at 0.8,
+	// recorded again at 15:00 under a tenth, its cap at 0.9.
+	underAFifth := under(readOf(at(1, 14, 0), "5h", 0.85, resets), 0.2)
+	underATenth := restated(underAFifth, at(1, 15, 0), 0.1)
+	// recordedNone is its session read at 14:20 on a line that recorded no
+	// reserve, as one from before the history kept them.
+	recordedNone := readOf(at(1, 14, 20), "5h", 0.87, resets)
+	// Its session at 0.95 from 14:00 under the pool's pin, which spent its
+	// reserve, the pin lifted at 15:00.
+	pinnedThen := under(readOf(at(1, 14, 0), "5h", 0.95, resets), 0)
+	unpinned := restated(pinnedThen, at(1, 15, 0), 0.1)
+
+	tenth := workAt(func(*status.Document) {})
+	pinnedNow := workAt(func(d *status.Document) { d.Pin = status.Pin{Accounts: []string{"work"}} })
+	tests := []struct {
+		name   string
+		moment status.Moment
+		read   []readings.Reading
+		t      time.Time
+		want   status.Was
+	}{
+		{
+			name: "at the cap a fifth set, till it changed", moment: tenth, read: []readings.Reading{underAFifth, underATenth}, t: at(1, 14, 30),
+			want: status.Was{Kind: status.WasCapped, Since: underAFifth.At, Until: underATenth.At},
+		},
+		{
+			name: "short of the cap a tenth sets, once it changed", moment: tenth, read: []readings.Reading{underAFifth, underATenth}, t: at(1, 15, 30),
+			want: status.Was{Kind: status.WasRoom},
+		},
+		{
+			name: "at the cap a line recorded, till one that recorded none", moment: tenth, read: []readings.Reading{underAFifth, recordedNone}, t: at(1, 14, 10),
+			want: status.Was{Kind: status.WasCapped, Since: underAFifth.At, Until: recordedNone.At},
+		},
+		{
+			name: "a line that recorded none, by today's reserve", moment: tenth, read: []readings.Reading{underAFifth, recordedNone}, t: at(1, 14, 30),
+			want: status.Was{Kind: status.WasRoom},
+		},
+		{
+			name: "under a pin then, its reserve recorded spent", moment: tenth, read: []readings.Reading{pinnedThen, unpinned}, t: at(1, 14, 30),
+			want: status.Was{Kind: status.WasRoom},
+		},
+		{
+			name: "at its cap once the pin lifted", moment: tenth, read: []readings.Reading{pinnedThen, unpinned}, t: at(1, 15, 30),
+			want: status.Was{Kind: status.WasCapped, Since: unpinned.At, Until: resets},
+		},
+		{
+			name: "pinned now, a reserve recorded before", moment: pinnedNow, read: []readings.Reading{pinnedThen, unpinned}, t: at(1, 15, 30),
+			want: status.Was{Kind: status.WasCapped, Since: unpinned.At, Until: resets},
+		},
+		{
+			name: "pinned now, a line that recorded none", moment: pinnedNow, read: []readings.Reading{readOf(at(1, 14, 0), "5h", 0.95, resets)}, t: at(1, 14, 30),
+			want: status.Was{Kind: status.WasRoom},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.moment.Then(tt.moment.Accounts[0], status.Index(tt.read), status.Reach{}, nil, tt.t); !sameWas(got, tt.want) {
+				t.Errorf("Then(work, %s) = %s, want %s", onDay(tt.t), wasString(got), wasString(tt.want))
+			}
+		})
+	}
+}
+
 // Then at a moment's Now is how the moment has each account stand, at every
 // hard moment, given the readings its document read and the holds the
 // router told of: its kind, as ROUTING's has it, and when its hold lifts.

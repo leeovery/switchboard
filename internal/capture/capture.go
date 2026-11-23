@@ -626,6 +626,7 @@ var pages = []page{
 	{name: "page-sessions-not-answering", size: wide(37), world: accountWorlds.scene, keys: toSessions("R"), gone: true},
 	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},
+	{name: "runway-reserve-recorded-160", size: wide(37), world: accountWorlds.reserveRecorded, keys: append(toRunway(), leftKey, leftKey)},
 	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
 	{name: "runway-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway()},
 	{name: "runway-ultra-160", size: wide(37), world: accountWorlds.ultra, keys: toRunway()},

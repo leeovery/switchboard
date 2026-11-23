@@ -109,3 +109,44 @@ func TestTheRoomAnAccountHadLeftInAWindowAtAMomentGone(t *testing.T) {
 		}
 	}
 }
+
+// RoomThen counts a window's room to the floor the reserve its last reading
+// recorded gives, a pin's 0 among them, and to today's only where it recorded
+// none: so a reserve changed since leaves the room it had then as it was.
+func TestRoomThenCountsToTheFloorTheReserveEachReadingRecordedGives(t *testing.T) {
+	week := at(5, 21, 0)
+	// Work's week at a half from 13:00 under a fifth, recorded again at 14:00
+	// under a tenth, today's.
+	underAFifth := under(readOf(at(1, 13, 0), "7d", 0.5, week), 0.2)
+	underATenth := restated(underAFifth, at(1, 14, 0), 0.1)
+	pinnedThen := under(readOf(at(1, 13, 0), "7d", 0.5, week), 0)
+	recordedNone := readOf(at(1, 13, 0), "7d", 0.5, week)
+	fable := under(readOf(at(1, 13, 0), "7d_oi", 0.25, week), 0.2)
+
+	tenth := workAt(func(*status.Document) {})
+	pinnedNow := workAt(func(d *status.Document) { d.Pin = status.Pin{Accounts: []string{"work"}} })
+	tests := []struct {
+		name   string
+		moment status.Moment
+		read   []readings.Reading
+		key    string
+		t      time.Time
+		want   float64
+	}{
+		{name: "under a fifth then", moment: tenth, read: []readings.Reading{underAFifth, underATenth}, key: "7d", t: at(1, 13, 30), want: 0.3},
+		{name: "under a tenth, once it changed", moment: tenth, read: []readings.Reading{underAFifth, underATenth}, key: "7d", t: at(1, 14, 30), want: 0.4},
+		{name: "under a pin then, which spent its reserve", moment: tenth, read: []readings.Reading{pinnedThen}, key: "7d", t: at(1, 13, 30), want: 0.5},
+		{name: "a reserve recorded, pinned now", moment: pinnedNow, read: []readings.Reading{underAFifth}, key: "7d", t: at(1, 13, 30), want: 0.3},
+		{name: "a line that recorded none, by today's reserve", moment: tenth, read: []readings.Reading{recordedNone}, key: "7d", t: at(1, 13, 30), want: 0.4},
+		{name: "a line that recorded none, pinned now", moment: pinnedNow, read: []readings.Reading{recordedNone}, key: "7d", t: at(1, 13, 30), want: 0.5},
+		{name: "a model's own week under a fifth then", moment: tenth, read: []readings.Reading{underATenth, fable}, key: "7d_oi", t: at(1, 14, 30), want: 0.55},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, known := tt.moment.RoomThen(tt.moment.Accounts[0], status.Index(tt.read), nil, tt.key, tt.t)
+			if math.Abs(got-tt.want) > 1e-9 || !known {
+				t.Errorf("RoomThen(%s, %s) = %v, %v, want %v, known", tt.key, onDay(tt.t), got, known, tt.want)
+			}
+		})
+	}
+}

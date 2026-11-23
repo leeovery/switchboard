@@ -143,6 +143,27 @@ func TestALineReadsUnderTheReserveItRecordsWhereAnAccountCanHaveIt(t *testing.T)
 	}
 }
 
+// A past cap is judged by the reserve its reading recorded, a pin's 0 among
+// them, and by today's only where the line recorded none.
+func TestAReadingIsJudgedByTheReserveItRecordedElseTodays(t *testing.T) {
+	tests := []struct {
+		name     string
+		recorded *float64
+		want     float64
+	}{
+		{name: "recorded under another reserve than today's", recorded: new(0.2), want: 0.2},
+		{name: "recorded under a pin, which spent it", recorded: new(0.0), want: 0},
+		{name: "recorded none, from before the history kept them", want: 0.1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := readings.ReserveThen(tt.recorded, 0.1); got != tt.want {
+				t.Errorf("ReserveThen(%v, 0.1) = %v, want %v", reserveOf(tt.recorded), got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTheHistoryIsInItsOwnDirectoryOfTheStateDirectory(t *testing.T) {
 	if got, want := readings.Dir("/state"), filepath.Join("/state", "history"); got != want {
 		t.Errorf("Dir() = %q, want %q", got, want)

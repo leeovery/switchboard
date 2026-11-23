@@ -1133,7 +1133,10 @@ router records one as it starts, of an account in another pool than the file las
 config edited while it was down, or of one it keeps none of, and each move as it takes the pools
 up; a table of pools it can't tell records none. A restart replays each reading of the readings
 history into the day rate of the pool its account was in then, one from before its first entry
-into that entry's, and judges each pool's room at each moment by the accounts in it then. An
+into that entry's, and judges each pool's room at each moment by the accounts in it then, each
+account's week under the reserve its line recorded, its reserve as configured where the line
+recorded none, a pin it kept spending it from when the pin was set, as live; and judges it again at
+each `reserve` line, as the room can change with no reading to show it. An
 account's recent rates are forgotten at each move between pools the record holds, as live, so a
 restart soon after a move, or after a move made while the router was down, brings none of the old
 pool's demand. A pool since removed takes in nothing, and the one pool of a config from before
@@ -7228,9 +7231,9 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   A window whose reset that reading gives has passed by then counts as reset, at 0%; one read
   `rejected` is at its limit until that reset, or until a later reading before it no longer shows
   it, as one of a window reset by hand doesn't, the hold lifting as the router read the window start
-  again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
-  config gives now (settled in the plan), not from the reserve each line of the readings history
-  records, and lifts alike. A column with no reading of its
+  again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve each
+  reading recorded, today's where it recorded none (see Past caps, below), and lifts alike. A
+  column with no reading of its
   account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
   14 October 2026), but before the first reading of an account new in the view, which is dotted
   (see An account new in the view, above).
@@ -7268,9 +7271,17 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   running from a reading `rejected` to its window's reset; each day's summary's `limits`, each with
   its `at` and `resets_at`, and under each name the week's `highest`; today's, before it's
   summarised, its readings and lines as they're read (see The request ledger). A cap on a day gone
-  is drawn from the reserve the config gives now (settled in the plan), not from the reserve each
-  line of the readings history records. A week older than the readings history's keep draws its
-  lanes from its summaries' limits and resets alone (settled in the plan).
+  is drawn from the reserve each reading recorded, today's where it recorded none (see Past caps,
+  below). A week older than the readings history's keep draws its lanes from its summaries' limits
+  and resets alone (settled in the plan).
+- **Past caps:** every reader of past readings that judges a cap, Runway's and Trends' past
+  lanes, the pool's room then (see POOL) and the router's restart (see Forecasting run-outs), judges
+  each reading by the reserve its line recorded, a pin's 0 among them, holding from that reading
+  till the window's next line, `reserve` lines included, as minutes at cap are (see The request
+  ledger). Where a line recorded none, as one from before the history kept them, it judges by the
+  reserve in force today: the config's, none where the pool's pin names the account (the owner's
+  call, 23 November 2026). So a reserve changed since, or a pin set or lifted since, leaves the past
+  as it stood.
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
@@ -7477,8 +7488,9 @@ them at the section's width, from a day before now, for a week:
   starts while a limit or its cap held it back from every request, as Runway's pool lane counts it
   without room then, and none in any while its token was refused, or isn't usable now, nor from
   now on while its read is refused (see 401s and 403s); else the
-  window's room to where it runs out, its cap where its reserve holds, else its limit, as its last
-  reading by then has it: none where that read it spent or rejected, and all of it once that
+  window's room to where it runs out, its cap where the reserve its last reading by then recorded
+  holds, today's where it recorded none (see Runway's Past caps), else its limit, as that reading
+  has it: none where that read it spent or rejected, and all of it once that
   reading's reset had passed, so an account idle before its window started has all its room till
   then, and each reset is a step up. An account out of the pool isn't counted, and one with no
   reading by then isn't known (the owner's call, 15 October 2026, for the Overview's pool charts,
@@ -11981,7 +11993,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   `prime`; or `reserve`, below; and `reserve` the share of every window of the account the router
   left unused then: the reserve the config gives it, or 0 where it has none or the pool's pin
   names it, as a pin spends the reserves of the accounts it names (see Pinning). A day's summary
-  judges the account's minutes at its cap by it (see The request ledger). Where that reserve
+  judges the account's minutes at its cap by it (see The request ledger), and every other reader
+  of past readings judges a cap by it, holding till the window's next line (see Runway's Past
+  caps). Where that reserve
   changes, as the pool's pin comes to name the account or stops, the account moves to another
   pool, leaving a pin that named it, or the router starts on a config that changed it, the router
   appends a line for each of the account's windows it read in the

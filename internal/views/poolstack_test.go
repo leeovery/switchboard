@@ -147,6 +147,49 @@ func TestThePoolsStackBeforeNowIsEachAccountsRoomThen(t *testing.T) {
 	}
 }
 
+// Before now's column, each account's room then is counted to the floor the
+// reserve its reading recorded gives, holding till its window's next line, a
+// pin's 0 among them, and to today's only where a line recorded none: so a
+// reserve changed since leaves the pool's past room as it was.
+func TestThePoolsStackBeforeNowCountsToTheReserveEachReadingRecorded(t *testing.T) {
+	// work's week at a half from 20:00 yesterday, column 5's end, and
+	// recorded again at 08:00, column 17's end.
+	first, second := stackAt.Add(-18*time.Hour-20*time.Minute), stackAt.Add(-6*time.Hour-20*time.Minute)
+	under := func(r readings.Reading, reserve float64) readings.Reading {
+		r.Reserve = new(reserve)
+		return r
+	}
+	restated := func(reserve float64) readings.Reading {
+		r := under(stackRead("work", second, 0.5), reserve)
+		r.Source = readings.FromReserve
+		return r
+	}
+	tests := []struct {
+		name          string
+		first, second readings.Reading
+		// before and after are work's room in the columns before and after
+		// its second line; today's reserve is a tenth.
+		before, after float64
+	}{
+		{name: "a fifth, then a tenth", first: under(stackRead("work", first, 0.5), 0.2), second: restated(0.1), before: 0.3, after: 0.4},
+		{name: "a pin's 0, then a tenth", first: under(stackRead("work", first, 0.5), 0), second: restated(0.1), before: 0.5, after: 0.4},
+		{name: "a fifth, then a line that recorded none", first: under(stackRead("work", first, 0.5), 0.2), second: stackRead("work", second, 0.5), before: 0.3, after: 0.4},
+		{name: "none recorded, by today's", first: stackRead("work", first, 0.5), second: stackRead("work", second, 0.5), before: 0.4, after: 0.4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			read := []readings.Reading{stackRead("personal", stackAt.Add(-28*time.Hour), 0.2), tt.first, tt.second, stackRead("work", stackAt, 0.5)}
+			from := stackFrom(stackAt, read, weekAccount("work", stackAt, 0.5, stackReset, keeping(0.1)), weekAccount("personal", stackAt, 0.2, stackReset))
+			rooms := stackedOf(views.PoolStack{}.Look(from), "work")
+			for c, want := range map[int]float64{6: tt.before, 17: tt.before, 18: tt.after, stackNow - 1: tt.after} {
+				if !rooms[c].Known || !near(rooms[c].Room, want) {
+					t.Errorf("work in column %d has %+v, want %v, known", c, rooms[c], want)
+				}
+			}
+		})
+	}
+}
+
 // From now on, each account's room is its room by its projection at each
 // column's moment, as RoomAhead has it, counted as the room left to use
 // before its floor: falling to where it runs out, then none to its reset,

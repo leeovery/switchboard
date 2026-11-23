@@ -83,6 +83,19 @@ func Under(read []Reading, reserve float64) []Reading {
 	return read
 }
 
+// ReserveThen is the reserve in force as a reading was taken, recorded being
+// the one its line recorded, as Reading's Reserve has it: that one, else, on
+// a line that recorded none, as one from before the history kept them, now,
+// the reserve in force today. It's the one rule every reader of the history
+// judges a past cap by, holding from the reading until the window's next
+// line.
+func ReserveThen(recorded *float64, now float64) float64 {
+	if recorded == nil {
+		return now
+	}
+	return *recorded
+}
+
 // Window is the window the reading read.
 func (r Reading) Window() quota.Window {
 	return quota.Window{Key: r.Key, Utilization: r.Utilization, ResetsAt: r.ResetsAt, Status: r.Status}
