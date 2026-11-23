@@ -90,6 +90,9 @@ one scale, so their columns compare. The `all accounts` column has a scale of it
 **VALUE** in the `all accounts` column counts only the plans it knows. If an account has no `plan`
 set, the column says how many plans it knows, because its worth counts every account.
 
+If `all accounts` counts an account you removed or moved to another pool, the last line says so:
+`all accounts' totals include 1 account no longer here`.
+
 If a token expires within 30 days, or has expired, the column says so under the state:
 `token: 21 days left`.
 

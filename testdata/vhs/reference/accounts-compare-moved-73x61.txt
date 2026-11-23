@@ -1,0 +1,61 @@
+ SWITCHBOARD   Default                                Thu 1 Oct  14:42:07
+
+ Overview  Accounts  Projects  Sessions  Runway  Trends  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+ACCOUNTS   Compare  Detail  Tokens                  - 12 weeks +  < now >
+
+              74%     73%     82%     59%…
+
+WORTH  at API prices, by week
+
+ work             ▁▁▁▁ ▂▂▂▂ ▅▅▅▅ ▃▃▃▃ ▄▄▄▄      ▅▅▅▅ ▄▄▄▄      ▂▂▂▂
+                                                                    ▁▁▁▁
+
+
+             Jul            Aug                      Sep
+             peak week of 24 Aug $348
+
+ personal  ◆                                              ▂▂▂▂
+             ▄▄▄▄ ▅▅▅▅ ▄▄▄▄ ▆▆▆▆      ▇▇▇▇ ▃▃▃▃ ▇▇▇▇ ▄▄▄▄      ▅▅▅▅ ▃▃▃▃
+
+
+             Jul            Aug                      Sep
+             peak week of 14 Sep $287
+
+ side
+                                                                    ▆▆▆▆
+             ▃▃▃▃ ▃▃▃▃ ▃▃▃▃ ▅▅▅▅      ▃▃▃▃ ▆▆▆▆ ▁▁▁▁ ▇▇▇▇ ▆▆▆▆ ▇▇▇▇
+
+             Jul            Aug                      Sep
+             peak week of 28 Sep $239
+
+ all              ▁▁▁▁ ▁▁▁▁ ▄▄▄▄ ▂▂▂▂ ▆▆▆▆      ▆▆▆▆ ▄▄▄▄ ▄▄▄▄ ▃▃▃▃ ▁▁▁▁
+
+
+
+             Jul            Aug                      Sep
+             peak week of 24 Aug $800 · its own scale
+
+ACTIVITY     reqs                sessions            moved
+ work        29,141              166                 1 in · 52 out
+ personal  ◆ 24,786              154                 3 in · 29 out
+ side        14,359              204                 80 in · 3 out
+ all         69,186              440                 84 moves
+
+LIMITS       hit                 at cap              left
+ work        week ×3 · 5h ×51    10d 20h             0%
+ personal  ◆ 5h ×28              2d 10h              15%
+ side        5h ×4               6h 52m              40%
+ all         88                  13d 14h             —
+
+VALUE        plan                worth               against it
+ work        $200/mo             $3,422              6.2×
+ personal  ◆ $200/mo             $2,815              5.1×
+ side        $200/mo             $1,686              3.0×
+ all         $600/mo             $8,192              4.8×
+
+  all accounts' totals include 1 account no longer here
+▲ 41 more above · j/k
+tab views   [ ] view   P pool   ? keys   q quit

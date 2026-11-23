@@ -629,7 +629,9 @@ func stateMark(s status.AccountState) span {
 // body is Compare's rows under its heads, drawn on a canvas of their own:
 // WEEK USED, but in a past period; then, once the period's page is read, BY
 // MODEL and its versions, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank
-// row before each, BY MODEL first in a past period.
+// row before each, BY MODEL first in a past period; and last, a blank row
+// before it, how many accounts no longer here all accounts' totals include,
+// where they include any, as noLongerHere says it.
 func (cp compared) body(columns []compareColumn) *canvas {
 	if cp.page == nil {
 		c := newCanvas(cp.f.Width, 1)
@@ -640,6 +642,10 @@ func (cp compared) body(columns []compareColumn) *canvas {
 	rows := cp.weekUsedRows() + 1 + len(cp.page.Versions) + groupApart + compareWeeksUnder + groupApart + compareWorthUnder
 	for _, g := range groups {
 		rows += groupApart + len(g.rows)
+	}
+	gone := cp.noLongerHere()
+	if gone != nil {
+		rows += groupApart
 	}
 	c := newCanvas(cp.f.Width, rows)
 	cp.weekUsed(c, 0, columns)
@@ -658,7 +664,27 @@ func (cp compared) body(columns []compareColumn) *canvas {
 			}
 		}
 	}
+	if gone != nil {
+		cp.drawNoLongerHere(c, y+groupApart, gone)
+	}
 	return c
+}
+
+// noLongerHere says how many accounts with no column all accounts' totals
+// include, as the period's page counts them, "all accounts' totals include
+// 1 account no longer here", in text.faint: nil where they include none, or
+// the page isn't read yet.
+func (cp compared) noLongerHere() line {
+	if cp.page == nil || cp.page.NoLongerHere == 0 {
+		return nil
+	}
+	return line{{"all accounts' totals include " + prose.Counted(cp.page.NoLongerHere, "account") + " no longer here", faintInk}}
+}
+
+// drawNoLongerHere draws the line given along row y, from labelIndent, cut
+// to the frame's edge.
+func (cp compared) drawNoLongerHere(c *canvas, y int, gone line) {
+	c.line(labelIndent, y, gone.fit(cp.f.edge()-labelIndent))
 }
 
 // weekUsedRows are the rows WEEK USED takes atop Compare's rows, BY MODEL

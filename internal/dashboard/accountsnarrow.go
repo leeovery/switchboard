@@ -255,7 +255,9 @@ func (f Frame) turned(doc status.Document, now time.Time) compared {
 // turnedWhole is turned Compare drawn whole, laid out as turnedLaid lays
 // it: WEEK USED, but in a past period; then, once the period's page is
 // read, BY MODEL, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank row
-// before each, BY MODEL first in a past period.
+// before each, BY MODEL first in a past period; and last, a blank row before
+// it, how many accounts no longer here all accounts' totals include, as
+// wide Compare says it.
 func (cp compared) turnedWhole() stack {
 	c := growing(cp.f.Width)
 	columns := cp.columns()
@@ -270,6 +272,9 @@ func (cp compared) turnedWhole() stack {
 		y = cp.turnedWorth(c, y+partsApart, l, columns)
 		for _, g := range cp.turnedGroups() {
 			y = cp.turnedGroup(c, y+partsApart, l, g, columns)
+		}
+		if gone := cp.noLongerHere(); gone != nil {
+			cp.drawNoLongerHere(c, y+partsApart, gone)
 		}
 	}
 	return stack{c: c}

@@ -116,6 +116,13 @@ func (in HistoryInput) names() status.Names {
 	return status.NamesOf(in.Accounts, in.Removed).WithMoved(in.Moved)
 }
 
+// noLongerHere counts the accounts no longer here that days name: those
+// removed, and those moved to another pool, as History lists them. The
+// requests none answered are no account's, so it counts none for them.
+func (in HistoryInput) noLongerHere(days []Day) int {
+	return len(removedNamed(in.Removed, days)) + len(movedNamed(in.Moved, days))
+}
+
 // removedNamed are the accounts of removed that days name, as namedIn has
 // them.
 func removedNamed(removed status.RemovedAccounts, days []Day) status.RemovedAccounts {

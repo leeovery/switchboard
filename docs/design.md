@@ -5477,6 +5477,17 @@ its periods, as Trends has none:
     means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
     `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are, its
     words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
+- **Accounts no longer here,** the last line, a blank row under VALUE, scrolling with the rest,
+  wide or turned: `all accounts' totals include 1 account no longer here`, or `2 accounts`, in
+  `text.faint` two cells in, as a section's sub-line sits (the owner's call, 23 November 2026). It
+  counts the accounts removed and those moved to another pool that the period's days name, as
+  `history`'s `removed` and `moved` list them (`views.AccountsPage.NoLongerHere`, worked out
+  once), so an idle day naming the pool counts its account, as LIMITS counts its limits that day;
+  the requests no account answered are no account's, and it counts none for them. Their work is
+  in `all accounts`' totals, summed from the days: ACTIVITY, LIMITS, BY MODEL, WORTH and `worth at
+  API prices`; each has no column, so the columns fall short of `all accounts` by it. WEEKS and
+  `against its price` stay the configured accounts' alone. Where the days name none, there's no
+  line and no blank row.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their

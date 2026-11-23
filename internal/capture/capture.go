@@ -433,6 +433,9 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // And Accounts' Tokens over 12 weeks of the world with team removed on 4
 // September, its rows named as Tokens names an account removed; and of pool
 // Default with team moved to Acme then in place of removed, named alike.
+// And Compare over those 12 weeks, at 160 with team removed, and on a phone
+// with team moved, scrolled to its foot, its last line saying all accounts'
+// totals include team, which has no column.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -566,6 +569,8 @@ var pages = []page{
 	{name: "accounts-tokens-30-days-to-1-sep-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]", "]", "+", "<")},
 	{name: "accounts-tokens-removed-160", size: wide(46), world: accountWorlds.removedTeam, keys: toAccounts("]", "]", "+", "+")},
 	{name: "accounts-tokens-moved-160", size: wide(46), world: accountWorlds.movedTeam, keys: toAccounts("]", "]", "+", "+"), pool: defaultPool},
+	{name: "accounts-compare-removed-160", size: wide(55), world: accountWorlds.removedTeam, keys: toAccounts("+", "+")},
+	{name: "accounts-compare-moved-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.movedTeam, keys: slices.Concat(toAccounts("+", "+"), repeated(keysOf("j")[0], 41)), pool: defaultPool},
 	{name: "projects-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects()},
 	{name: "projects-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toProjects()},
 	{name: "projects-104x58", size: watch.Size{Width: 104, Height: 58}, world: accountWorlds.auto, keys: toProjects()},
