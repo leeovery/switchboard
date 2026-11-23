@@ -56,16 +56,15 @@ func (r Readings) window(id, key string) series {
 	return r.of[id][i]
 }
 
-// windowBy is the window with the given key of the account with the given
-// id as its last reading by t has it, reporting false where none was read by
-// then.
-func (r Readings) windowBy(id, key string, t time.Time) (quota.Window, bool) {
+// readingBy is the last reading by t of the window with the given key of the
+// account with the given id, reporting false where none was read by then.
+func (r Readings) readingBy(id, key string, t time.Time) (readings.Reading, bool) {
 	s := r.window(id, key)
 	k := s.lastBy(t)
 	if k < 0 {
-		return quota.Window{}, false
+		return readings.Reading{}, false
 	}
-	return s.reading(k).Window(), true
+	return *s.reading(k), true
 }
 
 // Resets are the resets of the window with the given key that the readings
@@ -95,12 +94,14 @@ func (r Readings) Resets(id, key string) []time.Time {
 // series is an account's readings of a window, oldest first, indexed: by
 // their places among the readings indexed; and how they hold the account
 // back, as holding has it, worked out once, the first time a run of them
-// that shows a hold is asked of.
+// that shows a hold is asked of, and at its cap, as capping has it, worked
+// out once for each reserve in force today it's asked of by.
 type series struct {
 	key     string
 	read    []readings.Reading
 	places  []int
 	holding func() holding
+	capping func(now float64) capping
 }
 
 // holding is how a series' readings hold their account back, indexed so the
@@ -108,11 +109,19 @@ type series struct {
 // search: for each, the first of the chain of them ending with it, each read
 // before the reset of the one before it passed, as a run runs on only so;
 // and how far each holds the account back, as lows over them: held, its use,
-// but of one spent, beyond any use; and capping, its use, but of one spent,
-// short of any, as being spent isn't being at a cap.
+// but of one spent, beyond any use.
 type holding struct {
-	chain         []int
-	held, capping lows
+	chain []int
+	held  lows
+}
+
+// capping is how far a series' readings hold their account back at its cap,
+// each by the reserve in force as it was taken, as readings.ReserveThen has
+// it, as lows over them, each its use past where that reserve starts, below
+// none where it isn't at its cap: capped, but of one spent, short of any, as
+// being spent isn't being at a cap; and held, but of one spent, beyond any.
+type capping struct {
+	capped, held lows
 }
 
 // seriesOf is the readings of the window with the given key at the places
@@ -126,7 +135,25 @@ func seriesOf(key string, read []readings.Reading, places []int) series {
 	}
 	s := series{key: key, read: read, places: places}
 	s.holding = sync.OnceValue(s.holdingOf)
+	s.capping = memoised(s.cappingOf)
 	return s
+}
+
+// memoised is f, each value it gives worked out once, the first time it's
+// asked for.
+func memoised[K comparable, V any](f func(K) V) func(K) V {
+	var mu sync.Mutex
+	held := make(map[K]V)
+	return func(k K) V {
+		mu.Lock()
+		defer mu.Unlock()
+		v, ok := held[k]
+		if !ok {
+			v = f(k)
+			held[k] = v
+		}
+		return v
+	}
 }
 
 // holdingOf is how the series' readings hold their account back, as holding
@@ -140,8 +167,33 @@ func (s series) holdingOf() holding {
 		}
 	}
 	h.held = lowsOf(len(s.places), func(k int) float64 { return s.use(k, math.Inf(1)) })
-	h.capping = lowsOf(len(s.places), func(k int) float64 { return s.use(k, math.Inf(-1)) })
 	return h
+}
+
+// cappingOf is how far the series' readings hold their account back at its
+// cap, as capping has it, now the reserve in force today.
+func (s series) cappingOf(now float64) capping {
+	return capping{
+		capped: lowsOf(len(s.places), func(k int) float64 { return s.pastCap(k, now, math.Inf(-1)) }),
+		held:   lowsOf(len(s.places), func(k int) float64 { return s.pastCap(k, now, math.Inf(1)) }),
+	}
+}
+
+// pastCap is how far the k-th reading's use is past where the reserve in
+// force as it was taken starts, now today's: below none short of it, or
+// under no reserve; and spent where it's spent, as score.Spent says. So the
+// reading is at its cap where it's none or more, as score.HeldByReserve has
+// it.
+func (s series) pastCap(k int, now, spent float64) float64 {
+	r := s.reading(k)
+	switch reserve := readings.ReserveThen(r.Reserve, now); {
+	case score.Spent(r.Window()):
+		return spent
+	case reserve <= 0:
+		return math.Inf(-1)
+	default:
+		return r.Utilization - score.ReserveFrom(reserve)
+	}
 }
 
 // reading is the series' k-th reading.
@@ -165,25 +217,27 @@ func (s series) lastBy(t time.Time) int {
 }
 
 // readBy is the window as its readings by t have it, as windowRead has it,
-// its account's reserve given, the readings reaching back as reach says,
-// reporting false where none was read by then: the run of them that reads
-// it spent, where the last does, and lifts as the first after it that
-// doesn't; and the run that reads it at its cap, where the last does, as
-// score.HeldByReserve has it, and lifts as the first after it held back at
-// neither, as a cap turned to a limit hasn't lifted.
-func (s series) readBy(t time.Time, reach Reach, reserve float64) (windowRead, bool) {
+// each reading judged by the reserve in force as it was taken, as
+// readings.ReserveThen has it, now the reserve in force today, the readings
+// reaching back as reach says, reporting false where none was read by then:
+// the run of them that reads it spent, where the last does, and lifts as the
+// first after it that doesn't; and the run that reads it at its cap, where
+// the last does, as score.HeldByReserve has it, and lifts as the first after
+// it held back at neither, as a cap turned to a limit hasn't lifted.
+func (s series) readBy(t time.Time, reach Reach, now float64) (windowRead, bool) {
 	k := s.lastBy(t)
 	if k < 0 {
 		return windowRead{}, false
 	}
-	w := windowRead{last: s.reading(k).Window()}
+	last := s.reading(k)
+	w := windowRead{last: last.Window(), reserve: readings.ReserveThen(last.Reserve, now)}
 	if score.Spent(w.last) {
 		h := s.holding()
 		w.spent = s.run(k, h.chain[k], h.held.lastBelow(k, math.Inf(1)), h.held.firstBelow(k, math.Inf(1)), reach)
 	}
-	if score.HeldByReserve(w.last, reserve) {
-		h, from := s.holding(), score.ReserveFrom(reserve)
-		w.capped = s.run(k, h.chain[k], h.capping.lastBelow(k, from), h.held.firstBelow(k, from), reach)
+	if score.HeldByReserve(w.last, w.reserve) {
+		h, c := s.holding(), s.capping(now)
+		w.capped = s.run(k, h.chain[k], c.capped.lastBelow(k, 0), c.held.firstBelow(k, 0), reach)
 	}
 	return w, true
 }

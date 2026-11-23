@@ -133,22 +133,55 @@ func StdLogger(component string, level slog.Level) *log.Logger {
 // the mirror, if there is one. Another Init replaces this one without noting
 // an exit.
 func Init(opts Options) {
-	role := cmp.Or(opts.Role, RoleCLI)
-	level, unknown := opts.level()
-	file, err := opts.file(role)
-	s := &session{handler: newHandler(output(file, opts.Mirror), level), role: role, started: time.Now(), file: file}
-	if old := current.Swap(s); old != nil {
-		old.close()
-	}
-	slog.SetDefault(standard)
-	process.Log(context.Background(), role.noteLevel(), "start",
-		"role", string(role), "version", opts.Version, "command", opts.Command)
+	role, unknown, err := open(opts, time.Now())
+	noteStart(role, opts)
 	if unknown != "" {
 		logger.Warn("unknown "+levelVariable+"; logging at info", "value", unknown)
 	}
 	if err != nil {
 		logger.Warn("can't write the log file", "error", err)
 	}
+}
+
+// Reopen starts logging again for a process whose log Close closed, as Init
+// starts it, noting first why, as at its start and exit, so the log never
+// reads as one process exiting and another starting: as a process carries
+// on that Close readied to be replaced, as by syscall.Exec, and wasn't. Its
+// exit counts how long it ran from the start Init noted, and what Init
+// warned of as it started isn't warned of again.
+func Reopen(opts Options, why string) {
+	started := time.Now()
+	if c := closed.Load(); c != nil {
+		started = c.started
+	}
+	role, _, _ := open(opts, started)
+	process.Log(context.Background(), role.noteLevel(), why)
+	noteStart(role, opts)
+}
+
+// closed is the session Close last closed, nil before it has.
+var closed atomic.Pointer[session]
+
+// open has records go as opts says from now on, the process having started
+// at started, replacing any session under way: in the role it returns; the
+// value of the level variable where it names no level; and why the file
+// can't be written, where it can't.
+func open(opts Options, started time.Time) (Role, string, error) {
+	role := cmp.Or(opts.Role, RoleCLI)
+	level, unknown := opts.level()
+	file, err := opts.file(role)
+	s := &session{handler: newHandler(output(file, opts.Mirror), level), role: role, started: started, file: file}
+	if old := current.Swap(s); old != nil {
+		old.close()
+	}
+	slog.SetDefault(standard)
+	return role, unknown, err
+}
+
+// noteStart notes the start of the process, in role, as opts has it.
+func noteStart(role Role, opts Options) {
+	process.Log(context.Background(), role.noteLevel(), "start",
+		"role", string(role), "version", opts.Version, "command", opts.Command)
 }
 
 // Close notes the process's exit, with its exit status and how long it ran,
@@ -162,6 +195,7 @@ func Close(status int) {
 	process.Log(context.Background(), s.role.noteLevel(), "exit",
 		"status", status, "duration", time.Since(s.started).Round(time.Millisecond))
 	if current.CompareAndSwap(s, nil) {
+		closed.Store(s)
 		s.close()
 	}
 }

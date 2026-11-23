@@ -110,23 +110,28 @@ func (in placing) holds(pool string) func(id string) bool {
 }
 
 // rooms is what the pools' room is judged by at a moment: the pool each
-// account is in, as in gives it; each account's shared week, as week gives
-// it; the accounts each pool's pin names, as pinned gives them; and whether
-// an account could take no request of any model then, as shut says, of the
-// account whose usage it's given.
+// account is in, as in gives it; each account's shared week, and the reserve
+// it was held to then, as week gives them; the accounts each pool's pin
+// names, as pinned gives them; and whether an account could take no request
+// of any model then, as shut says, of the account whose usage it's given.
 type rooms struct {
 	in     placing
-	week   func(id string) (quota.Window, bool)
+	week   func(a account) (quota.Window, float64, bool)
 	pinned func(pool string) []string
 	shut   func(u *usage, at time.Time, shared func(key string) bool) bool
 }
 
 // roomsNow is what the pools' room is judged by as it stands: each account
-// in its pool as grouped, its week as last read, each pool's pin as it
-// stands, and each account shut as it stands, as shut says. s.mu must be
-// held, the pools regrouped.
+// in its pool as grouped, its week as last read, under its reserve as
+// configured, each pool's pin as it stands, which spends the reserves of the
+// accounts it names, and each account shut as it stands, as shut says. s.mu
+// must be held, the pools regrouped.
 func (s *state) roomsNow() rooms {
-	return rooms{in: s.grouped.in, week: s.weekHeld, pinned: s.pinnedIn, shut: (*usage).shut}
+	week := func(a account) (quota.Window, float64, bool) {
+		w, ok := s.weekHeld(a.ID)
+		return w, a.Reserve, ok
+	}
+	return rooms{in: s.grouped.in, week: week, pinned: s.pinnedIn, shut: (*usage).shut}
 }
 
 // judgeRooms has each pool's day rate count the time from at on as time the
@@ -144,15 +149,15 @@ func (s *state) judgeRooms(by rooms, at time.Time) {
 // weeks alone, as by gives each, of those with a usable token whose week has
 // been read, but those it couldn't go out on, their token or their read
 // refused then, or a limit holding back their week, as by's shut says. So an
-// account has room within its reserve, or within its limit where the pool's
-// pin, as by gives it, names it, which spends the reserve. s.mu must be held,
-// the pools regrouped.
+// account has room within the reserve by gives it, or within its limit where
+// the pool's pin, as by gives it, names it, which spends the reserve. s.mu
+// must be held, the pools regrouped.
 func (s *state) roomy(by rooms, pool string, at time.Time) bool {
 	isWeek := func(key string) bool { return key == s.policy.Perishable }
 	var candidates []score.Candidate
 	for _, a := range s.accounts.held(by.in.holds(pool)) {
-		if w, ok := by.week(a.ID); ok && a.hasToken() && !by.shut(s.usage[a.ID], at, isWeek) {
-			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: []quota.Window{w}, Reserve: a.Reserve})
+		if w, reserve, ok := by.week(a); ok && a.hasToken() && !by.shut(s.usage[a.ID], at, isWeek) {
+			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: []quota.Window{w}, Reserve: reserve})
 		}
 	}
 	_, ok := s.policy.Choose(candidates, by.pinned(pool), isWeek, "", at)

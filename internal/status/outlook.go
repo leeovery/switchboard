@@ -347,9 +347,16 @@ func (d Document) measure(a Account, s standing, key string, stands quota.Window
 // says, else its limit.
 func (d Document) floor(a Account) float64 {
 	if d.reserveHolds(a) {
-		return 1 - a.Reserve
+		return floorUnder(a.Reserve)
 	}
-	return 1
+	return floorUnder(0)
+}
+
+// floorUnder is the share of a window used where an account held to the
+// reserve given runs out: where that reserve starts, or its limit without
+// one.
+func floorUnder(reserve float64) float64 {
+	return 1 - reserve
 }
 
 // pool is the accounts new sessions can go to, as one, each judged at a

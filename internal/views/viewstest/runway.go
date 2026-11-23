@@ -138,14 +138,15 @@ const (
 // change; a hold lifted early by a reset made by hand; a 5-hour window
 // restarted by hand; a cap turning to a limit too soon for a column to
 // draw it; two limits too close; a run-out reaching the cap first;
-// a model's own window at its limit; and the frames' moments.
+// a model's own window at its limit; caps judged by the reserves their
+// readings recorded; and the frames' moments.
 func RunwayMoments() []RunwayMoment {
 	return slices.Concat(
 		weekResetBeforeRunwayRereads(), justAfterAFiveHourReset(), failedReads(), refusals(), holdsNoEventTells(), holdsEventsTell(), holdsTakenOver(), holdsChanging(), holdsAhead(),
 		holdsOutlasted(), holdsCarriedIn(), routerSilent(), pools(), steppedBack(), liftedByHand(),
 		[]RunwayMoment{liftedAsTheWeekResets()},
 		[]RunwayMoment{tokenless(), restartedByHand(), capTurningToALimit(), twoLimitsClose(), runOutReachingTheCap(), modelsOwnLimit()},
-		framesMoments(),
+		reservesRecorded(), framesMoments(),
 	)
 }
 
@@ -1175,6 +1176,48 @@ func modelsOwnLimit() RunwayMoment {
 
 // fable is the Fable week's key: a model's own window.
 const fable = "7d_oi"
+
+// reservesRecorded have the week from Monday 21 September stepped back to:
+// work, its reserve 5% now, its week read on Wednesday at 14:00 and again at
+// 18:00, each line recording the reserve it was read under, or none. Each
+// stretch is judged by the reserve its reading recorded, holding till the
+// window's next line, and by today's only where a line recorded none: a
+// reserve lowered since, or a pin lifted since, leaves Wednesday's cap as it
+// was then.
+func reservesRecorded() []RunwayMoment {
+	in := func(day, hour int) time.Time {
+		return time.Date(2026, time.September, day, hour, 0, 0, 0, time.UTC)
+	}
+	weekReset := in(28, 10)
+	workAt := reserving(readAccount(work, onThu(14, 41, 0), window(fiveHour, 0.3, onThu(17, 10, 0)), window(week, 0.34, mondayTen)), 0.05)
+	used := func(at time.Time, use float64) []readings.Reading {
+		return readEach(work, at, window(week, use, weekReset))
+	}
+	under := func(reserve float64, read []readings.Reading) []readings.Reading {
+		return readings.Under(read, reserve)
+	}
+	restated := func(at time.Time, use, reserve float64) []readings.Reading {
+		return readings.Under(readings.Of(work, []quota.Window{window(week, use, weekReset)}, at, readings.FromReserve), reserve)
+	}
+	moment := func(name string, read []readings.Reading, stretches string) RunwayMoment {
+		return RunwayMoment{
+			Name: name, Doc: routed(onThu(14, 41, 0), nil, workAt, sideOn(onThu(14, 41, 0))), Now: thursday,
+			Readings: sorted(used(in(22, 9), 0.5), read),
+			Day:      civilDay(2026, time.September, 24), WeekStarts: time.Monday, Columns: lanes,
+			Want: map[string]Figures{work: {FigureStretches: stretches}},
+		}
+	}
+	return []RunwayMoment{
+		moment("stepped back to a cap under a reserve since lowered",
+			sorted(under(0.1, used(in(23, 14), 0.92)), restated(in(23, 18), 0.92, 0.05)), "capped Wed 14:00 – Wed 18:00 @50 50-52"),
+		moment("stepped back to a cap a line recorded, then one that recorded none",
+			sorted(under(0.1, used(in(23, 14), 0.92)), used(in(23, 16), 0.93)), "capped Wed 14:00 – Wed 16:00 @50 50-51"),
+		moment("stepped back to a pin that spent a reserve, since lifted",
+			sorted(under(0, used(in(23, 14), 0.97)), restated(in(23, 18), 0.97, 0.05)), "capped Wed 18:00 – Mon 10:00, as it resets @53 53-135"),
+		moment("stepped back to a cap no line recorded, by today's reserve",
+			used(in(23, 14), 0.97), "capped Wed 14:00 – Mon 10:00, as it resets @50 50-135"),
+	}
+}
 
 // framesMoments are the frames' moments, as the auto and ten worlds have
 // them, built by hand from what they read: at 14:42:07 on Thursday 1 October,

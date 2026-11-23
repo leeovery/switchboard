@@ -65,6 +65,10 @@ type AccountsPage struct {
 	// PricesAsOf is the date of the day the price table worth is priced by
 	// was read, as help gives it.
 	PricesAsOf string
+	// NoLongerHere is how many accounts with no row of their own the
+	// period's days name, whose work All's totals count: those removed, and
+	// those moved to another pool, as noLongerHere counts them.
+	NoLongerHere int
 
 	// in and days are what the weeks are worked out from, for At to work
 	// them out afresh: the input the page was built of, and the days from
@@ -215,7 +219,7 @@ func (p Past) Accounts(period Period) AccountsPage {
 	known := plans{accounts: in.Accounts, table: in.Prices}
 	costs := plansOf(days, known, pricedOver(first.Format(time.DateOnly), span.last.Format(time.DateOnly), p.counted(first).Format(time.DateOnly), period.length.share()))
 	_, weeks := splitAt(p.days, span.heldFrom(in.WeekStarts).AddDate(0, 0, -lookBack).Format(time.DateOnly))
-	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
+	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, NoLongerHere: in.noLongerHere(days), in: in, days: weeks}
 	worths := worthsByDay(days, in.Accounts)
 	for x, a := range in.Accounts {
 		plan, _ := known.of(a.ID)

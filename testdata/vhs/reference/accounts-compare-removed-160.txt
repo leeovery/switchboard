@@ -1,0 +1,55 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────   - 12 weeks +  < now >
+
+                          work                              personal ◆                       side                             all accounts
+                          ● at cap                          ● open                           ● open                           2 open · 1 at cap
+
+WEEK USED  now                    ▏    ┃         ╎  34%                    ▉┃         66%               ┃      ▊       78%                 ┃▎           59%
+
+BY MODEL  share of use
+  ● Opus 5.5               51%                               43%                              64%                              53%
+  ● Opus 5                  5%                                2%                               2%                               3%
+  ● Sonnet 5.5             35%                               45%                              29%                              36%
+  ● Sonnet 5                4%                                5%                               2%                               4%
+  ● Fable 5.1               2%                                1%                               1%                               2%
+  ● Haiku 4.5               2%                                3%                               2%                               2%
+
+WEEKS  each week at its peak
+                          ▂┄▃┄▃┄▄┄┄┄▃┄ ┄▆┄ ┄┄┄ ┄┄                             ▄ ▂                                                                 ▁
+                                  ▅                         ▄ ▅ ▄ ▅ ▂ ▄   ▇ ▄     ▂                                ▇          ▂ ▃ ▂ ▃   ▂ ▂ ▃ ▆ ▅
+                                                                        ▇                                    ▅ ▃                      ▅
+                                                ▆                                                    ▁ ▆   ▄
+
+                          Jul   Aug       Sep   …           Jul   Aug       Sep   …          Jul   Aug       Sep   …          Jul   Aug       Sep   …
+                          limit hit 3 of 11 · 10% left      limit hit 0 of 11 · 28% left     limit hit 0 of 11 · 59% left     short on 3 of 11 · 32% left
+
+WORTH  at API prices, by week
+                            ▁ ▂ ▅ ▃ ▄   ▅ ▄   ▂                               ▂                                                 ▁ ▁ ▄ ▂ ▆   ▆ ▄ ▄ ▃ ▁
+                                                ▁           ▄ ▅ ▄ ▆   ▇ ▃ ▇ ▄   ▅ ▃                                ▆
+                                                                                             ▃ ▃ ▃ ▅   ▃ ▆ ▁ ▇ ▆ ▇
+
+                          Jul   Aug       Sep               Jul   Aug       Sep              Jul   Aug       Sep              Jul   Aug       Sep
+                          peak week of 24 Aug $348          peak week of 14 Sep $287         peak week of 28 Sep $239         peak week of 24 Aug $800
+
+ACTIVITY
+  requests                29,141                            24,786                           14,359                           69,186
+  sessions served         166                               154                              204                              440
+  sessions moved          1 in · 52 out                     3 in · 29 out                    80 in · 3 out                    84 moves
+
+LIMITS
+  limits hit              week ×3 · 5-hour ×51              5-hour ×28                       5-hour ×4                        88
+  at cap or limit         10d 20h                           2d 10h                           6h 52m                           13d 14h
+  left at its last reset  0% (limit Fri)                    15%                              40%                              —
+
+VALUE
+  plan                    Ultra · $200/mo                   Ultra · $200/mo                  Ultra · $200/mo                  $600/mo · 3 plans
+  extra usage             off                               off                              off                              off on all
+  worth at API prices     $3,422                            $2,815                           $1,686                           $8,192
+  against its price       6.2× its $554 12 weeks            5.1× its $554 12 weeks           3.0× its $554 12 weeks           4.8× its $1,662 12 weeks
+
+  all accounts' totals include 1 account no longer here
+
+tab views   [ ] view    ←→ account  enter its page    p pin    ? help  q quit

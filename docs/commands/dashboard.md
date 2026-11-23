@@ -67,6 +67,11 @@ See [Running it](../dashboard/running-it.md) for what each tab shows in a pool.
 
 ## After an upgrade
 
+A dashboard you left open restarts itself onto the new version. It waits for the router to run the
+new version, then restarts, keeping the tab, views, period and pool it showed. With no router
+running, it stays as it is. How the router moves over is in
+[Upgrades and restarts](../upgrades-and-restarts.md).
+
 Just after an upgrade that moves your record onto account ids or onto pools, the dashboard waits
 for the router to finish the move. It prints a line each time what the move waits on changes, and
 opens once the move is done.

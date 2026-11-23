@@ -110,7 +110,9 @@ type Deps struct {
 	Exec func(path string, argv, env []string) error
 	// Check runs a program until it exits, returning what it wrote to its
 	// standard output, as handover.Run does. The router serve runs uses it to
-	// ask its binary whether it could start, before restarting into it.
+	// ask its binary whether it could start, before restarting into it, and
+	// the dashboard to ask an upgrade of its binary for its version, before
+	// restarting onto it.
 	Check handover.Runner
 	// Launchctl runs launchctl, as service.Launchctl does, and Plutil
 	// plutil, as service.Plutil does.
@@ -204,6 +206,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 		},
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	}
+	root.SetVersionTemplate(versionTemplate)
 	root.PersistentFlags().StringVar(&a.configPath, "config", "",
 		"config file (default $SWITCHBOARD_CONFIG, else $XDG_CONFIG_HOME/switchboard/config.toml, else ~/.config/switchboard/config.toml)")
 	root.SetFlagErrorFunc(hideTokens)
@@ -314,6 +317,9 @@ type app struct {
 	// notedFirst has it.
 	noted     func() string
 	notedOnce sync.Once
+	// logging is how this invocation's log was started, as startLog started
+	// it, for a dashboard whose restart failed to open it again.
+	logging logs.Options
 }
 
 // startLog starts this invocation's log, in the role the command plays: the
@@ -329,7 +335,7 @@ func (a *app) startLog(cmd *cobra.Command) {
 	if a.checking {
 		role = logs.RoleCLI
 	}
-	logs.Init(logs.Options{
+	a.logging = logs.Options{
 		Dir:     dir,
 		Role:    role,
 		Level:   a.logLevel,
@@ -337,7 +343,8 @@ func (a *app) startLog(cmd *cobra.Command) {
 		Mirror:  mirror(cmd, role),
 		Version: a.Version,
 		Command: cmd.CommandPath(),
-	})
+	}
+	logs.Init(a.logging)
 }
 
 // mirror is where the router's records go as well as its log: the terminal it

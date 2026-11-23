@@ -1133,7 +1133,10 @@ router records one as it starts, of an account in another pool than the file las
 config edited while it was down, or of one it keeps none of, and each move as it takes the pools
 up; a table of pools it can't tell records none. A restart replays each reading of the readings
 history into the day rate of the pool its account was in then, one from before its first entry
-into that entry's, and judges each pool's room at each moment by the accounts in it then. An
+into that entry's, and judges each pool's room at each moment by the accounts in it then, each
+account's week under the reserve its line recorded, its reserve as configured where the line
+recorded none, a pin it kept spending it from when the pin was set, as live; and judges it again at
+each `reserve` line, as the room can change with no reading to show it. An
 account's recent rates are forgotten at each move between pools the record holds, as live, so a
 restart soon after a move, or after a move made while the router was down, brings none of the old
 pool's demand. A pool since removed takes in nothing, and the one pool of a config from before
@@ -3626,8 +3629,13 @@ in the words History's Weeks gave it till the dashboard by entity left the verdi
 (`views.VerdictWeeks`, 7).
 
 **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
-router stops sending it new sessions: 100% less its reserve, the reserve the config has now, not
-the reserve the readings history recorded through the week, and 100% without one.
+router stopped sending it new sessions at its peak: 100% less the highest reserve its peak stood
+under, as the readings history recorded it and the day's summary keeps it on the reset that ended
+the week (see The request ledger), and 100% without one. So a reserve changed while the week stood
+at its peak, lowered or raised, leaves it short where it stood at its cap under either; a reserve
+before the week rose to its peak counts for nothing, even where a reading then reached a cap of its
+own. Where the summary kept none, as one made before resets kept it, or of a week still running,
+it's the reserve the config has now (the owner's call, 23 November 2026).
 What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
 The verdict takes its form for many accounts where it can name one to drop, one fewer being short on
 no more weeks than now; otherwise its form for few.
@@ -5402,13 +5410,15 @@ its periods, as Trends has none:
     cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
     160 and 173 columns, touching narrower, as at 100. Where the account keeps a
     reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
-    the columns. The axis names a month where it starts, and at 12 months each month, giving way
-    from the last back as WORTH BY's names do; the last is bold at now, and in a past period only
-    where this week shows, as Detail's BY DAY has it, so 12 months back names none bold; under
-    this week's column, so far, `…`
-    in `text.secondary`, in place of its name, where its columns are weeks: at 12 months none,
-    as a month's column isn't this week's, though its fullest week may be. A past period's last
-    week, but this week, is drawn whole, undimmed and with its name.
+    the columns: one level across every week, at the reserve the config has now, though each
+    week's mark and limit are judged at the cap of the highest reserve its peak stood under (see
+    The capacity verdict). The axis names a month where it starts, and at 12 months each month,
+    giving way from the last back as WORTH BY's names do; the last is bold at now, and in a past
+    period only where this week shows, as Detail's BY DAY has it, so 12 months back names none
+    bold; under this week's column, so far, `…` in `text.secondary`, in place of its name, where
+    its columns are weeks: at 12 months none, as a month's column isn't this week's, though its
+    fullest week may be. A past period's last week, but this week, is drawn whole, undimmed and
+    with its name.
   - **Under it,** the weeks' facts on the reach's whole weeks, never its verdict's words, which stay in
     `switchboard history`: `limit hit 3 of 7 · 9% left at a reset`, in `text.subtle`, its last
     part giving way to `9% left`, then going; `all accounts`, the pool's peaks the mean of the
@@ -5477,6 +5487,21 @@ its periods, as Trends has none:
     means, `on`, and for `all accounts` `on all`, `off`; `against its price` drops its price,
     `4.0×`, and for `all accounts` where some plans aren't known, every form keeps how many are, its
     words shorter, then `4.4× · 2/3`, as its ratio is of those alone. The rest have one form.
+- **Accounts no longer here,** a line under the table saying how many (the owner's call, 23
+  November 2026): the last line, a blank row under VALUE, scrolling with the rest, wide or
+  turned, `all accounts' totals include 1 account no longer here`, or `2 accounts`, in
+  `text.faint` two cells in, as a section's sub-line sits. It
+  counts the accounts removed and those moved to another pool that the period's days name, as
+  `history`'s `removed` and `moved` list them (`views.AccountsPage.NoLongerHere`, worked out
+  once), so an idle day naming the pool counts its account, as LIMITS counts its limits that day;
+  an account only another Mac configures, its history imported, counts among them, as Tokens
+  treats it; where the accounts record can't be read, the accounts removed are none, so their work
+  stays in `all accounts` without the line, the warning logged; and
+  the requests no account answered are no account's, and it counts none for them. Their work is
+  in `all accounts`' totals, summed from the days: ACTIVITY, LIMITS, BY MODEL, WORTH and `worth at
+  API prices`; each has no column, so the columns fall short of `all accounts` by it. WEEKS and
+  `against its price` stay the configured accounts' alone. Where the days name none, there's no
+  line and no blank row.
 - **With one account,** Compare goes, being Detail with one column: the heading shows ` Detail `
   alone.
 - **Wide, from where it fits.** Compare is drawn wide wherever its wide parts fit at their
@@ -7228,9 +7253,9 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   A window whose reset that reading gives has passed by then counts as reset, at 0%; one read
   `rejected` is at its limit until that reset, or until a later reading before it no longer shows
   it, as one of a window reset by hand doesn't, the hold lifting as the router read the window start
-  again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
-  config gives now (settled in the plan), not from the reserve each line of the readings history
-  records, and lifts alike. A column with no reading of its
+  again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve each
+  reading recorded, today's where it recorded none (see Past caps, below), and lifts alike. A
+  column with no reading of its
   account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
   14 October 2026), but before the first reading of an account new in the view, which is dotted
   (see An account new in the view, above).
@@ -7268,9 +7293,24 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   running from a reading `rejected` to its window's reset; each day's summary's `limits`, each with
   its `at` and `resets_at`, and under each name the week's `highest`; today's, before it's
   summarised, its readings and lines as they're read (see The request ledger). A cap on a day gone
-  is drawn from the reserve the config gives now (settled in the plan), not from the reserve each
-  line of the readings history records. A week older than the readings history's keep draws its
-  lanes from its summaries' limits and resets alone (settled in the plan).
+  is drawn from the reserve each reading recorded, today's where it recorded none (see Past caps,
+  below). A week older than the readings history's keep draws its lanes from its summaries' limits
+  and resets alone (settled in the plan).
+- **Past caps:** every reader of past readings that judges a cap, Runway's and Trends' past
+  lanes, the pool's room then (see POOL) and the router's restart (see Forecasting run-outs), judges
+  each reading by the reserve its line recorded, a pin's 0 among them, holding from that reading
+  till the window's next line, `reserve` lines included, as minutes at cap are (see The request
+  ledger). Where a line recorded none, as one from before the history kept them, it judges by the
+  reserve in force today: the config's, none where the pool's pin names the account (the owner's
+  call, 23 November 2026). So a reserve changed since, or a pin set or lifted since, leaves the past
+  as it stood. The capacity verdict judges a week's peak alike, by the highest reserve it stood
+  under (see The capacity verdict). A window read before a reserve changed, too long before for
+  the router to record it again (see the readings history in Files), keeps the reserve before
+  even at now, as the pool's room then has it, till its next reading, which a probe brings within
+  minutes; the moment's own room is by today's (accepted, 23 November 2026). A week that ended
+  today, its reset not yet in a day's summary, is judged by today's reserve till its day is
+  summarised, as the views file its reset from the readings without a reserve (accepted, 23
+  November 2026).
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
@@ -7477,8 +7517,9 @@ them at the section's width, from a day before now, for a week:
   starts while a limit or its cap held it back from every request, as Runway's pool lane counts it
   without room then, and none in any while its token was refused, or isn't usable now, nor from
   now on while its read is refused (see 401s and 403s); else the
-  window's room to where it runs out, its cap where its reserve holds, else its limit, as its last
-  reading by then has it: none where that read it spent or rejected, and all of it once that
+  window's room to where it runs out, its cap where the reserve its last reading by then recorded
+  holds, today's where it recorded none (see Runway's Past caps), else its limit, as that reading
+  has it: none where that read it spent or rejected, and all of it once that
   reading's reset had passed, so an account idle before its window started has all its room till
   then, and each reset is a step up. An account out of the pool isn't counted, and one with no
   reading by then isn't known (the owner's call, 15 October 2026, for the Overview's pool charts,
@@ -9678,6 +9719,72 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   session's page reach back past them (see The router's events). A router restarted tells its events afresh,
   while the files keep what it told before. Without the router, there are no live events, and the
   Log and LATELY show what the files hold (settled in the plan).
+- **Across an upgrade,** a dashboard left open, on the Mac or over SSH, restarts itself onto the
+  new version, so it never reads a newer router's document by an older version's rules, as
+  dashboards started before v1 drew an Ultra week's run-outs late once v1's router sized the week
+  anew (the owner's call, 23 November 2026). Nothing is drawn of it; the log notes the restart at
+  `info`, from and to which version.
+  - **When:** at each read, `--probe`'s among them, it looks at the binary it was started as, by
+    the path it was run by, by the rule the router judges an upgrade by (Watched's `MovedTo`, see
+    The router looking after itself): the path leading to another file, or the same file
+    changed. A path leading nowhere for a moment, as while `brew upgrade` moves the link on, isn't
+    one: the dashboard waits for a read that finds it there. Upgraded, it moves over only once a
+    router answers its health check running another version than the dashboard's own, so once the
+    router has handed over, never while it still runs the dashboard's version, noted once at
+    `info`. A read that asked the router nothing, as `--probe`'s, asks its health then, so a
+    dashboard probing moves over at the first read that finds the router on the new version. The
+    look is a stat of the binary on the read the dashboard makes anyway, every 5 seconds while it
+    reads the router and every minute while it doesn't, never a loop of its own.
+  - **No router, no restart:** with no router answering, the dashboard stays on its version,
+    however long, and moves over once a router answers on another, as one started since. A router
+    under load whose health check times out is waited on alike. Without a router the dashboard
+    reads its own probes and the recorded files, by its own rules, so the trouble the restart
+    answers doesn't arise; and only a router that has moved over has checked the new version
+    against the config (see Upgrades), so a dashboard restarting without one could land on a
+    version that refuses the config, or waits at a move for a router that isn't there, and vanish
+    from the screen.
+  - **The binary asked first:** run with `--version`, in the dashboard's environment, and given
+    10 seconds, it's restarted onto only where it says a version other than the dashboard's own,
+    as `switchboard version 1.4.0`. One that doesn't, as a broken binary, one too slow, or one
+    saying the dashboard's own version, as a dev build does, leaves the dashboard on its version,
+    noted once at `info`, and isn't asked again until the binary changes again; so a dashboard
+    newer than the router, a dev build and a binary answering its own version never restart, nor
+    ask at every read. One ask runs at a time, and none, nor a restart, begins while the pool shown
+    is read, as `P` turns or a change to the config reads it again: the dashboard asks again at
+    the next read.
+  - **Restarting:** Bubble Tea gives the terminal back as a quit does, out of the alternate screen
+    and the mouse's modes; the terminal's background is put back and what was typed and never read
+    thrown away, as at a quit; the preferences not yet kept are kept, every other write held off
+    meanwhile, so the shared file has this dashboard's last changes too; the log is closed, so the
+    old process's ends with its exit line; and the dashboard is replaced in place
+    (`syscall.Exec`) by the binary, in its environment, with what it shows in
+    `SWITCHBOARD_DASHBOARD_SHOWN`. The binary runs as `switchboard dashboard`, with the `--config`
+    in force and the dashboard's own flags and interval, the interval only where it isn't the
+    default, but never `--pool`: never the command line the process was started by, as
+    `switchboard setup` opens the dashboard at Done in its own process. What it carries and keeps
+    is taken as the restart runs, not as it was decided on, so a key taken in between isn't lost;
+    and from the decision on, `P` and a change to the config read no pool, so the pool carried is
+    the one shown. Where the process can't be replaced, Bubble Tea takes the terminal back, the log
+    is opened again, noting first that the process wasn't replaced, and the dashboard carries on as
+    it was, saying why at `warn`, and asks again only once the binary changes again.
+  - **What it showed, carried:** `SWITCHBOARD_DASHBOARD_SHOWN` is one-shot. It holds, as JSON, the
+    preferences as the dashboard shows them, in the preferences file's own shape (the tab, its
+    sections, each tab's view, By, the dial's period, the Log's columns, the theme chosen, a theme
+    picked and not yet kept among it; see Themes, What's remembered), and the pool shown, by its
+    id. A value without the preferences is one it can't read. The dashboard restarted opens on
+    them in place of the preferences file, which another dashboard, on another screen, may have
+    kept otherwise since, and drops the variable from its environment at once, so nothing it runs,
+    nor its own restart, inherits it. It opens on the pool carried where the config still has it,
+    else on the one the verbs act on, never refusing it, noted at `info`. A field it doesn't know
+    it passes over, and a value it can't read it passes over whole, saying why at `warn` and
+    opening as the preferences keep it; so versions either side read it, and its form only ever
+    gains fields. A scroll, a week stepped back to, and an open card or help don't come back.
+  - **Flags kept stable:** the restart runs the dashboard's flags again unasked, so a dashboard's
+    flags are kept from one release to the next. A release that renames one leaves a dashboard
+    restarting onto it refused, at the shell (accepted, 23 November 2026).
+  - The capture harness's fixtures and scenarios give the watch no binary to look at, so they
+    never restart (`internal/dashboard/watch`, `upgrade.go`; the command's side,
+    `internal/cli/dashboardupgrade.go`).
 - **A router from before milestone 7,** as one still running between an upgrade and its restart:
   without `dir` on its sessions and its stream, a running session's directory comes from its lines'
   `dir`, else it's named by its id; without the new kinds of events, LATELY and the Log have none of
@@ -10172,7 +10279,18 @@ from the first day a router that has it runs, so nothing before then is in it.
       in the run it ended, as a reading a point under the one before it can come last. A week's peak
       is the `before` of the reset that ended it. A run whose use never read above nothing, carried
       in or read that day, records no reset: an unopened window's reset moves on with each reading
-      (see Observed), and nothing was used to reset.
+      (see Observed), and nothing was used to reset. Since 23 November 2026, with no version of its
+      own, as a field added: `reserve`, the highest reserve the run's peak stood under, of those
+      the readings history's lines that read the peak recorded, `reserve` lines among them, a rise
+      to a new peak starting afresh, a line below the peak at any point counting for nothing, and
+      the lines of the days before counting as the day's do; left out where none of them recorded
+      one. Where the last line before the day is a reading taken out of turn, lower than the peak,
+      the day carries that line's use as `before`, as it did before `reserve`, under the peak's
+      reserve, and judges the day's lines against the use carried (accepted, 23 November 2026). A
+      reading read late that raises `before` brings its line's reserve with it, and one at `before`
+      the higher of the two. A day summarised again keeps the reset from the higher `before`, under
+      the reserve of the summary that read it, the higher of the two where both did. The capacity
+      verdict judges a week's peak at its cap by it (see The capacity verdict).
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a
       window read `rejected` or used up, each from the reading that put it there to the one that
@@ -11368,7 +11486,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   same file changed since, as after `brew upgrade` (see Its own copy). Run by hand, with no copy,
   the binary it upgrades from is the one it was started as, and the file it compares with the one
   running. A link that leads nowhere, as it may for a moment while an upgrade moves it on, isn't
-  one.
+  one. The rule is `router.Watched`'s `MovedTo`, which a dashboard left open judges the binary it
+  was started as by too, restarting itself onto an upgrade once the router has (see Live
+  updates).
 - **Time zones:** Go reads the local time zone once, as a program starts, so a router carried on in
   the zone it started in would prime, and end the day, by that zone's clock. It restarts itself
   when `/etc/localtime` leads to another file than it did as the router started, as when the Mac
@@ -11842,7 +11962,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/accounts` | Adding accounts, replacing their tokens and removing them, for the `accounts` commands and `setup`: the config file and the token file together, and a token the user gives, typed unseen at a terminal or piped in, checked with the API before it's saved |
 | `internal/dayfile` | Files a day of JSON lines, as the readings history, the request ledger and the router's events keep them: appending, compressing a day's file once its day ended two days ago, removing it once past keeping, leaving one named for a day after tomorrow until its day comes round, and reading them back, oldest first whichever day's file each is in, lines cut short and damaged files included, or a day's file on from where a read of it last ended, as a tail reads it; the days themselves, each from its first instant, and the times of a day, each as the clocks first read it, where they go forward over it, or back over it, too; and the queue and goroutine that write to them, so noting a line never waits, with the round they're kept on, hourly and before each prune, which what else is kept of a day, as the request ledger's summaries, is kept on too, at every round or just before each prune |
 | `internal/ledger` | The request ledger: its lines and their writing, through `internal/dayfile`, the days' summaries, written again while lines come to be filed under their days, each knowing no less than the one it replaces, reading lines and summaries back, with no router, today and the days not summarised since lines came to be filed under them summarised as they're read; reading them as they grow, today's lines tailed, only those since the last mark held, each day's summary held once read, and a session's days found by the summaries' session ids, the follower's lines holding none of their JSON; the days' digests, built on a goroutine of their own through the `Digester` seam it declares, each day's builder handed every line its read reads, and their parts files, a gzip member a session pointed at by offset, length and CRC; each day's head, built after the digests, newest first, of exactly the lines `Day` gives the day by the one read both share, its side the views'; when a digest or a head stands, and a session as of a day, on the newest state a digest holds that stands for it, or, for a page, the newest whose chain of parts reads, and the raw lines after, one lookup the writer and the readers share; a line's usage decoded once into what its request spent, which the price table prices as it prices the line, and what a page's requests spent, summed by model and where they were served, priced alike once as the page is built; a window's climb, and its stored form; and the price table, with the plans' prices and the version table, and the worth they give, a move's cache write's among it |
-| `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read, a read warning once of how many of their lines it couldn't read |
+| `internal/readings` | The readings history's lines, as the router writes them and reads them back, and the request ledger summarises its days with them: a reading as a line, and the history's files in the state directory, through `internal/dayfile`, and the readings they hold of a time, in the order they were read, a read warning once of how many of their lines it couldn't read; and `ReserveThen`, the one rule every reader judges a past cap by: the reserve a line recorded, else today's |
 | `internal/events` | The router's events kept across restarts, in a package of their own, as the readings history's lines are in `internal/readings` (settled in the plan): each as a line, filed in a file a day through `internal/dayfile`, beside the request ledger's and kept for its `keep`, though, unlike its lines, without waiting for their day's summary, and read back with no router, each event's versions merged by `run` and `id`, a day's read from its own file and the next 8 days', for the Log, LATELY, a session's page and `events` (see The router's events) |
 | `internal/export` | The history exported into a folder and brought back: the install's id, a Mac's folder and its `export.json`, a day's files copied or compressed into it, and a folder's files staged for import; the import itself, a day's lines added to its files, `internal/dayfile`'s, run by the router between its rounds (see Export and import) |
 | `internal/atomicfile` | Writing a file whole or not at all: beside where it goes, synced, then renamed into place, unless a check its caller gives, just before the rename, says otherwise; and where writing through a link leads, so a file that's a link is written where it leads, never replaced; and setting a corrupt file aside, keeping the newest 3 of its name |
@@ -11856,7 +11976,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period, joins to the days the tail fed, and carries across midnight. It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, Projects, Sessions, Runway, Trends, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
-| `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
+| `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; its desktop notifications while it probes without the router; and when to restart onto an upgrade of its binary, through seams it's given |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
 | `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens; and setup's full screen's fixtures, a moment of it each, built through `internal/setup/screen` with its `Steps` faked. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, and its playback of a readings history and request ledger through that state, for `cmd/forecasttool`, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
@@ -11872,7 +11992,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/interrupts` | Holding the process's interrupts, SIGINT, SIGTERM and SIGHUP, with SIGPIPE, through work that must run to its end once begun: the service's swap, and a made token's save. One the process ignores, as under `nohup`, stays ignored |
 | `internal/notify` | Posting desktop notifications, through switchboard's own app where a release embeds it (writing it out, registering it, asking macOS once) and through `osascript` otherwise, and the wording and warning threshold the router's and the dashboard's share; the app's Swift source, `Info.plist` and icon in `internal/notify/app` |
 | `internal/childenv` | The environment the programs switchboard runs for itself start in: no token, and for `claude --version`, the `claude`'s own directories first on `PATH` (`Beside`) |
-| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back. `logs/logstest` captures what's logged, for tests |
+| `internal/logs` | Logging: the handler every package logs through, the log files and their rotation, launchd's log trimmed, redaction, and reading logs back; `Reopen` opens a process's log again after `Close` readied it for an exec that failed, saying why first. `logs/logstest` captures what's logged, for tests |
 | `internal/redact` | Hiding secrets: a token held, anything shaped like a Claude token, and the parts of an address that can carry a key, as `[redacted]`, and telling text that holds one |
 | `internal/prose` | Words shared across packages: a list run together as English does, a count as briefly as a row has room for, text cut short, and a token's year as its notification and the Accounts tab tell of it; and outside text made safe to show on one line (`prose.Clean`), the one rule for all that's shown but text to copy, a label written by hand, a session's working directory and title and a model's name among it: each control character a space, each run of spaces one, and each character drawn as nothing that no sequence owns dropped (`prose.MapUnseen`), so a bidirectional embedding, override or isolate can't reorder the rest of its line, while emoji, keycaps, variants, flags and joining scripts are kept whole. A prepended concatenation mark, such as an Arabic number sign, is dropped too, as the dashboard measures it and the character after it as no cells, so that character would never show; a label refuses one. A direction mark is kept only within text holding a letter written right to left, which it orders, and dropped from any other and from the edges of all, as a terminal that orders text by direction carries a mark at a field's end on to reorder the digits and punctuation of the next. A label is taken by the same rule, after its own refusals, so it's saved as it shows, and two labels clash where they're the same once cleaned; one written by hand, or saved by an earlier release, is read as written and shown cleaned. Where nothing of a label shows once cleaned, an account or a pool is named by its id (`prose.LabelOr`) wherever its label is shown: the dashboard's words, title row, empty-pool page and alerts, setup's cards, the verbs' tables, text and headings, the router's notifications and its answers to Claude Code, and launch's words, an account's title (`work · Work`) giving the id alone; a label kept as data, in the accounts record, an export or the status document's `pool_label`, stays as written. Accepted: a mark dropped can let a joiner or selector after it be judged on the character before the mark, and kept; a directory's name (`status.DirName`) can show a mark that was within the path only through a trailing slash. It runs on every draw, so plain ASCII with nothing to clean, nearly all that's shown, is judged a byte at a time and returned as it is. Text to copy, such as setup's lines and a token, keeps all but its control characters (`prose.Visible`), so what's copied is what was given. `prose.Quoted` shows as escapes the characters drawn as nothing that `prose.Clean` drops, the direction marks and the prepended concatenation marks, which would hide the closing quote |
 | `internal/testguard` | Every package's `TestMain`: keeps tests off the real system, `~/.claude`, switchboard's bin and shell directories, its token files, the shells' startup files and the directories on `PATH` included (see Test isolation in `CLAUDE.md`) |
@@ -11981,7 +12101,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   `prime`; or `reserve`, below; and `reserve` the share of every window of the account the router
   left unused then: the reserve the config gives it, or 0 where it has none or the pool's pin
   names it, as a pin spends the reserves of the accounts it names (see Pinning). A day's summary
-  judges the account's minutes at its cap by it (see The request ledger). Where that reserve
+  judges the account's minutes at its cap by it (see The request ledger), and every other reader
+  of past readings judges a cap by it, holding till the window's next line (see Runway's Past
+  caps). Where that reserve
   changes, as the pool's pin comes to name the account or stops, the account moves to another
   pool, leaving a pin that named it, or the router starts on a config that changed it, the router
   appends a line for each of the account's windows it read in the
@@ -13617,6 +13739,9 @@ What's built but hasn't been seen against the real thing:
 - *Milestone 7:* which prompt a background subagent's later requests name, the one that started
   it, as Claude Code's gateway guide says, or the session's newest, as its own record numbers them
   (see Observed): a turn counts a subagent by its first request either way.
+- A dashboard left open across a real `brew upgrade` restarting itself onto it, on the Mac and over
+  SSH from the phone: Bubble Tea handing the terminal back, then `syscall.Exec`, and the dashboard
+  coming back on the tab, views, period and pool it showed (see Live updates).
 
 ## Open-source hygiene
 
@@ -13628,7 +13753,7 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-11-23--past-caps-by-recorded-reserve.md`); this table is their index. An idea built or
+(`2026-10-18--day-digests-left.md`); this table is their index. An idea built or
 dropped leaves the table, and its file goes: what was built is in its pull request and the design
 proper, and where why one was dropped binds a later choice, the design proper says so.
 
@@ -13639,8 +13764,5 @@ proper, and where why one was dropped binds a later choice, the design proper sa
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
-| A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
-| Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
-| Past caps judged by the reserve recorded then: Runway's and Trends' past lanes, the pool's past room, the capacity verdict and the router's seed, which still judge past readings by today's reserve | open: any time | [past-caps-by-recorded-reserve](../ideas/2026-11-23--past-caps-by-recorded-reserve.md) |

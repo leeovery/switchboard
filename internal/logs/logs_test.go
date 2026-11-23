@@ -364,6 +364,34 @@ func TestInitAgainReplacesTheFirst(t *testing.T) {
 	}
 }
 
+// Reopened after a Close, the log says why before it notes the start, as at
+// the start and exit, so it reads as one process carrying on: its exit
+// counts how long it ran from the first start, and what the first start
+// warned of isn't warned of again.
+func TestReopenSaysWhyBeforeTheStart(t *testing.T) {
+	opts := logs.Options{Dir: t.TempDir(), Role: logs.RoleRouter, Getenv: envFrom(map[string]string{"SWITCHBOARD_LOG_LEVEL": "loud"})}
+	path := start(t, opts)
+	time.Sleep(20 * time.Millisecond)
+	logs.Close(0)
+	logs.Reopen(opts, "not replaced; carrying on")
+	logs.Close(0)
+
+	log := readLog(t, path)
+	var notes []string
+	for line := range strings.Lines(log) {
+		msg, _, _ := strings.Cut(strings.SplitN(line, " msg=", 2)[1], " component=")
+		notes = append(notes, msg)
+	}
+	want := []string{"start", `"unknown SWITCHBOARD_LOG_LEVEL; logging at info"`, "exit", `"not replaced; carrying on"`, "start", "exit"}
+	if !slices.Equal(notes, want) {
+		t.Errorf("the log notes %q, want %q", notes, want)
+	}
+	durations := regexp.MustCompile(`duration=(\S+)`).FindAllStringSubmatch(log, -1)
+	if ran, err := time.ParseDuration(durations[len(durations)-1][1]); err != nil || ran < 20*time.Millisecond {
+		t.Errorf("the last exit noted a duration of %s, want the 20ms or more since the first start", durations[len(durations)-1][1])
+	}
+}
+
 func TestStdLogger(t *testing.T) {
 	errorLog := logs.StdLogger("router", slog.LevelWarn)
 	quiet := logs.StdLogger("router", slog.LevelDebug)

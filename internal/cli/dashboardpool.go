@@ -34,14 +34,16 @@ type shownPools struct {
 }
 
 // opened is what the dashboard opens on of the config cfg: the pool named,
-// else the one the verbs act on, of the pools as they stand, as
-// pooledConfig has them, as shown has it. It fails where a pool is named
-// and the pools can't be told, as pooledConfig fails; where none is named,
-// it opens on none, warning, as where every pool is fenced: no accounts, a
-// source reading none, as untoldSource has it, till the router tells the
-// pools, and none of the router's events, nor any pool's work of the
-// request ledger, so the dashboard never shows every pool's together.
-func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string) (watch.Pooled, error) {
+// else the one carried, the pool a dashboard restarted onto an upgrade
+// showed before, where the pools still have it, else the one the verbs act
+// on, of the pools as they stand, as pooledConfig has them, as shown has it.
+// It fails where a pool is named and the pools can't be told, as
+// pooledConfig fails; where none is named, it opens on none, warning, as
+// where every pool is fenced: no accounts, a source reading none, as
+// untoldSource has it, till the router tells the pools, and none of the
+// router's events, nor any pool's work of the request ledger, so the
+// dashboard never shows every pool's together.
+func (s shownPools) opened(ctx context.Context, cfg *config.Config, named, carried string) (watch.Pooled, error) {
 	pooled, err := s.a.pooledConfig(ctx, cfg)
 	switch {
 	case err != nil && named != "":
@@ -53,9 +55,23 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 			Placed: status.Placed(cfg.Pools, cfg.Accounts), Grounds: groundsOf(cfg, s.firstOf(cfg.Pools)),
 		}, nil
 	}
-	shown, err := s.shown(ctx, cfg, pooled, named)
+	shown, err := s.shown(ctx, cfg, pooled, namedOrCarried(pooled.Pools, named, carried))
 	shown.Stamp = s.stamp
 	return shown, err
+}
+
+// namedOrCarried is the pool the dashboard opens on, of pools, by its id:
+// the one named; else the one carried, where pools still has it; else none,
+// for the one the verbs act on.
+func namedOrCarried(pools config.Pools, named, carried string) string {
+	if named != "" || carried == "" {
+		return named
+	}
+	if p, ok := pools.ByID(carried); ok {
+		return p.ID
+	}
+	logger.Info("the pool the dashboard showed before it restarted is gone; opening on the one the verbs act on", "pool", carried)
+	return ""
 }
 
 // untoldSource is the source of a dashboard opened on no pool as its pools
