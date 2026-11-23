@@ -126,8 +126,8 @@ func (a *app) dashboardUpgrade(opts dashboardOptions) watch.Upgrade {
 // commandLine is the command line a dashboard opened with o restarts by,
 // run as the binary at exe: the dashboard command, with the config file
 // named, where --config named one, and o's flags and interval, the interval
-// only where it isn't the default, so a release's default is taken up; but
-// never --pool, as the pool shown is carried in shownVariable.
+// only where it's given and isn't the default, so a release's default is
+// taken up; but never --pool, as the pool shown is carried in shownVariable.
 func (o dashboardOptions) commandLine(exe, config string) []string {
 	argv := []string{exe, dashboardName}
 	if config != "" {
@@ -141,7 +141,7 @@ func (o dashboardOptions) commandLine(exe, config string) []string {
 			argv = append(argv, "--"+flag.name)
 		}
 	}
-	if o.interval != defaultInterval {
+	if o.interval != 0 && o.interval != defaultInterval {
 		argv = append(argv, o.interval.String())
 	}
 	return argv

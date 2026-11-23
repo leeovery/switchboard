@@ -541,6 +541,35 @@ func TestPTurnsToNoPoolOnceARestartIsDecidedOn(t *testing.T) {
 	}
 }
 
+// Once a restart is decided on, a change to the config found by a read
+// reads no pool, the stamp it found left untaken; where the process isn't
+// replaced, the next read asks for it.
+func TestAConfigChangeFoundOnceARestartIsDecidedOnIsAskedForOnceItFails(t *testing.T) {
+	rig := newUpgradeRig(t)
+	rig.holding = true
+	h, acme, pools := pooledHarness(t, acmeAccounts)
+	rig.routerOn(h, newVersion)
+	acme.health = rig.health
+	h.upgradedBy(rig)
+	rig.upgrade(t)
+	h.start()
+	stamp := h.model.cfg.Stamp
+	if len(rig.held) != 1 {
+		t.Fatalf("%d restarts decided on, want one", len(rig.held))
+	}
+
+	pools.changeConfig(func(*poolTurns) {})
+	h.reread()
+	if pools.again != 0 || !h.model.cfg.Stamp.Same(stamp) {
+		t.Fatalf("with the config changed, the pool shown was read again %d times, the stamp taken %v; want neither", pools.again, !h.model.cfg.Stamp.Same(stamp))
+	}
+	h.deliver(rig.held[0]())
+	h.reread()
+	if pools.again != 1 {
+		t.Errorf("once the process wasn't replaced, the pool shown was read again %d times, want once", pools.again)
+	}
+}
+
 // A restart takes what the watch shows as it runs, not as it was decided
 // on: a key taken in between is carried, and kept.
 func TestARestartTakesWhatTheWatchShowsAsItRuns(t *testing.T) {

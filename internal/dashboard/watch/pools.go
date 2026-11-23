@@ -142,16 +142,18 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 // stats the config file whether or not there are pools, so it costs a
 // config without pools nothing more. The stamp found is taken as the one
 // acted on once the ask goes out, so a config that can't be read is asked
-// again only once it changes again, and one found changed during a turn is
-// asked again at the next read, as is one found during a restart onto an
-// upgrade that didn't replace the process. A read that finds neither reads
-// nothing again.
+// again only once it changes again, and one found changed during a turn, or
+// during a restart onto an upgrade that doesn't replace the process, is
+// asked again at the next read. A read that finds neither reads nothing
+// again.
 func (m Model) followConfig(stamp filestate.State, changed bool) (Model, tea.Cmd) {
 	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
-	// An accounts change found during a turn is dropped, accepted: a turn
-	// lasts milliseconds, the change costs nothing while the config is as
-	// it was, and the stamp, left as it was, catches a config changed. The
-	// pools told during a turn are told again at the next read.
+	// An accounts change found during a turn, or a restart that then fails,
+	// is dropped, accepted: either lasts milliseconds, the change costs
+	// nothing while the config is as it was, and the stamp, left as it was,
+	// catches a config changed; one the router alone tells, as an account
+	// it took up, is dropped for good. The pools told during either are
+	// told again at the next read.
 	if m.cfg.Turn == nil || m.poolHeld() || !stamped && !changed {
 		return m, nil
 	}
