@@ -7,7 +7,7 @@ ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────�
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │
  work          ●    │   USAGE                                                                                                                     LAST 12 WEEKS
-                    │   Week                                ▌               ┃                                 ╎     34%  at cap · back 17:10      requests  29,141
+                    │   Week                                ▌               ┃                                 ╎     34%  out ~Sat                 requests  29,141
  personal    ◆ ●    │                                                                                                                             limits    week ×3
                     │   5-hour                                            ┃                                   ╎     95%  at cap · back 17:10                5-hour ×51
  side          ●    │                                                                                                                             plan      Ultra

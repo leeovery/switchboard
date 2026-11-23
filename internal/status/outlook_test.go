@@ -148,24 +148,56 @@ func TestEachWindowsEvenPaceAndAllowance(t *testing.T) {
 			pace:   0.8,
 		},
 		{
-			name: "under the router's limit naming no window, which holds back every request: none, though it reads some room",
+			name: "under the router's limit naming no window, lifting before it resets: as its reading says",
 			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
 				a.Limit = status.Limit{Until: built.Add(time.Hour)}
+			})),
+			wantOK:  true,
+			pace:    5.0 / 7,
+			allowed: quota.Allowance{Share: 0.25, Per: quota.PerDay},
+		},
+		{
+			name: "under the router's limit naming no window till just as it resets: none, though it reads some room",
+			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(2 * day)}
 			})),
 			wantOK: true,
 			pace:   5.0 / 7,
 		},
 		{
-			name:   "the session spent, which holds back every request: none in the week, though it reads some room",
-			doc:    routerDocOf(readAt("work", week, spentIn("5h", 1, time.Hour))),
+			name: "under the router's limit naming no window, its read refused, so its end not known: none, though it reads some room",
+			doc: routerDocOf(with(readAt("work", week, windowIn("5h", 0.98, time.Hour)), func(a *status.Account) {
+				a.Limit = status.Limit{Until: built.Add(time.Hour)}
+				a.Error, a.RefusedRead = "HTTP 401 · Invalid bearer token", quota.TokenRefused
+			})),
 			wantOK: true,
 			pace:   5.0 / 7,
 		},
 		{
-			name:   "the session at its cap, which holds back every request: none in the week, though it reads some room",
-			doc:    routerDocOf(with(readAt("work", week, windowIn("5h", 0.95, time.Hour)), reserving)),
+			name:    "the session spent, which holds back every request till before the week resets: as its reading says",
+			doc:     routerDocOf(readAt("work", week, spentIn("5h", 1, time.Hour))),
+			wantOK:  true,
+			pace:    5.0 / 7,
+			allowed: quota.Allowance{Share: 0.25, Per: quota.PerDay},
+		},
+		{
+			name:    "the session at its cap, which holds back every request till before the week resets: to its cap, as its reading says",
+			doc:     routerDocOf(with(readAt("work", week, windowIn("5h", 0.95, time.Hour)), reserving)),
+			wantOK:  true,
+			pace:    5.0 / 7,
+			allowed: quota.Allowance{Share: 0.2, Per: quota.PerDay},
+		},
+		{
+			name:   "the week spent, which holds back every request past the session's reset: none in the session, though it reads some room",
+			doc:    routerDocOf(readAt("work", windowIn("5h", 0.6, time.Hour), spentIn("7d", 1, 2*day))),
 			wantOK: true,
-			pace:   5.0 / 7,
+			pace:   0.8,
+		},
+		{
+			name:   "the week at its cap, which holds back every request past the session's reset: none in the session, though it reads some room",
+			doc:    routerDocOf(with(readAt("work", windowIn("5h", 0.6, time.Hour), windowIn("7d", 0.95, 2*day)), reserving)),
+			wantOK: true,
+			pace:   0.8,
 		},
 		{
 			name: "a model's own week at its limit, which holds back that model's requests alone: as its reading says",

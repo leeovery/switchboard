@@ -232,7 +232,8 @@ type WindowNow struct {
 	// to its reset, as of when the document was read, of the window so
 	// standing, as measure has them: nil where it isn't running or its reset
 	// isn't known, and no allowance where a limit holds it as its own, or
-	// its account is out of quota, as it can take nothing till then. Next
+	// its account's hold lasts till it next resets, as heldThrough says, as
+	// it can take nothing till then. Next
 	// is its next reset as it stands at Now: zero where it has lapsed, or
 	// that isn't known.
 	Used      float64
@@ -261,8 +262,9 @@ type WindowNow struct {
 	Back, Since time.Time
 	// WithAccount is set where Kind is what holds its account back from
 	// every request, a limit or its cap, rather than what holds it itself:
-	// no limit holds it, nor its cap, but it can take nothing till its
-	// account is back, At, as withAccount says.
+	// no limit holds it, nor its cap, but that hold lasts till it next
+	// resets, so it can take nothing till its account is back, At, as
+	// withAccount says.
 	WithAccount bool
 	// Capped is set where its use has reached its account's cap at Now, which
 	// holds the account back, as reachedReserve judges it. CappedAsRead is
@@ -778,7 +780,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	if wn.Kind == WindowStale {
 		wn.Stale = s.stale
 	}
-	wn.Held, wn.WithAccount = wn.Kind == WindowLimited, s.withAccount(key, wn.Unheld)
+	wn.Held, wn.WithAccount = wn.Kind == WindowLimited, s.withAccount(w, wn.Unheld)
 	if wn.Held {
 		wn.Back, wn.Since = wn.At, m.doc.reachedIn(a, w.window, m.Now)
 	}

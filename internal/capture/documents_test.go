@@ -66,7 +66,7 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 		{
 			name: "auto, as usage and the Overview draw it", world: worlds.auto(), best: "side",
 			words: []string{
-				"work 5h 95% pace 51%", "work 7d 34% pace 53% out Sat 19:20", "work 7d_oi 0% pace 53%",
+				"work 5h 95% pace 51%", "work 7d 34% pace 53% out Sat 19:20", "work 7d_oi 0% pace 53% 29%/day",
 				"personal 5h 39% pace 64% 34%/hour", "personal 7d 66% pace 65% out Sat 05:45", "personal 7d_oi 0% pace 65% 40%/day",
 				"side 5h 13% pace 17% 21%/hour", "side 7d 78% pace 46% out Fri 16:08", "side 7d_oi 0% pace 46% 26%/day",
 				"pool 5h 49% 1.5 left", "pool 7d 59% 1.2 left", "pool 7d_oi 0% 3.0 left",
@@ -80,7 +80,7 @@ func TestTheWorldsDocumentsWorkOutAsTheFramesDrawThem(t *testing.T) {
 		{
 			name: "the Fable world, its Fable weeks used on work and side", world: worlds.fable(), best: "side",
 			words: []string{
-				"work 7d_oi 12% pace 53%", "personal 7d_oi 0% pace 65% 40%/day", "side 7d_oi 4% pace 46% 25%/day",
+				"work 7d_oi 12% pace 53% 25%/day", "personal 7d_oi 0% pace 65% 40%/day", "side 7d_oi 4% pace 46% 25%/day",
 				"pool 7d_oi 5% 2.8 left",
 			},
 		},

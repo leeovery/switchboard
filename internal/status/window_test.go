@@ -105,16 +105,16 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want:    status.WindowNow{Kind: status.WindowOpen, Used: 0.3, At: at(5, 21, 0).UTC()},
 		},
 		{
-			name:    "a limit naming the session, which holds back every request: the account's limit, back as it lifts",
+			name:    "a limit naming the session, which holds back every request, lifting before the week resets: the week its own",
 			account: with(readNow(0.2, 0.3, 0.4), limited("5h")),
 			key:     "7d",
-			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.3, At: at(1, 15, 54).UTC()},
+			want:    status.WindowNow{Kind: status.WindowOpen, Used: 0.3, At: at(5, 21, 0).UTC()},
 		},
 		{
-			name:    "the session read spent, which holds back every request: a model's own week reads the account's limit, back at its reset",
-			account: readNow(1, 0.3, 0.4),
-			key:     "7d_oi",
-			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.4, At: at(1, 17, 10).UTC()},
+			name:    "a limit naming the session till just as the week resets: the week the account's limit",
+			account: limitedTo(readNow(1, 0.3, 0.4), "5h"),
+			key:     "7d",
+			want:    status.WindowNow{Kind: status.WindowLimited, Used: 0.3, At: at(5, 21, 0).UTC()},
 		},
 		{
 			name:    "the week at its cap, which holds back every request: the account's cap, back at the week's reset",
@@ -156,13 +156,22 @@ func TestAWindowStandsAsTheFirstOfItsStatesThatHolds(t *testing.T) {
 			want: status.WindowNow{Kind: status.WindowNotStarted},
 		},
 		{
-			name: "the session not started, the week read spent: the account's limit, before not started",
+			name: "the session not started, the week read spent: not started, as its next reset isn't known",
 			account: with(readNow(0, 1, 0), func(a *status.Account) {
 				a.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
 				a.Lapsed = []string{"5h"}
 			}),
 			key:  "5h",
-			want: status.WindowNow{Kind: status.WindowLimited, At: at(5, 21, 0).UTC()},
+			want: status.WindowNow{Kind: status.WindowNotStarted},
+		},
+		{
+			name: "the session not started, the week read spent, its read refused: the account's limit, its end not known, before not started",
+			account: with(with(readNow(0, 1, 0), readRefused), func(a *status.Account) {
+				a.Windows[0] = quota.Window{Key: "5h", Label: "Session"}
+				a.Lapsed = []string{"5h"}
+			}),
+			key:  "5h",
+			want: status.WindowNow{Kind: status.WindowLimited},
 		},
 		{
 			name:    "its token refused, a limit naming the week: the account's limit, back as the later refusal ends",
@@ -315,60 +324,75 @@ const (
 	tokenRefused      = "HTTP 401 · Invalid bearer token"
 )
 
-// An account its week's limit or cap holds back from every request can take
-// nothing till it's back: its session and its Fable week, used and with room
-// by their readings, offer no allowance, and read what holds the account,
-// back as it is, held with it, never as unused. A limit on its Fable week
-// alone holds back that model's requests, so leaves the rest theirs.
-func TestAnAccountHeldBackFromEveryRequestOffersNoWindowsAllowance(t *testing.T) {
+// An account a limit or its cap holds back from every request can take
+// nothing till it's back: a window it holds back till at least its next
+// reset, used and with room by its reading, offers no allowance, and reads
+// what holds the account, back as it is, held with it, never as unused. A
+// hold that lifts before the window resets leaves the window its own words
+// and allowance, as it can be used again once the hold lifts; one lifting
+// just as it resets holds it. A limit on the Fable week alone holds back that
+// model's requests, so leaves the rest theirs.
+func TestAnAccountHeldBackFromEveryRequestOffersNoAllowanceInAWindowItOutlasts(t *testing.T) {
+	sessionLimited := func(till time.Time) func(*status.Account) {
+		return func(a *status.Account) { a.Limit = status.Limit{Windows: []string{"5h"}, Until: till.UTC()} }
+	}
 	tests := []struct {
 		name    string
 		account status.Account
 		key     string
 		kind    status.WindowKind
-		back    time.Time
+		at      time.Time
+		held    bool
 	}{
 		{
 			name: "its week at its limit: the session reads the limit", key: "5h",
-			account: limitedTo(readNow(0.3, 1, 0.4), "7d"), kind: status.WindowLimited, back: at(5, 21, 0),
+			account: limitedTo(readNow(0.3, 1, 0.4), "7d"), kind: status.WindowLimited, at: at(5, 21, 0), held: true,
 		},
 		{
-			name: "its week at its limit: the Fable week reads the limit", key: "7d_oi",
-			account: limitedTo(readNow(0.3, 1, 0.4), "7d"), kind: status.WindowLimited, back: at(5, 21, 0),
+			name: "its week at its limit, lifting as the Fable week resets: the Fable week reads the limit", key: "7d_oi",
+			account: limitedTo(readNow(0.3, 1, 0.4), "7d"), kind: status.WindowLimited, at: at(5, 21, 0), held: true,
 		},
 		{
 			name: "its week at its cap: the session reads the cap", key: "5h",
-			account: with(readNow(0.3, 0.97, 0.4), reservingAWentieth), kind: status.WindowCapped, back: at(5, 21, 0),
+			account: with(readNow(0.3, 0.97, 0.4), reservingAWentieth), kind: status.WindowCapped, at: at(5, 21, 0), held: true,
 		},
 		{
-			name: "its week at its cap: the Fable week reads the cap", key: "7d_oi",
-			account: with(readNow(0.3, 0.97, 0.4), reservingAWentieth), kind: status.WindowCapped, back: at(5, 21, 0),
+			name: "its week at its cap, back as the Fable week resets: the Fable week reads the cap", key: "7d_oi",
+			account: with(readNow(0.3, 0.97, 0.4), reservingAWentieth), kind: status.WindowCapped, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its session at its limit till just as the week resets: the week reads the limit", key: "7d",
+			account: with(readNow(1, 0.3, 0.4), sessionLimited(at(5, 21, 0))), kind: status.WindowLimited, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its session at its limit till 15:54, before the week resets: the week its own, with its allowance", key: "7d",
+			account: with(readNow(0.9, 0.3, 0.4), sessionLimited(at(1, 15, 54))), kind: status.WindowOpen, at: at(5, 21, 0),
+		},
+		{
+			name: "its session at its cap till 17:10, before the week resets: the week its own, with its allowance", key: "7d",
+			account: with(readNow(0.97, 0.3, 0.4), reservingAWentieth), kind: status.WindowOpen, at: at(5, 21, 0),
+		},
+		{
+			name: "its Fable week at its limit alone: the session its own, with its allowance", key: "5h",
+			account: limitedTo(readNow(0.3, 0.4, 1), "7d_oi"), kind: status.WindowOpen, at: at(1, 17, 10),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}}
 			got := windowAt(doc, tt.account.ID, tt.key, stateNow, policy)
-			if got.Allowance != (quota.Allowance{}) {
-				t.Errorf("its allowance is %+v, want none", got.Allowance)
+			if got.Kind != tt.kind || !got.At.Equal(tt.at) || got.WithAccount != tt.held || got.Unused {
+				t.Errorf("it stands as kind %d at %v, held with its account %v, unused %v; want kind %d at %v, held with it %v, not unused",
+					got.Kind, got.At, got.WithAccount, got.Unused, tt.kind, tt.at, tt.held)
 			}
-			if got.Kind != tt.kind || !got.At.Equal(tt.back) || !got.WithAccount || got.Unused {
-				t.Errorf("it stands as kind %d at %v, held with its account %v, unused %v; want kind %d at %v, held with it, not unused",
-					got.Kind, got.At, got.WithAccount, got.Unused, tt.kind, tt.back)
-			}
-			worked := doc.WorkedOut(policy).Accounts[0]
-			if w, _ := worked.Window(tt.key); w.Allowance != (quota.Allowance{}) {
-				t.Errorf("worked out, as status --json gives it, its allowance is %+v, want none", w.Allowance)
+			worked, _ := doc.WorkedOut(policy).Accounts[0].Window(tt.key)
+			for _, allowance := range []quota.Allowance{got.Allowance, worked.Allowance} {
+				if offered := allowance != (quota.Allowance{}); offered == tt.held {
+					t.Errorf("on the moment and worked out, as status --json gives it, its allowances are %+v and %+v; want them offered %v", got.Allowance, worked.Allowance, !tt.held)
+				}
 			}
 		})
 	}
-	t.Run("its Fable week at its limit alone: the session keeps its allowance", func(t *testing.T) {
-		account := limitedTo(readNow(0.3, 0.4, 1), "7d_oi")
-		got := windowAt(status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{account}}, account.ID, "5h", stateNow, policy)
-		if got.Allowance == (quota.Allowance{}) || got.Kind != status.WindowOpen || got.WithAccount {
-			t.Errorf("it stands as kind %d, held with its account %v, its allowance %+v; want open, its own, with an allowance", got.Kind, got.WithAccount, got.Allowance)
-		}
-	})
 }
 
 // limitedTo is the account a, the router's limit naming the windows with the

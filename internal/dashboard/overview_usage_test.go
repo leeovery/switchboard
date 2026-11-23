@@ -1065,7 +1065,7 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 			}
 			if tt.bar > 0 {
 				rows, _ := usageBody(f, tt.doc, printNow, 30)
-				at, want := tt.names+windowLabelCells+tt.bar+1, " 34%  at cap · back 17:10"
+				at, want := tt.names+windowLabelCells+tt.bar+1, " 34%  19%/day till Sun 21:00"
 				if got := colAt(rows[0], at, len([]rune(want))); got != want {
 					t.Errorf("work's week reads %q from column %d, want %q, its percentage a cell after its bar", got, at, want)
 				}

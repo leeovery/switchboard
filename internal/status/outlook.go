@@ -322,14 +322,13 @@ func (s standing) holds(key string) bool {
 // standing as s says: as paceOf and allowanceOf have them, the pace nil where
 // it isn't running, or its length or reset isn't known; and no allowance
 // where a limit holds the window as its own, as holds says, as it has no
-// room, nor in any window of an account out of quota, as outOfQuota says, as
-// it can take no request till then.
+// room.
 func (d Document) measure(a Account, s standing, key string, stands quota.Window, at time.Time) (*float64, quota.Allowance) {
 	var pace *float64
 	if p, ok := d.paceOf(stands, at); ok {
 		pace = &p
 	}
-	if s.outOfQuota() || s.holds(key) {
+	if s.holds(key) {
 		return pace, quota.Allowance{}
 	}
 	return pace, d.allowanceOf(a, stands, at)

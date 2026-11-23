@@ -6,7 +6,7 @@ USAGE  ────────────────────────�
 
               WEEK                                            5-HOUR
 
-work               ▌   ┃     ╎  34%  at cap · back 17:10              ┃      ╎  95%  at cap · back 17:10
+work               ▌   ┃     ╎  34%  out ~Sat                         ┃      ╎  95%  at cap · back 17:10
 
 personal    ◆           ┃       66%  out ~Sat                       ▎   ┃       39%  34%/h till 16:30
 

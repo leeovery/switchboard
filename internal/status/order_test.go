@@ -140,11 +140,18 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 			without: []string{"side"},
 		},
 		{
-			name: "every one at 0%, a limit naming the session holding one back from every request: not listed, that one keeping it, held with its account", listed: []string{"7d", "5h"},
+			name: "every one at 0%, a limit naming the session holding one back from every request till its model's week resets: not listed, that one keeping it, held with its account", listed: []string{"7d", "5h"},
+			doc: routerDocOf(work(0, func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(3 * day)}
+			}), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"side"},
+		},
+		{
+			name: "every one at 0%, a limit naming the session lifting before its model's week resets: not listed, none keeping it", listed: []string{"7d", "5h"},
 			doc: routerDocOf(work(0, func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(time.Hour)}
 			}), side(windowIn("7d_oi", 0, 3*day))),
-			without: []string{"side"},
+			without: []string{"work", "side"},
 		},
 		{
 			name: "one account at 3%: listed, the other without it", listed: []string{"7d", "5h", "7d_oi"},

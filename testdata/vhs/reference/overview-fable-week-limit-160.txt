@@ -6,7 +6,7 @@ USAGE  ────────────────────────�
 
               WEEK                                             5-HOUR                                           FABLE
 
-work               ▊   ┃      ╎  34%  at cap · back 17:10               ┃      ╎  95%  at cap · back 17:10               ┃      ╎  12%  at cap · back 17:10
+work               ▊   ┃      ╎  34%  out ~Fri 00:40                    ┃      ╎  95%  at cap · back 17:10               ┃      ╎  12%  25%/day till Sun 21:00
 
 personal    ◆            ┃      100%  limit · back Sun 02:00         ▋    ┃       39%  limit · back Sun 02:00    ▌         ┃        9%  limit · back Sun 02:00
 

@@ -146,8 +146,8 @@ func HardMoments(policy score.Policy) []HardMoment {
 				Held: true, Since: Built.Add(-20 * time.Minute),
 			},
 			"7d": {
-				Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.6, Next: Built.Add(3 * day),
-				Held: true, WithAccount: true, Since: Built.Add(-20 * time.Minute), RunsOutAhead: true, Out: Built.Add(64 * time.Hour),
+				Kind: status.WindowRunsOut, At: Built.Add(64 * time.Hour), Used: 0.6, Next: Built.Add(3 * day),
+				RunsOut: true, RunsOutAhead: true, Out: Built.Add(64 * time.Hour),
 			},
 		},
 	}
@@ -267,7 +267,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 	}
 	cappedWork := with(readAt("work", windowIn("5h", 0.3, 3*time.Hour), windowIn("7d", 0.92, time.Hour)), reserving)
 	workCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Back: Built.Add(time.Hour), Windows: map[string]WindowFacts{
-		"5h": {Kind: status.WindowCapped, At: Built.Add(time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour), WithAccount: true},
+		"5h": {Kind: status.WindowOpen, At: Built.Add(3 * time.Hour), Used: 0.3, Next: Built.Add(3 * time.Hour)},
 		"7d": {Kind: status.WindowCapped, At: Built.Add(time.Hour), Used: 0.92, Next: Built.Add(time.Hour), Capped: true, CappedAsRead: true},
 	}}
 	capped := func(pinned []string) status.Document {
@@ -315,7 +315,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 	cappedSession := with(readAt("work", windowIn("5h", 0.85, 2*time.Hour), windowIn("7d", 0.4, 3*day)), reservingAFifth)
 	workSessionCapped := AccountFacts{Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Back: Built.Add(2 * time.Hour), Windows: map[string]WindowFacts{
 		"5h": {Kind: status.WindowCapped, At: Built.Add(2 * time.Hour), Used: 0.85, Next: Built.Add(2 * time.Hour), Capped: true, CappedAsRead: true},
-		"7d": {Kind: status.WindowCapped, At: Built.Add(2 * time.Hour), Used: 0.4, Next: Built.Add(3 * day), WithAccount: true},
+		"7d": {Kind: status.WindowOpen, At: Built.Add(3 * day), Used: 0.4, Next: Built.Add(3 * day)},
 	}}
 	// unanswered is the router's last document as it stopped answering: work
 	// at its cap since half an hour before Built, as its event tells; side's
@@ -364,7 +364,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 		Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, CapSince: Built.Add(-10 * time.Minute), Back: Built.Add(2 * time.Hour),
 		Windows: map[string]WindowFacts{
 			"5h":    {Kind: status.WindowCapped, At: Built.Add(2 * time.Hour), Used: 0.95, Next: Built.Add(2 * time.Hour), Capped: true, CappedAsRead: true},
-			"7d":    {Kind: status.WindowCapped, At: Built.Add(2 * time.Hour), Used: 0.4, Next: Built.Add(3 * day), WithAccount: true},
+			"7d":    {Kind: status.WindowOpen, At: Built.Add(3 * day), Used: 0.4, Next: Built.Add(3 * day)},
 			"7d_oi": {Kind: status.WindowCapped, At: Built.Add(3 * day), Used: 0.95, Next: Built.Add(3 * day), Capped: true, CappedAsRead: true},
 		},
 	}
@@ -534,7 +534,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 				"work": workCapped,
 				"side": {Routing: status.RoutingCapped, CapHolds: true, OutOfQuota: true, Back: Built.Add(4 * time.Hour), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowCapped, At: Built.Add(4 * time.Hour), Used: 0.95, Next: Built.Add(4 * time.Hour), Capped: true, CappedAsRead: true},
-					"7d": {Kind: status.WindowCapped, At: Built.Add(4 * time.Hour), Used: 0.2, Next: Built.Add(5 * day), WithAccount: true},
+					"7d": sideOpen.Windows["7d"],
 				}},
 			}},
 		},
@@ -757,10 +757,7 @@ func HardMoments(policy score.Policy) []HardMoment {
 			Want: Facts{Accounts: map[string]AccountFacts{
 				"work": {Routing: status.RoutingLimited, Held: true, OutOfQuota: true, Back: Built.Add(40 * time.Minute), Windows: map[string]WindowFacts{
 					"5h": {Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 1, Next: Built.Add(40 * time.Minute), Held: true},
-					"7d": {
-						Kind: status.WindowLimited, At: Built.Add(40 * time.Minute), Used: 0.6, Next: Built.Add(3 * day),
-						Held: true, WithAccount: true, RunsOutAhead: true, Out: Built.Add(64 * time.Hour),
-					},
+					"7d": workLimited.Windows["7d"],
 				}},
 				"side": {Routing: status.RoutingOpen, CanRise: true, Windows: sideOpen.Windows},
 			}},

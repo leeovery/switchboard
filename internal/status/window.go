@@ -30,8 +30,9 @@ const (
 	// router's limit names it, or names no window. Its room is back At, as
 	// liftsAt says: zero where that's unknown, as while its account's read is
 	// refused. So is any other window of an account a limit holds back from
-	// every request, as heldWith has it, but one at its cap: it can take
-	// nothing till its account is back, At, as its account's Back has it.
+	// every request till at least its next reset, as heldWith has it, but one
+	// at its cap: it can take nothing till its account is back, At, as its
+	// account's Back has it.
 	WindowLimited
 	// WindowStale is a window of an account whose token is refused, or whose
 	// last read failed, last read At, as its StaleCause says. The router's
@@ -44,9 +45,9 @@ const (
 	// WindowCapped is a window whose use has reached its account's cap, which
 	// holds the account back: its room is back At its reset, zero where that's
 	// unknown. So is any other window of an account its cap holds back from
-	// every request, where that lifts after any limit doing so, as heldWith
-	// has it: it can take nothing till its account is back, At, as its
-	// account's Back has it.
+	// every request till at least its next reset, where that lifts after any
+	// limit doing so, as heldWith has it: it can take nothing till its
+	// account is back, At, as its account's Back has it.
 	WindowCapped
 	// WindowRunsOut is a window that runs out At, before it resets, as
 	// runOutOf says.
@@ -272,7 +273,7 @@ func (s windowStates) kind(w quota.Window, j judged) (WindowKind, time.Time) {
 		return WindowLimited, s.liftsAt(w.Key)
 	}
 	kind, at := s.unheld(w, j)
-	if held, ok := s.heldWith(w.Key, kind); ok {
+	if held, ok := s.heldWith(j, kind); ok {
 		return held, s.back
 	}
 	return kind, at
@@ -285,24 +286,24 @@ func (s windowStates) limitHolds(key string) bool {
 	return s.stood.limited && s.stood.held.Holds(key)
 }
 
-// withAccount reports whether what holds the account holds its window with
-// the given key, standing as unheld says as kind, rather than what holds the
+// withAccount reports whether what holds the account holds its window,
+// judged as j, standing as unheld says as kind, rather than what holds the
 // window itself: no limit holds it, and heldWith says its account's hold
 // does.
-func (s windowStates) withAccount(key string, kind WindowKind) bool {
-	_, held := s.heldWith(key, kind)
-	return held && !s.limitHolds(key)
+func (s windowStates) withAccount(j judged, kind WindowKind) bool {
+	_, held := s.heldWith(j, kind)
+	return held && !s.limitHolds(j.window.Key)
 }
 
-// heldWith is the kind of the account's window with the given key, standing
-// as unheld says as kind, no limit holding it, where what holds its account
-// holds it too: where the account is out of quota, as outOfQuota says, and
-// the window isn't at its cap itself, a limit where that lifts last of what
-// holds its quota, as quotaLast says, else its cap, where that comes before
-// kind in the kinds' order, as the first that holds is the one said. It
-// reports false where none does.
-func (s windowStates) heldWith(key string, kind WindowKind) (WindowKind, bool) {
-	if !s.stood.outOfQuota() || s.capped(key) {
+// heldWith is the kind of the account's window, judged as j, standing as
+// unheld says as kind, no limit holding it, where what holds its account
+// holds it too: where the account's hold lasts till the window next resets,
+// as heldThrough says, and the window isn't at its cap itself, a limit where
+// that lifts last of what holds its quota, as quotaLast says, else its cap,
+// where that comes before kind in the kinds' order, as the first that holds
+// is the one said. It reports false where none does.
+func (s windowStates) heldWith(j judged, kind WindowKind) (WindowKind, bool) {
+	if !s.heldThrough(j.stands.ResetsAt) || s.capped(j.window.Key) {
 		return 0, false
 	}
 	held := WindowLimited
@@ -310,6 +311,22 @@ func (s windowStates) heldWith(key string, kind WindowKind) (WindowKind, bool) {
 		held = WindowCapped
 	}
 	return held, held < kind
+}
+
+// heldThrough reports whether the account is out of quota, as outOfQuota
+// says, till at least next, when a window of it next resets: so that window
+// can take nothing before it does. A hold whose end isn't known lasts; a
+// window whose next reset isn't known outlasts any hold that ends. One that
+// lifts before the window resets leaves it its own words and allowance, as
+// it can be used again once the hold lifts.
+func (s windowStates) heldThrough(next time.Time) bool {
+	switch {
+	case !s.stood.outOfQuota():
+		return false
+	case s.back.IsZero():
+		return true
+	}
+	return !next.IsZero() && !s.back.Before(next)
 }
 
 // liftsAt is when the account's window with the given key, which a limit
@@ -379,11 +396,15 @@ func (s windowStates) judge(w quota.Window) judged {
 
 // measured is how the account's window w, read, stands at now, as judge has
 // it, but for where it runs out and its room: as it stands, lapsed or not,
-// and its even pace and allowance.
+// and its even pace and allowance, as measure has them, but no allowance
+// where its account's hold lasts till it next resets, as heldThrough says.
 func (s windowStates) measured(w quota.Window) judged {
 	j := judged{window: w, lapsed: !s.stood.running(w.Key)}
 	j.stands = windowAsOf(w, j.lapsed, s.now)
 	j.pace, j.allowance = s.doc.measure(s.account, s.stood, w.Key, j.stands, s.now)
+	if s.heldThrough(j.stands.ResetsAt) {
+		j.allowance = quota.Allowance{}
+	}
 	return j
 }
 

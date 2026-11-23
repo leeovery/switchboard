@@ -81,7 +81,8 @@ Each window holds these:
 - **`per`** is `hour` for a window of a day or less, and `day` for a longer one. If the reset comes
   within one of those, `per` is left out and `share` is the total.
 - **`allowance` is left out** if the window has no room left. A limit or the cap can also keep an
-  account from every request. Then every window of that account leaves `allowance` out.
+  account from every request. Then a window leaves `allowance` out if that hold lasts until the
+  window resets.
 - **A verified Ultra account** has no `5h` window.
 
 ## What the router adds
