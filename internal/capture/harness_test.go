@@ -17,6 +17,17 @@ func TestAFixturePinsTheTracesScaleAsTheFramesDo(t *testing.T) {
 	}
 }
 
+// A fixture's watch never restarts onto an upgrade, nor looks at a binary:
+// its Upgrade is the zero one.
+func TestAFixturesWatchNeverRestartsOntoAnUpgrade(t *testing.T) {
+	now := func() time.Time { return localMoment() }
+	for _, f := range []Fixture{fixture(t, "overview-default-160"), {records: &records{}}} {
+		if u := f.config(wide(37), now).Upgrade; u.Look != nil || u.Ask != nil || u.Exec != nil {
+			t.Errorf("%q has the watch look at a binary, ask it, or replace the process with it; want the zero Upgrade", f.Name)
+		}
+	}
+}
+
 // A page gives the watch what the dashboard gives it, of its world: the
 // world's accounts, as configured, the frames' weeks from Monday, Claude's
 // week and Claude's families.

@@ -122,6 +122,18 @@ func (g *prefsGate) keep(prefs Prefs, changes []prefsChange) prefsKeptMsg {
 	return write(prefs, changes)
 }
 
+// keepThen makes the changes in prefs, in one write, then runs then, which
+// a restart replaces the process by, holding off every other write till then
+// returns: so none is cut off part way as the process is replaced.
+func (g *prefsGate) keepThen(prefs Prefs, changes []prefsChange, then func() error) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if len(changes) > 0 {
+		write(prefs, changes).noteUnkept()
+	}
+	return then()
+}
+
 // write makes the changes in prefs, in one write, and of the last theme
 // picked among them, pairs the choice kept from the listing it was picked
 // from.

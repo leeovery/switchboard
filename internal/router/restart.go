@@ -128,8 +128,8 @@ func newRestarts(file, binary, zone Watched, supervised bool, inFlight *inFlight
 	load := loading(noHome)
 	return &restarts{
 		config:     &configFile{path: file.path, seen: file.found, valid: true, load: load},
-		binary:     &ledFile{path: binary.path, running: binary.found, differs: binary.differs, news: "the binary leads to another file, as after an upgrade"},
-		zone:       &ledFile{path: zone.path, running: zone.found, news: "the time zone's file leads to another, as in another time zone"},
+		binary:     &ledFile{Watched: binary, news: "the binary leads to another file, as after an upgrade"},
+		zone:       &ledFile{Watched: zone, news: "the time zone's file leads to another, as in another time zone"},
 		supervised: supervised,
 		inFlight:   inFlight,
 		exports:    noExports{},
@@ -263,6 +263,21 @@ func (w Watched) There() bool {
 	return w.found.There()
 }
 
+// MovedTo reports whether the path w was found at, leading to now, leads to
+// another file than the one running, as after an upgrade: one there, and the
+// running one known to differ from it, as from the start, or another file
+// than the path led to as w was found, or that file changed. A path that
+// leads nowhere, as it may for a moment while an upgrade moves it on,
+// hasn't, nor one that led nowhere as w was found, unless the running one is
+// known to differ. The router judges the binary it upgrades from and the time
+// zone's file by it, and the dashboard the binary it was started as.
+func (w Watched) MovedTo(now filestate.State) bool {
+	if w.differs {
+		return now.There()
+	}
+	return w.There() && w.found.MovedTo(now)
+}
+
 // look looks at the config file, the binary and the time zone's file again,
 // notes whether the binary is there, lifts a hold either of the first two has
 // moved on from, tells of a restart they've made due as it falls due, and
@@ -375,7 +390,7 @@ func (r *restarts) due() string {
 // could start: its rules, not the running version's, then judge the config,
 // where it answers.
 func (r *restarts) newBinaryDecides(binary filestate.State) bool {
-	return r.ask != nil && r.binary.movedOn(binary)
+	return r.ask != nil && r.binary.MovedTo(binary)
 }
 
 // configuredPools returns the accounts and the pools the last valid config
@@ -531,7 +546,7 @@ func (r *restarts) into(binary filestate.State) (string, *routercopy.Staged, boo
 // where binary has moved on from the one running, as after an upgrade, or
 // the copy is gone, as when removed by hand.
 func (r *restarts) upgrading(binary filestate.State) bool {
-	return r.own != nil && (r.binary.movedOn(binary) || r.own.Missing())
+	return r.own != nil && (r.binary.MovedTo(binary) || r.own.Missing())
 }
 
 // runs is the path of the binary the router runs: its own copy, or, with
@@ -976,15 +991,11 @@ func (c *configFile) look() {
 // ledFile is a file the router was started from by a path that can come to
 // lead to another: the binary it upgrades from, by the path it was given,
 // such as the Homebrew link the service runs, or the system's time zone, by
-// /etc/localtime, which a program reads once, as it starts. running is the
-// file the path led to as the router started, which it runs on, a copy of it
-// where it runs a copy of its own.
+// /etc/localtime, which a program reads once, as it starts. Its Watched is
+// how the path stood as the router started, leading to the file it runs on,
+// or to the file of which it runs a copy of its own.
 type ledFile struct {
-	path    string
-	running filestate.State
-	// differs is set where the file the router runs is known not to be the
-	// one the path led to as it started, as where its copy isn't one of it.
-	differs bool
+	Watched
 	// news is what the log says once the path leads to another file.
 	news string
 	// moved is set once it does.
@@ -992,26 +1003,13 @@ type ledFile struct {
 }
 
 // look looks at where the path leads now: to another file than the one
-// running, it has moved, as after an upgrade, as movedOn says.
+// running, it has moved, as after an upgrade, as Watched's MovedTo says.
 func (f *ledFile) look() {
-	if f.moved || !f.movedOn(filestate.Of(f.path)) {
+	if f.moved || !f.MovedTo(filestate.Of(f.path)) {
 		return
 	}
 	f.moved = true
 	logger.Info(f.news, "path", f.path)
-}
-
-// movedOn reports whether the path, leading to now, leads to another file
-// than the one running: one there, and the running one known to differ from
-// it, as from the start, or another file than the path led to as the router
-// started, or that file changed. A path that leads nowhere, as it may for a
-// moment while an upgrade moves it on, hasn't, nor one that led nowhere as
-// the router started, unless the running one is known to differ.
-func (f *ledFile) movedOn(now filestate.State) bool {
-	if f.differs {
-		return now.There()
-	}
-	return f.running.There() && f.running.MovedTo(now)
 }
 
 // binaryRefusal is the binary's refusal to start, or, where it couldn't

@@ -100,7 +100,9 @@ It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5
 minutes; R has it read them at once. Should the router stop answering, its
 last document stays on screen until it answers again, or the next full read,
-or R, probes the accounts instead.
+or R, probes the accounts instead. Left open across an upgrade, it restarts
+itself onto the new version once the router no longer runs the dashboard's,
+keeping its tab and the pool shown.
 
 The interval is how often it probes every account when it probes for itself,
 without the router or with --probe: 30m unless given, and 5m at the least.
@@ -167,8 +169,11 @@ func parseInterval(s string) (time.Duration, error) {
 // due, until the user quits: once the history's moved onto the accounts'
 // ids, where it waits on that, as awaitMove does. It shows the pool opts
 // names, else the one the verbs act on, as shownPools has it, P turning to
-// the next; refusing a pool the config doesn't configure.
+// the next; refusing a pool the config doesn't configure. It restarts itself
+// onto an upgrade of this binary, as found before anything else, as
+// dashboardUpgrade has it.
 func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOptions) error {
+	upgrade := a.dashboardUpgrade()
 	if dir, err := config.StateDir(a.Getenv, a.HomeDir); err == nil {
 		if err := a.awaitMove(ctx, out, dir); err != nil {
 			return err
@@ -216,6 +221,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		NerdFont:      cfg.Dashboard.NerdFont,
 		Projects:      a.projects(),
 		Scrolling:     swipe.Read(ctx, a.Scrolling),
+		Upgrade:       upgrade,
 	}
 	pools := a.dashboardPools(ctx, &wc, cfg, opts.probe, stamp)
 	shown, err := pools.opened(ctx, cfg, opts.pool)

@@ -9678,6 +9678,42 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   session's page reach back past them (see The router's events). A router restarted tells its events afresh,
   while the files keep what it told before. Without the router, there are no live events, and the
   Log and LATELY show what the files hold (settled in the plan).
+- **Across an upgrade,** a dashboard left open, on the Mac or over SSH, restarts itself onto the
+  new version, so it never reads a newer router's document by an older version's rules, as
+  dashboards started before v1 drew an Ultra week's run-outs late once v1's router sized the week
+  anew (the owner's call, 23 November 2026). Nothing is drawn of it; the log notes the restart at
+  `info`, from and to which version.
+  - **When:** at each read, `--probe`'s among them, it looks at the binary it was started as, by
+    the path it was run by, by the rule the router judges an upgrade by (Watched's `MovedTo`, see
+    The router looking after itself): the path leading to another file, or the same file
+    changed. A path leading nowhere for a moment, as while `brew upgrade` moves the link on, isn't
+    one: the dashboard waits for a read that finds it there. Upgraded, it moves over only once the
+    router, where one answers its health check, runs another version than the dashboard's own, so
+    once the router has handed over, never while it still runs the dashboard's version, noted once
+    at `info`; where none answers, the upgrade alone will do. A read that asked the router
+    nothing, as `--probe`'s, asks its health then. The look is a stat of the binary on the read
+    the dashboard makes anyway, every 5 seconds while it reads the router and every minute while
+    it doesn't, never a loop of its own.
+  - **The binary asked first:** run with `--version`, as the dashboard was run, in its
+    environment, and given 10 seconds, it's restarted onto only where it says a version other than
+    the dashboard's own, as `switchboard version 1.4.0`. One that doesn't, as a broken binary, one
+    too slow, or one saying the dashboard's own version, as a dev build does, leaves the dashboard
+    on its version, noted once at `info`, and isn't asked again until the binary changes again; so
+    a dashboard newer than the router, a dev build and a binary answering its own version never
+    restart, nor ask at every read. One ask runs at a time.
+  - **Restarting:** Bubble Tea gives the terminal back as a quit does, out of the alternate screen
+    and the mouse's modes; the terminal's background is put back and what was typed and never read
+    thrown away, as at a quit; the preferences not yet kept are kept, every other write held off
+    meanwhile; and the dashboard is replaced in place (`syscall.Exec`) by the binary, run by its
+    command line and in its environment, but for `--pool`, which names the pool shown, so a pool
+    `P` turned to stays shown. The tab, its sections, each tab's view and the dial's period come
+    back from the preferences, as at any open (see Themes, What's remembered); a scroll, a week
+    stepped back to, and an open card or help don't. Where the process can't be replaced, Bubble
+    Tea takes the terminal back and the dashboard carries on as it was, saying why at `warn`, and
+    asks again only once the binary changes again.
+  - The capture harness's fixtures and scenarios give the watch no binary to look at, so they
+    never restart (`internal/dashboard/watch`, `upgrade.go`; the command's side,
+    `internal/cli/dashboardupgrade.go`).
 - **A router from before milestone 7,** as one still running between an upgrade and its restart:
   without `dir` on its sessions and its stream, a running session's directory comes from its lines'
   `dir`, else it's named by its id; without the new kinds of events, LATELY and the Log have none of
@@ -11368,7 +11404,9 @@ its binary and the system's time zone. It notices the Mac waking from sleep as i
   same file changed since, as after `brew upgrade` (see Its own copy). Run by hand, with no copy,
   the binary it upgrades from is the one it was started as, and the file it compares with the one
   running. A link that leads nowhere, as it may for a moment while an upgrade moves it on, isn't
-  one.
+  one. The rule is `router.Watched`'s `MovedTo`, which a dashboard left open judges the binary it
+  was started as by too, restarting itself onto an upgrade once the router has (see Live
+  updates).
 - **Time zones:** Go reads the local time zone once, as a program starts, so a router carried on in
   the zone it started in would prime, and end the day, by that zone's clock. It restarts itself
   when `/etc/localtime` leads to another file than it did as the router started, as when the Mac
@@ -11856,7 +11894,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period, joins to the days the tail fed, and carries across midnight. It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, Projects, Sessions, Runway, Trends, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
-| `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
+| `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; its desktop notifications while it probes without the router; and when to restart onto an upgrade of its binary, through seams it's given |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
 | `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens; and setup's full screen's fixtures, a moment of it each, built through `internal/setup/screen` with its `Steps` faked. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, and its playback of a readings history and request ledger through that state, for `cmd/forecasttool`, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
@@ -13639,7 +13677,6 @@ proper, and where why one was dropped binds a later choice, the design proper sa
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
-| A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |

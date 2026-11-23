@@ -232,11 +232,12 @@ func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {
 // carries into it: no page, cursor, session's page, card, alert, held
 // moment or read of the pool before, its request stream ended. What it
 // keeps is the screen's and the user's, not the pool's: the terminal's size
-// and background, the theme and the picker, the preferences being kept, the
-// tab shown, under a session's page where one is open, what each tab shows
-// as the preferences keep it, and the dial's period, Trends' sections and
-// the tab taken from History's once as the watch opened, as KeepGraphs has
-// it, kept as they stand; and the request ledger, what it holds of the days
+// and background, the theme and the picker, the preferences being kept, what
+// it holds of an upgrade of its binary, the tab shown, under a session's
+// page where one is open, what each tab shows as the preferences keep it,
+// and the dial's period, Trends' sections and the tab taken from History's
+// once as the watch opened, as KeepGraphs has it, kept as they stand; and
+// the request ledger, what it holds of the days
 // read, where pooled's is on the grounds it was made on, else one made on
 // pooled's. So the sessions' days Projects and the List are built of, the
 // days Accounts, Runway and Trends are, their pages, Projects' chosen
@@ -259,7 +260,7 @@ func (m Model) freshIn(pooled Pooled) Model {
 	cfg.Log = m.log.page.Columns
 	fresh := New(m.ctx, cfg)
 	fresh.choice, fresh.pair, fresh.showing, fresh.backdrop, fresh.picker = m.choice, m.pair, m.showing, m.backdrop, m.picker
-	fresh.keeping, fresh.poolTurns = m.keeping, m.poolTurns+1
+	fresh.keeping, fresh.upgrade, fresh.poolTurns = m.keeping, m.upgrade, m.poolTurns+1
 	return fresh
 }
 
@@ -333,10 +334,11 @@ func stamped(turn int, cmd tea.Cmd) tea.Cmd {
 
 // lastsTurns reports whether msg lands however the pool shown has turned
 // since its command was given: of what a turn keeps, a write of the
-// preferences and the theme picker's listing and asking.
+// preferences, the theme picker's listing and asking, and an upgrade of the
+// binary asked about, or restarted onto in vain.
 func lastsTurns(msg tea.Msg) bool {
 	switch msg.(type) {
-	case prefsKeptMsg, listedMsg, askMsg:
+	case prefsKeptMsg, listedMsg, askMsg, upgradeAskedMsg, restartFailedMsg:
 		return true
 	}
 	return false
