@@ -22,7 +22,7 @@ type family struct {
 // on a model already probed, it would show up on its own.
 var families = []family{
 	{label: "Base", models: []string{"claude-haiku-4-5-20251001"}},
-	{label: "Fable", window: "7d_oi", models: []string{"claude-fable-5-1", "claude-fable-5"}},
+	{label: "Fable", window: "7d_oi", models: []string{"claude-fable-5-2", "claude-fable-5-1", "claude-fable-5"}},
 }
 
 // ModelWindow is a window only one model family's models report, as Fable's

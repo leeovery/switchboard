@@ -54,8 +54,9 @@ warm turn. So the router keeps each session where it is:
 A session resumed in another pool keeps its account in the first pool, for the process still
 running there.
 
-A Claude Sonnet 5.5 session never moves for idling or a compaction, because its thinking works only
-on the account that produced it. A pin of one session keeps it there through a compaction too.
+A Claude Sonnet 5.5 or Claude Fable 5.2 session never moves for idling or a compaction. Its
+thinking works only on the account that produced it. A pin of one session keeps it there through a
+compaction too.
 
 ## Moving after a compaction
 

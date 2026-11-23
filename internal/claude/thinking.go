@@ -9,9 +9,10 @@ import (
 // produced it, or one linked to it, each named by how its ids start, which
 // its snapshots share. A request on another account has the thinking dropped
 // before the model sees it, silently, and succeeds without that reasoning.
-// Claude Sonnet 5.5's is bound, since 28 September 2026; Claude Opus 5.5's
-// and Claude Fable 5.1's aren't.
-var thinkingBound = []string{"claude-sonnet-5-5"}
+// Claude Sonnet 5.5's is bound, since 28 September 2026, and Claude Fable
+// 5.2's, since it launched on 9 November 2026; Claude Opus 5.5's and Claude
+// Fable 5.1's aren't.
+var thinkingBound = []string{"claude-sonnet-5-5", "claude-fable-5-2"}
 
 // ThinkingBound reports whether the thinking model produces is bound to the
 // account that produced it, so a conversation on it moved to another account

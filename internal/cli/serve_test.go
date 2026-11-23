@@ -84,8 +84,9 @@ func TestServe(t *testing.T) {
 		t.Errorf("once it has probed, the router reports\n%+v\nwant what status --json --probe does, but for its source, health, demand, what's coming up and the events it tells:\n%+v", doc, probed)
 	}
 	want := []string{
-		"test-token-side claude-fable-5", "test-token-side claude-fable-5-1", "test-token-side claude-haiku-4-5-20251001",
-		"test-token-work claude-fable-5-1", "test-token-work claude-haiku-4-5-20251001",
+		"test-token-side claude-fable-5", "test-token-side claude-fable-5-1", "test-token-side claude-fable-5-2",
+		"test-token-side claude-haiku-4-5-20251001",
+		"test-token-work claude-fable-5-2", "test-token-work claude-haiku-4-5-20251001",
 	}
 	if got := api.questions(); !reflect.DeepEqual(got, want) {
 		t.Errorf("at startup the API was asked\n%q\nwant a probe of each account with a token\n%q", got, want)
