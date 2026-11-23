@@ -2387,7 +2387,8 @@ formats below; the screens as signed off in Paper (see The screens, below).
   card, Accounts' Detail, History's Days with a removed account, and setup's table and add card,
   each without a number or an id. History's per-account days went with the tab; an account removed
   is drawn now on Accounts' Tokens, by its label in faint text, kept as
-  `accounts-tokens-removed-160`.
+  `accounts-tokens-removed-160`. Its days, and Detail for it, are left to `switchboard history`:
+  a removed account's weeks and its part of the totals are enough (the owner, 23 November 2026).
 
 ## Accounts and tokens
 
@@ -13641,6 +13642,5 @@ proper, and where why one was dropped binds a later choice, the design proper sa
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
-| A removed account's days on the dashboard: Accounts' Tokens by day, and a removed account on Detail, where only its weeks and the totals show now | open: the owner chose to accept it for now, 15 November 2026; each wants a design pass and Paper | [removed-account-by-day](../ideas/2026-11-15--removed-account-by-day.md) |
 | Accounts' Compare: an account moved or removed shown, or said, so the all-accounts column adds up to the columns | open: after v1 | [compare-all-accounts-column](../ideas/2026-11-17--compare-all-accounts-column.md) |
 | Past caps judged by the reserve recorded then: Runway's and Trends' past lanes, the pool's past room, the capacity verdict and the router's seed, which still judge past readings by today's reserve | open: any time | [past-caps-by-recorded-reserve](../ideas/2026-11-23--past-caps-by-recorded-reserve.md) |
