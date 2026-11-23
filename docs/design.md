@@ -5483,6 +5483,9 @@ its periods, as Trends has none:
   counts the accounts removed and those moved to another pool that the period's days name, as
   `history`'s `removed` and `moved` list them (`views.AccountsPage.NoLongerHere`, worked out
   once), so an idle day naming the pool counts its account, as LIMITS counts its limits that day;
+  an account only another Mac configures, its history imported, counts among them, as Tokens
+  treats it; where the accounts record can't be read, the accounts removed are none, so their work
+  stays in `all accounts` without the line, the warning logged; and
   the requests no account answered are no account's, and it counts none for them. Their work is
   in `all accounts`' totals, summed from the days: ACTIVITY, LIMITS, BY MODEL, WORTH and `worth at
   API prices`; each has no column, so the columns fall short of `all accounts` by it. WEEKS and

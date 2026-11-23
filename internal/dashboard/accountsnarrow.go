@@ -273,8 +273,8 @@ func (cp compared) turnedWhole() stack {
 		for _, g := range cp.turnedGroups() {
 			y = cp.turnedGroup(c, y+partsApart, l, g, columns)
 		}
-		if gone := cp.noLongerHere(); gone != nil {
-			cp.drawNoLongerHere(c, y+partsApart, gone)
+		if foot := cp.noLongerHere(); foot != nil {
+			cp.drawNoLongerHere(c, y+partsApart, foot)
 		}
 	}
 	return stack{c: c}

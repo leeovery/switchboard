@@ -643,8 +643,8 @@ func (cp compared) body(columns []compareColumn) *canvas {
 	for _, g := range groups {
 		rows += groupApart + len(g.rows)
 	}
-	gone := cp.noLongerHere()
-	if gone != nil {
+	foot := cp.noLongerHere()
+	if foot != nil {
 		rows += groupApart
 	}
 	c := newCanvas(cp.f.Width, rows)
@@ -664,27 +664,31 @@ func (cp compared) body(columns []compareColumn) *canvas {
 			}
 		}
 	}
-	if gone != nil {
-		cp.drawNoLongerHere(c, y+groupApart, gone)
+	if foot != nil {
+		cp.drawNoLongerHere(c, y+groupApart, foot)
 	}
 	return c
 }
 
 // noLongerHere says how many accounts with no column all accounts' totals
-// include, as the period's page counts them, "all accounts' totals include
-// 1 account no longer here", in text.faint: nil where they include none, or
-// the page isn't read yet.
-func (cp compared) noLongerHere() line {
+// include, as the period's page counts them, in text.faint, in its forms:
+// "all accounts' totals include 1 account no longer here", then "totals
+// include 1 account no longer here". Nil where they include none, or the
+// page isn't read yet.
+func (cp compared) noLongerHere() partForms {
 	if cp.page == nil || cp.page.NoLongerHere == 0 {
 		return nil
 	}
-	return line{{"all accounts' totals include " + prose.Counted(cp.page.NoLongerHere, "account") + " no longer here", faintInk}}
+	short := "totals include " + prose.Counted(cp.page.NoLongerHere, "account") + " no longer here"
+	return partForms{{wordsIn("all accounts' "+short, faintInk)}, {wordsIn(short, faintInk)}}
 }
 
-// drawNoLongerHere draws the line given along row y, from labelIndent, cut
-// to the frame's edge.
-func (cp compared) drawNoLongerHere(c *canvas, y int, gone line) {
-	c.line(labelIndent, y, gone.fit(cp.f.edge()-labelIndent))
+// drawNoLongerHere draws along row y, from labelIndent, the fullest of the
+// forms given that fits to the frame's edge, the shortest cut where none
+// does.
+func (cp compared) drawNoLongerHere(c *canvas, y int, foot partForms) {
+	cells := cp.f.edge() - labelIndent
+	c.line(labelIndent, y, fitParts(cells, foot.fitting(cells)...))
 }
 
 // weekUsedRows are the rows WEEK USED takes atop Compare's rows, BY MODEL
