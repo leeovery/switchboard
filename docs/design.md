@@ -10693,6 +10693,11 @@ from the first day a router that has it runs, so nothing before then is in it.
   - The table holds the models on the page, but those the API retired before 7 October 2026, the
     day the ledger began recording, as no answer of theirs is in it to price, and the Mythos
     models, open only to verified organizations.
+  - The table is checked against Anthropic's prices before each release, and a price that changed,
+    or a model launched, goes into that release as a dated row (the owner's call, 23 November
+    2026). Nothing watches for a change between releases. Claude Haiku 5.5, which charges more
+    for a prompt over 100,000 tokens, is priced at its lower rate whatever a prompt's length (the
+    owner's call, 11 October 2026).
   - A count the usage holds that the table can't price is left out of the worth, which names it
     unpriced, rather than guessed at: a server tool's it doesn't know, writes to the cache the usage
     doesn't break down by how long they last, and the turns of another model, as an advisor's,
@@ -13555,7 +13560,7 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-10-14--doctor.md`); this table is their index. An idea built or dropped leaves the table,
+(`2026-11-18--pins-that-stay.md`); this table is their index. An idea built or dropped leaves the table,
 and its file goes: what was built is in its pull request and the design proper, and where why one
 was dropped binds a later choice, the design proper says so.
 
@@ -13564,12 +13569,7 @@ was dropped binds a later choice, the design proper says so.
 | The Trends build's loose ends, built as Graphs: one owner of the accounts' order, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the order's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | Custom views: a user's own views of the dashboard, put together from its sections | open: raised by the owner on 24 October 2026, to discuss after the Graphs tab | [custom-views](../ideas/2026-10-25--custom-views.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| A doctor verb: switchboard's own records read for what looks wrong, and reported in one place | after v1: the owner, 26 October 2026, wants Claude to query the records, look for problems and bugs, and report them as GitHub issues | [doctor](../ideas/2026-10-14--doctor.md) |
-| Keeping the price table current: Anthropic's price changes noticed and added as dated rows, and how the table is kept, Haiku 5.5's two rates among it | open: after v1; Sonnet 5.5's dated row and Haiku 5.5 added on 11 October 2026, Fable 5.2 on 17 November | [current-prices](../ideas/2026-10-09--current-prices.md) |
-| Advice from the ledger: the settings that would have bought more usage, and whether a keep-alive pays | open: to discuss with its owner | [advice-from-the-ledger](../ideas/2026-10-14--advice-from-the-ledger.md) |
-| Usage limits for agents, read and watched as their own work moves them | open: to discuss with its owner | [usage-for-agents](../ideas/2026-10-14--usage-for-agents.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
-| Money in a chosen currency, such as pounds sterling, wherever money shows, with a rate for API prices | open: raised by the owner on 15 October 2026 | [currencies](../ideas/2026-10-15--currencies.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
