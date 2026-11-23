@@ -65,11 +65,11 @@ func TestReadingsGivenOutOfOrderAreIndexedInOrder(t *testing.T) {
 		t    time.Time
 		want float64
 	}{{at, 0.1}, {at.Add(time.Hour), 0.25}, {at.Add(90 * time.Minute), 0.25}, {at.Add(2 * time.Hour), 0.3}} {
-		if w, ok := indexed.windowBy("work", "5h", tt.t); !ok || w.Utilization != tt.want {
+		if w, ok := indexed.readingBy("work", "5h", tt.t); !ok || w.Utilization != tt.want {
 			t.Errorf("work's session by %s reads %v, %t, want %v", tt.t.Format("15:04"), w.Utilization, ok, tt.want)
 		}
 	}
-	if _, ok := indexed.windowBy("work", "5h", at.Add(-time.Minute)); ok {
+	if _, ok := indexed.readingBy("work", "5h", at.Add(-time.Minute)); ok {
 		t.Errorf("work's session reads before its first reading, want it not read by then")
 	}
 }

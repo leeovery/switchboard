@@ -60,8 +60,8 @@ type WeeksRow struct {
 
 // WeekPeak is how full an account's week got: Share, its peak, from 0 to 1,
 // nil where it isn't known; Open, set for this week's, its highest so far;
-// and AtCap, set where its peak reached its cap, as capOf has it, or of every
-// account's, where any one's did. Every account's marks agree with the weeks
+// and AtCap, set where its peak reached its cap then, as capOf has it, or of
+// every account's, where any one's did. Every account's marks agree with the weeks
 // Capacity counts short but in two kinds of week. This week's so far and
 // weeks not whole are marked too, though Weeks counts a limit in whole weeks
 // that have ended alone. A whole week where one account reached its cap while
@@ -111,13 +111,13 @@ func (p Past) weeksOver(n int, last time.Time) WeeksPage {
 		Window:   in.WeekWindow,
 		past:     p,
 	}
-	byWeek := make(map[string]Week, len(placed))
-	for _, w := range weeksOf(placed, in.Accounts) {
-		byWeek[w.Week] = w
+	byWeek, placedBy := make(map[string]Week, len(placed)), make(map[string]placedWeek, len(placed))
+	for i, w := range weeksOf(placed, in.Accounts) {
+		byWeek[w.Week], placedBy[w.Week] = w, placed[i]
 	}
-	tells := page.toldOf(placed, isWhole, j.r)
+	tells := page.toldOf(placedBy, isWhole, j.r)
 	for x, a := range in.Accounts {
-		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Primary: a.Primary, Peaks: page.peaksOf(byWeek, x), told: tells[x]}
+		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Primary: a.Primary, Peaks: page.peaksOf(byWeek, placedBy, x), told: tells[x]}
 		if rec := j.records[x]; rec.weeks > 0 {
 			used := meanOf(rec.used, rec.weeks)
 			row.Used = &used
@@ -125,7 +125,7 @@ func (p Past) weeksOver(n int, last time.Time) WeeksPage {
 		page.Accounts = append(page.Accounts, row)
 	}
 	all := len(in.Accounts)
-	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[all], Peaks: page.peaksOf(byWeek, all), told: tells[all]}
+	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[all], Peaks: page.peaksOf(byWeek, placedBy, all), told: tells[all]}
 	page.judge(j.r, pl, dayfile.DateOf(in.Now))
 	return page
 }
@@ -135,26 +135,23 @@ func (p Past) weeksOver(n int, last time.Time) WeeksPage {
 // isWhole reports are whole, as the replay r judges them: of an account, its
 // record in it, as recordOf has it; of every account, what toldOf tells of
 // a week the replay judges. A week not whole, or not placed, tells nothing.
-func (page WeeksPage) toldOf(placed []placedWeek, isWhole func(week string) bool, r replay) [][]told {
-	accounts := len(r.caps)
-	byWeek := make(map[string]placedWeek, len(placed))
-	for _, w := range placed {
-		byWeek[w.week] = w
-	}
-	tells := make([][]told, accounts+1)
+// The weeks placed are by their first days' dates.
+func (page WeeksPage) toldOf(placed map[string]placedWeek, isWhole func(week string) bool, r replay) [][]told {
+	accounts := page.past.in.Accounts
+	tells := make([][]told, len(accounts)+1)
 	for x := range tells {
 		tells[x] = make([]told, len(page.Weeks))
 	}
 	for i, date := range page.Weeks {
-		w, ok := byWeek[date]
+		w, ok := placed[date]
 		if !ok || !isWhole(date) {
 			continue
 		}
-		for x := range accounts {
-			tells[x][i] = w.recordOf(x, r.caps[x], page.Window).told()
+		for x, a := range accounts {
+			tells[x][i] = w.recordOf(x, a, page.Window).told()
 		}
 		if week, judged := w.judged(accounts, page.Window); judged {
-			tells[accounts][i] = r.toldOf(week)
+			tells[len(accounts)][i] = r.toldOf(week)
 		}
 	}
 	return tells
@@ -162,8 +159,10 @@ func (page WeeksPage) toldOf(placed []placedWeek, isWhole func(week string) bool
 
 // peaksOf are the peaks of the account with index x among the weeks' own,
 // or of every account's, where x is past theirs, in each of the page's
-// weeks: unknown in a week the days don't span.
-func (page WeeksPage) peaksOf(byWeek map[string]Week, x int) []WeekPeak {
+// weeks, each at its cap as the week placed under it has it: unknown in a
+// week the days don't span. The weeks and those placed are by their first
+// days' dates.
+func (page WeeksPage) peaksOf(byWeek map[string]Week, placed map[string]placedWeek, x int) []WeekPeak {
 	peaks := make([]WeekPeak, len(page.Weeks))
 	for i, date := range page.Weeks {
 		w, ok := byWeek[date]
@@ -172,20 +171,21 @@ func (page WeeksPage) peaksOf(byWeek map[string]Week, x int) []WeekPeak {
 		}
 		a := w.Accounts[x]
 		if share, known := a.Peaks[page.Window]; known {
-			peaks[i].Share, peaks[i].AtCap = &share, page.atCap(w, x)
+			peaks[i].Share, peaks[i].AtCap = &share, page.atCap(placed[date], x)
 		}
 		peaks[i].Open = slices.Contains(a.Open, page.Window)
 	}
 	return peaks
 }
 
-// atCap reports whether the account with index x hit its limit in the week,
-// its peak at its cap, or where x is past theirs, whether any account did.
-func (page WeeksPage) atCap(w Week, x int) bool {
+// atCap reports whether the account with index x hit its limit in the week
+// placed, its peak at its cap then, as peak's atCap has it, or where x is
+// past theirs, whether any account did.
+func (page WeeksPage) atCap(w placedWeek, x int) bool {
 	accounts := page.past.in.Accounts
 	reached := func(j int) bool {
-		share, known := w.Accounts[j].Peaks[page.Window]
-		return known && millionthsOf(share) >= capOf(accounts[j])
+		peak, ok := w.peaks[j][page.Window]
+		return ok && peak.known && peak.atCap(accounts[j])
 	}
 	if x < len(accounts) {
 		return reached(x)

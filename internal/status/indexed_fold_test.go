@@ -17,9 +17,10 @@ import (
 // judges as the fold of every one of them in turn that came before did,
 // kept here as the reference: each window every model shares, its last
 // reading by a moment and its runs, their starts and their lifts; Then; and
-// RoomThen in each window, a model's own among them. Over random histories,
-// each from a seed of its own so a failure is judged again from its number:
-// of reserves none, 5%, 10% and 20%, held or not; reaches from the keep and
+// RoomThen in each window, a model's own among them, each reading judged by
+// the reserve it recorded, else today's. Over random histories, each from a
+// seed of its own so a failure is judged again from its number: of reserves
+// none, 5%, 10% and 20%, held or not, today and recorded by a reading; reaches from the keep and
 // from the readings seen, or neither; readings rejected, readings without a
 // reset, readings at one moment, and other accounts' readings; and the holds
 // the router told of, of every kind, naming a window or none.
@@ -68,6 +69,10 @@ type history struct {
 // past a limit.
 var uses = []float64{0.1, 0.5, 0.79, 0.8, 0.85, 0.9, 0.95, 0.99, 1, 1.2}
 
+// reserves are the reserves a history's account has today, and those its
+// readings record, a third of them, the rest recording none.
+var reserves = []float64{0, 0.05, 0.1, 0.2}
+
 // randomHistory is the history drawn from the seed given.
 func randomHistory(seed uint64) history {
 	rng := rand.New(rand.NewPCG(seed, 0x5eed))
@@ -94,10 +99,13 @@ func randomHistory(seed uint64) history {
 		if rng.IntN(9) == 0 {
 			r.Account = "side"
 		}
+		if rng.IntN(3) == 0 {
+			r.Reserve = new(reserves[rng.IntN(len(reserves))])
+		}
 		h.read = append(h.read, r)
 	}
 	h.length = at.Sub(h.from) + time.Hour
-	reserve := []float64{0, 0.05, 0.1, 0.2}[rng.IntN(4)]
+	reserve := reserves[rng.IntN(len(reserves))]
 	h.account = AccountNow{ID: "work", TokenSet: true, Reserve: reserve, ReserveHolds: reserve > 0 && rng.IntN(4) > 0, Floor: 1 - reserve}
 	h.reach = Reach{Kept: h.edge(), Seen: h.edge()}
 	for range rng.IntN(4) {
@@ -149,7 +157,7 @@ func sameWindowsRead(a, b map[string]windowRead) bool {
 	}
 	for key, w := range a {
 		o, ok := b[key]
-		if !ok || w.last != o.last || !sameRun(w.spent, o.spent) || !sameRun(w.capped, o.capped) {
+		if !ok || w.last != o.last || w.reserve != o.reserve || !sameRun(w.spent, o.spent) || !sameRun(w.capped, o.capped) {
 			return false
 		}
 	}
@@ -172,7 +180,7 @@ func foldThen(m Moment, a AccountNow, read []readings.Reading, reach Reach, told
 	if !a.TokenSet {
 		return Was{Kind: WasTokenless}
 	}
-	was := stoodAt(a, foldBy(m, a, read, reach, t), told, t)
+	was := stoodAt(foldBy(m, a, read, reach, t), told, t)
 	if was.Kind == WasLimited || was.Kind == WasCapped {
 		was.Since = foldRanBack(m, a, read, reach, told, was.Kind, was.Since)
 	}
@@ -202,36 +210,46 @@ func foldRoomThen(m Moment, a AccountNow, read []readings.Reading, told []Span, 
 		return 0, true
 	}
 	windows := foldBy(m, a, read, Reach{}, t)
-	was := stoodAt(a, windows, told, t)
+	was := stoodAt(windows, told, t)
 	switch {
 	case was.Kind == WasUnread:
 		return 0, false
 	case len(toldAt(told, WasRefused, t)) > 0, was.Kind != WasRoom && key == m.policy.Started:
 		return 0, true
 	}
-	var w quota.Window
+	var w windowRead
 	var ok bool
 	if m.policy.IsShared(key) {
-		var read windowRead
-		read, ok = windows[key]
-		w = read.last
+		w, ok = windows[key]
 	} else {
 		for _, r := range read {
 			if r.At.After(t) {
 				break
 			}
 			if r.Account == a.ID && r.Key == key {
-				w, ok = r.Window(), true
+				w, ok = windowRead{last: r.Window(), reserve: foldReserve(a, r)}, true
 			}
 		}
 	}
 	if !ok {
 		return 0, true
 	}
-	if until, held := quotaUntil(a, windows, told, t); held && outlasts(until, score.Current(w, t).ResetsAt) {
+	if until, held := quotaUntil(windows, told, t); held && outlasts(until, score.Current(w.last, t).ResetsAt) {
 		return 0, true
 	}
-	return score.Room(w, a.Floor, t), true
+	return score.Room(w.last, 1-w.reserve, t), true
+}
+
+// foldReserve is the reserve the fold judged the reading r of the account a
+// by: the one it recorded, else the one in force on a today.
+func foldReserve(a AccountNow, r readings.Reading) float64 {
+	switch {
+	case r.Reserve != nil:
+		return *r.Reserve
+	case a.ReserveHolds:
+		return a.Reserve
+	}
+	return 0
 }
 
 // folded is a window as the fold read it by a moment: the last of its
@@ -239,6 +257,7 @@ func foldRoomThen(m Moment, a AccountNow, read []readings.Reading, told []Span, 
 // edges on.
 type folded struct {
 	last          quota.Window
+	reserve       float64
 	spent, capped run
 	reached       [2]bool
 }
@@ -253,19 +272,19 @@ func foldBy(m Moment, a AccountNow, read []readings.Reading, reach Reach, t time
 			continue
 		}
 		if !r.At.After(t) {
-			windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, reach, a.Reserve)
+			windows[r.Key] = windows[r.Key].readAgain(r.Window(), r.At, reach, foldReserve(a, r))
 			continue
 		}
 		if !slices.ContainsFunc(slices.Collect(maps.Values(windows)), func(w folded) bool { return w.liftable(r.At) }) {
 			break
 		}
 		if w := windows[r.Key]; w.liftable(r.At) {
-			windows[r.Key] = w.readAfter(r.Window(), r.At, a.Reserve)
+			windows[r.Key] = w.readAfter(r.Window(), r.At, foldReserve(a, r))
 		}
 	}
 	byKey := make(map[string]windowRead, len(windows))
 	for key, w := range windows {
-		byKey[key] = windowRead{last: w.last, spent: w.spent, capped: w.capped}
+		byKey[key] = windowRead{last: w.last, reserve: w.reserve, spent: w.spent, capped: w.capped}
 	}
 	return byKey
 }
@@ -303,9 +322,10 @@ func (w folded) readAgain(window quota.Window, at time.Time, reach Reach, reserv
 		begun = time.Time{}
 	}
 	read := folded{
-		last:   window,
-		spent:  w.spent.joined(ranOn, score.Spent(window), begun),
-		capped: w.capped.joined(ranOn, score.HeldByReserve(window, reserve), begun),
+		last:    window,
+		reserve: reserve,
+		spent:   w.spent.joined(ranOn, score.Spent(window), begun),
+		capped:  w.capped.joined(ranOn, score.HeldByReserve(window, reserve), begun),
 	}
 	for i, edge := range reach.edges() {
 		read.reached[i] = w.reached[i] || !edge.IsZero() && !at.Before(edge)

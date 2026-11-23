@@ -228,6 +228,75 @@ func TestARestartJudgesThePoolsRoomByTheHistoryAsItGoes(t *testing.T) {
 	}
 }
 
+func TestARestartJudgesThePoolsRoomByTheReserveEachReadingRecorded(t *testing.T) {
+	// Work keeps a tenth back today, and side is never read. Work's week reads
+	// 50%, then 85% an hour on, and is recorded again, or read again, two
+	// hours on; six hours in, the router restarts.
+	now, resets := start.Add(6*time.Hour), week.ResetsAt
+	under := func(r readings.Reading, reserve float64) readings.Reading {
+		r.Reserve = new(reserve)
+		return r
+	}
+	restated := func(after time.Duration, u, reserve float64) readings.Reading {
+		r := under(workReads(start.Add(after), u, resets), reserve)
+		r.Source = readings.FromReserve
+		return r
+	}
+	tests := []struct {
+		name    string
+		history []readings.Reading
+		want    status.Demand
+	}{
+		{
+			name: "under a fifth, at its cap an hour, then under a tenth from two hours on",
+			history: []readings.Reading{
+				under(workReads(start, 0.5, resets), 0.2), under(workReads(start.Add(time.Hour), 0.85, resets), 0.2), restated(2*time.Hour, 0.85, 0.1),
+			},
+			want: status.Demand{Day: 0.35 / 5, Hours: 5},
+		},
+		{
+			name: "under a pin, which spent its reserve, till a tenth from two hours on",
+			history: []readings.Reading{
+				under(workReads(start, 0.5, resets), 0), under(workReads(start.Add(time.Hour), 0.95, resets), 0), restated(2*time.Hour, 0.95, 0.1),
+			},
+			want: status.Demand{Day: 0.45 / 2, Hours: 2},
+		},
+		{
+			name:    "a reserve line first, before any reading, under a fifth at its cap, then under a tenth from two hours on",
+			history: []readings.Reading{restated(0, 0.85, 0.2), restated(2*time.Hour, 0.85, 0.1)},
+			want:    status.Demand{Hours: 4},
+		},
+		{
+			name: "under a fifth, then a line that recorded none, by today's tenth",
+			history: []readings.Reading{
+				under(workReads(start, 0.5, resets), 0.2), under(workReads(start.Add(time.Hour), 0.85, resets), 0.2), workReads(start.Add(2*time.Hour), 0.86, resets),
+			},
+			want: status.Demand{Day: 0.36 / 5, Hours: 5},
+		},
+		{
+			name: "none recorded, by today's tenth",
+			history: []readings.Reading{
+				workReads(start, 0.5, resets), workReads(start.Add(time.Hour), 0.85, resets), workReads(start.Add(2*time.Hour), 0.86, resets),
+			},
+			want: status.Demand{Day: 0.36 / 6, Hours: 6},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHistory(config.History{}, at(now))
+			h.open(t.TempDir())
+			writeLines(t, h, tt.history...)
+			s := newStateOf(&testClock{now: now}, workReserved())
+			s.usage["work"].windows["7d"] = tt.history[len(tt.history)-1].Window()
+
+			s.seed(h.readBack(now))
+			if got := s.document().Demand; !sameDemand(got, &tt.want) {
+				t.Errorf("after the restart, the pool's demand is %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestBeforeTheHistoryReadsAWeekItStandsAsFirstReadFromWhenItBegan(t *testing.T) {
 	// Work keeps a tenth back. The history's readings of its session have the
 	// pool judged an hour in, and later; side is never read, and personal has

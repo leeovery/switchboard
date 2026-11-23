@@ -253,6 +253,65 @@ func TestCapacityJudgesEachAccountAtItsCap(t *testing.T) {
 	}
 }
 
+// Weeks judges each week's peak at the cap the reserve its reset recorded
+// gives, the peak's own, so a reserve changed mid-week is judged by the one
+// in force at the peak; and at the config's cap where its summary recorded
+// none, as one from before resets kept it. The week's mark says the same.
+func TestCapacityJudgesEachWeekAtTheCapItsPeakRecorded(t *testing.T) {
+	tests := []struct {
+		name string
+		// configured is work's reserve now; peak its week's peak, recorded
+		// under recorded, nil where its summary recorded none.
+		configured, peak float64
+		recorded         *float64
+		short            bool
+	}{
+		{name: "past the cap a fifth recorded then sets, short of today's", configured: 0.05, peak: 0.85, recorded: new(0.2), short: true},
+		{name: "changed mid-week, short of the cap the peak's tenth sets, past today's", configured: 0.2, peak: 0.85, recorded: new(0.1)},
+		{name: "under a pin then, which spent its reserve", configured: 0.05, peak: 0.97, recorded: new(0.0)},
+		{name: "recorded none, past today's cap", configured: 0.05, peak: 0.97, short: true},
+		{name: "recorded none, short of today's cap", configured: 0.05, peak: 0.85},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			days := peaking(map[string][]float64{"work": {tt.peak, 0.5}})
+			recordedUnder(days, "work", tt.peak, tt.recorded)
+			in := input(days)
+			in.Accounts = config.Accounts{{ID: "work", Reserve: tt.configured}}
+			c := views.NewHistory(in).Capacity
+			if want := map[bool]int{true: 1}[tt.short]; c.Short != want || c.Accounts[0].Limits != want {
+				t.Errorf("the weeks short are %d, work's limits %d; want %d of each", c.Short, c.Accounts[0].Limits, want)
+			}
+			if mark, ok := markOf(views.NewPast(in, days).Weeks().Accounts[0].Peaks, tt.peak); !ok || mark.AtCap != tt.short {
+				t.Errorf("work's week at %v is marked %+v, %v; want at its cap %v", tt.peak, mark, ok, tt.short)
+			}
+		})
+	}
+}
+
+// recordedUnder has the resets of the account with the given id's week in
+// days, before them peak, recorded under the reserve given.
+func recordedUnder(days []ledger.Summary, id string, peak float64, reserve *float64) {
+	for _, d := range days {
+		for _, a := range d.Accounts {
+			for k, r := range a.Resets {
+				if a.Account == id && r.Window == "7d" && r.Before == peak {
+					a.Resets[k].Reserve = reserve
+				}
+			}
+		}
+	}
+}
+
+// markOf is the week among peaks at share, reporting false where none is.
+func markOf(peaks []views.WeekPeak, share float64) (views.WeekPeak, bool) {
+	i := slices.IndexFunc(peaks, func(p views.WeekPeak) bool { return p.Share != nil && *p.Share == share })
+	if i < 0 {
+		return views.WeekPeak{}, false
+	}
+	return peaks[i], true
+}
+
 // The account to drop, and each account's verdict, are labelled as the config
 // labels them, apart from their ids.
 func TestCapacityLabelsTheAccountToDropAndEachVerdict(t *testing.T) {

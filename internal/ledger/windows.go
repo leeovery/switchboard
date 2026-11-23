@@ -93,21 +93,13 @@ type stood struct {
 	reserve  *float64
 }
 
-// reserveOr returns the reserve the reading was recorded under, else
-// fallback.
-func (s stood) reserveOr(fallback float64) float64 {
-	if s.reserve == nil {
-		return fallback
-	}
-	return *s.reserve
-}
-
 // carry takes r, the last reading of the window in the week before the day,
 // which hadn't reset by the day's start, as the use the window began the day
-// at, standing from the day's start.
-func (d *windowDay) carry(r readings.Reading) {
+// at, standing from the day's start, its run's peak having stood under under,
+// as the climb of the week before's lines has it.
+func (d *windowDay) carry(r readings.Reading, under *float64) {
 	d.climb.Carry(r.Window(), d.start)
-	d.reserve = r.Reserve
+	d.climb.under, d.reserve = under, r.Reserve
 }
 
 // afresh notes that the window began the day empty: read in the week before,
@@ -131,7 +123,7 @@ func (d *windowDay) take(r readings.Reading) bool {
 		return true
 	}
 	last, from, read, reserve := d.climb.last, d.climb.at, d.climb.read, d.reserve
-	_, took := d.climb.take(r.Window(), r.At)
+	_, took := d.climb.take(r.Window(), r.At, r.Reserve)
 	if took == taken {
 		if read {
 			d.stand(stood{from: from, to: r.At, window: last, reserve: reserve})
@@ -181,6 +173,10 @@ type Climb struct {
 	based  bool
 	latest time.Time
 	rise   float64
+	// under is the highest reserve the run's peak, top, stood under, as the
+	// lines of the readings history that read it recorded them, nil where
+	// none did.
+	under *float64
 	// resets are the resets that ended its runs that read above nothing, and
 	// ended each such run's reset as its readings gave it.
 	resets []Reset
@@ -209,7 +205,7 @@ func (c *Climb) Clone() *Climb {
 // BeginAt begins the window's run at use, before any reading of it is
 // taken.
 func (c *Climb) BeginAt(use float64) {
-	c.top, c.based = use, true
+	c.top, c.based, c.under = use, true, nil
 }
 
 // Carry takes w, the last reading of the window before those followed, read
@@ -228,7 +224,7 @@ func (c *Climb) Carry(w quota.Window, at time.Time) {
 // having started afresh since; or one whose reset is earlier than the latest
 // read, a reading of an earlier run read late, as readLate takes it.
 func (c *Climb) Take(w quota.Window, at time.Time) (float64, bool) {
-	climbed, took := c.take(w, at)
+	climbed, took := c.take(w, at, nil)
 	return climbed, took == taken
 }
 
@@ -242,13 +238,18 @@ const (
 	late
 )
 
-// take takes w as Take says, saying what it made of it.
-func (c *Climb) take(w quota.Window, at time.Time) (float64, taking) {
+// take takes w as Take says, saying what it made of it, its line of the
+// readings history recording the reserve given, nil where it recorded none:
+// where w reads a new peak, the run's peak stood under that reserve alone;
+// where it reads the peak, under it as well as those before, as under has
+// them; and where it reads below the peak, at any point, it says nothing of
+// what the peak stood under.
+func (c *Climb) take(w quota.Window, at time.Time, reserve *float64) (float64, taking) {
 	switch {
 	case w.ResetBy(at):
 		return 0, pastReset
 	case !w.ResetsAt.IsZero() && w.ResetsAt.Before(c.latest):
-		c.readLate(w)
+		c.readLate(w, reserve)
 		return 0, late
 	}
 	if c.read {
@@ -258,6 +259,12 @@ func (c *Climb) take(w quota.Window, at time.Time) (float64, taking) {
 	}
 	if !c.based {
 		c.BeginAt(c.began(w))
+	}
+	switch {
+	case w.Utilization > c.top:
+		c.under = reserve
+	case w.Utilization == c.top:
+		c.under = higherReserve(c.under, reserve)
 	}
 	climbed := max(w.Utilization-c.top, 0)
 	c.top, c.rise = max(c.top, w.Utilization), c.rise+climbed
@@ -272,11 +279,28 @@ func (c *Climb) take(w quota.Window, at time.Time) (float64, taking) {
 // late, as an answer that began before the reset and ended after it gives
 // one: a true reading of that run, which says nothing of the run since.
 // Where it reads higher than that run's highest use, the run's reset takes it
-// as the use before it.
-func (c *Climb) readLate(w quota.Window) {
-	if i := slices.IndexFunc(c.ended, w.ResetsAt.Equal); i >= 0 {
-		c.resets[i].Before = max(c.resets[i].Before, w.Utilization)
+// as the use before it, under the reserve its line recorded; where it reads
+// that use, the higher of the two reserves, as under has them.
+func (c *Climb) readLate(w quota.Window, reserve *float64) {
+	i := slices.IndexFunc(c.ended, w.ResetsAt.Equal)
+	if i < 0 {
+		return
 	}
+	switch r := &c.resets[i]; {
+	case w.Utilization > r.Before:
+		r.Before, r.Reserve = w.Utilization, reserve
+	case w.Utilization == r.Before:
+		r.Reserve = higherReserve(r.Reserve, reserve)
+	}
+}
+
+// higherReserve is the higher of two reserves recorded, either nil where none
+// was: nil only where both are.
+func higherReserve(a, b *float64) *float64 {
+	if a == nil || b != nil && *b > *a {
+		return b
+	}
+	return a
 }
 
 // End ends the window's climb at until, noting the reset of the reading taken
@@ -301,16 +325,17 @@ func (c *Climb) Resets() []Reset {
 }
 
 // reset notes the window's reset at at, the highest use of the run it ended
-// before it, and ends that run, the next beginning at nothing. A run that
+// before it, and the highest reserve that use stood under, as under has it,
+// and ends that run, the next beginning at nothing. A run that
 // never read above nothing, the use carried into it included, notes none:
 // nothing was open to reset, as of a window no request opened, its reset
 // moving on with each reading.
 func (c *Climb) reset(at time.Time) {
 	if c.top != 0 {
-		c.resets = append(c.resets, Reset{Window: c.key, At: at.UTC(), Before: c.top})
+		c.resets = append(c.resets, Reset{Window: c.key, At: at.UTC(), Before: c.top, Reserve: c.under})
 		c.ended = append(c.ended, c.last.ResetsAt)
 	}
-	c.top = 0
+	c.top, c.under = 0, nil
 }
 
 // storedClimb is a climb as a stored form holds it, as MarshalJSON writes it
@@ -525,7 +550,7 @@ func minutesAt(windows map[string]*windowDay, reserve float64, shared []string) 
 			continue
 		}
 		for _, s := range d.stood {
-			if h := score.HoldOf(s.window, s.reserveOr(reserve)); h != score.NotHeld {
+			if h := score.HoldOf(s.window, readings.ReserveThen(s.reserve, reserve)); h != score.NotHeld {
 				edges = append(edges, edge{at: s.from, hold: h, n: 1}, edge{at: s.to, hold: h, n: -1})
 			}
 		}

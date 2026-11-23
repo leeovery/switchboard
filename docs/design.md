@@ -1133,7 +1133,10 @@ router records one as it starts, of an account in another pool than the file las
 config edited while it was down, or of one it keeps none of, and each move as it takes the pools
 up; a table of pools it can't tell records none. A restart replays each reading of the readings
 history into the day rate of the pool its account was in then, one from before its first entry
-into that entry's, and judges each pool's room at each moment by the accounts in it then. An
+into that entry's, and judges each pool's room at each moment by the accounts in it then, each
+account's week under the reserve its line recorded, its reserve as configured where the line
+recorded none, a pin it kept spending it from when the pin was set, as live; and judges it again at
+each `reserve` line, as the room can change with no reading to show it. An
 account's recent rates are forgotten at each move between pools the record holds, as live, so a
 restart soon after a move, or after a move made while the router was down, brings none of the old
 pool's demand. A pool since removed takes in nothing, and the one pool of a config from before
@@ -3626,8 +3629,13 @@ in the words History's Weeks gave it till the dashboard by entity left the verdi
 (`views.VerdictWeeks`, 7).
 
 **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
-router stops sending it new sessions: 100% less its reserve, the reserve the config has now, not
-the reserve the readings history recorded through the week, and 100% without one.
+router stopped sending it new sessions at its peak: 100% less the highest reserve its peak stood
+under, as the readings history recorded it and the day's summary keeps it on the reset that ended
+the week (see The request ledger), and 100% without one. So a reserve changed while the week stood
+at its peak, lowered or raised, leaves it short where it stood at its cap under either; a reserve
+before the week rose to its peak counts for nothing, even where a reading then reached a cap of its
+own. Where the summary kept none, as one made before resets kept it, or of a week still running,
+it's the reserve the config has now (the owner's call, 23 November 2026).
 What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
 The verdict takes its form for many accounts where it can name one to drop, one fewer being short on
 no more weeks than now; otherwise its form for few.
@@ -5402,13 +5410,15 @@ its periods, as Trends has none:
     cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
     160 and 173 columns, touching narrower, as at 100. Where the account keeps a
     reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
-    the columns. The axis names a month where it starts, and at 12 months each month, giving way
-    from the last back as WORTH BY's names do; the last is bold at now, and in a past period only
-    where this week shows, as Detail's BY DAY has it, so 12 months back names none bold; under
-    this week's column, so far, `…`
-    in `text.secondary`, in place of its name, where its columns are weeks: at 12 months none,
-    as a month's column isn't this week's, though its fullest week may be. A past period's last
-    week, but this week, is drawn whole, undimmed and with its name.
+    the columns: one level across every week, at the reserve the config has now, though each
+    week's mark and limit are judged at the cap of the highest reserve its peak stood under (see
+    The capacity verdict). The axis names a month where it starts, and at 12 months each month,
+    giving way from the last back as WORTH BY's names do; the last is bold at now, and in a past
+    period only where this week shows, as Detail's BY DAY has it, so 12 months back names none
+    bold; under this week's column, so far, `…` in `text.secondary`, in place of its name, where
+    its columns are weeks: at 12 months none, as a month's column isn't this week's, though its
+    fullest week may be. A past period's last week, but this week, is drawn whole, undimmed and
+    with its name.
   - **Under it,** the weeks' facts on the reach's whole weeks, never its verdict's words, which stay in
     `switchboard history`: `limit hit 3 of 7 · 9% left at a reset`, in `text.subtle`, its last
     part giving way to `9% left`, then going; `all accounts`, the pool's peaks the mean of the
@@ -7242,9 +7252,9 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   A window whose reset that reading gives has passed by then counts as reset, at 0%; one read
   `rejected` is at its limit until that reset, or until a later reading before it no longer shows
   it, as one of a window reset by hand doesn't, the hold lifting as the router read the window start
-  again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve the
-  config gives now (settled in the plan), not from the reserve each line of the readings history
-  records, and lifts alike. A column with no reading of its
+  again (see A window reset by hand), which marks a reset there; a cap is drawn from the reserve each
+  reading recorded, today's where it recorded none (see Past caps, below), and lifts alike. A
+  column with no reading of its
   account by then is left blank, as one not read yet (the owner's call, from his report on v0.1.6;
   14 October 2026), but before the first reading of an account new in the view, which is dotted
   (see An account new in the view, above).
@@ -7282,9 +7292,21 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   running from a reading `rejected` to its window's reset; each day's summary's `limits`, each with
   its `at` and `resets_at`, and under each name the week's `highest`; today's, before it's
   summarised, its readings and lines as they're read (see The request ledger). A cap on a day gone
-  is drawn from the reserve the config gives now (settled in the plan), not from the reserve each
-  line of the readings history records. A week older than the readings history's keep draws its
-  lanes from its summaries' limits and resets alone (settled in the plan).
+  is drawn from the reserve each reading recorded, today's where it recorded none (see Past caps,
+  below). A week older than the readings history's keep draws its lanes from its summaries' limits
+  and resets alone (settled in the plan).
+- **Past caps:** every reader of past readings that judges a cap, Runway's and Trends' past
+  lanes, the pool's room then (see POOL) and the router's restart (see Forecasting run-outs), judges
+  each reading by the reserve its line recorded, a pin's 0 among them, holding from that reading
+  till the window's next line, `reserve` lines included, as minutes at cap are (see The request
+  ledger). Where a line recorded none, as one from before the history kept them, it judges by the
+  reserve in force today: the config's, none where the pool's pin names the account (the owner's
+  call, 23 November 2026). So a reserve changed since, or a pin set or lifted since, leaves the past
+  as it stood. The capacity verdict judges a week's peak alike, by the highest reserve it stood
+  under (see The capacity verdict). A window read before a reserve changed, too long before for
+  the router to record it again (see the readings history in Files), keeps the reserve before
+  even at now, as the pool's room then has it, till its next reading, which a probe brings within
+  minutes; the moment's own room is by today's (the owner's call, 23 November 2026).
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
@@ -7491,8 +7513,9 @@ them at the section's width, from a day before now, for a week:
   starts while a limit or its cap held it back from every request, as Runway's pool lane counts it
   without room then, and none in any while its token was refused, or isn't usable now, nor from
   now on while its read is refused (see 401s and 403s); else the
-  window's room to where it runs out, its cap where its reserve holds, else its limit, as its last
-  reading by then has it: none where that read it spent or rejected, and all of it once that
+  window's room to where it runs out, its cap where the reserve its last reading by then recorded
+  holds, today's where it recorded none (see Runway's Past caps), else its limit, as that reading
+  has it: none where that read it spent or rejected, and all of it once that
   reading's reset had passed, so an account idle before its window started has all its room till
   then, and each reset is a step up. An account out of the pool isn't counted, and one with no
   reading by then isn't known (the owner's call, 15 October 2026, for the Overview's pool charts,
@@ -10186,7 +10209,18 @@ from the first day a router that has it runs, so nothing before then is in it.
       in the run it ended, as a reading a point under the one before it can come last. A week's peak
       is the `before` of the reset that ended it. A run whose use never read above nothing, carried
       in or read that day, records no reset: an unopened window's reset moves on with each reading
-      (see Observed), and nothing was used to reset.
+      (see Observed), and nothing was used to reset. Since 23 November 2026, with no version of its
+      own, as a field added: `reserve`, the highest reserve the run's peak stood under, of those
+      the readings history's lines that read the peak recorded, `reserve` lines among them, a rise
+      to a new peak starting afresh, a line below the peak at any point counting for nothing, and
+      the lines of the days before counting as the day's do; left out where none of them recorded
+      one. Where the last line before the day is a reading taken out of turn, lower than the peak,
+      the day carries that line's use as `before`, as it did before `reserve`, under the peak's
+      reserve, and judges the day's lines against the use carried (accepted, 23 November 2026). A
+      reading read late that raises `before` brings its line's reserve with it, and one at `before`
+      the higher of the two. A day summarised again keeps the reset from the higher `before`, under
+      the reserve of the summary that read it, the higher of the two where both did. The capacity
+      verdict judges a week's peak at its cap by it (see The capacity verdict).
     - `minutes_at_cap` and `minutes_at_limit`: the minutes of the day the account spent at its cap,
       a window every model shares at or past its cap and short of its limit, and at a limit, such a
       window read `rejected` or used up, each from the reading that put it there to the one that
@@ -11995,7 +12029,9 @@ hiding it behind the provider would take a wider interface than it's worth:
   `prime`; or `reserve`, below; and `reserve` the share of every window of the account the router
   left unused then: the reserve the config gives it, or 0 where it has none or the pool's pin
   names it, as a pin spends the reserves of the accounts it names (see Pinning). A day's summary
-  judges the account's minutes at its cap by it (see The request ledger). Where that reserve
+  judges the account's minutes at its cap by it (see The request ledger), and every other reader
+  of past readings judges a cap by it, holding till the window's next line (see Runway's Past
+  caps). Where that reserve
   changes, as the pool's pin comes to name the account or stops, the account moves to another
   pool, leaving a pin that named it, or the router starts on a config that changed it, the router
   appends a line for each of the account's windows it read in the
@@ -13642,7 +13678,7 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-11-23--past-caps-by-recorded-reserve.md`); this table is their index. An idea built or
+(`2026-10-18--day-digests-left.md`); this table is their index. An idea built or
 dropped leaves the table, and its file goes: what was built is in its pull request and the design
 proper, and where why one was dropped binds a later choice, the design proper says so.
 
@@ -13656,4 +13692,3 @@ proper, and where why one was dropped binds a later choice, the design proper sa
 | A dashboard left open across an upgrade reads the new router's document by the old binary's rules, and nothing tells it the router moved on | open: after v1 | [a-dashboard-across-an-upgrade](../ideas/2026-11-11--a-dashboard-across-an-upgrade.md) |
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
-| Past caps judged by the reserve recorded then: Runway's and Trends' past lanes, the pool's past room, the capacity verdict and the router's seed, which still judge past readings by today's reserve | open: any time | [past-caps-by-recorded-reserve](../ideas/2026-11-23--past-caps-by-recorded-reserve.md) |

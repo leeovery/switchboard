@@ -178,6 +178,16 @@ type AccountNow struct {
 	now        time.Time
 }
 
+// reserveNow is the reserve in force on the account today: its Reserve where
+// that holds, as ReserveHolds says, else none. It's what a past cap is judged
+// by where its reading recorded no reserve, as readings.ReserveThen has it.
+func (a AccountNow) reserveNow() float64 {
+	if a.ReserveHolds {
+		return a.Reserve
+	}
+	return 0
+}
+
 // PressureNow is how an account stands under pressure at a moment.
 type PressureNow struct {
 	// Under is set while it's under pressure at Now: the router found it so

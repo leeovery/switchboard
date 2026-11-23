@@ -157,7 +157,8 @@ func limitsKnowing(limits, held []Limit) []Limit {
 // resetsKnowing returns resets, summarised afresh, with held's, those
 // summarised before, among them, in the order they came: a reset of one
 // window at one time is the same reset, its use before it the higher of the
-// two. It's nil only where both are.
+// two, under the reserve of the one that read it, the higher of the two where
+// both did. It's nil only where both are.
 func resetsKnowing(resets, held []Reset) []Reset {
 	if resets == nil && held == nil {
 		return nil
@@ -165,13 +166,26 @@ func resetsKnowing(resets, held []Reset) []Reset {
 	resets = append([]Reset{}, resets...)
 	for _, h := range held {
 		if i := slices.IndexFunc(resets, h.same); i >= 0 {
-			resets[i].Before = max(resets[i].Before, h.Before)
+			resets[i] = resets[i].knowing(h)
 		} else {
 			resets = append(resets, h)
 		}
 	}
 	slices.SortFunc(resets, byWhen)
 	return resets
+}
+
+// knowing is r, summarised afresh, knowing held, the same reset summarised
+// before: from the higher use before it, under the reserve the side that
+// read it recorded, the higher of the two where both read it.
+func (r Reset) knowing(held Reset) Reset {
+	switch {
+	case held.Before > r.Before:
+		return held
+	case held.Before == r.Before:
+		r.Reserve = higherReserve(r.Reserve, held.Reserve)
+	}
+	return r
 }
 
 // more returns the more of n and held, where they're known: nil only where
