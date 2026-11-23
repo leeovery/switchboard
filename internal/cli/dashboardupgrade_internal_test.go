@@ -20,7 +20,7 @@ func TestARestartedDashboardsCommandLineIsTheDashboards(t *testing.T) {
 		{name: "as opened by default, as setup opens it", opts: dashboardOptions{interval: defaultInterval}, want: []string{exe, "dashboard"}},
 		{name: "given no interval", opts: dashboardOptions{}, want: []string{exe, "dashboard"}},
 		{name: "probing, without notifications", opts: dashboardOptions{probe: true, noNotify: true, interval: defaultInterval}, want: []string{exe, "dashboard", "--probe", "--no-notify"}},
-		{name: "every 15 minutes", opts: dashboardOptions{interval: 15 * time.Minute}, want: []string{exe, "dashboard", "15m0s"}},
+		{name: "every 15 minutes", opts: dashboardOptions{interval: 15 * time.Minute}, want: []string{exe, "dashboard", "900s"}},
 		{name: "of a config named", opts: dashboardOptions{interval: defaultInterval}, config: "/test/work.toml", want: []string{exe, "dashboard", "--config", "/test/work.toml"}},
 		{name: "on a pool named", opts: dashboardOptions{pool: "q7mt", interval: defaultInterval}, want: []string{exe, "dashboard"}},
 	}

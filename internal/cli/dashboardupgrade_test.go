@@ -98,7 +98,7 @@ func TestTheDashboardRestartsOntoAnUpgradeOfItsBinary(t *testing.T) {
 	if err := u.Exec(watch.Shown{Prefs: theme.Prefs{Tab: "runway"}, Pool: "b2n8"}); err == nil {
 		t.Error("Exec() error = nil, want the exec's")
 	}
-	if want := []string{exe, "dashboard", "--probe", "15m0s"}; execed.path != exe || !slices.Equal(execed.argv, want) {
+	if want := []string{exe, "dashboard", "--probe", "900s"}; execed.path != exe || !slices.Equal(execed.argv, want) {
 		t.Errorf("replaced the process with %s as %q, want the binary, as %q", execed.path, execed.argv, want)
 	}
 	carried := valueIn(execed.env, shownVariable)

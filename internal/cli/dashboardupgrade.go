@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/filestate"
@@ -127,7 +129,8 @@ func (a *app) dashboardUpgrade(opts dashboardOptions) watch.Upgrade {
 // run as the binary at exe: the dashboard command, with the config file
 // named, where --config named one, and o's flags and interval, the interval
 // only where it's given and isn't the default, so a release's default is
-// taken up; but never --pool, as the pool shown is carried in shownVariable.
+// taken up, in whole seconds, which parseInterval reads back; but never
+// --pool, as the pool shown is carried in shownVariable.
 func (o dashboardOptions) commandLine(exe, config string) []string {
 	argv := []string{exe, dashboardName}
 	if config != "" {
@@ -142,7 +145,7 @@ func (o dashboardOptions) commandLine(exe, config string) []string {
 		}
 	}
 	if o.interval != 0 && o.interval != defaultInterval {
-		argv = append(argv, o.interval.String())
+		argv = append(argv, strconv.FormatInt(int64(o.interval/time.Second), 10)+"s")
 	}
 	return argv
 }
