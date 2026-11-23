@@ -1,9 +1,9 @@
 # Upgrades and restarts: new versions without a refused request
 
 When `brew upgrade` brings a new version, or you change the config, the router restarts by itself.
-It waits for a moment with no request in flight, then replaces itself in place, so no request is
-refused. An upgrade restarts a dashboard you left open too, keeping its tab. A few upgrades also
-move your record, once, by themselves.
+It waits for a moment with nothing in flight, then replaces itself in place, so no request is
+refused. An upgrade also restarts any dashboard you left open, on the tab it showed. A few
+upgrades also move your record, once, by themselves.
 
 ## Try it
 

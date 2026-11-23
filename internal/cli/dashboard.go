@@ -101,8 +101,8 @@ current itself, reading every account nothing has read in the last 5
 minutes; R has it read them at once. Should the router stop answering, its
 last document stays on screen until it answers again, or the next full read,
 or R, probes the accounts instead. Left open across an upgrade, it restarts
-itself onto the new version once the router no longer runs the dashboard's,
-keeping its tab and the pool shown.
+itself onto the new version once the router has moved over, or at once with
+no router running, keeping what it showed.
 
 The interval is how often it probes every account when it probes for itself,
 without the router or with --probe: 30m unless given, and 5m at the least.
@@ -171,8 +171,11 @@ func parseInterval(s string) (time.Duration, error) {
 // names, else the one the verbs act on, as shownPools has it, P turning to
 // the next; refusing a pool the config doesn't configure. It restarts itself
 // onto an upgrade of this binary, as found before anything else, as
-// dashboardUpgrade has it.
+// dashboardUpgrade has it; restarted so, it opens on what the dashboard
+// before showed, as takeShown takes it, in place of the preferences, and on
+// the pool it showed, where the config still has it.
 func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOptions) error {
+	before, restarted := a.takeShown()
 	upgrade := a.dashboardUpgrade()
 	if dir, err := config.StateDir(a.Getenv, a.HomeDir); err == nil {
 		if err := a.awaitMove(ctx, out, dir); err != nil {
@@ -190,6 +193,9 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	}
 	t := a.themes()
 	kept := t.kept()
+	if restarted {
+		kept = before.Prefs
+	}
 	// Without a home directory, a session's directory shows whole.
 	home, _ := a.HomeDir()
 	graphs, keepGraphs := dashboard.GraphsKept(kept)
@@ -221,10 +227,11 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		NerdFont:      cfg.Dashboard.NerdFont,
 		Projects:      a.projects(),
 		Scrolling:     swipe.Read(ctx, a.Scrolling),
+		Opened:        kept,
 		Upgrade:       upgrade,
 	}
 	pools := a.dashboardPools(ctx, &wc, cfg, opts.probe, stamp)
-	shown, err := pools.opened(ctx, cfg, opts.pool)
+	shown, err := pools.opened(ctx, cfg, opts.pool, before.Pool)
 	if err != nil {
 		return err
 	}

@@ -209,6 +209,10 @@ type Config struct {
 	KeepGraphs bool
 	Log        dashboard.LogTicks
 	Prefs      Prefs
+	// Opened are the preferences View, Sections and the rest were read from,
+	// which the watch changes as it keeps each change, so a restart onto an
+	// upgrade carries what it shows, as Shown has it.
+	Opened theme.Prefs
 	// Period is the period the entity tabs open counting over: now, of the
 	// length the preferences keep, as dashboard.LengthKept reads it, which
 	// Prefs keeps as it changes; or the one shown where the pool turns, past
@@ -585,7 +589,7 @@ func New(ctx context.Context, cfg Config) Model {
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
 		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
-		keeping:     keeping{gate: new(prefsGate)},
+		keeping:     keeping{gate: new(prefsGate), shown: cfg.Opened},
 	}
 	m.accounts.shown.Accounts = cfg.Accounts
 	if m.after == nil {
@@ -647,6 +651,8 @@ func (m Model) started() tea.Cmd {
 // screen and its frames see the layout the page will draw and the numbers
 // it brightens, shows the page, drawing frames while anything on it moves.
 // The view is drawn again after each, which is all a note's lapsing asks.
+// Last, it notes how it stands for a restart onto an upgrade decided on, as
+// noteRestart has it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.taking = taking{at: now, moment: m.doc.HoldAt(now, m.cfg.Policy)}
@@ -679,6 +685,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
+	tuned.noteRestart()
 	return tuned, tea.Batch(cmd, closed, stream, past, projected, hours, told, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
 }
 

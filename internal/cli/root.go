@@ -317,6 +317,9 @@ type app struct {
 	// notedFirst has it.
 	noted     func() string
 	notedOnce sync.Once
+	// logging is how this invocation's log was started, as startLog started
+	// it, for resumeLog to start it again.
+	logging logs.Options
 }
 
 // startLog starts this invocation's log, in the role the command plays: the
@@ -332,7 +335,7 @@ func (a *app) startLog(cmd *cobra.Command) {
 	if a.checking {
 		role = logs.RoleCLI
 	}
-	logs.Init(logs.Options{
+	a.logging = logs.Options{
 		Dir:     dir,
 		Role:    role,
 		Level:   a.logLevel,
@@ -340,7 +343,14 @@ func (a *app) startLog(cmd *cobra.Command) {
 		Mirror:  mirror(cmd, role),
 		Version: a.Version,
 		Command: cmd.CommandPath(),
-	})
+	}
+	logs.Init(a.logging)
+}
+
+// resumeLog starts this invocation's log again, as startLog started it,
+// once it was closed for an exec that failed.
+func (a *app) resumeLog() {
+	logs.Init(a.logging)
 }
 
 // mirror is where the router's records go as well as its log: the terminal it

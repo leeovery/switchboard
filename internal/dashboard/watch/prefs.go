@@ -37,11 +37,14 @@ type prefsChange struct {
 // latest of each stands, as no write lands after a later one. unkept are the
 // changes no write has yet been seen to keep, the first writing of them
 // those of the write under way; and gate is what the writes share with the
-// last, as the watch stops, as keepLeft has it.
+// last, as the watch stops, as keepLeft has it. shown are the preferences
+// the watch opened with, every change made since made in them, kept or not:
+// what this watch shows, whatever another dashboard keeps meanwhile.
 type keeping struct {
 	unkept  []prefsChange
 	writing int
 	gate    *prefsGate
+	shown   theme.Prefs
 }
 
 // prefsGate lets one write of the preferences through at a time, and none
@@ -71,8 +74,9 @@ func (m Model) keepPrefs(what string, change func(*theme.Prefs), attrs ...any) M
 }
 
 // toKeep has c kept, after the changes before it, as keptPrefs has a write
-// taken up.
+// taken up, making it in the preferences shown at once.
 func (m Model) toKeep(c prefsChange) Model {
+	c.change(&m.keeping.shown)
 	if m.cfg.Prefs == nil {
 		return m
 	}

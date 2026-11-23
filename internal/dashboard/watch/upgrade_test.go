@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // The version the tests' dashboards run, an upgrade's, and one older than
@@ -32,8 +34,9 @@ const (
 // other seams faked: the router answers Health with health; the binary
 // answers its version with answer, or fails with refusal, once hold, where
 // it's set, closes, each ask counted, with how long it was given; and the
-// process is replaced in vain, each restart noting the pool it shows, and
-// calling atExec, where it's set, then failing with execErr.
+// process is replaced in vain, each restart noting what it carries, and
+// calling atExec, where it's set, then failing with execErr. Holding has a
+// harness hold each restart, for held to run.
 type upgradeRig struct {
 	mu      sync.Mutex
 	path    string
@@ -44,9 +47,11 @@ type upgradeRig struct {
 	hold    chan struct{}
 	asks    int
 	given   time.Duration
-	execs   []string
+	execs   []Shown
 	atExec  func()
 	execErr error
+	holding bool
+	held    []func() tea.Msg
 }
 
 // newUpgradeRig is a rig of a binary as the dashboard was started as,
@@ -94,6 +99,15 @@ func (r *upgradeRig) routerOn(h *harness, version string) {
 	h.source.health = r.health
 }
 
+// routerGone has the router answer neither a read nor Health, as one under
+// load whose health check times out.
+func (r *upgradeRig) routerGone(h *harness) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.health = router.Health{}
+	h.stopRouter()
+}
+
 // config is the Upgrade the rig fakes, of a dashboard of ownVersion.
 func (r *upgradeRig) config() Upgrade {
 	return Upgrade{
@@ -117,9 +131,9 @@ func (r *upgradeRig) config() Upgrade {
 			}
 			return r.answer, r.refusal
 		},
-		Exec: func(pool string) error {
+		Exec: func(shown Shown) error {
 			r.mu.Lock()
-			r.execs = append(r.execs, pool)
+			r.execs = append(r.execs, shown)
 			atExec := r.atExec
 			r.mu.Unlock()
 			if atExec != nil {
@@ -139,12 +153,18 @@ func (r *upgradeRig) counts() (asks, execs int) {
 }
 
 // upgradedBy has h's model restart onto an upgrade as rig fakes it, the
-// terminal handed over in place.
+// terminal handed over in place, at once, or where rig is holding, once the
+// test runs the restart held.
 func (h *harness) upgradedBy(rig *upgradeRig) {
 	h.model.cfg.Upgrade = rig.config()
 	h.model.cfg.handOver = func(c tea.ExecCommand, fn tea.ExecCallback) tea.Cmd {
 		c.SetStdout(io.Discard)
-		return func() tea.Msg { return fn(c.Run()) }
+		restart := func() tea.Msg { return fn(c.Run()) }
+		if !rig.holding {
+			return restart
+		}
+		rig.held = append(rig.held, restart)
+		return nil
 	}
 }
 
@@ -157,8 +177,9 @@ func (h *harness) reread() {
 
 // A dashboard restarts onto an upgrade of its binary once a read finds the
 // binary changed, and the router running another version than its own, or
-// none answering, and the binary says its version, another than its own.
-func TestADashboardRestartsOntoAnUpgradeOnceTheRouterRunsAnotherVersion(t *testing.T) {
+// none answering two reads in a row, and the binary says its version,
+// another than its own.
+func TestADashboardRestartsOntoAnUpgradeOnceTheRouterHasMovedOver(t *testing.T) {
 	tests := []struct {
 		name     string
 		upgraded bool
@@ -180,6 +201,7 @@ func TestADashboardRestartsOntoAnUpgradeOnceTheRouterRunsAnotherVersion(t *testi
 		{name: "upgraded, no router answering", upgraded: true, answer: newVersion, wantAsks: 1, wantExecs: 1},
 		{name: "upgraded, probing, the router running the upgrade", upgraded: true, router: newVersion, probing: true, answer: newVersion, wantAsks: 1, wantExecs: 1},
 		{name: "upgraded, probing, the router still running the dashboard's version", upgraded: true, router: ownVersion, probing: true, answer: newVersion},
+		{name: "upgraded, probing, no router answering", upgraded: true, probing: true, answer: newVersion, wantAsks: 1, wantExecs: 1},
 		{name: "upgraded, the binary failing to say its version", upgraded: true, refusal: errors.New("exit status 1"), wantAsks: 1},
 		{name: "upgraded, the binary not answering in time", upgraded: true, refusal: context.DeadlineExceeded, wantAsks: 1},
 		{name: "upgraded, the binary saying the dashboard's own version, as a dev build does", upgraded: true, answer: ownVersion, wantAsks: 1},
@@ -189,6 +211,7 @@ func TestADashboardRestartsOntoAnUpgradeOnceTheRouterRunsAnotherVersion(t *testi
 			rig := newUpgradeRig(t)
 			rig.answer, rig.refusal = tt.answer, tt.refusal
 			h := newHarness(t, calm())
+			h.source.probing = tt.probing
 			if tt.router != "" {
 				h = routedHarness(t, routerDocument(three()...))
 				h.source.probing = tt.probing
@@ -200,10 +223,55 @@ func TestADashboardRestartsOntoAnUpgradeOnceTheRouterRunsAnotherVersion(t *testi
 			}
 
 			h.start()
+			h.reread()
 			if asks, execs := rig.counts(); asks != tt.wantAsks || execs != tt.wantExecs {
-				t.Errorf("the binary asked its version %d times, the process replaced %d; want %d and %d", asks, execs, tt.wantAsks, tt.wantExecs)
+				t.Errorf("after two reads, the binary asked its version %d times, the process replaced %d; want %d and %d", asks, execs, tt.wantAsks, tt.wantExecs)
 			}
 		})
+	}
+}
+
+// With no router answering, a dashboard moves over only at the second read
+// in a row that finds none: the first is no router gone.
+func TestWithNoRouterADashboardMovesOverAtTheSecondReadThatFindsNone(t *testing.T) {
+	rig := newUpgradeRig(t)
+	h := newHarness(t, calm())
+	h.upgradedBy(rig)
+	rig.upgrade(t)
+	h.start()
+	if asks, _ := rig.counts(); asks != 0 {
+		t.Fatalf("at the first read finding no router, the binary asked %d times, want none", asks)
+	}
+	h.reread()
+	if asks, execs := rig.counts(); asks != 1 || execs != 1 {
+		t.Errorf("at the second, asked %d times, replaced %d; want once each", asks, execs)
+	}
+}
+
+// A router last seen running the dashboard's own version that stops
+// answering, as one under load whose health check times out, or one handing
+// over, is waited on, however many reads it misses, till a read finds it
+// answering.
+func TestARouterLastSeenOnTheDashboardsVersionIsWaitedOnThroughReadsItMisses(t *testing.T) {
+	rig := newUpgradeRig(t)
+	h := routedHarness(t, routerDocument(three()...))
+	rig.routerOn(h, ownVersion)
+	h.upgradedBy(rig)
+	h.start()
+
+	rig.upgrade(t)
+	rig.routerGone(h)
+	for range 3 {
+		h.reread()
+	}
+	if asks, _ := rig.counts(); asks != 0 {
+		t.Fatalf("with the router last seen on the dashboard's version missing three reads, the binary asked %d times, want none", asks)
+	}
+	h.startRouter(routerDocument(three()...))
+	rig.routerOn(h, newVersion)
+	h.reread()
+	if asks, execs := rig.counts(); asks != 1 || execs != 1 {
+		t.Errorf("once a read finds the router on the upgrade, asked %d times, replaced %d; want once each", asks, execs)
 	}
 }
 
@@ -230,7 +298,8 @@ func TestADashboardThatStaysAsksAgainOnlyOnceTheBinaryChangesAgain(t *testing.T)
 			log := logstest.Capture(t)
 			rig := newUpgradeRig(t)
 			rig.answer, rig.refusal = tt.answer, tt.refusal
-			h := newHarness(t, calm())
+			h := routedHarness(t, routerDocument(three()...))
+			rig.routerOn(h, newVersion)
 			h.upgradedBy(rig)
 			rig.upgrade(t)
 			h.start()
@@ -256,7 +325,8 @@ func TestADashboardThatStaysAsksAgainOnlyOnceTheBinaryChangesAgain(t *testing.T)
 // on, isn't an upgrade: the dashboard waits for a read that finds it there.
 func TestABinaryGoneForAMomentIsNoUpgrade(t *testing.T) {
 	rig := newUpgradeRig(t)
-	h := newHarness(t, calm())
+	h := routedHarness(t, routerDocument(three()...))
+	rig.routerOn(h, newVersion)
 	h.upgradedBy(rig)
 	rig.vanish(t)
 	h.start()
@@ -285,7 +355,7 @@ func TestADashboardWaitsForTheRouterToHandOver(t *testing.T) {
 	h.start()
 	h.reread()
 
-	const waits = `msg="the binary was upgraded; restarting onto it once the router runs another version"`
+	const waits = `msg="the binary was upgraded; restarting onto it once the router has moved over, or none runs"`
 	if asks, _ := rig.counts(); asks != 0 || strings.Count(log.String(), waits) != 1 {
 		t.Fatalf("with the router on the dashboard's version, the binary asked %d times, and the log reads\n%s\nwant none, and the wait noted once", asks, log)
 	}
@@ -302,7 +372,8 @@ func TestADashboardWaitsForTheRouterToHandOver(t *testing.T) {
 // The binary is given 10 seconds to say its version.
 func TestTheBinaryIsGivenTenSecondsToAnswer(t *testing.T) {
 	rig := newUpgradeRig(t)
-	h := newHarness(t, calm())
+	h := routedHarness(t, routerDocument(three()...))
+	rig.routerOn(h, newVersion)
 	h.upgradedBy(rig)
 	rig.upgrade(t)
 	h.start()
@@ -316,7 +387,8 @@ func TestTheBinaryIsGivenTenSecondsToAnswer(t *testing.T) {
 // under way asks nothing more.
 func TestTheBinaryIsAskedOneAskAtATime(t *testing.T) {
 	rig := newUpgradeRig(t)
-	h := newHarness(t, calm())
+	h := routedHarness(t, routerDocument(three()...))
+	rig.routerOn(h, newVersion)
 	h.upgradedBy(rig)
 	rig.upgrade(t)
 	held := holdingBack[upgradeAskedMsg](h, h.init()...)
@@ -331,10 +403,41 @@ func TestTheBinaryIsAskedOneAskAtATime(t *testing.T) {
 	}
 }
 
-// A restart shows the pool shown, one P turned to among them, and keeps
-// what's shown, the changes not yet kept and those of a write under way
-// among them, before the process is replaced.
-func TestARestartShowsThePoolShownAndKeepsWhatsShownFirst(t *testing.T) {
+// No restart begins while the pool shown is being read, as P turns: a read
+// asks nothing, and an answer landing meanwhile restarts nothing, the
+// dashboard asking again once the turn is done.
+func TestNoRestartBeginsWhileThePoolShownIsRead(t *testing.T) {
+	rig := newUpgradeRig(t)
+	h, acme, _ := pooledHarness(t, acmeAccounts)
+	rig.routerOn(h, newVersion)
+	acme.health = rig.health
+	h.upgradedBy(rig)
+	h.start()
+
+	turn := h.press("P")
+	rig.upgrade(t)
+	h.reread()
+	if asks, _ := rig.counts(); asks != 0 || !h.model.turning {
+		t.Fatalf("with a turn under way, %v, a read asked the binary %d times, want none", h.model.turning, asks)
+	}
+
+	answer := holdingBack[upgradeAskedMsg](h, turn...)
+	turn = h.press("P")
+	h.deliver(answer...)
+	if asks, execs := rig.counts(); asks != 1 || execs != 0 {
+		t.Fatalf("the binary asked %d times, its answer landing during a turn replacing the process %d times; want once, and none", asks, execs)
+	}
+	h.deliver(turn...)
+	if asks, execs := rig.counts(); asks != 2 || execs != 1 {
+		t.Errorf("once the turn was done, asked %d times in all, replaced %d; want twice, and once", asks, execs)
+	}
+}
+
+// A restart carries what this dashboard shows, the pool P turned to among
+// it, whatever another dashboard has kept in the preferences meanwhile, and
+// keeps the changes it hadn't, a write under way's among them, before the
+// process is replaced.
+func TestARestartCarriesWhatTheDashboardShowsAndKeepsWhatItHadnt(t *testing.T) {
 	rig := newUpgradeRig(t)
 	h, acme, _ := pooledHarness(t, acmeAccounts)
 	prefs := newCountedPrefs(t)
@@ -342,24 +445,75 @@ func TestARestartShowsThePoolShownAndKeepsWhatsShownFirst(t *testing.T) {
 	h.upgradedBy(rig)
 	h.start()
 	h.deliver(h.press("P")...)
-	if h.model.cfg.Pool.ID != acmeShown.ID {
-		t.Fatalf("P showed %q, want Acme's pool", h.model.cfg.Pool.ID)
-	}
 	next, _ := h.model.Update(tabKey)
 	h.model = next.(Model)
 	next, _ = h.model.Update(tabKey)
 	h.model = next.(Model)
+	if err := prefs.file.Update(func(p *theme.Prefs) { p.Tab, p.By = string(dashboard.Log), "account" }); err != nil {
+		t.Fatal(err)
+	}
 	var kept string
 	rig.atExec = func() { kept = prefs.file.Read().Tab }
 
 	rig.upgrade(t)
 	acme.health = router.Health{PID: 4242, Version: newVersion}
 	h.reread()
-	if len(rig.execs) != 1 || rig.execs[0] != acmeShown.ID {
-		t.Fatalf("the process replaced showing the pools %q, want once, Acme's", rig.execs)
+	if len(rig.execs) != 1 {
+		t.Fatalf("the process replaced %d times, want once", len(rig.execs))
+	}
+	if want := (Shown{Prefs: theme.Prefs{Tab: string(dashboard.Projects)}, Pool: acmeShown.ID}); !reflect.DeepEqual(rig.execs[0], want) {
+		t.Errorf("the restart carried %+v, want %+v: what this dashboard shows, Acme's pool, never what another kept", rig.execs[0], want)
 	}
 	if kept != string(dashboard.Projects) {
-		t.Errorf("as the process was replaced, the tab kept was %q, want projects, the one shown", kept)
+		t.Errorf("as the process was replaced, the preferences kept the tab %q, want projects, this dashboard's last change", kept)
+	}
+}
+
+// What a restart carries is the preferences the watch opened with, each
+// change it made since made in them, drawn in the theme chosen.
+func TestARestartCarriesThePreferencesOpenedWithAsChangedSince(t *testing.T) {
+	h, _ := settledThemedHarness(t, theme.Choice{})
+	opened := theme.Prefs{By: "account", Log: theme.LogPrefs{Columns: []string{"model"}}}
+	h.model.keeping.shown = opened
+	h.model.cfg.Prefs = newCountedPrefs(t)
+	h.typed("t", "down", "enter", "esc")
+	h.deliver(h.update(tabKey)...)
+
+	want := opened
+	want.Tab, want.Choice = string(dashboard.Accounts), theme.One("nord-wave")
+	if got := h.model.shownNow().Prefs; !reflect.DeepEqual(got, want) {
+		t.Errorf("shown %+v, want %+v", got, want)
+	}
+	cfg := h.config(Size{Width: 80, Height: 24})
+	cfg.Opened = opened
+	if got := New(t.Context(), cfg).shownNow().Prefs; !reflect.DeepEqual(got, opened) {
+		t.Errorf("a watch opened on %+v shows %+v, want them", opened, got)
+	}
+}
+
+// A restart takes what the watch shows as it runs, not as it was decided
+// on: a key taken in between is carried, and kept.
+func TestARestartTakesWhatTheWatchShowsAsItRuns(t *testing.T) {
+	rig := newUpgradeRig(t)
+	rig.holding = true
+	h := routedHarness(t, routerDocument(three()...))
+	prefs := newCountedPrefs(t)
+	h.model.cfg.Prefs = prefs
+	rig.routerOn(h, newVersion)
+	h.upgradedBy(rig)
+	rig.upgrade(t)
+	h.start()
+	if len(rig.held) != 1 {
+		t.Fatalf("%d restarts decided on, want one", len(rig.held))
+	}
+
+	next, _ := h.model.Update(tabKey)
+	h.model = next.(Model)
+	var kept string
+	rig.atExec = func() { kept = prefs.file.Read().Tab }
+	h.deliver(rig.held[0]())
+	if len(rig.execs) != 1 || rig.execs[0].Prefs.Tab != string(dashboard.Accounts) || kept != string(dashboard.Accounts) {
+		t.Errorf("the restart carried %+v, the preferences keeping the tab %q; want accounts, the key's, carried and kept", rig.execs, kept)
 	}
 }
 
@@ -395,6 +549,7 @@ func TestARestartGivesTheTerminalBackAsAQuitWouldAndTakesItBackInVain(t *testing
 	t.Setenv("TEA_DEBUG", "")
 	rig := newUpgradeRig(t)
 	rig.upgrade(t)
+	rig.health = router.Health{PID: 4242, Version: newVersion}
 	cfg := themedConfig()
 	cfg.Upgrade = rig.config()
 	var out lockedBuffer

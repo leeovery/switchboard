@@ -630,3 +630,21 @@ func TestAPreferencesFileLinkedElsewhereIsWrittenWhereItLeads(t *testing.T) {
 		t.Errorf("the file the link leads to holds %s, want the new choice", data)
 	}
 }
+
+// Preferences written in the file's shape elsewhere, as a dashboard carries
+// what it shows to the one it restarts into, read as the file's do: a key
+// they don't know passed over, a retired section dropped, History's split
+// read where Accounts keeps none, and one they don't hold as a file without
+// it reads.
+func TestPrefsWrittenInTheFilesShapeReadAsTheFilesDo(t *testing.T) {
+	got, err := theme.PrefsOf([]byte(`{"tab": "runway", "sections": ["usage", "graphs"], "history": {"tokens": {"split": "model"}}, "a-later-key": 7}`))
+	want := theme.Prefs{Tab: "runway", Sections: []string{"usage"}, Accounts: theme.AccountsPrefs{Split: "model"}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("PrefsOf() = %+v, %v; want %+v", got, err, want)
+	}
+	for _, data := range []string{"", "tab", `{"tab": 7}`} {
+		if got, err := theme.PrefsOf([]byte(data)); err == nil {
+			t.Errorf("PrefsOf(%q) = %+v, want an error", data, got)
+		}
+	}
+}

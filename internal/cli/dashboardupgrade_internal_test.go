@@ -5,27 +5,25 @@ import (
 	"testing"
 )
 
-// A dashboard restarted shows the pool shown, whatever pool its command line
-// named, and the rest of the command line as it was.
-func TestARestartedDashboardsCommandLineShowsThePoolShown(t *testing.T) {
+// A dashboard restarts by its command line as it was, but for the --pool it
+// named, the pool shown being carried in its place.
+func TestARestartedDashboardsCommandLineNamesNoPool(t *testing.T) {
 	tests := []struct {
 		name string
 		argv []string
-		pool string
 		want []string
 	}{
-		{name: "naming none", argv: []string{"switchboard", "dashboard", "15m"}, pool: "q7mt", want: []string{"switchboard", "dashboard", "15m", "--pool=q7mt"}},
-		{name: "naming another", argv: []string{"switchboard", "dashboard", "--pool", "b2n8", "--probe"}, pool: "q7mt", want: []string{"switchboard", "dashboard", "--probe", "--pool=q7mt"}},
-		{name: "naming another, as one argument", argv: []string{"switchboard", "--pool=b2n8", "dashboard"}, pool: "q7mt", want: []string{"switchboard", "dashboard", "--pool=q7mt"}},
-		{name: "naming it", argv: []string{"switchboard", "dashboard", "--pool", "q7mt"}, pool: "q7mt", want: []string{"switchboard", "dashboard", "--pool=q7mt"}},
-		{name: "showing no pool", argv: []string{"switchboard", "dashboard", "--pool", "b2n8", "--no-notify"}, want: []string{"switchboard", "dashboard", "--no-notify"}},
-		{name: "its flags ended", argv: []string{"switchboard", "dashboard", "--", "15m"}, pool: "q7mt", want: []string{"switchboard", "dashboard", "--pool=q7mt", "--", "15m"}},
+		{name: "naming none", argv: []string{"switchboard", "dashboard", "15m"}, want: []string{"switchboard", "dashboard", "15m"}},
+		{name: "naming one", argv: []string{"switchboard", "dashboard", "--pool", "b2n8", "--probe"}, want: []string{"switchboard", "dashboard", "--probe"}},
+		{name: "naming one, as one argument", argv: []string{"switchboard", "--pool=b2n8", "dashboard"}, want: []string{"switchboard", "dashboard"}},
+		{name: "naming one last, without its id", argv: []string{"switchboard", "dashboard", "--pool"}, want: []string{"switchboard", "dashboard"}},
+		{name: "its flags ended", argv: []string{"switchboard", "dashboard", "--", "--pool", "15m"}, want: []string{"switchboard", "dashboard", "--", "--pool", "15m"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			argv := slices.Clone(tt.argv)
-			if got := showingPool(argv, tt.pool); !slices.Equal(got, tt.want) {
-				t.Errorf("showingPool(%q, %q) = %q, want %q", tt.argv, tt.pool, got, tt.want)
+			if got := withoutPool(argv); !slices.Equal(got, tt.want) {
+				t.Errorf("withoutPool(%q) = %q, want %q", tt.argv, got, tt.want)
 			}
 			if !slices.Equal(argv, tt.argv) {
 				t.Errorf("the command line given became %q, want it left as it was", argv)
