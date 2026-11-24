@@ -65,7 +65,8 @@ The text runs in this order:
 1. Each window of each account: its use, its reset, and where it's heading.
 2. What keeps an account back, such as a limit or its reserve.
 3. Whether an account is under pressure, and the rate that judges it.
-4. The room left in the week of the pool, under `Σ pool`, if the pool has two or more accounts.
+4. The room left in the week of the pool, under `Σ pool`, if the pool has two or more accounts,
+   with ` · pinned` after it while a pin holds.
 5. The sessions routed in the last hour, a line each, with the account each model goes to.
 6. The priming schedule.
 7. The best account to use next.

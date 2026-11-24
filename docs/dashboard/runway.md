@@ -105,7 +105,7 @@ With more than one account, a lane for the pool sits under the others, labelled
 
 After the room comes the margin of the pool. Here your use could run 15% busier, and the pool
 would still last the week. The pool runs out when no account has room for new work. A reserve
-counts as no room, because the router never spends it.
+counts as no room, because the router doesn't spend it unless a pin does.
 
 | Words | Means |
 |---|---|
@@ -115,7 +115,7 @@ counts as no room, because the router never spends it.
 | `runs out ~Sat · lasts at 20% less` | The pool runs out on Saturday at your pace. With 20% less use, it would last. |
 | `runs out ~Sat` | The pool runs out on Saturday, even with 50% less use. |
 
-The router plays the forecast for the week again, with your pace scaled up or down in steps of
+Switchboard plays the forecast for the week again, with your pace scaled up or down in steps of
 5%. The busiest pace that lasts, or the least cut that lasts, is the margin. The router fills each
 week before it resets, so every account forecasts near full at the reset. So `room all week` on an
 account can't tell a near miss from days to spare, and the margin can.
@@ -127,7 +127,9 @@ go either way.
 
 - If the full words don't fit, or the labels are collapsed, the margin is short: `15% to spare` or
   `out ~Sat`. If even that doesn't fit, it's left out.
-- The margin shows only on the live week, never on a week you step back to.
+- The margin shows only while now is on screen. A week gone shows no margin.
+- Under a pin, the room counts the pinned accounts, and the margin counts every account. Once the
+  pinned accounts are out, new work goes to the others.
 - There's no margin with one account, or without the router.
 - Nor is there one while no account in the pool has room.
 - `switchboard status` prints the same words under `Σ pool`. See
