@@ -639,15 +639,22 @@ func TestForecastGivesTheSameEachTimeAndLeavesThePoolAsItWas(t *testing.T) {
 func BenchmarkForecast(b *testing.B) {
 	for _, n := range []int{4, 10} {
 		b.Run(fmt.Sprintf("%d accounts", n), func(b *testing.B) {
-			p := Pool{Now: now, Policy: policy, Day: 0.013 * ultra * float64(n) / 4}
-			for i := range n {
-				used, resetsIn := float64(i%5)/5, time.Duration(i+1)*15*time.Hour
-				p.Accounts = append(p.Accounts, account(fmt.Sprint(i+1), week(used, resetsIn), sized(ultra), fast(0.02)))
-			}
+			p := benchPool(n)
 			b.ReportAllocs()
 			for b.Loop() {
 				Forecast(p)
 			}
 		})
 	}
+}
+
+// benchPool is a pool of n Ultra accounts, their weeks resetting 15 hours
+// apart, lasting the week MarginReach busier: the most paces a margin plays.
+func benchPool(n int) Pool {
+	p := Pool{Now: now, Policy: policy, Day: 0.013 * ultra * float64(n) / 4}
+	for i := range n {
+		used, resetsIn := float64(i%5)/5, time.Duration(i+1)*15*time.Hour
+		p.Accounts = append(p.Accounts, account(fmt.Sprint(i+1), week(used, resetsIn), sized(ultra), fast(0.02)))
+	}
+	return p
 }

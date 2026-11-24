@@ -1,6 +1,7 @@
 package status
 
 import (
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/forecast"
@@ -9,27 +10,59 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// playWeeks plays a pool's use forward, as forecast.Forecast does: a seam, so
-// a test can count how often a document's weeks are played.
-var playWeeks = forecast.Forecast
+// playWeeks plays a pool's use forward, as forecast.Forecast does, and
+// marginOf plays it for its margin, as forecast.MarginOf does: seams, so a
+// test can count how often a document's weeks and margin are played.
+var (
+	playWeeks = forecast.Forecast
+	marginOf  = forecast.MarginOf
+)
 
 // weeksAhead is where each account's shared week is heading, by the
 // account's id, as a document's forecast has it, played as policy judges the
-// pool.
+// pool; and how near the pool is to running out, as poolMargin plays it.
 type weeksAhead struct {
 	policy score.Policy
 	outs   map[string]forecast.Out
+	margin *marginAhead
+}
+
+// marginAhead is how near a document's pool is to running out, played the
+// first time it's asked for, as it costs a dozen plays. It holds no pool and
+// no func, which a pool's hold curve is, so a document worked out stays
+// equal to itself worked out again: the pool is built afresh from the
+// document that asks, whose forecastPool is the one its weeks were played
+// from, as nothing it reads changes after forecasted.
+type marginAhead struct {
+	once   sync.Once
+	margin forecast.Margin
 }
 
 // forecasted is the document with its weeks played afresh, as policy judges
 // the pool, as forecastPool has it, for every window and moment of it to
-// read: none where it has nothing to play.
+// read, and its margin to be: none where it has nothing to play.
 func (d Document) forecasted(policy score.Policy) Document {
 	d.weeks = nil
 	if pool, ok := d.forecastPool(policy); ok {
-		d.weeks = &weeksAhead{policy: policy, outs: playWeeks(pool)}
+		d.weeks = &weeksAhead{policy: policy, outs: playWeeks(pool), margin: &marginAhead{}}
 	}
 	return d
+}
+
+// poolMargin is how near the pool is to running out within the week ahead,
+// as forecast.MarginOf plays the pool the document's weeks were played from,
+// played once for every moment of it: none where its weeks aren't played.
+func (d Document) poolMargin() forecast.Margin {
+	if d.weeks == nil {
+		return forecast.Margin{}
+	}
+	ahead := d.weeks.margin
+	ahead.once.Do(func() {
+		if pool, ok := d.forecastPool(d.weeks.policy); ok {
+			ahead.margin = marginOf(pool)
+		}
+	})
+	return ahead.margin
 }
 
 // withWeeks is the document with its weeks played, as forecasted has them,

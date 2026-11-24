@@ -1,6 +1,7 @@
 package forecast
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"time"
@@ -105,6 +106,12 @@ type play struct {
 	applies func(key string) bool
 	// at is when the step played last started, and next when the next does.
 	at, next time.Time
+	// emptied is when, in the step played last, the last account whose room
+	// ran out in it ran out: zero where none did.
+	emptied time.Time
+	// ranOut is when the pool first ran out, some of its use with no account
+	// that takes requests to go to: zero while it hasn't.
+	ranOut time.Time
 }
 
 // track is what the forecast keeps of an account as it plays.
@@ -163,7 +170,7 @@ func (p *play) playTo(until time.Time) {
 // rest where a new session would go.
 func (p *play) step(t time.Time) {
 	p.reset(t)
-	p.at = t
+	p.at, p.emptied = t, time.Time{}
 	for i := range p.tracks {
 		p.tracks[i].from, p.tracks[i].offered = p.weeks[i].Utilization, 0
 	}
@@ -212,11 +219,16 @@ func (p *play) holding(i int, t time.Time) bool {
 // place sends rest, the pool's use in the step that starts at t that no
 // account holds, where a new session would go, choosing again each time the
 // account chosen runs out, until it's all placed or no account has room.
+// Where use is left with no room for it, the pool runs out, as ranOut says:
+// where the last of its room ran out in the step, else as the step started.
 func (p *play) place(t time.Time, rest float64) {
 	for rest > 0 {
 		p.gather(t)
 		c, ok := p.Policy.Choose(p.candidates, p.Pinned, p.applies, "", t)
 		if !ok {
+			if rest >= score.Tolerance && p.ranOut.IsZero() {
+				p.ranOut = cmp.Or(p.emptied, t)
+			}
 			return
 		}
 		chosen := slices.IndexFunc(p.candidates, func(candidate score.Candidate) bool { return candidate.ID == c.ID })
@@ -260,6 +272,9 @@ func (p *play) fill(i int, amount float64, t time.Time) float64 {
 	}
 	w.Utilization += room
 	ran := t.Add(time.Duration(math.Round(min((a.Floor-tr.from)/tr.offered, 1) * float64(playStep))))
+	if ran.After(p.emptied) {
+		p.emptied = ran
+	}
 	if tr.open && ran.Before(w.ResetsAt) {
 		tr.out, tr.open = Out{RunsOut: ran, AtReset: a.Floor}, false
 	}

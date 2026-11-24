@@ -96,6 +96,27 @@ func CountForecasts(t *testing.T) func() int {
 	return func() int { return played }
 }
 
+// CountMargins has every document's margin played as it is, counted, until
+// the test ends: it returns the count so far.
+func CountMargins(t *testing.T) func() int {
+	t.Helper()
+	was, played := marginOf, 0
+	marginOf = func(p forecast.Pool) forecast.Margin {
+		played++
+		return was(p)
+	}
+	t.Cleanup(func() { marginOf = was })
+	return func() int { return played }
+}
+
+// MarginIs has every document's margin played as m, until the test ends.
+func MarginIs(t *testing.T, m forecast.Margin) {
+	t.Helper()
+	was := marginOf
+	marginOf = func(forecast.Pool) forecast.Margin { return m }
+	t.Cleanup(func() { marginOf = was })
+}
+
 // Holds is the limit's holds.
 func (l Limit) Holds(now time.Time) bool {
 	return l.holds(now)
