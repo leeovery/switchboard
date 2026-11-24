@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.5] - 2026-11-24
+
+See how near the pool is to running out, and how much busier use could get before it does.
+
+✨ Added
+- Pool margin on the Runway — after the pool's room it shows `lasts the week, 15% to spare`, or when it runs out and how much less use would last, with shorter forms on narrow screens.
+- Status text now has a "Σ pool" section — shows the pool's room in the week, `pinned` where a pin holds, and the same margin.
+
+🐛 Fixed
+- Run-out forecasts now count an account whose token refusal lifts later in the week — it no longer counts as unavailable for the whole week.
+
 ## [1.3.4] - 2026-11-24
 
 🔧 Changed
