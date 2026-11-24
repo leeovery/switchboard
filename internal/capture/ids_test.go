@@ -48,9 +48,9 @@ func unlikeLabel(id string) string {
 
 // wordsLikeIDs are the dashboard's own phrases that read as an id of the
 // worlds', each whole: Claude's extra usage, as Compare names it; History's
-// "plenty to spare"; Graphs' WHEN YOU WORK; and a card's key, ←→ moving side
-// to side.
-var wordsLikeIDs = regexp.MustCompile(`(?i)extra usage|plenty to spare|when you work|←→ side   ↑↓ move   space tick   enter apply   esc cancel`)
+// "plenty to spare"; the pool's margin, as "15% to spare"; Graphs' WHEN YOU
+// WORK; and a card's key, ←→ moving side to side.
+var wordsLikeIDs = regexp.MustCompile(`(?i)extra usage|plenty to spare|\d% to spare|when you work|←→ side   ↑↓ move   space tick   enter apply   esc cancel`)
 
 // idsShown are the ids of the world's accounts, and of those removed, that
 // the rows show as words, as id said: a word of its own, never a part of
