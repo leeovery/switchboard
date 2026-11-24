@@ -3437,8 +3437,9 @@ Once the config has pools, `status`, `usage`, `sessions`, `requests`, `history`,
 auto` take `--pool <id>`, as Reading a pool says.
 
 The plain text `requests`, `history`, `sessions` and `events` print on a terminal is a first cut,
-to be designed with their owner, as `status`'s text is (see Backlog); agents read their JSON, which
-each prints wherever its output isn't a terminal (see The data verbs).
+and stays one, as `status`'s text does: redesigning them to match the dashboard was weighed and
+dropped (the owner, 24 November 2026), as its owner reads the dashboard and agents read their JSON, which each
+prints wherever its output isn't a terminal (see The data verbs).
 
 A command exits 0, or 1 for any failure; 130 where an interrupt ends it as it asks for something,
 makes a token or installs the service; and `serve --check` 78 where the router couldn't start, a
@@ -3479,7 +3480,7 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   printed the id until account identity made ids switchboard's own, which mean nothing on a status
   line.
 - **The person's form:** `usage`'s printout (see `usage`, the printout); `status`'s text; and, in
-  plain text, first cuts to be designed with their owner (see Backlog): `requests` and `events`, a
+  plain text, first cuts, kept so (see the commands' plain text above): `requests` and `events`, a
   line each; `sessions`, a line each and one summing them; `history`, its days' tables and the
   totals over them; and `sessions <id>`, the session's page (settled in the plan).
 - **One function a view, and every view's data in a verb.** What a verb prints is built by the
@@ -13161,7 +13162,8 @@ router can count; the request stream ends after the requests a restart finishes;
 caught mid-save is looked at again before it's refused; a history file dated ahead is kept; and a
 router told to stop as it restarts leaves nothing to connect to.
 
-`status`'s text follows, designed with its owner first (see Backlog).
+`status`'s text was to follow, designed with its owner first; that was weighed and dropped (the
+owner, 24 November 2026).
 
 **6. The request ledger — done.** The redesigned dashboard's History and Accounts tabs, and a
 session's page, look back on requests nothing records yet, and every day the ledger isn't recording
@@ -13805,10 +13807,8 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-09-30--dashboard-layout.md`); this table is their index. An idea built or
-dropped leaves the table, and its file goes: what was built is in its pull request and the design
-proper, and where why one was dropped binds a later choice, the design proper says so.
+(`2026-11-24--an-idea.md`), and a table here is their index. An idea built or dropped leaves the
+table, and its file goes: what was built is in its pull request and the design proper, and where
+why one was dropped binds a later choice, the design proper says so.
 
-| Idea | Status | File |
-|---|---|---|
-| The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
+None is open: the owner cleared the backlog on 24 November 2026, each idea built or dropped.
