@@ -52,13 +52,13 @@ type Margin struct {
 // MarginOf is how near the pool is to running out within the week ahead, as
 // Forecast plays it: where it lasts at its pace, how much busier it could get
 // and last, played MarginStep busier at a time until it runs out, or lasts
-// MarginReach+MarginStep busier; where it runs out, when, and how much less of its use
-// would last, played MarginStep less at a time until it lasts, or runs out
-// MarginReach less. The pool runs out where some of its use has no account
-// that takes requests to go to, as Policy.Choose finds none with room. A
-// pace is every account's Fast and the pool's Day, scaled alike. It tells
-// nothing of a pool with fewer than two accounts, or none with room at its
-// Now.
+// MarginReach+MarginStep busier; where it runs out, when, and how much less
+// of its use would last, played MarginStep less at a time until it lasts, or
+// runs out MarginReach less. The pool runs out where some of its use has no
+// account that takes requests to go to, as Policy.Choose finds none with
+// room. A pace is every account's Fast and the pool's Day, scaled alike. It
+// tells nothing of a pool with fewer than two accounts, or none with room at
+// its Now.
 func MarginOf(p Pool) Margin {
 	if len(p.Accounts) < 2 || !newPlay(p).roomAt(p.Now) {
 		return Margin{}

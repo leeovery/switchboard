@@ -238,6 +238,46 @@ func TestAnAccountBarredAtNowHoldsNoneOfItsUseOnceBack(t *testing.T) {
 	checkRunsOut(t, "personal", out, now.Add(50*time.Hour), time.Second)
 }
 
+func TestARefusalLiftingInTheStepTheOthersRunOutInLeavesNoRunOutThere(t *testing.T) {
+	const fillsAt = 0.5 / (30 + 3.0/60)
+	// work's half week runs out 30 hours and 3 minutes on; personal, back at
+	// 30 hours and 5, takes the use from the next step, its half week
+	// running out as long after.
+	p := steadyPool(fillsAt, account("work", week(0.5, pastThePlay)), account("personal", week(0.5, pastThePlay), barredUntil(30*time.Hour+5*time.Minute)))
+
+	got := MarginOf(p)
+
+	if want := now.Add(30*time.Hour + 10*time.Minute + hours(0.5/fillsAt)); got.Kind != MarginRunsOut || got.RunsOut.Sub(want).Abs() > time.Second {
+		t.Errorf("MarginOf() = %+v, want running out at %v", got, want)
+	}
+}
+
+func TestARefusalLiftingOffAStepBoundaryTakesFromTheNextStep(t *testing.T) {
+	// work has no room, so personal, back 5 hours and 5 minutes on, takes
+	// the pool's use from 5 hours and 10, its half week running out 50
+	// hours after.
+	p := steadyPool(0.01, account("work", week(1, pastThePlay)), account("personal", week(0.5, pastThePlay), barredUntil(5*time.Hour+5*time.Minute)))
+
+	out := outOf(t, Forecast(p), "personal")
+
+	checkRunsOut(t, "personal", out, now.Add(55*time.Hour+10*time.Minute), time.Second)
+}
+
+func TestAPinNamingARefusedAccountFallsBackUntilTheRefusalLifts(t *testing.T) {
+	// work takes the pool's use till personal, the pin's, is back 20 hours
+	// on; personal then takes it all, its half week running out 50 hours
+	// later, and work the rest, its 30% left, 30 hours after that.
+	p := pinned(steadyPool(0.01, account("work", week(0.5, pastThePlay)), account("personal", week(0.5, pastThePlay), barredUntil(20*time.Hour))), "personal")
+
+	outs := Forecast(p)
+
+	checkRunsOut(t, "personal", outOf(t, outs, "personal"), now.Add(70*time.Hour), time.Second)
+	checkRunsOut(t, "work", outOf(t, outs, "work"), now.Add(100*time.Hour), time.Second)
+	if got, want := MarginOf(p), now.Add(100*time.Hour); got.Kind != MarginRunsOut || got.RunsOut.Sub(want).Abs() > time.Second {
+		t.Errorf("MarginOf() = %+v, want running out at %v", got, want)
+	}
+}
+
 func TestARefusalLiftingPastThePlayBarsTheAccountAllWeek(t *testing.T) {
 	personal := account("personal", week(0.5, pastThePlay))
 	lifting := steadyPool(0.01, account("work", week(0.5, pastThePlay), barredUntil(playSpan+time.Hour)), personal)

@@ -1959,10 +1959,13 @@ every account's fast rate and the pool's day's rate alike, in 5% steps:
   while one holds, then every other, as routing falls back once the pin's are out. A reserve counts
   as no room, as routing honours it, but a pinned account's, which the pin spends. An account
   barred by a token refused until a time takes new sessions again from then, though it holds none
-  of its use; every other bar holds it out of the whole play. It runs
-  out where the last of its room ran out within that step, else as the step starts. A step within which the
-  week of an account that takes requests resets is no run-out: the step judges room as it starts,
-  and the week back takes what's left within less than a step.
+  of its use; every other bar holds it out of the whole play. While the refusal holds, the
+  account's lane says it's refused and shows no run-out, though the margin counts it back, so for
+  the minutes a refusal lasts the pool's run-out can be a week no lane shows running out (accepted,
+  24 November 2026). It runs
+  out where the last of its room ran out within that step, else as the step starts. A step within
+  which an account comes back is no run-out, its week resetting or its token's refusal lifting: the
+  step judges room as it starts, and the account back takes what's left within less than a step.
 - **It says nothing** without the router's rates, as a probed document has none; with fewer than
   two accounts; with no account that has room as the document was built; or where the run-out it
   gives is past, as of a document left on screen while the router doesn't answer.

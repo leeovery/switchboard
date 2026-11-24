@@ -91,9 +91,9 @@ type Out struct {
 // takes requests, as it did at Now, its week runs and it has room, each hold
 // scaled down where they add up to more than the pool's use; the rest goes
 // where a new session would go, as Policy.Choose chooses among the accounts
-// that take requests then, each judged by its week alone, until no account has room. A week that
-// resets comes back empty, a week from resetting again, and holds nothing
-// more.
+// that take requests then, each judged by its week alone, until no account
+// has room. A week that resets comes back empty, a week from resetting
+// again, and holds nothing more.
 func Forecast(p Pool) map[string]Out {
 	run := newPlay(p)
 	run.playTo(p.Now.Add(playSpan))
@@ -235,15 +235,15 @@ func (p *play) holding(i int, t time.Time) bool {
 // account chosen runs out, until it's all placed or no account has room.
 // Where use is left with no room for it, the pool runs out, as ranOut says:
 // where the last of its room ran out in the step, else as the step started.
-// But not where the week of an account that takes requests resets within the
-// step: the step judges room as it starts, and the week back takes the use
-// left within less than a step.
+// But not where an account comes back within the step, as comesBackWithin
+// says: the step judges room as it starts, and the account back takes the
+// use left within less than a step.
 func (p *play) place(t time.Time, rest float64) {
 	for rest > 0 {
 		p.gather(t)
 		c, ok := p.Policy.Choose(p.candidates, p.Pinned, p.applies, "", t)
 		if !ok {
-			if rest >= score.Tolerance && p.ranOut.IsZero() && !p.resetsWithin(t) {
+			if rest >= score.Tolerance && p.ranOut.IsZero() && !p.comesBackWithin(t) {
 				p.ranOut = cmp.Or(p.emptied, t)
 			}
 			return
@@ -253,12 +253,15 @@ func (p *play) place(t time.Time, rest float64) {
 	}
 }
 
-// resetsWithin reports whether the week of an account that takes requests at
-// t resets within the step that starts at t: after t, and by its end.
-func (p *play) resetsWithin(t time.Time) bool {
+// comesBackWithin reports whether an account comes back within the step that
+// starts at t, after t and by its end: one that takes requests at t, its
+// week resetting then; or one that takes requests within the play, its
+// refusal lifting then, as TakesFrom says.
+func (p *play) comesBackWithin(t time.Time) bool {
 	end := t.Add(playStep)
+	within := func(at time.Time) bool { return at.After(t) && !at.After(end) }
 	for i, a := range p.Accounts {
-		if at := p.weeks[i].ResetsAt; a.takesAt(t) && at.After(t) && !at.After(end) {
+		if a.takesAt(t) && within(p.weeks[i].ResetsAt) || a.Takes && within(a.TakesFrom) {
 			return true
 		}
 	}
