@@ -2353,7 +2353,7 @@ formats below; the screens as signed off in Paper (see The screens, below).
     by the history step, and the router doesn't read them again.
 
   Keeping that state while the move is owed, then restarting once it's decided, would carry it
-  over: see [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md).
+  over; weighed and dropped (the owner, 24 November 2026).
 - **Import across the move:** an export carries the accounts record, each account the exporting
   Mac configures marked `configured` and labelled as its config labels it. `export.json` is
   version 2, so a switchboard from before, which reads version 1, refuses a folder whose days name
@@ -10160,7 +10160,10 @@ from the first day a router that has it runs, so nothing before then is in it.
     a day whose summary is of an older version is read, and summarised again from its lines and its
     readings while either is kept, once, from the first round under the new version on, eight
     days a round, as the round's stamp holds the summary's version (see below), knowing no less
-    than it, as any summary written again does, every field of it. So a day whose readings the
+    than it, as any summary written again does, every field of it. A round must never hold up the
+    readings history's writer, whose queue of 1,024 lines drops what comes past it, about seven
+    answers a second while it waits: a version summarising a long keep again sizes its rounds
+    by that. So a day whose readings the
     history has pruned is summarised again from its lines, and keeps what the summary before took
     from the readings; one whose lines are pruned, from its readings, and keeps its requests as the
     summary before gave them; and one whose lines and readings are both gone keeps the summary it
@@ -13380,8 +13383,8 @@ and 95 MB, as each session's points now take in every account's answers of the d
 some 28 s of work, from 19.7 s, paced as before; its first pass after a start, with 30 days kept,
 43 ms; and a pass that finds nothing new, 0.6 ms. On disk, about 16 KB a day of digests and 43 KB a day of parts
 files in the soak's world, whose requests come at even gaps that its times compress to almost
-nothing: with real gaps, the plan reckons some 125 to 140 KB a day of parts. What phase 2 left is
-gathered in [day-digests-left](../ideas/2026-10-18--day-digests-left.md).
+nothing: with real gaps, the plan reckons some 125 to 140 KB a day of parts. What phase 2 left was
+weighed and dropped (the owner, 24 November 2026).
 
 **Day digests, phase 3, its first part: the find and a turn's older days.** After phase 2, the Log's
 `/` find still read every past day raw to learn a dozen sessions' directories, and a turn opened on
@@ -13423,8 +13426,8 @@ the two measured in turn at a load of 5 to 13; and the dashboard's heap after pa
 248 MB, some 30 MB a day held. The router builds a day's head and rows in 1 to 1.5 s, its heap
 rising some 145 MB; a backfill of 30 days, once after the release, some 35 s of work, paced as
 before. On disk, 1.25 MB a day of rows in the soak's world, and by the plan's reckoning about 1.8 MB
-with real values, about as much as the lines. What phase 3 left is gathered in
-[day-digests-left](../ideas/2026-10-18--day-digests-left.md).
+with real values, about as much as the lines. What phase 3 left was weighed and
+dropped (the owner, 24 November 2026).
 
 **Day digests, phase 4: past days through the filter, and a turn's horizon read back.** After
 phase 3, two waits were left: a turn opened, at any age, read today's and yesterday's files whole
@@ -13454,8 +13457,8 @@ a filter of the failed alone, a week back while paused, 14 ms with 9 days kept a
 from 2.5 s, as it reads back to the oldest day kept in one read; a week back unfiltered, 2.1 s
 and 249 MB, as before; and the Log's first open, 0.92 to 0.93 s, unchanged. The one cost moved:
 widening a filter while paused far back reads every day between again, 3.3 s and 280 MB 8 days
-back, 8.4 s and 706 MB 22 days back, what the pick cost before. What phase 4 left is gathered in
-[day-digests-left](../ideas/2026-10-18--day-digests-left.md).
+back, 8.4 s and 706 MB 22 days back, what the pick cost before. What phase 4 left was weighed and
+dropped (the owner, 24 November 2026).
 
 **The Graphs tab — designed, signed off 25 October 2026.** After v0.2.7 the owner took up the
 graphs: every account's burn-down at once, as v0.1's cards drew them, on a page of graphs whose
@@ -13496,7 +13499,8 @@ recorded yet`; and a card for an account the router's document doesn't hold yet 
 alone, numbered as Runway will number it. The tour stops on Graphs, and its still joins the README's
 grid and the dashboard's guide (#170). Every image in the README and the guide is recorded again in
 Tokyo Night, with a still of each built-in theme in the guide's Themes, Tokyo Night first, as the
-owner asked (#172). What the build left is gathered in [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md).
+owner asked (#172). What the build left was weighed and dropped (the owner, 24 November 2026),
+but for a run-out past Runway's view, which Runway is to show.
 
 **The Overview's GRAPHS — removed.** On 26 October 2026, for the release with Graphs, the owner
 removed the Overview's GRAPHS, its charts under USAGE and beside each block by account, `g`, `v`
@@ -13753,16 +13757,10 @@ What's built but hasn't been seen against the real thing:
 ## Backlog
 
 Ideas live one to a file in `ideas/`, named for the day each was captured
-(`2026-10-18--day-digests-left.md`); this table is their index. An idea built or
+(`2026-09-30--dashboard-layout.md`); this table is their index. An idea built or
 dropped leaves the table, and its file goes: what was built is in its pull request and the design
 proper, and where why one was dropped binds a later choice, the design proper says so.
 
 | Idea | Status | File |
 |---|---|---|
-| The Trends build's loose ends, built as Graphs: one owner of the accounts' order, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the order's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
-| What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
-| The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |
-| The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
-| The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
-| Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
