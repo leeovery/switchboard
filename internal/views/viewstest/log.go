@@ -219,13 +219,32 @@ func seconds(n int64) string {
 }
 
 // rowOf is the row wanted of the request l, as its line alone tells it: no
-// mark, nothing moved, its stopped its answer's.
+// mark, nothing moved, its stopped its answer's, or, where its answer gave
+// none, how it ended early.
 func rowOf(l ledger.Line) Row {
-	r := Row{Request: l.Request, Session: l.Session, Dir: l.Dir, At: clock(l.At), Took: seconds(l.TotalMS), Stopped: l.Answer.Stop, Brief: l.Answer.Stop}
+	stopped := l.Answer.Stop
+	if stopped == "" && len(l.Answer.Tools) == 0 && l.Kind == ledger.KindMessage {
+		stopped = endedEarly(l)
+	}
+	r := Row{Request: l.Request, Session: l.Session, Dir: l.Dir, At: clock(l.At), Took: seconds(l.TotalMS), Stopped: stopped, Brief: stopped}
 	if l.FirstMS != nil {
 		r.First = seconds(*l.FirstMS)
 	}
 	return r
+}
+
+// endedEarly is how the request l ended early, as the Log's stopped says it
+// where its answer gave no stop reason: "" where it ran to its end.
+func endedEarly(l ledger.Line) string {
+	switch {
+	case l.Canceled:
+		return "canceled"
+	case l.CutOff:
+		return "cut off"
+	case l.Broken:
+		return "broken off"
+	}
+	return ""
 }
 
 // first is the row wanted of a session's first request, l: ▲, new session.
@@ -603,7 +622,8 @@ func failedOnly() LogMoment {
 		wanted[i].Mark, wanted[i].Failed = views.MarkFailed, true
 	}
 	wanted = append(wanted,
-		Row{Request: "r8", Session: D28C, At: "14:41:40", Mark: views.MarkFailed, Stage: views.RowEnded, Failed: true, Took: "5.0s"},
+		Row{Request: "r8", Session: D28C, At: "14:41:40", Mark: views.MarkFailed, Stage: views.RowEnded, Failed: true, Took: "5.0s",
+			Stopped: "broken off", Brief: "broken off"},
 		Row{Request: "r9", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true, Stopped: lostWords, Brief: lostWords})
 	return LogMoment{
 		Name: "failed only: a 429 every account refused, passed on; one cut off; a 500; one broken off and one cut off as each was answered; " +

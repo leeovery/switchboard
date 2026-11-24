@@ -7902,7 +7902,10 @@ apart, each a part flex lays out (`logcolumns.go`):
   (`5.7M`, `16.1M`). A request that moved its session wrote its whole context on the new account:
   its `written` is bold `accent.attention`.
 - **`stopped`:** why its answer stopped, in `text.muted`, `end_turn`; for `tool_use`, then ` · ` in
-  `text.faint` and the tool it called in `text.secondary`: `tool_use · Bash`.
+  `text.faint` and the tool it called in `text.secondary`: `tool_use · Bash`. Where its answer gave
+  no reason and it ended early, how, in `text.muted`, in the words its card's `status` puts after
+  the code: `canceled`, `cut off` or `broken off`. A reason, where there is one, wins (the owner's
+  call, 24 November 2026). The card's `stopped` says the reason alone.
 - **`routing`:** how the router chose its account, from the line's `reason` and `from`, in the
   views' words (see The router's events); blank for a request that stayed where its session was.
   A move, on the request that moved: `from ` in `text.muted`, the account it left in

@@ -337,6 +337,11 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 	}
 	check := stop("end_turn")
 	check.Kind = ledger.KindCheck
+	early := func(end ledger.Ending, l ledger.Line) ledger.Line {
+		l.Status, l.Canceled, l.CutOff, l.Broken = end.Status, end.Canceled, end.CutOff, end.Broken
+		return l
+	}
+	toldGaveUp := views.RowOfTold(views.Told{Request: "r9", Session: mover, Model: opus, Account: "side", Sent: sent, Ended: sent.Add(time.Second)}, now)
 	paid := "  (" + views.Worth{Amount: cost(hourWrite)}.Cents() + ")"
 	tests := []struct {
 		name                string
@@ -369,6 +374,20 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 			folded: "<answering> · 958.2k characters"},
 		{name: "lost", row: toldDoing(sent.Add(time.Second), 2000, true), wide: lostAnswer, brief: lostAnswer, folded: lostAnswer},
 		{name: "a quota check", row: lined(check)},
+		{name: "broken off, its answer telling no why", row: lined(early(ledger.Ending{Status: 200, Broken: true}, stop(""))), wide: "broken off",
+			brief: "broken off", folded: "broken off"},
+		{name: "cut off, its answer telling no why", row: lined(early(ledger.Ending{Status: 200, CutOff: true}, stop(""))), wide: "cut off",
+			brief: "cut off", folded: "cut off"},
+		{name: "canceled, its answer telling no why", row: lined(early(ledger.Ending{Status: 200, Canceled: true}, stop(""))), wide: "canceled",
+			brief: "canceled", folded: "canceled"},
+		{name: "canceled before an answer", row: lined(early(ledger.Ending{Canceled: true}, stop(""))), wide: "canceled", brief: "canceled",
+			folded: "canceled"},
+		{name: "ended unanswered as the stream told, its line to come", row: toldGaveUp, wide: "canceled", brief: "canceled", folded: "canceled"},
+		{name: "broken off, its answer telling why: its why wins", row: lined(early(ledger.Ending{Status: 200, Broken: true}, stop("end_turn"))),
+			wide: "end_turn", brief: "end_turn", folded: "end_turn"},
+		{name: "canceled as it called a tool: its tool wins", row: lined(early(ledger.Ending{Status: 200, Canceled: true}, stop("tool_use", "Bash"))),
+			wide: "tool_use{ · }[Bash]", brief: "[Bash]", folded: "tool_use{ · }[Bash]"},
+		{name: "a quota check canceled", row: lined(early(ledger.Ending{Status: 200, Canceled: true}, check))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -380,6 +399,28 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 			}
 			if got := rowWords(tt.row.Folded()); got != tt.folded {
 				t.Errorf("Folded() = %q, want %q", got, tt.folded)
+			}
+		})
+	}
+}
+
+// A row's stop reason, as its card says it, is why its answer stopped alone,
+// never how it ended early, which the card's status says.
+func TestARowsStopReasonNeverSaysHowItEndedEarly(t *testing.T) {
+	tests := []struct {
+		name string
+		row  views.RequestRow
+		want string
+	}{
+		{name: "broken off, telling no why", row: views.RequestRow{Kind: views.RowRequest, Stage: views.RowLined, Status: 200, Broken: true}},
+		{name: "canceled, telling no why", row: views.RequestRow{Kind: views.RowRequest, Stage: views.RowLined, Canceled: true}},
+		{name: "broken off, telling why", row: views.RequestRow{Kind: views.RowRequest, Stage: views.RowLined, Status: 200, Broken: true, Stop: "end_turn"},
+			want: "end_turn"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := rowWords(tt.row.StopReason()); got != tt.want {
+				t.Errorf("StopReason() = %q, want %q", got, tt.want)
 			}
 		})
 	}

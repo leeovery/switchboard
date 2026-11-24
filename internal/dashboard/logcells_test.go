@@ -137,8 +137,8 @@ func TestTheRequestsDrawEachFailureAsTheDesignSays(t *testing.T) {
 	c := f.page(routerDoc("side", 0), at.Add(time.Minute))
 	failed := columnCell{"0", ink{token: theme.StateDestructive, bold: true}}
 	rowsHold(t, c, f.top()+1, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
-		{LogStatus: failed, LogSession: {"d28c", secondaryCell}},
-		{LogStatus: {"0", mutedCell}},
+		{LogStatus: failed, LogSession: {"d28c", secondaryCell}, LogStopped: {"cut off", mutedCell}},
+		{LogStatus: {"0", mutedCell}, LogStopped: {"canceled", mutedCell}},
 		{LogSession: {"—", faintCell}, LogStatus: {"200", mutedCell}},
 		{LogStatus: {}, LogTook: {}, LogStopped: {"no answer: the router went away", mutedCell}},
 	})
@@ -147,6 +147,32 @@ func TestTheRequestsDrawEachFailureAsTheDesignSays(t *testing.T) {
 			t.Errorf("row %d is marked %q in %+v, want %q", i+1, mark.glyph, mark.ink, want)
 		}
 	}
+}
+
+// A request whose answer gave no reason it stopped, and ended early, says
+// how in its stopped, in text.muted, as its card's status words it:
+// broken off, cut off or canceled. A reason, where its answer gave one,
+// wins.
+func TestTheStoppedCellSaysHowARequestEndedEarlyWhereItsAnswerGaveNoReason(t *testing.T) {
+	at := time.Date(2026, 10, 1, 14, 31, 13, 0, now.Location())
+	broken := asked("0a000001", at)
+	broken.Broken = true
+	cut := asked("0a000002", at.Add(time.Second))
+	cut.CutOff = true
+	gaveUp := asked("0a000003", at.Add(2*time.Second))
+	gaveUp.Canceled = true
+	reasoned := asked("0a000004", at.Add(3*time.Second))
+	reasoned.Broken, reasoned.Answer.Stop = true, "end_turn"
+	p := requestsOf(views.LogSources{From: at, Now: at.Add(time.Minute)}, []ledger.Line{broken, cut, gaveUp, reasoned})
+
+	f := logFrameOf(p, 200, 24)
+	c := f.page(routerDoc("side", 0), at.Add(time.Minute))
+	rowsHold(t, c, f.top()+1, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
+		{LogStopped: {"broken off", mutedCell}},
+		{LogStopped: {"cut off", mutedCell}},
+		{LogStopped: {"canceled", mutedCell}},
+		{LogStopped: {"end_turn", mutedCell}},
+	})
 }
 
 // Claude Code's quota checks and its counts of tokens, shown: each marked ·,

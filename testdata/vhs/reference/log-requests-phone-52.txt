@@ -21,7 +21,7 @@ LOG   Requests  Events                  35 hidden  f
   14:41:25  7f3a     side        7.2s  Edit
   14:41:29  41e0     personal    3.8s  end_turn
   14:41:35  d28c     side        9.7s  end_turn
-■ 14:41:38  c61b     side        0.6s
+■ 14:41:38  c61b     side        0.6s  broken off
   14:41:39  c61b     side       11.5s  Bash
   14:41:41  7f3a     side       11.9s  Read
   14:41:51  d28c     side        4.8s  Read

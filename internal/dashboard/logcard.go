@@ -507,11 +507,12 @@ func endedSaid(r views.RequestRow) line {
 	return valued("")
 }
 
-// stoppedSaid is why the request's answer stopped, as the table words it,
-// the words in text.secondary, any account named as m names it, cut as
-// asLabelled cuts it: in flight, what it's doing.
+// stoppedSaid is why the request's answer stopped, as its row's StopReason
+// says it, never how it ended early, which its status says: the words in
+// text.secondary, any account named as m names it, cut as asLabelled cuts
+// it: in flight, what it's doing.
 func stoppedSaid(r views.RequestRow, lined lineGives, m status.Moment) line {
-	w := r.Stopped()
+	w := r.StopReason()
 	if len(w) == 0 {
 		return lined.said("")
 	}

@@ -552,28 +552,49 @@ func (w RowWords) String() string {
 const lostWords = "no answer: the router went away"
 
 // Outcome is what the request was answered and how its answer ended, as
-// its card and requests say it: its status, then canceled, cut off or
-// broken off where it was, as "200 broken off".
+// its card and requests say it: its status, then how it ended early, as
+// endedEarly says it, as "200 broken off".
 func (r RequestRow) Outcome() string {
 	answer := strconv.Itoa(r.Status)
-	switch {
-	case r.Canceled:
-		return answer + " canceled"
-	case r.CutOff:
-		return answer + " cut off"
-	case r.Broken:
-		return answer + " broken off"
+	if early := r.endedEarly(); early != "" {
+		return answer + " " + early
 	}
 	return answer
 }
 
-// Stopped is why the request's answer stopped, as the Log's stopped says it:
+// endedEarly says how the request ended early, where it did: canceled, its
+// client gone; cut off by the router as it stopped; or broken off by the
+// upstream. "" where it ran to its end.
+func (r RequestRow) endedEarly() string {
+	switch {
+	case r.Canceled:
+		return "canceled"
+	case r.CutOff:
+		return "cut off"
+	case r.Broken:
+		return "broken off"
+	}
+	return ""
+}
+
+// Stopped is the request's stopped as the Log's table says it: why its
+// answer stopped, as StopReason says it; else, where its answer gave no
+// reason, how it ended early, as endedEarly says it, as broken off (the
+// owner's call, 24 November 2026).
+func (r RequestRow) Stopped() RowWords {
+	if w := r.StopReason(); len(w) > 0 || r.Kind != RowRequest || r.endedEarly() == "" {
+		return w
+	}
+	return RowWords{{Text: r.endedEarly()}}
+}
+
+// StopReason is why the request's answer stopped, as its card says it:
 // end_turn; tool_use · Bash, the first tool it called, and +1 after it where
 // it called one more; in flight, asking, or answering · 5.1k characters, its
 // characters so far, once they come to 0.1k, as prose.Characters counts; lost, no
 // answer: the router went away. None for a check or a count, and where
 // nothing's known of why it stopped.
-func (r RequestRow) Stopped() RowWords {
+func (r RequestRow) StopReason() RowWords {
 	switch {
 	case r.Kind != RowRequest:
 		return nil
@@ -626,7 +647,8 @@ func (r RequestRow) Folded() RowWords {
 // Stopped says; where it moved its session, from work; where its routing has
 // other words, them, as new session for its session's first; else the tool it
 // called alone, as Bash, and +1 where it called one more; else why its
-// answer stopped. None for a check or a count.
+// answer stopped; else how it ended early, as Stopped says it. None for a
+// check or a count.
 func (r RequestRow) BriefStopped() RowWords {
 	switch {
 	case r.Kind != RowRequest:
@@ -644,7 +666,7 @@ func (r RequestRow) BriefStopped() RowWords {
 	case r.Stop != "":
 		return RowWords{{Text: prose.Clean(r.Stop)}}
 	}
-	return nil
+	return r.Stopped()
 }
 
 // doing is what the request in flight is doing: asking, or answering.

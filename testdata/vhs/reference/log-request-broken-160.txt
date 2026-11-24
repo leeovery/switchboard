@@ -10,7 +10,7 @@ LOG    Requests  Events  [ ]  ────────────────�
   14:41:25  7f3a api           opus-5-5   side      200      1.3s    7.2s    115k     2.8k    973  tool_use · Edit
   14:41:29  41e0 docs          opus-5-5   personal  200      0.8s    3.8s    149k     3.1k    778  end_turn
   14:41:35  d28c switchboard   opus-5-5   side      200      1.2s    9.7s       —        —     70  end_turn
-■ 14:41:38  c61b mobile        haiku-4-5  side      200      0.2s    0.6s       —        —     65
+■ 14:41:38  c61b mobile        haiku-4-5  side      200      0.2s    0.6s       —        —     65  broken off
   14:41:39  c61b mobile        opus-5-5   side      200      0.7s   11.5s     24k     2.3k   1.9k  tool_use · Bash
   14:41:41  7f3a╭─ REQUEST · 14:41:38 · c61b mobile ───────────────────────────────────────────────────────────────────────────────────────────╮
   14:41:51  d28c│                                                                                                                              │
