@@ -20,9 +20,10 @@ func (a accountWorlds) added() accountWorld {
 }
 
 // pastTheView is the added world but spare's week only 6% used by 14:40, so
-// at its pace it runs out after Runway's live view ends, on Wednesday at
-// 14:40, and before it resets on Thursday at 09:44: Runway draws its lane
-// with room throughout, and says the run-out past its end.
+// at its pace it runs out early on Thursday 8 October, before it resets at
+// 09:44 that day: past Runway's live view, which ends on Wednesday 7th at
+// 14:40. Runway draws its lane with room throughout, and says the run-out
+// at the lane's end.
 func (a accountWorlds) pastTheView() accountWorld {
 	return a.addedUsing("pastTheView", .06)
 }

@@ -7055,15 +7055,17 @@ resets, the lane says so as it would were it drawn on, `out ~Thu 8 Oct  ·  rese
 ending at the lane's last column and placed as any stretch's words are. `room all week` is said
 only of a lane with room through every column from now's and nothing past the view before the
 reset, so it holds to the week, not only to the view: it never sits under a lane whose week
-`usage`, `status`, GLANCE and a Trends card say runs out. A week stepped back to is a whole week
-in view, and says nothing past it (the owner's call, 24 November 2026).
+`usage`, `status`, GLANCE and a Trends card say runs out. Stepped back to this week, which ends
+on its last day and not as the account's week resets, a lane says what it would have past that
+day alike, and `room all week` holds to the reset there too; a week wholly gone has no future,
+and says nothing past it (the owner's call, 24 November 2026).
 
 A stretch's words start at its column where they all fit from there; else they shift left as far
 as they must to fit whole, ending at the row's last column, but never sooner than two cells after
 the words before. Where even that leaves them too little room, they start there and drop whole
 parts from the end; where not even their first part fits, they and the words after them aren't
-said (the owner's call, 10 November 2026). A stretch already over isn't said, nor one that starts
-past a week stepped back to.
+said (the owner's call, 10 November 2026). A stretch already over isn't said, nor one past a week
+wholly gone.
 
 **The pool's lane** sits under the lanes, named and marked as an account's lane is, with no rule
 over it (the owner's call, 17 October 2026): with three rows an account, after the last account's

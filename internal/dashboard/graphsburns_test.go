@@ -479,14 +479,14 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 				c, cards := pageCards(f, mo.doc, printNow)
 				card := cards[2]
 				words := regionOf(c, bounds{x: card.chart.x, y: card.words, width: card.chart.width, rows: 1})[0]
-				if !strings.Contains(words, want) || strings.Contains(words, "room all") {
-					t.Errorf("side's week card says %q, want it saying %q", words, want)
+				if strings.Count(words, want) != 1 || strings.Contains(words, "room all") {
+					t.Errorf("side's week card says %q, want it saying %q once", words, want)
 				}
 				lanes := f.Graphs.Lanes[views.RunwayWeek]
 				l, _ := lanes.lane("side")
 				runway := wordsRead(lanes.view().wordsUnder(laneLaid(l, side, accountName{}), printNow, 0))
-				if !strings.Contains(runway, want) || strings.Contains(runway, "room all") {
-					t.Errorf("Runway says %q under side's lane, want it saying %q", runway, want)
+				if strings.Count(runway, want) != 1 || strings.Contains(runway, "room all") {
+					t.Errorf("Runway says %q under side's lane, want it saying %q once", runway, want)
 				}
 			})
 		}
@@ -496,16 +496,14 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 // A card whose window newly runs out cues its words, as the frame's
 // TurnedOut has it, where the run-out falls past the end of Runway's live
 // view as where it falls inside it. Runway cues its own words of the same
-// lane as it did: where its lane draws the run-out, and not where it says
-// room all week.
+// lane alike, past its view's end as inside it.
 func TestGraphsCardsCueARunOutPastRunwaysView(t *testing.T) {
 	tests := []struct {
-		name   string
-		used   float64
-		runway bool
+		name string
+		used float64
 	}{
 		{name: "running out past the view's end", used: 0.12},
-		{name: "running out inside the view", used: 0.3, runway: true},
+		{name: "running out inside the view", used: 0.3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -522,8 +520,12 @@ func TestGraphsCardsCueARunOutPastRunwaysView(t *testing.T) {
 			if picked := c.at(h.words.x, h.row).ink.on.token == theme.BgAttention; !h.cued || !picked {
 				t.Errorf("side's card's words are cued %t, picked out %t, want both", h.cued, picked)
 			}
-			if _, cued := f.wordsCue(ln, lanes.Timeline.NowColumn()); cued != tt.runway {
-				t.Errorf("Runway cues side's words %t, want %t", cued, tt.runway)
+			f.Runway, f.Look = RunwayShown{Timeline: lanes.Timeline}, Look{coloured: true}
+			runway := newCanvas(160, 2)
+			f.runwayWords(runway, runwayLaid{m: status.Moment{Now: printNow}, lanes: []laidLane{ln}})
+			words := lanes.view().wordsUnder(ln, printNow, 0)
+			if len(words) == 0 || runway.at(words[len(words)-1].x, 1).ink.on.token != theme.BgAttention {
+				t.Errorf("Runway's words under side's lane, %q, aren't cued; want them cued", wordsRead(words))
 			}
 		})
 	}

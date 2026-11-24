@@ -342,13 +342,13 @@ func asItResets(stretches []LaneStretch, resets []time.Time) {
 // before then, as h turns, gathered as the lane's columns gather them, each
 // turn as a column of its own, and back as backWithRoom has it, said from the
 // column after the last. None in a view that doesn't hold now, as a day or
-// week gone, nor in a week stepped back to, this week too, as its lanes are
-// a whole week, said from its first column, nor of an account without the
-// window, or whose reset isn't known.
+// week gone, which has no future, nor of an account without the window, or
+// whose reset isn't known; a week stepped back to this week, holding now,
+// has them, as it ends on its last day, not as the window resets.
 func (from LanesFrom) beyond(a status.AccountNow, h ahead) []LaneStretch {
 	tl := from.Timeline
 	w, ok := a.Window(from.viewKey())
-	if _, _, named := tl.Named(); named || !ok || w.Next.IsZero() || tl.NowColumn() < 0 || tl.Columns < 1 {
+	if !ok || w.Next.IsZero() || tl.NowColumn() < 0 || tl.Columns < 1 {
 		return nil
 	}
 	last := tl.Columns - 1

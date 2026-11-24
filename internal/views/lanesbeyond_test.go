@@ -44,9 +44,10 @@ func week(key string, used float64, hours int) quota.Window {
 // said from the column after the last; none where the run-out falls inside
 // the view, which its own stretches have, nor judging the 5-hour, its window
 // resetting inside it, nor of another week running out after the view's
-// resets, nor in a week stepped back to, this week too, a whole week in
-// view. Its lane over the view is as it was: with room all along, or running
-// out inside it.
+// resets, nor in a week gone, stepped back to. This week stepped back to,
+// holding now, has them past its last day as the live view has them past
+// its end. Its lane over the view is as it was: with room all along, or
+// running out inside it.
 func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -60,7 +61,10 @@ func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 		{name: "running out past the view's end", doc: beyondDoc(0, week("7d", 0.12, 148)), key: "7d", want: views.CellLimited, resets: true},
 		{name: "running out in the last column, after its moment", doc: beyondDoc(0, week("7d", 0.1221, 148)), key: "7d", want: views.CellLimited, resets: true},
 		{name: "a week gone, stepped back to", doc: beyondDoc(0, week("7d", 0.12, 148)), day: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)},
-		{name: "this week stepped back to, its week resetting after it", doc: beyondDoc(0, week("7d", 0.12, 148)), day: time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)},
+		{
+			name: "this week stepped back to, running out past its last day", doc: beyondDoc(0, week("7d", 0.12, 148)), day: time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC),
+			key: "7d", want: views.CellLimited, resets: true,
+		},
 		{name: "reaching its cap past the view's end", doc: beyondDoc(0.01, week("7d", 0.12, 148)), key: "7d", want: views.CellCapped, resets: true},
 		{name: "another week running out past the view's end", doc: beyondDoc(0, week("7d", 0.1, 160), week("7d_x", 0.12, 148)), key: "7d_x", want: views.CellLimited},
 		{name: "running out inside the view", doc: beyondDoc(0, week("7d", 0.3, 148))},

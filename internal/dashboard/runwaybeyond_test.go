@@ -32,10 +32,12 @@ func beyondLane(tl views.Timeline, stretches []views.LaneStretch, beyond ...view
 // it resets, says so under it, as it would were it drawn on: ending at the
 // lane's last column, shifted no further left than phraseGap after the words
 // before, whole parts left off its end where it doesn't fit from there, and
-// unsaid where its first part doesn't; at a phone's width, Runway's lanes 38
-// columns of 52, alike.
+// unsaid where its first part doesn't, nothing said in its place, as the
+// lane hasn't room all week; at a phone's width, Runway's lanes 38 columns of
+// 52, alike; and this week stepped back to, past its last day, alike.
 func TestALaneSaysWhatItHasPastItsViewsEndEndingAtItsLastColumn(t *testing.T) {
-	week, phone := runwayLive(), RunwayShown{Timeline: views.LiveTimeline(routedAt, 38)}
+	week, phone, narrow := runwayLive(), RunwayShown{Timeline: views.LiveTimeline(routedAt, 38)}, RunwayShown{Timeline: views.LiveTimeline(routedAt, 6)}
+	back := runwayBack(civilDay(9, 28))
 	tl := week.Timeline
 	reset := routedClock(8, 2, 0)
 	out := pastTheView(tl, views.CellLimited, routedClock(7, 20, 0), reset)
@@ -62,6 +64,16 @@ func TestALaneSaysWhatItHasPastItsViewsEndEndingAtItsLastColumn(t *testing.T) {
 			name: "at a phone's width", shown: phone,
 			lane: beyondLane(phone.Timeline, nil, pastTheView(phone.Timeline, views.CellLimited, routedClock(7, 20, 0), reset)),
 			want: strings.Repeat(" ", 9) + "out ~Wed  ·  resets Thu 02:00",
+		},
+		{
+			name: "too narrow for even its first part, nothing", shown: narrow,
+			lane: beyondLane(narrow.Timeline, nil, pastTheView(narrow.Timeline, views.CellLimited, routedClock(7, 20, 0), reset)),
+			want: "",
+		},
+		{
+			name: "this week stepped back to, past its last day", shown: back,
+			lane: beyondLane(back.Timeline, nil, pastTheView(back.Timeline, views.CellLimited, routedClock(6, 4, 0), routedClock(7, 20, 0))),
+			want: strings.Repeat(" ", 107) + "out ~Tue  ·  resets Wed 20:00",
 		},
 	}
 	for _, tt := range tests {
@@ -96,5 +108,34 @@ func TestALanesWordsOfARunOutPastItsViewAreCuedAsItNewlyRunsOut(t *testing.T) {
 		if got := c.at(x, 11).ink.on; inWords != (got == cued) {
 			t.Errorf("column %d is on %v; cued %t, want %t", x, got, got == cued, inWords)
 		}
+	}
+}
+
+// Collapsed, the words of a lane past its view's end still end at its last
+// column where they clear its use; where they'd meet it, they start
+// phraseGap after it instead, whole parts left off their end.
+func TestCollapsedALaneSaysWhatItHasPastItsViewsEndAfterItsUse(t *testing.T) {
+	tests := []struct {
+		name    string
+		columns int
+		want    string
+	}{
+		{name: "clear of its use, ending at its last column", columns: 38, want: "34%" + strings.Repeat(" ", 6) + "out ~Wed  ·  resets Thu 02:00"},
+		{name: "meeting its use, after it, its last part left off", columns: 30, want: "34%  out ~Wed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := RunwayShown{Timeline: views.LiveTimeline(routedAt, tt.columns), Collapsed: true}
+			f := runwayShowing(r)
+			ln := beyondLane(r.Timeline, nil, pastTheView(r.Timeline, views.CellLimited, routedClock(7, 20, 0), routedClock(8, 2, 0)))
+			ln.Use = views.Use{Key: "7d", Used: 0.34, Read: true}
+			c := newCanvas(f.Width, 20)
+			laid := runwayLaid{m: status.Moment{Now: routedAt}, x: r.lanesFrom(f.Width), lanes: []laidLane{ln}}
+			f.runwayLanes(c, laid)
+			f.runwayWords(c, laid)
+			if got := rowOf(c, 11); got != tt.want {
+				t.Errorf("the row under the lane reads\n%q, want\n%q", got, tt.want)
+			}
+		})
 	}
 }
