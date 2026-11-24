@@ -38,10 +38,23 @@ type Account struct {
 	Size float64
 	// Fast is its week's fast rate, a share of it an hour.
 	Fast float64
-	// Takes is set where requests can go to it: its token usable, and not
-	// refused. One that can't holds none of its use, which goes where a new
-	// session would, as the router sends its requests elsewhere.
+	// Takes is set where requests can go to it within the play: its token
+	// usable, and not refused for good. One that can't holds none of its use,
+	// which goes where a new session would, as the router sends its requests
+	// elsewhere.
 	Takes bool
+	// TakesFrom is when, where Takes is set, requests can go to it from:
+	// zero, or a time not after the pool's Now, from the start; else from
+	// then, as a refusal of its token lifts. One barred at the pool's Now
+	// holds none of its use, even once it takes requests again, as its
+	// sessions moved off it, but takes new sessions from then.
+	TakesFrom time.Time
+}
+
+// takesAt reports whether requests can go to the account at t, as Takes and
+// TakesFrom say.
+func (a Account) takesAt(t time.Time) bool {
+	return a.Takes && !a.TakesFrom.After(t)
 }
 
 // Pool is what the forecast plays forward.
@@ -75,10 +88,10 @@ type Out struct {
 // the day's rate, plus how far its fast rate, every account's together,
 // stands from it now, fading with a time constant of 3 hours. What of it an
 // account holds, its own fast rate as Held keeps it, stays on it while it
-// takes requests, its week runs and it has room, each hold scaled down where
-// they add up to more than the pool's use; the rest goes where a new session
-// would go, as Policy.Choose chooses among the accounts that take requests,
-// each judged by its week alone, until no account has room. A week that
+// takes requests, as it did at Now, its week runs and it has room, each hold
+// scaled down where they add up to more than the pool's use; the rest goes
+// where a new session would go, as Policy.Choose chooses among the accounts
+// that take requests then, each judged by its week alone, until no account has room. A week that
 // resets comes back empty, a week from resetting again, and holds nothing
 // more.
 func Forecast(p Pool) map[string]Out {
@@ -116,7 +129,8 @@ type play struct {
 
 // track is what the forecast keeps of an account as it plays.
 type track struct {
-	// holds is set until its week resets: use already on it stays there.
+	// holds is set until its week resets, where it takes requests at the
+	// pool's Now: use already on it stays there.
 	holds bool
 	// open is set while its Out is still to be told: its week's reset is
 	// known, and its week hasn't run out or reset.
@@ -151,7 +165,7 @@ func newPlay(pool Pool) *play {
 		}
 		p.fast += a.Size * a.Fast
 		p.weeks[i] = a.Week
-		p.tracks[i] = track{holds: true, open: !a.Week.ResetsAt.IsZero(), from: a.Week.Utilization}
+		p.tracks[i] = track{holds: a.takesAt(pool.Now), open: !a.Week.ResetsAt.IsZero(), from: a.Week.Utilization}
 	}
 	return p
 }
@@ -210,10 +224,10 @@ func (p *play) hold(t time.Time, after time.Duration, demand float64) float64 {
 	return rest
 }
 
-// holding reports whether account i holds its use at t: it takes requests,
-// its week hasn't reset, and it has room.
+// holding reports whether account i holds its use at t: it takes requests
+// then, as it did at the pool's Now, its week hasn't reset, and it has room.
 func (p *play) holding(i int, t time.Time) bool {
-	return p.Accounts[i].Takes && p.tracks[i].holds && p.room(i, t) > score.Tolerance
+	return p.Accounts[i].takesAt(t) && p.tracks[i].holds && p.room(i, t) > score.Tolerance
 }
 
 // place sends rest, the pool's use in the step that starts at t that no
@@ -239,12 +253,12 @@ func (p *play) place(t time.Time, rest float64) {
 	}
 }
 
-// resetsWithin reports whether the week of an account that takes requests
-// resets within the step that starts at t: after t, and by its end.
+// resetsWithin reports whether the week of an account that takes requests at
+// t resets within the step that starts at t: after t, and by its end.
 func (p *play) resetsWithin(t time.Time) bool {
 	end := t.Add(playStep)
 	for i, a := range p.Accounts {
-		if at := p.weeks[i].ResetsAt; a.Takes && at.After(t) && !at.After(end) {
+		if at := p.weeks[i].ResetsAt; a.takesAt(t) && at.After(t) && !at.After(end) {
 			return true
 		}
 	}
@@ -252,14 +266,14 @@ func (p *play) resetsWithin(t time.Time) bool {
 }
 
 // gather makes the candidates for a new session at t: the accounts that take
-// requests and have room, each with its week alone, as it stands. One
+// requests then and have room, each with its week alone, as it stands. One
 // whose week's reset isn't known has no score: Choose sends it new sessions
 // only where the pool's pin names it and none of the pin's accounts it can
 // score has room, as the router does.
 func (p *play) gather(t time.Time) {
 	p.candidates, p.takers = p.candidates[:0], p.takers[:0]
 	for i, a := range p.Accounts {
-		if a.Takes && p.room(i, t) > score.Tolerance {
+		if a.takesAt(t) && p.room(i, t) > score.Tolerance {
 			p.candidates = append(p.candidates, score.Candidate{ID: a.ID, Windows: p.weeks[i : i+1 : i+1], Reserve: a.Reserve})
 			p.takers = append(p.takers, i)
 		}

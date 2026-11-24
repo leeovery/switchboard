@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/forecast"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -18,6 +19,68 @@ func sharing() status.Document {
 		on(readAt("work", windowIn("7d", 0.5, 6*day)), fastAt("7d", 0.005)),
 		on(readAt("personal", windowIn("7d", 0.5, 6*day)), fastAt("7d", 0.005)),
 	), 0.01, holdingNone...)
+}
+
+// An account whose token alone is refused takes requests in the forecast
+// from when the refusal lifts; one barred by anything else, its token
+// refused among it, takes none all the play.
+func TestTheForecastPoolHasAnAccountTakeRequestsFromWhenItsTokenRefusalLifts(t *testing.T) {
+	lifts := built.Add(9 * time.Minute)
+	refused := status.Refusal{Until: lifts, Status: 401}
+	tests := []struct {
+		name      string
+		change    func(*status.Account)
+		wantTakes bool
+		wantFrom  time.Time
+	}{
+		{name: "nothing barring it", change: func(*status.Account) {}, wantTakes: true},
+		{name: "its token refused", change: func(a *status.Account) { a.Refused = refused }, wantTakes: true, wantFrom: lifts},
+		{name: "a model family refused", change: func(a *status.Account) { a.Refused = status.Refusal{Until: lifts, Status: 403, Family: "opus"} }, wantTakes: true},
+		{name: "its read refused", change: func(a *status.Account) { a.RefusedRead = quota.TokenRefused }},
+		{name: "its token and its read refused", change: func(a *status.Account) { a.Refused, a.RefusedRead = refused, quota.TokenRefused }},
+		{name: "another subscription's token, refused", change: func(a *status.Account) { a.TokenForeign, a.Refused = true, refused }},
+		{name: "no usable token, refused", change: func(a *status.Account) { a.TokenSet, a.Refused = false, refused }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := forecasting(routerDocOf(on(readAt("work", windowIn("7d", 0.3, 6*day)), tt.change), readAt("personal", windowIn("7d", 0.5, 6*day))), 0.01)
+
+			pool, ok := doc.ForecastPool(policy)
+
+			if !ok {
+				t.Fatal("ForecastPool() reported nothing to play")
+			}
+			if got := pool.Accounts[0]; got.Takes != tt.wantTakes || !got.TakesFrom.Equal(tt.wantFrom) {
+				t.Errorf("ForecastPool()'s work takes %t from %v, want %t from %v", got.Takes, got.TakesFrom, tt.wantTakes, tt.wantFrom)
+			}
+		})
+	}
+}
+
+// work's token refused for 9 minutes leaves its half week to the pool, which
+// runs out 100 hours on, as without the refusal; its read refused keeps it
+// out all week, and personal's half runs out 50 hours on.
+func TestAPoolMarginCountsTheRoomOfAnAccountWhoseTokenRefusalLifts(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(*status.Account)
+		want   time.Duration
+	}{
+		{name: "its token refused", change: func(a *status.Account) { a.Refused = status.Refusal{Until: built.Add(9 * time.Minute), Status: 401} }, want: 100 * time.Hour},
+		{name: "its read refused", change: func(a *status.Account) { a.RefusedRead = quota.TokenRefused }, want: 50 * time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			doc := sharing()
+			tt.change(&doc.Accounts[0])
+
+			when, ok := doc.WorkedOut(policy).At(built, policy).PoolMargin().RunsOut()
+
+			if want := built.Add(tt.want); !ok || when.Sub(want).Abs() > 10*time.Minute {
+				t.Errorf("PoolMargin().RunsOut() = %v, %t, want about %v", when, ok, want)
+			}
+		})
+	}
 }
 
 func TestAPoolMarginSaysHowNearThePoolIsToRunningOut(t *testing.T) {

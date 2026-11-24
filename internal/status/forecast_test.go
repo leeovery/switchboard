@@ -214,23 +214,36 @@ func TestTheForecastPlaysThePoolsUseAsTheDocumentHasIt(t *testing.T) {
 			want: map[string]heading{"side": runsOutIn(50*time.Hour + 30*time.Minute)},
 		},
 		{
-			name: "an account whose token is refused takes no new sessions",
+			name: "an account whose token is refused all week takes no new sessions",
 			doc: forecasting(routerDocOf(
 				on(readAt("work", windowIn("7d", 0.5, 3*day)), fastAt("7d", 0.01)),
 				on(readAt("side", windowIn("7d", 0.2, 3*day)), func(a *status.Account) {
-					a.Refused = status.Refusal{Until: built.Add(day), Status: 401}
+					a.Refused = status.Refusal{Until: built.Add(8 * day), Status: 401}
 				}),
 			), 0.01),
 			want: map[string]heading{"work": runsOutIn(50 * time.Hour), "side": {kind: status.WindowStale, projected: score.OnPace, atReset: 0.2}},
 		},
 		{
+			// work holds its own use, all of the pool's, till it runs out in
+			// 40 hours; side, its token refused for a day, takes the pool's
+			// use from then, its 32 hours to its reset.
+			name: "an account whose token is refused takes new sessions once the refusal lifts",
+			doc: forecasting(routerDocOf(
+				on(readAt("work", windowIn("7d", 0.6, 3*day)), fastAt("7d", 0.01)),
+				on(readAt("side", windowIn("7d", 0.2, 3*day)), func(a *status.Account) {
+					a.Refused = status.Refusal{Until: built.Add(day), Status: 401}
+				}),
+			), 0.01, holdingAll...),
+			want: map[string]heading{"work": runsOutIn(40 * time.Hour), "side": {kind: status.WindowStale, projected: score.OnPace, atReset: 0.52}},
+		},
+		{
 			// work's own use, 2% of its week an hour, all the pool's, goes to
 			// side from now, which runs out from 10% in 45 hours, where work,
 			// holding it, would run out in 25 and side 45 after.
-			name: "an account whose token is refused holds none of its use, which goes where a new session would",
+			name: "an account whose token is refused all week holds none of its use, which goes where a new session would",
 			doc: forecasting(routerDocOf(
 				on(readAt("work", windowIn("7d", 0.5, 3*day)), fastAt("7d", 0.02), func(a *status.Account) {
-					a.Refused = status.Refusal{Until: built.Add(day), Status: 401}
+					a.Refused = status.Refusal{Until: built.Add(8 * day), Status: 401}
 				}),
 				readAt("side", windowIn("7d", 0.1, 3*day)),
 			), 0.02, holdingAll...),

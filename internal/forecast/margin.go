@@ -38,8 +38,9 @@ type Margin struct {
 	Kind MarginKind
 	// Spare is, of a pool that lasts, how much busier, in whole percents of
 	// its pace, its use could get and the pool still last: 0 where it runs
-	// out a MarginStep busier, and past MarginReach where it lasts at
-	// MarginReach busier.
+	// out a MarginStep busier, MarginReach where it lasts MarginReach busier
+	// but runs out a MarginStep more, and past MarginReach, at
+	// MarginReach+MarginStep, where it lasts even that busier.
 	Spare int
 	// RunsOut is, of a pool that runs out, when; and Less how much less of
 	// its use, in whole percents of its pace, would last the week: 0 where
@@ -51,7 +52,7 @@ type Margin struct {
 // MarginOf is how near the pool is to running out within the week ahead, as
 // Forecast plays it: where it lasts at its pace, how much busier it could get
 // and last, played MarginStep busier at a time until it runs out, or lasts
-// MarginReach busier; where it runs out, when, and how much less of its use
+// MarginReach+MarginStep busier; where it runs out, when, and how much less of its use
 // would last, played MarginStep less at a time until it lasts, or runs out
 // MarginReach less. The pool runs out where some of its use has no account
 // that takes requests to go to, as Policy.Choose finds none with room. A

@@ -2,6 +2,7 @@ package forecast
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 	"time"
@@ -200,6 +201,66 @@ func TestThePoolRunsOutWhereTheLastOfTheRoomItCanUseRunsOut(t *testing.T) {
 				t.Errorf("MarginOf() = %+v, want running out at %v, within %v", got, want, tt.within)
 			}
 		})
+	}
+}
+
+// barredUntil has the account take no requests until so long after now, as a
+// refusal of its token lifts then.
+func barredUntil(after time.Duration) func(*Account) {
+	return func(a *Account) { a.TakesFrom = now.Add(after) }
+}
+
+func TestARefusalThatLiftsMidPlayBringsTheAccountsRoomBack(t *testing.T) {
+	// personal's half a week runs out 50 hours on; work, back at 20 hours,
+	// takes the new sessions from then, holding none of the use it had.
+	p := steadyPool(0.01, account("work", week(0.5, pastThePlay), barredUntil(20*time.Hour)), account("personal", week(0.5, pastThePlay)))
+
+	got := MarginOf(p)
+
+	if want := now.Add(100 * time.Hour); got.Kind != MarginRunsOut || got.RunsOut.Sub(want).Abs() > playStep {
+		t.Errorf("MarginOf() = %+v, want running out at %v, as the two's room is spent", got, want)
+	}
+	out := outOf(t, Forecast(p), "work")
+	if !out.RunsOut.After(now.Add(20*time.Hour)) || out.RunsOut.After(now.Add(100*time.Hour+playStep)) {
+		t.Errorf("Forecast()[work].RunsOut = %v, want it running out once back, by %v", out.RunsOut, now.Add(100*time.Hour))
+	}
+}
+
+func TestAnAccountBarredAtNowHoldsNoneOfItsUseOnceBack(t *testing.T) {
+	// work's use, all of the pool's, would stay on it from an hour on were
+	// it held there; it isn't, so the pin sends it all to personal, whose
+	// half a week runs out 50 hours on.
+	p := pinned(steadyPool(0.01, account("work", week(0.5, pastThePlay), barredUntil(time.Hour)), account("personal", week(0.5, pastThePlay))), "personal")
+	p.Held = holding(1)
+
+	out := outOf(t, Forecast(p), "personal")
+
+	checkRunsOut(t, "personal", out, now.Add(50*time.Hour), time.Second)
+}
+
+func TestARefusalLiftingPastThePlayBarsTheAccountAllWeek(t *testing.T) {
+	personal := account("personal", week(0.5, pastThePlay))
+	lifting := steadyPool(0.01, account("work", week(0.5, pastThePlay), barredUntil(playSpan+time.Hour)), personal)
+	barred := steadyPool(0.01, account("work", week(0.5, pastThePlay), refused), personal)
+
+	if got, want := MarginOf(lifting), MarginOf(barred); got != want || got.Kind != MarginRunsOut {
+		t.Errorf("MarginOf() = %+v, want %+v, running out as with the account barred all week", got, want)
+	}
+	if got, want := Forecast(lifting), Forecast(barred); !maps.Equal(got, want) {
+		t.Errorf("Forecast() = %v, want %v, as with the account barred all week", got, want)
+	}
+}
+
+func TestAWeekResettingInTheStepOnAnAccountBarredThenLeavesTheRunOut(t *testing.T) {
+	const fillsAt = 0.5 / (30 + 3.0/60)
+	// personal's week resets at 30 hours and 5 minutes, but it takes no
+	// requests till 40 hours on.
+	p := steadyPool(fillsAt, account("work", week(0.5, pastThePlay)), account("personal", week(1, 30*time.Hour+5*time.Minute), barredUntil(40*time.Hour)))
+
+	got := MarginOf(p)
+
+	if want := now.Add(30*time.Hour + 3*time.Minute); got.Kind != MarginRunsOut || got.RunsOut.Sub(want).Abs() > time.Second {
+		t.Errorf("MarginOf() = %+v, want running out at %v", got, want)
 	}
 }
 

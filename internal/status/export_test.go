@@ -96,6 +96,11 @@ func CountForecasts(t *testing.T) func() int {
 	return func() int { return played }
 }
 
+// ForecastPool is forecastPool.
+func (d Document) ForecastPool(policy score.Policy) (forecast.Pool, bool) {
+	return d.forecastPool(policy)
+}
+
 // CountMargins has every document's margin played as it is, counted, until
 // the test ends: it returns the count so far.
 func CountMargins(t *testing.T) func() int {

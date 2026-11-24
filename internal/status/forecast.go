@@ -96,9 +96,8 @@ func (d Document) weekAhead(id string, w quota.Window, policy score.Policy) (for
 // stands then, as WindowAt has it, so a week reset since it was read stands
 // empty, with its next reset; its room ending at its floor, as floor has it;
 // its size by its plan, as the price table's Sizes has every account's; the
-// router's fast rate of its week; and its taking requests, new sessions and
-// the use it holds alike, while it takes them as the document was built, as
-// Takes says, held so for the whole play.
+// router's fast rate of its week; and when it takes requests from, as
+// takesFrom has it.
 // The pool's use goes to the pool's pin's accounts while one holds, at the
 // Demand's day rate, held on each account as its hold curve has it.
 func (d Document) forecastPool(policy score.Policy) (forecast.Pool, bool) {
@@ -114,14 +113,31 @@ func (d Document) forecastPool(policy score.Policy) (forecast.Pool, bool) {
 	accounts := make([]forecast.Account, len(d.Accounts))
 	for i, a := range d.Accounts {
 		week, _ := a.WindowAt(policy.Perishable, at, policy)
+		from, takes := a.takesFrom(at)
 		accounts[i] = forecast.Account{
 			ID: a.ID, Week: week, Reserve: a.Reserve, Floor: d.floor(a), Size: float64(sizes[i]),
-			Fast: a.fast(policy.Perishable), Takes: a.Takes(at),
+			Fast: a.fast(policy.Perishable), Takes: takes, TakesFrom: from,
 		}
 	}
 	return forecast.Pool{
 		Now: at, Policy: policy, Accounts: accounts, Pinned: d.Pin.Accounts, Day: d.Demand.Day, Held: d.Demand.curve(),
 	}, true
+}
+
+// takesFrom is when the account takes requests from, as the forecast plays
+// it from at, reporting false where it takes none all its play: zero where
+// nothing bars it at at, as Takes says; when the refusal of its token lifts
+// where that alone bars it; and never where anything else does, a read
+// refused among them, which holds till a read comes back clean, as a token
+// revoked or a subscription ended does.
+func (a Account) takesFrom(at time.Time) (time.Time, bool) {
+	switch {
+	case a.Takes(at):
+		return time.Time{}, true
+	case a.tokenRefused(at) && a.Takes(a.Refused.Until):
+		return a.Refused.Until, true
+	}
+	return time.Time{}, false
 }
 
 // curve is the hold curve the forecast plays by, as forecast.Curve draws it
