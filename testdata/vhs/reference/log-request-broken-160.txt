@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────  35 hidden: checks and counts   f what it shows
+
+  at        session            model      on        status  first    took    read  written    out  stopped                      routing
+  14:41:19  c61b mobile        opus-5-5   side      200      0.9s   14.8s     22k     2.9k   1.5k  tool_use · Write
+  14:41:19  d28c switchboard   opus-5-5   side      200      1.2s    9.7s    192k     3.6k   1.1k  tool_use · Bash
+  14:41:25  7f3a api           opus-5-5   side      200      1.3s    7.2s    115k     2.8k    973  tool_use · Edit
+  14:41:29  41e0 docs          opus-5-5   personal  200      0.8s    3.8s    149k     3.1k    778  end_turn
+  14:41:35  d28c switchboard   opus-5-5   side      200      1.2s    9.7s       —        —     70  end_turn
+■ 14:41:38  c61b mobile        haiku-4-5  side      200      0.2s    0.6s       —        —     65
+  14:41:39  c61b mobile        opus-5-5   side      200      0.7s   11.5s     24k     2.3k   1.9k  tool_use · Bash
+  14:41:41  7f3a╭─ REQUEST · 14:41:38 · c61b mobile ───────────────────────────────────────────────────────────────────────────────────────────╮
+  14:41:51  d28c│                                                                                                                              │
+↓ 14:41:58  41e0│  REQUEST                                           ASKED                    ANSWERED                                         │
+↓ 14:42:01  c61b│  ├ id           13232793                           ├ model        haiku-4-5 ├ status       200 broken off                    │
+↑ 14:42:06  d28c│  ├ Anthropic's  —                                  ├ size         —         ├ model        —                                 │
+                │  ├ from         claude-cli/2.1.0                   ├ messages     —         ├ first byte   0.2s                              │
+                │  └ betas        —                                  ├ system       —         ├ ended        0.6s                              │
+                │                                                    ├ tools        —         ├ stopped      —                                 │
+                │  ROUTED                                            ├ max_tokens   —         └ blocks       —                                 │
+                │  ├ to           side                               ├ thinking     —                                                          │
+                │  └ upstream     once                               ├ effort       —         TOKENS                                           │
+                │                                                    └ stream       —         ├ in           3                                 │
+                │  SIDE'S WINDOWS AFTER IT                                                    ├ from cache   0                                 │
+                │  └ status       —                                                           ├ cached       0                                 │
+                │                                                                             ├ out          65                                │
+                │                                                                             └ worth        <$0.01 at API prices              │
+                │  never kept: the messages, the system prompt, the tools' definitions, their inputs and results                               │
+                │                                                                                                                              │
+                │                                                                        ↑↓ previous/next request   s its session   esc close  │
+                ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+‖ paused at 14:41:38   end to follow                                                                                                           1,242 lines today
+tab views   [ ] view    ↑↓ request  enter open  s its session  end follow    f what it shows  / find    p pin    ? help  q quit

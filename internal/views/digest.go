@@ -38,8 +38,9 @@ func (Digests) Builder() ledger.DigestBuilder {
 // session its line named, and names the pools each row, each chunk and each
 // session of its side recorded: none was released without them. Version 4
 // was two, each holding one of those, so neither stands; version 5 named no
-// terminal session.
-const RowsVersion = 6
+// terminal session; and version 6's chunks counted as failed none answered
+// and then broken off or cut off, as ledger.Ending's Failed now has them.
+const RowsVersion = 7
 
 // RowsVersion is the version of the sides and rows of the days' heads the
 // Digests give, RowsVersion.

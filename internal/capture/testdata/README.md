@@ -9,8 +9,9 @@ A line a request, oldest first: `day` -1 for the day before, `at` its clock time
 `session` its short id (a quota check's own, whole), `model` as the frames name it, `on` its
 account, `kind` (a message where it's left out), `status` (200), `first` and `took` in
 milliseconds, `in` (3), `read`, `wrote` (to the cache for an hour) and `out` tokens, and how its
-answer stopped, `stop` and `tool`; and, where the frames draw them, `limits`, the account's
-windows as its answer read them, in the headers' words. Where a request went, and why, its prompt
+answer stopped, `stop` and `tool`; `broken`, where the upstream broke its answer off after it
+began; and, where the frames draw them, `limits`, the account's windows as its answer read them,
+in the headers' words. Where a request went, and why, its prompt
 and its id are worked out as it's read.
 
 ## How it was made
@@ -29,6 +30,8 @@ and its id are worked out as it's read.
 - **Claude Code's quota checks,** 31 today, as it starts or resumes a session or starts and asks
   nothing, three overloaded (529) and sent again; and **its counts of tokens,** 4 today, of no
   session.
+- **One answer broken off,** c61b's haiku request at 14:41:38, marked by hand so the Log draws a
+  request that failed with a 200: its `stop` left out, as an answer broken off gives none.
 - **Work's windows** as 7f3a's request at 14:30:51 read them, 95% of its 5-hour window and 34% of
   its week, typed from `log-event-details-160`: the answer that first told of work's cap, the
   only line on work that reads them.

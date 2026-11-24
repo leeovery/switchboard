@@ -108,6 +108,10 @@ func TestARowsMarkIsTheFirstThatApplies(t *testing.T) {
 		l.Status = status
 		return l
 	}
+	ended := func(end ledger.Ending, l ledger.Line) ledger.Line {
+		l.Status, l.Canceled, l.CutOff, l.Broken = end.Status, end.Canceled, end.CutOff, end.Broken
+		return l
+	}
 	before := withID("r0", line(mover, opus, "work", "new", october(7, 12, 59), hourUsage))
 	stayed := withID("r1", line(mover, opus, "work", "sticky", october(7, 13, 0), hourUsage))
 	moved := movedFrom("work", withID("r1", line(mover, opus, "side", "moved: work is at its reserve", october(7, 13, 0), hourUsage)))
@@ -122,6 +126,9 @@ func TestARowsMarkIsTheFirstThatApplies(t *testing.T) {
 		{name: "a failed move", l: answered(500, moved), want: views.MarkFailed},
 		{name: "a failed first", l: answered(429, before), want: views.MarkFailed},
 		{name: "cut off", l: answered(0, stayed), want: views.MarkFailed},
+		{name: "broken off as it was answered", l: ended(ledger.Ending{Status: 200, Broken: true}, stayed), want: views.MarkFailed},
+		{name: "cut off as it was answered", l: ended(ledger.Ending{Status: 200, CutOff: true}, stayed), want: views.MarkFailed},
+		{name: "given up as it was answered", l: ended(ledger.Ending{Status: 200, Canceled: true}, stayed), want: views.NoMark},
 		{name: "a quota check", l: kind(ledger.KindCheck, before), want: views.MarkHidden},
 		{name: "a failed count", l: answered(500, kind(ledger.KindCount, stayed)), want: views.MarkHidden},
 	}
@@ -142,6 +149,7 @@ func TestARowsMarkIsTheFirstThatApplies(t *testing.T) {
 		{name: "ended, its line to come", t: told(func(r *views.Told) { r.Ended, r.Status = sent.Add(time.Second), 200 }), want: views.NoMark},
 		{name: "ended failing", t: told(func(r *views.Told) { r.Ended, r.Status = sent.Add(time.Second), 529 }), want: views.MarkFailed},
 		{name: "ended, its client gone first", t: told(func(r *views.Told) { r.Ended = sent.Add(time.Second) }), want: views.MarkFailed},
+		{name: "ended, broken off", t: told(func(r *views.Told) { r.Ended, r.Status, r.Broken = sent.Add(time.Second), 200, true }), want: views.MarkFailed},
 		{name: "lost", t: told(func(r *views.Told) { r.First, r.Lost = sent.Add(time.Second), true }), want: views.MarkFailed},
 		{name: "a quota check in flight", t: told(func(r *views.Told) { r.Check = true }), want: views.MarkHidden},
 		{name: "a count ended failing", t: told(func(r *views.Told) { r.Count, r.Ended, r.Status = true, sent, 500 }), want: views.MarkHidden},
@@ -159,6 +167,8 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 	answering, ended, lost := base, base, base
 	answering.First, answering.Chars = sent.Add(700*time.Millisecond), 5100
 	ended.First, ended.Ended, ended.Status = sent.Add(time.Second), sent.Add(14*time.Second), 200
+	broken := ended
+	broken.Broken = true
 	lost.First, lost.Lost = sent.Add(time.Second), true
 	from := views.RequestRow{Request: "r9", At: sent, Session: mover, Dir: "~/Code/cli", CountedSession: mover, Model: opus, Account: "side"}
 	tests := []struct {
@@ -175,6 +185,10 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 		{name: "ended, its line to come", t: ended, want: func(r *views.RequestRow) {
 			r.Stage, r.Status, r.First, r.Took = views.RowEnded, 200, new(time.Second), new(14*time.Second)
 		}},
+		{name: "ended broken off, its line to come: failed", t: broken, want: func(r *views.RequestRow) {
+			r.Stage, r.Status, r.Broken, r.First, r.Took = views.RowEnded, 200, true, new(time.Second), new(14*time.Second)
+			r.Failed, r.Mark = true, views.MarkFailed
+		}},
 		{name: "lost, nothing of its answer known", t: lost, want: func(r *views.RequestRow) {
 			r.Stage, r.Failed, r.Mark = views.RowLost, true, views.MarkFailed
 		}},
@@ -185,6 +199,31 @@ func TestARowInFlightIsWhatTheStreamTold(t *testing.T) {
 		if got := views.RowOfTold(tt.t, now); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: the row is\n%+v\nwant\n%+v", tt.name, got, want)
 		}
+	}
+}
+
+// A row says what it was answered and how its answer ended, as the Log's
+// card and requests say it: its status alone, or then whether its client
+// went, the router cut it off, or the upstream broke it off.
+func TestARowSaysWhatItWasAnsweredAndHowItsAnswerEnded(t *testing.T) {
+	tests := []struct {
+		name string
+		row  views.RequestRow
+		want string
+	}{
+		{name: "answered", row: views.RequestRow{Status: 200}, want: "200"},
+		{name: "answered an error", row: views.RequestRow{Status: 529}, want: "529"},
+		{name: "given up before an answer", row: views.RequestRow{Canceled: true}, want: "0 canceled"},
+		{name: "given up as it was answered", row: views.RequestRow{Status: 200, Canceled: true}, want: "200 canceled"},
+		{name: "cut off as it was answered", row: views.RequestRow{Status: 200, CutOff: true}, want: "200 cut off"},
+		{name: "broken off as it was answered", row: views.RequestRow{Status: 200, Broken: true}, want: "200 broken off"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.row.Answered(); got != tt.want {
+				t.Errorf("Answered() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

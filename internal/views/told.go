@@ -83,8 +83,11 @@ type Told struct {
 	// it last went out: none while there's none.
 	Verdict Verdict
 	// Status is the answer that gave its verdict, or, once it's done, what
-	// its client was answered: zero where its client went first.
+	// its client was answered: zero where its client went first. Broken is
+	// set, once it's done, where the upstream broke its answer off after it
+	// began.
 	Status int
+	Broken bool
 	// Ended is when it ended, as the stream told: zero while it hasn't.
 	Ended time.Time
 	// Lost is set where it was in flight as the watch last forgot what the

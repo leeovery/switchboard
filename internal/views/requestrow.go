@@ -17,10 +17,10 @@ import (
 // owner: prose.Seconds for First and Took, prose.Tokens for Read, Written
 // and Out, and Worth.Cents for Worth; status.ShownID or status.ShortID for
 // Session, status.DirName for Dir, and the account's name for Account. It
-// says its stopped and its routing itself, as no drawer works words out of a
-// line. It's built from the request's line, with its session's story, as
-// LogRows builds it, or, before its line comes, from what the request stream
-// told of it.
+// says its status, its stopped and its routing itself, as no drawer works
+// words out of a line. It's built from the request's line, with its
+// session's story, as LogRows builds it, or, before its line comes, from what
+// the request stream told of it.
 type RequestRow struct {
 	// Request is the router's id for it.
 	Request string
@@ -54,8 +54,8 @@ type RequestRow struct {
 	Status                   int
 	Canceled, CutOff, Broken bool
 	// Failed is set where it failed: as ledger.Line.Failed says, or, ended
-	// before its line came, as ledger.Failing says of the status told; and
-	// where it was lost.
+	// before its line came, as ledger.Ending's Failed says of its status and
+	// whether it was broken off, as the stream told; and where it was lost.
 	Failed bool
 	// First is how long after it arrived its answer's first byte came, and
 	// Took how long it took in all, as its line gives them; before its line
@@ -474,7 +474,8 @@ func toldRow(t Told, now time.Time) RequestRow {
 	case t.Lost:
 		r.Stage, r.Failed = RowLost, true
 	case !t.Ended.IsZero():
-		r.Stage, r.Status, r.Failed, r.Took = RowEnded, t.Status, ledger.Failing(t.Status), since(t.Sent, t.Ended)
+		r.Stage, r.Status, r.Broken, r.Took = RowEnded, t.Status, t.Broken, since(t.Sent, t.Ended)
+		r.Failed = ledger.Ending{Status: t.Status, Broken: t.Broken}.Failed()
 	default:
 		a := t.doing()
 		r.Stage, r.Chars, r.Took = a.stage(), a.Chars, since(t.Sent, now)
@@ -547,6 +548,22 @@ func (w RowWords) String() string {
 
 // lostWords say a request was lost: no line came of it, its router gone.
 const lostWords = "no answer: the router went away"
+
+// Answered is what the request was answered and how its answer ended, as
+// its card and requests say it: its status, then canceled, cut off or
+// broken off where it was, as "200 broken off".
+func (r RequestRow) Answered() string {
+	answer := strconv.Itoa(r.Status)
+	switch {
+	case r.Canceled:
+		return answer + " canceled"
+	case r.CutOff:
+		return answer + " cut off"
+	case r.Broken:
+		return answer + " broken off"
+	}
+	return answer
+}
 
 // Stopped is why the request's answer stopped, as the Log's stopped says it:
 // end_turn; tool_use · Bash, the first tool it called, and +1 after it where

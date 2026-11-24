@@ -6,7 +6,6 @@ import (
 	"io"
 	"iter"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 
@@ -251,23 +250,7 @@ func writeRequests(out io.Writer, rows iter.Seq[views.RequestLine], from, now ti
 // tokens in and out, and how long it took.
 func requestRow(r views.RequestLine, now time.Time) []string {
 	return []string{prose.ToTheSecond(now, r.At), orNone(status.ShortID(prose.Clean(r.Session))), orNone(prose.Clean(r.Model)),
-		orNone(r.Said()), answered(r.RequestRow), tokensInOut(r), took(r.Took)}
-}
-
-// answered says how a request was answered: its status, and whether its
-// client went away before its end, the router cut it off, or the upstream
-// broke its answer off, as "200 canceled".
-func answered(r views.RequestRow) string {
-	answer := strconv.Itoa(r.Status)
-	switch {
-	case r.Canceled:
-		answer += " canceled"
-	case r.CutOff:
-		answer += " cut off"
-	case r.Broken:
-		answer += " broken off"
-	}
-	return answer
+		orNone(r.Said()), r.Answered(), tokensInOut(r), took(r.Took)}
 }
 
 // tokensInOut says how many tokens a request's answer's usage counts in and

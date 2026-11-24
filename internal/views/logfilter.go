@@ -235,7 +235,12 @@ type rowChoice struct {
 // rowChoice has it: the one making of those facts, which lineFacts makes
 // the row of, and LogFilter's keeps judges a record by.
 func (r *rowRecord) choice() rowChoice {
-	return rowChoice{account: r.account, model: r.model, session: r.countedSession, failed: ledger.Failing(r.status)}
+	return rowChoice{account: r.account, model: r.model, session: r.countedSession, failed: r.ending().Failed()}
+}
+
+// ending is how the request of the record r ended, as its line records it.
+func (r *rowRecord) ending() ledger.Ending {
+	return ledger.Ending{Status: r.status, Canceled: r.canceled, CutOff: r.cutOff, Broken: r.broken}
 }
 
 // hidden is what of a filter hides a row.
@@ -261,7 +266,7 @@ type LogCount struct {
 	// and its counts of tokens.
 	Requests, Checks, Counts int
 	// Failed are those that failed, as RequestRow's Failed has it: 400 and
-	// over, cut off or given up, and lost.
+	// over, no answer, broken off or cut off, and lost.
 	Failed int
 	// Models, Accounts and Sessions count the lines by the model each asked
 	// for, the account it's on, as RequestRow's Account has it, and the

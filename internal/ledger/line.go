@@ -244,19 +244,42 @@ func (l *Line) CountedSession() string {
 	return l.Session
 }
 
-// Failed reports whether the line's request failed, as the views show it:
-// answered 400 or over, as a 429 every account refused is passed on; or
-// answered nothing, as one cut off or given up, its status 0.
+// Failed reports whether the line's request failed, as the views show it,
+// as Ending.Failed judges how it ended.
 func (l *Line) Failed() bool {
-	return Failing(l.Status)
+	return l.Ending().Failed()
 }
 
-// Failing reports whether a request answered with the status given failed,
-// as Line.Failed says of a line's: one the request stream told of the end
-// of, its line yet to come, is judged by the status its client was answered,
-// 0 where its client went first.
-func Failing(status int) bool {
-	return status == 0 || status >= 400
+// Ending is how the line's request ended, as its line records it.
+func (l *Line) Ending() Ending {
+	return Ending{Status: l.Status, Canceled: l.Canceled, CutOff: l.CutOff, Broken: l.Broken}
+}
+
+// Ending is how a request ended: Status what its client was answered, 0
+// where it ended before an answer came; and, one at most, Canceled where its
+// client went away before its end, CutOff where the router cut it off as it
+// stopped, and Broken where the upstream broke its answer off after it
+// began, as Line has them. One the request stream told the end of, its line
+// yet to come, is told by its status and Broken alone.
+type Ending struct {
+	Status                   int
+	Canceled, CutOff, Broken bool
+}
+
+// Failed reports whether the request failed: its account didn't answer it,
+// as Answered judges; or its answer was cut off or broken off, whatever its
+// status. One canceled while it was answered didn't fail, as its client
+// ended it.
+func (e Ending) Failed() bool {
+	return !Answered(e.Status) || e.CutOff || e.Broken
+}
+
+// Answered reports whether a request answered with the status given was
+// answered by its account, however its answer then ended: neither 400 or
+// over, as a 429 every account refused is passed on, nor 0, as one cut off
+// or given up before an answer came.
+func Answered(status int) bool {
+	return status != 0 && status < 400
 }
 
 // unmetered reports whether the line's request went upstream, as Upstream

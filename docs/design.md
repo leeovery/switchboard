@@ -7890,7 +7890,8 @@ apart, each a part flex lays out (`logcolumns.go`):
   `claude-`, in `text.muted`. **`on`:** the account whose answer the client got, in
   `text.primary`, as account names are white wherever they're named, cut with `…` to the cells its
   column has.
-- **`status`:** as answered, in `text.muted`; 400 and over bold `state.destructive`. **`first`:**
+- **`status`:** as answered, the bare code, in `text.muted`; bold `state.destructive` where the
+  request failed, as its mark says, the column having no room for how it ended. **`first`:**
   the time to its answer's first byte, `0.8s`; **`took`:** its whole time, `11.8s`, from a minute
   `1m 05s`; both in `text.muted`.
 - **`read`, `written` and `out`:** the tokens it read from the cache, wrote to it, and put out, in
@@ -7931,8 +7932,17 @@ apart, each a part flex lays out (`logcolumns.go`):
   before it keep a cell and the ellipsis: `from work, at it…  $1.82`.
 - **The marks,** bold, the first that applies: `↑` in `accent.key`, in flight and asking, before its
   answer's first byte; `↓` in `accent.key`, in flight and answering; `■` in `state.destructive`,
-  failed, 400 and over; `▸` in `accent.key`, it moved its session (its line has a `from`); `▲` in
+  failed; `▸` in `accent.key`, it moved its session (its line has a `from`); `▲` in
   `accent.mode`, a session's first request; none on a request that stayed and succeeded.
+- **Failed,** one meaning wherever the Log says it, the mark, the status's ink, the `f` panel's
+  count and `only those that failed`, the one `ledger` gives: answered 400 and over; answered
+  nothing, `status` 0, as one cut off or given up before an answer came; or its answer broken off
+  (`broken`) or cut off (`cut_off`) after it began, whatever its `status`, as a `200` broken off
+  mid-answer gave the client no whole answer. One given up (`canceled`) as it was answered didn't
+  fail, as its user ended it; one lost, its router gone, did. A request the stream told the end
+  of, its line yet to come, is judged by the `status` and `broken` the stream told (the owner's
+  call, 24 November 2026). `log-requests-160` draws one broken off, `■` and its `200` bold
+  `state.destructive`, and `log-request-broken-160` its card.
 - **In flight,** a request sits where it arrived, as the request stream tells it, and fills in where
   it is as its line is written, so lines never move. A row is placed by when the stream told it was
   sent only while the stream holds its request: one whose line the Log first reads after the
@@ -7948,8 +7958,9 @@ apart, each a part flex lays out (`logcolumns.go`):
 - **Requests no frame draws:** one sent again after a limit has its `tried` in `routing`
   (`after work's limit`); one every account refused, its 429 passed on, reads as failed; one
   answered by the router itself has no `first`; one cut off or given up, `status` 0, reads as
-  failed; several tools show the first and `+1`; no session, `—`; no directory, the id alone
-  (settled in the plan).
+  failed; one cut off as it was answered reads as failed, and one given up as it was doesn't;
+  several tools show the first and `+1`; no session, `—`; no directory, the id alone (settled in
+  the plan).
 
 **A line's details.** `enter` opens the chosen line's details in the routing pickers' card (see
 Routing by hand), over the page faded, the line it's of left bright; `esc` closes it. A line's
@@ -7992,7 +8003,7 @@ filling in as its line comes (settled in the plan).
   | 19 | `ROUTED` | `to`, `account`; `from`, the account it left and why (`work, at its cap`); `upstream`, `attempts` in words, `once`, `twice`, then `3 times` (settled in the plan) |
   | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them, in the order of care: `week` and `5-hour`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
   | 69 | `ASKED` | `model`; `size`, `shape.bytes` (`482 KB`); `messages`, `system` (`3 blocks`) and `tools`, `shape`'s counts; `max_tokens`; `thinking`, its budget; `effort`, `output_config`'s; `stream`, `yes` or `no` |
-  | 94 | `ANSWERED` | `status`; `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
+  | 94 | `ANSWERED` | `status`, then `canceled`, `cut off` or `broken off` where its line says so, as `requests` words it (`200 broken off`), bold `state.destructive` where the request failed (the owner's call, 24 November 2026); `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
   | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted`, or `unpriced` alone where the price table can't price it (the owner's call, 15 October 2026) |
 
   `from` in `ROUTED`, and `the move`, belong to a request that moved its session, and are left
@@ -8063,8 +8074,9 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
   - **ONLY,** rows 12 to 16, its labels at `x+40` in `text.subtle` and their choices from `x+50`:
     `accounts`, every account's tick; `models`, the models of today's lines; `kinds`, `requests`,
     `checks` and `counts`, the ledger's `message`, `check` and `count`, each with today's count in
-    `text.muted`; `failed`, `only those that failed`, 400 and over, cut off or given up, and today's
-    count; `sessions`, `every one, unless some are ticked` in `text.muted`;
+    `text.muted`; `failed`, `only those that failed`, failed as the Log's marks have it (400 and
+    over, no answer, broken off or cut off), and today's count; `sessions`, `every one, unless
+    some are ticked` in `text.muted`;
   - **today's sessions,** rows 17 to 22 from `x+52`, a row each: its tick; its id in
     `text.secondary`; two spaces and its directory's name padded to 12 in `text.muted`; two spaces
     and the account it's on in `text.primary`, in a column of names a record may hold (see "The
@@ -8337,10 +8349,10 @@ one:
 - **Worth** is worked out as it's read, at today's prices, from the dated price table, never stored;
   a model the table doesn't know is unpriced, never free (see The request ledger).
 - **Counts,** today's: the heading's hidden, the panel's kinds and failed, and the state line's,
-  from today's lines by `kind`, `status`, `canceled` and `cut_off`, and by `session`. The panel's
-  sessions: today's lines by `session`, with their `dir`; the account each is on now, and when it
-  was last seen, from `GET /sessions`; `asking` from the stream; `started` its first line's time
-  today.
+  from today's lines by `kind`, by `status`, `cut_off` and `broken`, as failed has them, and by
+  `session`. The panel's sessions: today's lines by `session`, with their `dir`; the account each
+  is on now, and when it was last seen, from `GET /sessions`; `asking` from the stream; `started`
+  its first line's time today.
 - **Events:** the status document's `events` as each look reads them, the newest 50 since the router
   started, and before them the router's files of events, through `internal/events`, back as far as
   `[ledger] keep` keeps them, 400 days unless it's set, and for good where it says `forever` (see
@@ -10727,8 +10739,9 @@ from the first day a router that has it runs, so nothing before then is in it.
   seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
   they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 6, since a row and a
-    side's session hold the terminal session they were started in; 5 since they held their
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 7, since a chunk's
+    meta counts as failed a request broken off or cut off after its answer began; 6 since a row
+    and a side's session held the terminal session they were started in; 5 since they held their
     project beside their directory and named the pools their lines recorded, each of which was
     version 4 alone; so a head of an older version is built again); its day, and the
     day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the

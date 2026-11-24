@@ -379,6 +379,32 @@ func TestARouterRestartedForgetsWhatWasInFlightButKeepsItsMoves(t *testing.T) {
 	}
 }
 
+// A request whose end the stream told broken off is read by the views as
+// broken off, so its row fails before its line comes; one answered whole
+// isn't.
+func TestTheViewsReadARequestTheStreamToldBrokenOffAsBroken(t *testing.T) {
+	tests := []struct {
+		name   string
+		broken bool
+	}{
+		{"answered whole", false},
+		{"broken off", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events := []router.StreamEvent{
+				told(router.StreamSent, "r1", "work", 0),
+				alter(told(router.StreamDone, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.Status, e.Broken = 200, tt.broken }),
+			}
+			at := past(2 * time.Second)
+			got := traffic{live: true}.took(events, heldNowhere, at).stream(at).Requests["r1"]
+			if got.Status != 200 || got.Broken != tt.broken {
+				t.Errorf("the views read r1 answered %d, broken off %t, want 200 and %t", got.Status, got.Broken, tt.broken)
+			}
+		})
+	}
+}
+
 func TestASessionsRequestsAtOnceShowTheOneInFlight(t *testing.T) {
 	events := []router.StreamEvent{
 		told(router.StreamSent, "r1", "work", 0),

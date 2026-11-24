@@ -31,7 +31,9 @@ func short(id string) string {
 }
 
 // The Log's counts are today's lines read as it reads them, through the auto
-// world's readers, by kind, status and session, and today's summary agrees.
+// world's readers, by kind, by session and whether each failed, and today's
+// summary agrees. Four failed: the three quota checks overloaded, and c61b's
+// request broken off at 14:41:38.
 // The Log's 1,275 lines and 1,240 requests, and c61b's 5, are left out: c61b
 // has four lines, its fifth request answering at 14:42:07 as log1.tail draws
 // it, not yet a line.
@@ -42,15 +44,15 @@ func TestTheLogCountsTodaysLinesAsItsPanelsDo(t *testing.T) {
 	kinds, failed, requests := make(map[string]int), 0, make(map[string]int)
 	for _, h := range lines {
 		kinds[h.Kind]++
-		if h.Status >= 400 || h.Canceled || h.CutOff {
+		if h.Failed() {
 			failed++
 		}
 		if h.Kind == ledger.KindMessage {
 			requests[short(h.Session)]++
 		}
 	}
-	if kinds[ledger.KindCheck] != 31 || kinds[ledger.KindCount] != 4 || failed != 3 {
-		t.Errorf("today's lines hold %d checks, %d counts and %d failed, want 31, 4 and 3", kinds[ledger.KindCheck], kinds[ledger.KindCount], failed)
+	if kinds[ledger.KindCheck] != 31 || kinds[ledger.KindCount] != 4 || failed != 4 {
+		t.Errorf("today's lines hold %d checks, %d counts and %d failed, want 31, 4 and 4", kinds[ledger.KindCheck], kinds[ledger.KindCount], failed)
 	}
 	running := map[string]int{"d28c": 445, "9c2e": 267, "7f3a": 84, "db8a": 126, "41e0": 158}
 	more := 0

@@ -217,7 +217,7 @@ func (t *traffic) tell(e router.StreamEvent) {
 	case router.StreamProgress:
 		r.Chars = max(r.Chars, e.Chars)
 	case router.StreamDone:
-		r.Ended, r.Status, r.Chars = e.At, e.Status, max(r.Chars, e.Chars)
+		r.Ended, r.Status, r.Broken, r.Chars = e.At, e.Status, e.Broken, max(r.Chars, e.Chars)
 	case router.StreamLimited, router.StreamThrottled, router.StreamRefused:
 		r.Verdict, r.Status = verdictOf(e.Kind), e.Status
 	}

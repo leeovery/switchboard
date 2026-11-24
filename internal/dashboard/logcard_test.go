@@ -344,8 +344,9 @@ func TestARequestsCardInFlightCountsItsCharactersAsItsDrawn(t *testing.T) {
 	}
 }
 
-// A request's status is bold state.destructive where views says it failed,
-// as the table has it, whatever it was answered.
+// A request's status says how its answer ended, as its row's Answered says
+// it, bold state.destructive where views says it failed, as the table has
+// it, whatever it was answered.
 func TestARequestsCardSaysItFailedAsItsRowDoes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -353,7 +354,10 @@ func TestARequestsCardSaysItFailedAsItsRowDoes(t *testing.T) {
 		want line
 	}{
 		{name: "failed", row: views.RequestRow{Status: 500, Failed: true}, want: line{{"500", exhaustedInk}}},
-		{name: "cut off, answered 200", row: views.RequestRow{Status: 200, Failed: true}, want: line{{"200", exhaustedInk}}},
+		{name: "failed, answered 200", row: views.RequestRow{Status: 200, Failed: true}, want: line{{"200", exhaustedInk}}},
+		{name: "broken off as it was answered", row: views.RequestRow{Status: 200, Broken: true, Failed: true}, want: line{{"200 broken off", exhaustedInk}}},
+		{name: "cut off as it was answered", row: views.RequestRow{Status: 200, CutOff: true, Failed: true}, want: line{{"200 cut off", exhaustedInk}}},
+		{name: "given up as it was answered", row: views.RequestRow{Status: 200, Canceled: true}, want: line{{"200 canceled", secondaryInk}}},
 		{name: "answered 200", row: views.RequestRow{Status: 200}, want: line{{"200", secondaryInk}}},
 	}
 	for _, tt := range tests {

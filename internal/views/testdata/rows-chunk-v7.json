@@ -244,7 +244,7 @@
     "rq": 4,
     "ck": 1,
     "cn": 1,
-    "x": 2,
+    "x": 3,
     "m": {
       "claude-haiku-4-5": 1,
       "claude-opus-5-5": 2,

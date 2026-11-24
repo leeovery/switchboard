@@ -13,7 +13,7 @@ LOG    Requests  Events  [ ]  ────────────────�
   14:40:28  7f3a a│  ■ session    ■ read       □ worth       accounts  ■ work   ■ personal   ■ side                                          │
   14:40:39  db8a i│  ■ model      ■ written    □ input       models    ■ opus-5-5   ■ haiku-4-5   ■ sonnet-5-5                               │
   14:40:39  d28c s│  ■ on         ■ out        □ attempts    kinds     ■ requests 1,242   □ checks 31   □ counts 4                           │
-  14:40:40  7f3a a│  ■ status     ■ stopped    □ size        failed    □ only those that failed 3                                            │
+  14:40:40  7f3a a│  ■ status     ■ stopped    □ size        failed    □ only those that failed 4                                            │
   14:40:49  41e0 d│  ■ first      ■ routing    □ messages    sessions  every one, unless some are ticked                                     │
   14:40:59  db8a i│  ■ took                    □ tools                   □ 41e0  docs          personal    159 today                         │
   14:41:00  7f3a a│                            □ thinking                □ c61b  mobile        side          5 today   started 14:41         │
@@ -25,7 +25,7 @@ LOG    Requests  Events  [ ]  ────────────────�
   14:41:25  7f3a a│                                                                                                                          │
   14:41:29  41e0 d│  It shows 1,242 of 1,277 lines, in 11 columns.                                                                           │
   14:41:35  d28c s│                                                                                                                          │
-  14:41:38  c61b m│                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
+■ 14:41:38  c61b m│                                                               ←→ side   ↑↓ move   space tick   enter apply   esc cancel  │
   14:41:39  c61b m╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
   14:41:41  7f3a api           opus-5-5   side      200      1.0s   11.9s    117k     1.4k   1.1k  tool_use · Read
   14:41:51  d28c switchboard   opus-5-5   side      200      1.2s    4.8s    192k     3.6k   1.1k  tool_use · Read
