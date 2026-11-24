@@ -34,6 +34,11 @@ part of the record, kept for 400 days unless you set another length.
 **Limit.** The most of a window that Claude lets an account use. An account at a limit can't take
 more requests in that window until it resets.
 
+**Margin.** How much busier your use could get before the pool runs out within the week ahead. If
+the forecast has the pool running out, the margin says when, and how much less use would last.
+The pool runs out when no account has room for new work. [Runway](dashboard/runway.md) and
+`switchboard status` show it after the room of the pool, such as `lasts the week, 15% to spare`.
+
 **Past period.** A period that ends before today: for example `yesterday`, `last week` or
 `30 days to 1 Sep`. `<` steps back to one, and `n` goes back to now. The heading names a past
 period in a colour of its own, and what tells the moment leaves, as

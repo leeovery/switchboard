@@ -96,6 +96,43 @@ With more than one account, a lane for the pool sits under the others, labelled
 - Under the label is the room left in the week, such as `week 1.2 of 3 left`. It counts the
   accounts that have the week.
 
+## Pool margin: how close the week runs
+
+```
+Σ pool        ▃▃  ▃▃▃▃            ▃▃▃
+  week 1.2 of 3 left · lasts the week, 15% to spare
+```
+
+After the room comes the margin of the pool. Here your use could run 15% busier, and the pool
+would still last the week. The pool runs out when no account has room for new work. A reserve
+counts as no room, because the router never spends it.
+
+| Words | Means |
+|---|---|
+| `lasts the week, 15% to spare` | The pool lasts the week, even with 15% more use. |
+| `lasts the week, under 5% to spare` | The pool lasts the week, but 5% more use would run it out. |
+| `lasts the week, over 50% to spare` | The pool lasts the week, even with more than 50% more use. |
+| `runs out ~Sat · lasts at 20% less` | The pool runs out on Saturday at your pace. With 20% less use, it would last. |
+| `runs out ~Sat` | The pool runs out on Saturday, even with 50% less use. |
+
+The router plays the forecast for the week again, with your pace scaled up or down in steps of
+5%. The busiest pace that lasts, or the least cut that lasts, is the margin. The router fills each
+week before it resets, so every account forecasts near full at the reset. So `room all week` on an
+account can't tell a near miss from days to spare, and the margin can.
+
+The margin is a forecast, not a promise. Played back over six weeks of real use, the forecast
+missed a run-out by about 30 hours on average, sometimes early and sometimes late. Use swings
+from day to day, and no forecast sees that coming. Treat `under 5% to spare` as a week that could
+go either way.
+
+- If the full words don't fit, or the labels are collapsed, the margin is short: `15% to spare` or
+  `out ~Sat`. If even that doesn't fit, it's left out.
+- The margin shows only on the live week, never on a week you step back to.
+- There's no margin with one account, or without the router.
+- Nor is there one while no account in the pool has room.
+- `switchboard status` prints the same words under `Σ pool`. See
+  [`status`](../commands/status.md).
+
 ## COMING UP and LATELY
 
 COMING UP and LATELY sit under the lanes:
@@ -118,7 +155,8 @@ collapse them and give the lanes the width:
   new sessions go.
 - Under the start of each lane is its use, such as `66%`. It's faint for an account that a pin
   leaves out of the pool.
-- Under the `Σ pool` lane is its room, short, such as `1.2/3`.
+- Under the `Σ pool` lane is the room of the pool, short, such as `1.2/3`. The margin follows it,
+  short too: `1.2/3 · out ~Sat`.
 - The words under a lane still start under their stretch. If they would run into the use, they
   start two cells after it, as in `100%  out Tue 17:54  ·  back Sun 01:00`.
 - COMING UP doesn't change, because each line names its account.
