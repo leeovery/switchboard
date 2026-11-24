@@ -579,13 +579,14 @@ func (r RequestRow) endedEarly() string {
 
 // Stopped is the request's stopped as the Log's table says it: why its
 // answer stopped, as StopReason says it; else, where its answer gave no
-// reason, how it ended early, as endedEarly says it, as broken off (the
-// owner's call, 24 November 2026).
+// reason, how it ended early, broken off (the owner's call, 24 November
+// 2026).
 func (r RequestRow) Stopped() RowWords {
-	if w := r.StopReason(); len(w) > 0 || r.Kind != RowRequest || r.endedEarly() == "" {
+	w, early := r.StopReason(), r.endedEarly()
+	if len(w) > 0 || r.Kind != RowRequest || early == "" {
 		return w
 	}
-	return RowWords{{Text: r.endedEarly()}}
+	return RowWords{{Text: early}}
 }
 
 // StopReason is why the request's answer stopped, as its card says it:

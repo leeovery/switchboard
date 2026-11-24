@@ -128,7 +128,7 @@ var logColumnMeans = map[LogColumn]string{
 	LogThinking:  "its thinking budget",
 	LogAgent:     "the client that sent it, by its name and version",
 	LogRequestID: "the router's id for it",
-	LogStopped:   "why its answer stopped, and the tool it called",
+	LogStopped:   "why its answer stopped and the tool it called, or how it ended early",
 	LogRouting:   "how the router chose its account, and what a move cost; blank where it stayed",
 }
 

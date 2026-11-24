@@ -7904,7 +7904,7 @@ apart, each a part flex lays out (`logcolumns.go`):
 - **`stopped`:** why its answer stopped, in `text.muted`, `end_turn`; for `tool_use`, then ` · ` in
   `text.faint` and the tool it called in `text.secondary`: `tool_use · Bash`. Where its answer gave
   no reason and it ended early, how, in `text.muted`, in the words its card's `status` puts after
-  the code: `canceled`, `cut off` or `broken off`. A reason, where there is one, wins (the owner's
+  the code: `canceled`, `cut off` or `broken off`. A reason or a tool, where there is one, wins (the owner's
   call, 24 November 2026). The card's `stopped` says the reason alone.
 - **`routing`:** how the router chose its account, from the line's `reason` and `from`, in the
   views' words (see The router's events); blank for a request that stayed where its session was.
@@ -8013,7 +8013,7 @@ filling in as its line comes (settled in the plan).
   | 19 | `ROUTED` | `to`, `account`; `from`, the account it left and why (`work, at its cap`); `upstream`, `attempts` in words, `once`, `twice`, then `3 times` (settled in the plan) |
   | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them, in the order of care: `week` and `5-hour`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
   | 69 | `ASKED` | `model`; `size`, `shape.bytes` (`482 KB`); `messages`, `system` (`3 blocks`) and `tools`, `shape`'s counts; `max_tokens`; `thinking`, its budget; `effort`, `output_config`'s; `stream`, `yes` or `no` |
-  | 94 | `ANSWERED` | `status`, then `canceled`, `cut off` or `broken off` where its line says so, or, its line yet to come, `canceled` for a `status` 0 the stream told, as `requests` words it (`200 broken off`), bold `state.destructive` where the request failed (the owner's call, 24 November 2026); `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
+  | 94 | `ANSWERED` | `status`, then `canceled`, `cut off` or `broken off` where its line says so, or, its line yet to come, `canceled` for a `status` 0 the stream told, as `requests` words it (`200 broken off`), bold `state.destructive` where the request failed (the owner's call, 24 November 2026); `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them, never how it ended early; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
   | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted`, or `unpriced` alone where the price table can't price it (the owner's call, 15 October 2026) |
 
   `from` in `ROUTED`, and `the move`, belong to a request that moved its session, and are left
@@ -8245,7 +8245,8 @@ files hold, to its last event filed.
 - `stopped` says its words briefly wherever it's cut to 11 cells, on a phone and under about 95
   columns: the tool alone in `text.secondary` for `tool_use` (`Bash`), else why in `text.muted`
   (`end_turn`); `new session` in `text.muted` on a session's first; `from work` for a request that
-  moved its session; `asking` or `answering`, bold `accent.key`, in flight;
+  moved its session; `asking` or `answering`, bold `accent.key`, in flight; else how it ended
+  early, `broken off`, in `text.muted`;
 - row 31: the state line, `● following`, and at the right `1,240 lines today`;
 - row 32, the keys: `↑↓ request   enter open   [ ] view   ? keys   q quit`, by the phone's rule for
   key lines (see The page).
