@@ -100,9 +100,10 @@ type Row struct {
 // its ledger grows; two requests at 01:30 as the clocks go back; checks and
 // counts, hidden and shown; a request answering as the stream closed, drawn
 // while it stays closed, its line come meanwhile, and the stream open again;
-// one session's lines alone, across midnight; failed requests alone; checks
-// shown and counts hidden; a request answering, its details open, then its
-// line come, paused; the ledger keeping its lines for good, and 400 days;
+// one session's lines alone, across midnight; failed requests alone, broken
+// off or cut off as they were answered among them; checks shown and counts
+// hidden; a request answering, its details open, then its line come,
+// paused; the ledger keeping its lines for good, and 400 days;
 // paused through a filter, across midnight, at the second 01:30 as the
 // clocks go back, and as its top reads the day before back; and the router
 // gone, its ledger last written by a check.
@@ -218,13 +219,32 @@ func seconds(n int64) string {
 }
 
 // rowOf is the row wanted of the request l, as its line alone tells it: no
-// mark, nothing moved, its stopped its answer's.
+// mark, nothing moved, its stopped its answer's, or, where its answer gave
+// none, how it ended early.
 func rowOf(l ledger.Line) Row {
-	r := Row{Request: l.Request, Session: l.Session, Dir: l.Dir, At: clock(l.At), Took: seconds(l.TotalMS), Stopped: l.Answer.Stop, Brief: l.Answer.Stop}
+	stopped := l.Answer.Stop
+	if stopped == "" && len(l.Answer.Tools) == 0 && l.Kind == ledger.KindMessage {
+		stopped = endedEarly(l)
+	}
+	r := Row{Request: l.Request, Session: l.Session, Dir: l.Dir, At: clock(l.At), Took: seconds(l.TotalMS), Stopped: stopped, Brief: stopped}
 	if l.FirstMS != nil {
 		r.First = seconds(*l.FirstMS)
 	}
 	return r
+}
+
+// endedEarly is how the request l ended early, as the Log's stopped says it
+// where its answer gave no stop reason: "" where it ran to its end.
+func endedEarly(l ledger.Line) string {
+	switch {
+	case l.Canceled:
+		return "canceled"
+	case l.CutOff:
+		return "cut off"
+	case l.Broken:
+		return "broken off"
+	}
+	return ""
 }
 
 // first is the row wanted of a session's first request, l: ▲, new session.
@@ -393,15 +413,16 @@ func sentAgainAndFailed() LogMoment {
 	retried.Stopped, retried.Brief, retried.Routing = "tool_use · Bash +1", "from work", "after work's limit"
 	refused, cutOff, givenUp := rowOf(c1), rowOf(c2), rowOf(c3)
 	refused.Routing, refused.Brief = "after side's limit, work's limit", "after side's limit, work's limit"
-	for _, r := range []*Row{&refused, &cutOff, &givenUp} {
+	for _, r := range []*Row{&refused, &cutOff} {
 		r.Mark, r.Failed = views.MarkFailed, true
 	}
 	return LogMoment{
-		Name:  "a request sent again after work's limit, calling several tools; a 429 every account refused, passed on; one cut off; one given up",
+		Name: "a request sent again after work's limit, calling several tools; a 429 every account refused, passed on; one cut off; " +
+			"one given up, which didn't fail",
 		Lines: []ledger.Line{c0, r0, c1, c2, c3, r1}, Sessions: []status.Session{listed(D28C, At(14, 35, 10), "")},
 		From: now, Now: now,
 		Want:   rows(first(c0), first(r0), retried, refused, cutOff, givenUp),
-		Counts: map[string]Count{"2026-10-01": shownFailed(6, 3)},
+		Counts: map[string]Count{"2026-10-01": shownFailed(6, 2)},
 	}
 }
 
@@ -583,23 +604,36 @@ func failedOnly() LogMoment {
 	givenUp := failing(0, requested("c3", C61B, Opus, side, status.ReasonSticky, At(14, 38, 0)))
 	givenUp.Canceled = true
 	broke := failing(500, requested("c4", C61B, Opus, side, status.ReasonSticky, At(14, 39, 0)))
+	brokenOff := failing(200, requested("c5", C61B, Opus, side, status.ReasonSticky, At(14, 39, 10)))
+	brokenOff.Broken = true
+	cutAnswering := failing(200, requested("c6", C61B, Opus, side, status.ReasonSticky, At(14, 39, 20)))
+	cutAnswering.CutOff = true
+	gaveUpAnswering := failing(200, requested("c7", C61B, Opus, side, status.ReasonSticky, At(14, 39, 30)))
+	gaveUpAnswering.Canceled = true
 	r5 := requested("r5", D28C, Opus, side, status.ReasonSticky, At(14, 40, 0))
+	toldBroken := done(At(14, 41, 45), 200, told("r8", D28C, Opus, side, At(14, 41, 40), At(14, 41, 40)))
+	toldBroken.Broken = true
+	toldGaveUp := done(At(14, 41, 47), 0, told("r7", D28C, Opus, side, At(14, 41, 42), At(14, 41, 42)))
 	lost := told("r9", D28C, Opus, side, At(14, 41, 50), At(14, 41, 55))
 	lost.Lost = true
-	wanted := []Row{rowOf(refused), rowOf(cutOff), rowOf(givenUp), rowOf(broke)}
+	wanted := []Row{rowOf(refused), rowOf(cutOff), rowOf(broke), rowOf(brokenOff), rowOf(cutAnswering)}
 	wanted[0].Routing, wanted[0].Brief = "after side's limit, work's limit", "after side's limit, work's limit"
 	for i := range wanted {
 		wanted[i].Mark, wanted[i].Failed = views.MarkFailed, true
 	}
-	wanted = append(wanted, Row{Request: "r9", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true,
-		Stopped: lostWords, Brief: lostWords})
+	wanted = append(wanted,
+		Row{Request: "r8", Session: D28C, At: "14:41:40", Mark: views.MarkFailed, Stage: views.RowEnded, Failed: true, Took: "5.0s",
+			Stopped: "broken off", Brief: "broken off"},
+		Row{Request: "r9", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true, Stopped: lostWords, Brief: lostWords})
 	return LogMoment{
-		Name:  "failed only: a 429 every account refused, passed on; one cut off; one given up; a 500; one lost",
-		Lines: []ledger.Line{r0, c0, refused, cutOff, givenUp, broke, r5}, Stream: live(lost),
+		Name: "failed only: a 429 every account refused, passed on; one cut off; a 500; one broken off and one cut off as each was answered; " +
+			"one the stream told was broken off, its line to come; one lost; and none given up, before an answer, as it was answered, " +
+			"or as the stream told, its line to come",
+		Lines: []ledger.Line{r0, c0, refused, cutOff, givenUp, broke, brokenOff, cutAnswering, gaveUpAnswering, r5}, Stream: live(toldBroken, toldGaveUp, lost),
 		Filter: views.LogFilter{Kinds: views.LogOpening().Kinds, Failed: true},
 		From:   now, Now: now,
 		Want:   rows(wanted...),
-		Counts: map[string]Count{"2026-10-01": {Shown: 5, Requests: 8, Failed: 5}},
+		Counts: map[string]Count{"2026-10-01": {Shown: 7, Requests: 13, Failed: 7}},
 	}
 }
 

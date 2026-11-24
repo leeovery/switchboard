@@ -91,7 +91,7 @@ var rowMarkMeans = []struct {
 }{
 	{views.MarkAsking, "in flight, asking: its answer's first byte not come"},
 	{views.MarkAnswering, "in flight, answering"},
-	{views.MarkFailed, "failed: 400 and over, cut off or given up"},
+	{views.MarkFailed, "failed: 400 and over, no answer, broken off or cut off; never canceled"},
 	{views.MarkMoved, "it moved its session to another account"},
 	{views.MarkNew, "a session's first request"},
 	{views.MarkHidden, "a quota check or a count of tokens, shown"},
@@ -128,7 +128,7 @@ var logColumnMeans = map[LogColumn]string{
 	LogThinking:  "its thinking budget",
 	LogAgent:     "the client that sent it, by its name and version",
 	LogRequestID: "the router's id for it",
-	LogStopped:   "why its answer stopped, and the tool it called",
+	LogStopped:   "why its answer stopped and the tool it called, or how it ended early",
 	LogRouting:   "how the router chose its account, and what a move cost; blank where it stayed",
 }
 

@@ -467,9 +467,10 @@ func answeredSection(d views.RequestDetails, lined lineGives, m status.Moment) c
 	}}
 }
 
-// statusSaid is what the request was answered, once its line came or the
-// stream told its end, bold state.destructive where its row says it failed:
-// blank in flight, and — where it was lost.
+// statusSaid is what the request was answered and how its answer ended, as
+// its row's Outcome says it, once its line came or the stream told its end,
+// bold state.destructive where its row says it failed: blank in flight, and
+// — where it was lost.
 func statusSaid(r views.RequestRow) line {
 	switch {
 	case r.Stage.InFlight():
@@ -477,9 +478,9 @@ func statusSaid(r views.RequestRow) line {
 	case r.Stage == views.RowLost:
 		return valued("")
 	case r.Failed:
-		return line{{prose.Grouped(r.Status), exhaustedInk}}
+		return line{{r.Outcome(), exhaustedInk}}
 	}
-	return valued(prose.Grouped(r.Status))
+	return valued(r.Outcome())
 }
 
 // firstSaid is how long after the request arrived its answer's first byte
@@ -506,11 +507,12 @@ func endedSaid(r views.RequestRow) line {
 	return valued("")
 }
 
-// stoppedSaid is why the request's answer stopped, as the table words it,
-// the words in text.secondary, any account named as m names it, cut as
-// asLabelled cuts it: in flight, what it's doing.
+// stoppedSaid is why the request's answer stopped, as its row's StopReason
+// says it, never how it ended early, which its status says: the words in
+// text.secondary, any account named as m names it, cut as asLabelled cuts
+// it: in flight, what it's doing.
 func stoppedSaid(r views.RequestRow, lined lineGives, m status.Moment) line {
-	w := r.Stopped()
+	w := r.StopReason()
 	if len(w) == 0 {
 		return lined.said("")
 	}

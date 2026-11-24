@@ -551,6 +551,77 @@ func TestAChunksMetaMayKeepWhereEachChoiceCountsARowOfOne(t *testing.T) {
 	}
 }
 
+// endings are the ways a request may end, each by its name, and whether it
+// failed: answered 400 or over, or nothing; or broken off or cut off after
+// its answer began, whatever its status; but never given up by its client,
+// answered or not.
+var endings = []struct {
+	name   string
+	ending ledger.Ending
+	failed bool
+}{
+	{"answered", ledger.Ending{Status: 200}, false},
+	{"answered an error", ledger.Ending{Status: 529}, true},
+	{"cut off before an answer", ledger.Ending{CutOff: true}, true},
+	{"given up before an answer", ledger.Ending{Canceled: true}, false},
+	{"given up as it was answered", ledger.Ending{Status: 200, Canceled: true}, false},
+	{"given up as it was answered an error", ledger.Ending{Status: 529, Canceled: true}, false},
+	{"cut off as it was answered", ledger.Ending{Status: 200, CutOff: true}, true},
+	{"broken off as it was answered", ledger.Ending{Status: 200, Broken: true}, true},
+}
+
+// endedLine is a request of session s on work, ended as given.
+func endedLine(request string, end ledger.Ending) ledger.Line {
+	return ledger.Line{
+		At: time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC), Request: request, Kind: ledger.KindMessage, Session: "s", Model: foldOpus, Account: "work",
+		Status: end.Status, Canceled: end.Canceled, CutOff: end.CutOff, Broken: end.Broken,
+	}
+}
+
+// A request failed alike however its row is read: its line read whole, as
+// ledger.Line.Failed and its row have it; its record restored from a day's
+// stored rows, as the failed alone keep it; and its chunk's meta, read as its
+// builder stores it, counting it and so kept by the failed alone, beside a
+// request answered.
+func TestARequestFailedAlikeWhetherItsLineOrItsStoredRowIsRead(t *testing.T) {
+	failed := LogFilter{Failed: true}
+	for _, e := range endings {
+		t.Run(e.name, func(t *testing.T) {
+			l := endedLine("r1", e.ending)
+			rec := lineRecordOf(&l)
+			if got := l.Failed(); got != e.failed {
+				t.Errorf("its line's Failed() = %t, want %t", got, e.failed)
+			}
+			if got := lineFacts(&rec.rowRecord, nil).Failed; got != e.failed {
+				t.Errorf("its row's Failed = %t, want %t", got, e.failed)
+			}
+			lines := []ledger.Line{endedLine("r0", ledger.Ending{Status: 200}), l}
+			built, _ := encodedChunk(t, recordsOfLines(lines))
+			restored, err := restoredRows(nil, built.rows)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := failed.keeps(&restored[1]); got != e.failed {
+				t.Errorf("the failed alone keep its restored record %t, want %t", got, e.failed)
+			}
+			meta, err := chunkMetaOf(built.meta)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 0
+			if e.failed {
+				want = 1
+			}
+			if got := meta.lines.Failed; got != want {
+				t.Errorf("its chunk's meta counts %d failed, want %d", got, want)
+			}
+			if got := meta.mayKeep(failed); got != e.failed {
+				t.Errorf("its chunk's meta may keep a row the failed alone keep %t, want %t", got, e.failed)
+			}
+		})
+	}
+}
+
 // A chunk's meta gives when the first and the last of its rows arrived,
 // whatever year they arrived in: before 1970, as a line edited by hand may
 // say, among them, and at no time at all; and of a chunk of one row, its

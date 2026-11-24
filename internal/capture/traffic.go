@@ -27,8 +27,9 @@ var madeTraffic []byte
 // given; its status, 200 where none's given; how long its answer took to
 // start and to end, in milliseconds; and its usage, 3 tokens in where none's
 // given, its writes to the cache lasting an hour; how its answer stopped, and
-// the tool it called; and the account's windows as its answer read them,
-// where the frames draw them.
+// the tool it called; whether the upstream broke its answer off after it
+// began; and the account's windows as its answer read them, where the frames
+// draw them.
 type madeLine struct {
 	Day     int               `json:"day"`
 	At      string            `json:"at"`
@@ -45,6 +46,7 @@ type madeLine struct {
 	Out     int               `json:"out"`
 	Stop    string            `json:"stop"`
 	Tool    string            `json:"tool"`
+	Broken  bool              `json:"broken"`
 	Limits  map[string]string `json:"limits"`
 }
 
@@ -98,7 +100,7 @@ func (m madeLine) line(now time.Time) ledger.Line {
 	}
 	l := ledger.Line{
 		At: clockAt(now, m.Day, clock.Hour(), clock.Minute(), clock.Second()).UTC(), Kind: cmp.Or(m.Kind, ledger.KindMessage),
-		Model: "claude-" + m.Model, Account: m.Account, Status: cmp.Or(m.Status, 200), Attempts: 1, TotalMS: m.Took, Agent: claudeCodeAgent,
+		Model: "claude-" + m.Model, Account: m.Account, Status: cmp.Or(m.Status, 200), Broken: m.Broken, Attempts: 1, TotalMS: m.Took, Agent: claudeCodeAgent,
 	}
 	l.Session, l.Dir = m.session()
 	l.Project = l.Dir

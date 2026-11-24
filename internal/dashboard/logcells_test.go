@@ -113,9 +113,10 @@ func TestTheRequestsDrawTheExtrasAndWorthAsTheDesignSays(t *testing.T) {
 	})
 }
 
-// A request that failed with no answer, cut off as the router stopped or
-// given up as its client went away, reads as failed: ■, and its status, 0,
-// bold state.destructive. One the stream told of in flight that ended
+// A request that failed with no answer, cut off as the router stopped,
+// reads as failed: ■, and its status, 0, bold state.destructive; one given
+// up as its client went away doesn't fail, its 0 in text.muted, unmarked,
+// as its user ended it. One the stream told of in flight that ended
 // untold is lost: ■, no answer: the router went away, nothing of its answer
 // known. One of no session is — in text.faint; one whose line names no
 // directory, its session's id alone.
@@ -136,16 +137,42 @@ func TestTheRequestsDrawEachFailureAsTheDesignSays(t *testing.T) {
 	c := f.page(routerDoc("side", 0), at.Add(time.Minute))
 	failed := columnCell{"0", ink{token: theme.StateDestructive, bold: true}}
 	rowsHold(t, c, f.top()+1, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
-		{LogStatus: failed, LogSession: {"d28c", secondaryCell}},
-		{LogStatus: failed},
+		{LogStatus: failed, LogSession: {"d28c", secondaryCell}, LogStopped: {"cut off", mutedCell}},
+		{LogStatus: {"0", mutedCell}, LogStopped: {"canceled", mutedCell}},
 		{LogSession: {"—", faintCell}, LogStatus: {"200", mutedCell}},
 		{LogStatus: {}, LogTook: {}, LogStopped: {"no answer: the router went away", mutedCell}},
 	})
-	for i, want := range []string{"■", "■", "", "■"} {
+	for i, want := range []string{"■", "", "", "■"} {
 		if mark := c.at(0, f.top()+1+i); strings.TrimSpace(mark.glyph) != want || want != "" && mark.ink != (ink{token: theme.StateDestructive, bold: true}) {
 			t.Errorf("row %d is marked %q in %+v, want %q", i+1, mark.glyph, mark.ink, want)
 		}
 	}
+}
+
+// A request whose answer gave no reason it stopped, and ended early, says
+// how in its stopped, in text.muted, as its card's status words it:
+// broken off, cut off or canceled. A reason, where its answer gave one,
+// wins.
+func TestTheStoppedCellSaysHowARequestEndedEarlyWhereItsAnswerGaveNoReason(t *testing.T) {
+	at := time.Date(2026, 10, 1, 14, 31, 13, 0, now.Location())
+	broken := asked("0a000001", at)
+	broken.Broken = true
+	cut := asked("0a000002", at.Add(time.Second))
+	cut.CutOff = true
+	gaveUp := asked("0a000003", at.Add(2*time.Second))
+	gaveUp.Canceled = true
+	reasoned := asked("0a000004", at.Add(3*time.Second))
+	reasoned.Broken, reasoned.Answer.Stop = true, "end_turn"
+	p := requestsOf(views.LogSources{From: at, Now: at.Add(time.Minute)}, []ledger.Line{broken, cut, gaveUp, reasoned})
+
+	f := logFrameOf(p, 200, 24)
+	c := f.page(routerDoc("side", 0), at.Add(time.Minute))
+	rowsHold(t, c, f.top()+1, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
+		{LogStopped: {"broken off", mutedCell}},
+		{LogStopped: {"cut off", mutedCell}},
+		{LogStopped: {"canceled", mutedCell}},
+		{LogStopped: {"end_turn", mutedCell}},
+	})
 }
 
 // Claude Code's quota checks and its counts of tokens, shown: each marked ·,

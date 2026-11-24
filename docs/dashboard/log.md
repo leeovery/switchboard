@@ -22,7 +22,7 @@ Requests has a line for each request the router routes. Each line shows:
 - the status;
 - the time to the first byte, and in all;
 - the tokens by kind;
-- why the answer stopped;
+- why the answer stopped, or how it ended early: canceled, cut off or broken off;
 - how the router chose the account, with the cost of a move.
 
 ## Events: a line a decision

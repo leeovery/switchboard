@@ -83,8 +83,11 @@ type Told struct {
 	// it last went out: none while there's none.
 	Verdict Verdict
 	// Status is the answer that gave its verdict, or, once it's done, what
-	// its client was answered: zero where its client went first.
+	// its client was answered: zero where its client went first. Broken is
+	// set, once it's done, where the upstream broke its answer off after it
+	// began.
 	Status int
+	Broken bool
 	// Ended is when it ended, as the stream told: zero while it hasn't.
 	Ended time.Time
 	// Lost is set where it was in flight as the watch last forgot what the
@@ -150,6 +153,15 @@ func (t Told) Seat() (Seat, bool) {
 func (t Told) SameRow(o Told) bool {
 	t.Chars, t.Heard, o.Chars, o.Heard = 0, time.Time{}, 0, time.Time{}
 	return t == o
+}
+
+// ending is how the request ended, as the stream told: its status, whether
+// the upstream broke its answer off, and canceled where it ended unanswered,
+// as the stream tells a status of 0 only where its client went first. One
+// the router cut off as it stopped is told no otherwise, till its line says
+// so.
+func (t Told) ending() ledger.Ending {
+	return ledger.Ending{Status: t.Status, Canceled: t.Status == 0, Broken: t.Broken}
 }
 
 // InFlight reports whether the request is in flight, as the stream told:

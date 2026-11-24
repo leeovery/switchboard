@@ -652,6 +652,6 @@
 {"at":"14:41:19","session":"c61b","model":"opus-5-5","on":"side","first":899,"took":14822,"read":22429,"wrote":2857,"out":1480,"stop":"tool_use","tool":"Write"}
 {"at":"14:41:25","session":"7f3a","model":"opus-5-5","on":"side","first":1295,"took":7192,"read":115134,"wrote":2805,"out":973,"stop":"tool_use","tool":"Edit"}
 {"at":"14:41:29","session":"41e0","model":"opus-5-5","on":"personal","first":821,"took":3795,"read":149346,"wrote":3123,"out":778,"stop":"end_turn"}
-{"at":"14:41:38","session":"c61b","model":"haiku-4-5","on":"side","first":241,"took":607,"out":65,"stop":"end_turn"}
+{"at":"14:41:38","session":"c61b","model":"haiku-4-5","on":"side","first":241,"took":607,"out":65,"broken":true}
 {"at":"14:41:39","session":"c61b","model":"opus-5-5","on":"side","first":670,"took":11494,"read":23888,"wrote":2334,"out":1875,"stop":"tool_use","tool":"Bash"}
 {"at":"14:41:41","session":"7f3a","model":"opus-5-5","on":"side","first":1000,"took":11912,"read":116559,"wrote":1354,"out":1110,"stop":"tool_use","tool":"Read"}

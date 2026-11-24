@@ -77,7 +77,7 @@ var (
 	readsRaw = []string{
 		"claude.LimitStatus", "claude.LimitWindows", "claude.WindowsRead",
 		"claude.KeptWindows", "claude.WindowsReadOf",
-		"ledger.Failing", "ledger.Line.Upstream",
+		"ledger.Answered", "ledger.Ending.Failed", "ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf", "ledger.Spent.Add",
 		"ledger.Spent.AddCacheWrites",
 		"ledger.Table.CacheWrite", "ledger.Table.CacheWriteSpend", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",

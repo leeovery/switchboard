@@ -6865,7 +6865,8 @@ beside COMING UP, and `runway-108x44` and `runway-73x61`, LATELY under it; with 
 collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`; and of
 accounts without a 5-hour window, `runway-ultra-160`, every account on a verified Ultra plan, and
 `runway-mixed-160`, side alone keeping its 5-hour; and of an account added today,
-`runway-added-160` and `runway-added-73x61`. Columns and rows are at 160 by 37 unless they say
+`runway-added-160` and `runway-added-73x61`; and of a week running out past the view's end,
+`runway-past-the-view-160`. Columns and rows are at 160 by 37 unless they say
 otherwise.
 
 **The heading row,** row 4: `RUNWAY` in `text.muted`, and a rule of `─` in `border` from two cells
@@ -7048,12 +7049,23 @@ An account whose week reaches no limit says `resets Sun 21:00` in `text.muted`, 
 reset's `│`, where that clears the words before. Else a lane says `room all week`, in
 `text.subtle`, from the cell after now's column.
 
+The live view ends about six days ahead, so a week that began within the last day resets after
+it. Where such a week runs out or reaches its cap at its pace past the view's end, before it
+resets, the lane says so as it would were it drawn on, `out ~Thu 8 Oct  ·  resets Thu 09:44`,
+ending at the lane's last column and placed as any stretch's words are. `room all week` is said
+only of a lane with room through every column from now's and nothing past the view before the
+reset, so it holds to the week, not only to the view: it never sits under a lane whose week
+`usage`, `status`, GLANCE and a Trends card say runs out. Stepped back to this week, which ends
+on its last day and not as the account's week resets, a lane says what it would have past that
+day alike, and `room all week` holds to the reset there too; a week wholly gone has no future,
+and says nothing past it (the owner's call, 24 November 2026).
+
 A stretch's words start at its column where they all fit from there; else they shift left as far
 as they must to fit whole, ending at the row's last column, but never sooner than two cells after
 the words before. Where even that leaves them too little room, they start there and drop whole
 parts from the end; where not even their first part fits, they and the words after them aren't
-said (the owner's call, 10 November 2026). A stretch already over, or one that starts past the
-view, isn't said.
+said (the owner's call, 10 November 2026). A stretch already over isn't said, nor one past a week
+wholly gone.
 
 **The pool's lane** sits under the lanes, named and marked as an account's lane is, with no rule
 over it (the owner's call, 17 October 2026): with three rows an account, after the last account's
@@ -7441,7 +7453,7 @@ so one look compares every account (the owner's call, 24 October 2026):
   refused` is left out, because the words from Runway say it, `token refused (401) 14:20`;
   `subscription lapsed` still shows under a 401 from the router (the owner's call, 16 November
   2026). Where the window runs out or reaches its cap at its pace past the view's end, before it
-  resets, the words say that too, as Runway would were its lane drawn on, after what it says, never
+  resets, the words say that too, as Runway does under the lane, after what it says, never
   `room all week` over a chart that runs out. Where they don't fit the card, whole parts go from the
   end, as Runway drops them.
 - **The chart,** `h` rows, a column a cell over the window's length, now's column
@@ -7880,7 +7892,8 @@ apart, each a part flex lays out (`logcolumns.go`):
   `claude-`, in `text.muted`. **`on`:** the account whose answer the client got, in
   `text.primary`, as account names are white wherever they're named, cut with `…` to the cells its
   column has.
-- **`status`:** as answered, in `text.muted`; 400 and over bold `state.destructive`. **`first`:**
+- **`status`:** as answered, the bare code, in `text.muted`; bold `state.destructive` where the
+  request failed, as its mark says, the column having no room for how it ended. **`first`:**
   the time to its answer's first byte, `0.8s`; **`took`:** its whole time, `11.8s`, from a minute
   `1m 05s`; both in `text.muted`.
 - **`read`, `written` and `out`:** the tokens it read from the cache, wrote to it, and put out, in
@@ -7889,7 +7902,10 @@ apart, each a part flex lays out (`logcolumns.go`):
   (`5.7M`, `16.1M`). A request that moved its session wrote its whole context on the new account:
   its `written` is bold `accent.attention`.
 - **`stopped`:** why its answer stopped, in `text.muted`, `end_turn`; for `tool_use`, then ` · ` in
-  `text.faint` and the tool it called in `text.secondary`: `tool_use · Bash`.
+  `text.faint` and the tool it called in `text.secondary`: `tool_use · Bash`. Where its answer gave
+  no reason and it ended early, how, in `text.muted`, in the words its card's `status` puts after
+  the code: `canceled`, `cut off` or `broken off`. A reason or a tool, where there is one, wins (the owner's
+  call, 24 November 2026). The card's `stopped` says the reason alone.
 - **`routing`:** how the router chose its account, from the line's `reason` and `from`, in the
   views' words (see The router's events); blank for a request that stayed where its session was.
   A move, on the request that moved: `from ` in `text.muted`, the account it left in
@@ -7921,8 +7937,19 @@ apart, each a part flex lays out (`logcolumns.go`):
   before it keep a cell and the ellipsis: `from work, at it…  $1.82`.
 - **The marks,** bold, the first that applies: `↑` in `accent.key`, in flight and asking, before its
   answer's first byte; `↓` in `accent.key`, in flight and answering; `■` in `state.destructive`,
-  failed, 400 and over; `▸` in `accent.key`, it moved its session (its line has a `from`); `▲` in
-  `accent.mode`, a session's first request; none on a request that stayed and succeeded.
+  failed, never on one canceled; `▸` in `accent.key`, it moved its session (its line has a
+  `from`); `▲` in `accent.mode`, a session's first request; none on a request that stayed and
+  succeeded.
+- **Failed,** one meaning wherever the Log says it, the mark, the status's ink, the `f` panel's
+  count and `only those that failed`, the one `ledger` gives: answered 400 and over; answered
+  nothing, `status` 0, as one cut off before an answer came; or its answer broken off (`broken`)
+  or cut off (`cut_off`) after it began, whatever its `status`, as a `200` broken off mid-answer
+  gave the client no whole answer. A request canceled (`canceled`) never failed, answered or not,
+  before its first byte as much as after, as its user ended it, an Esc being common; one lost,
+  its router gone, did. A request the stream told the end of, its line yet to come, is judged by
+  the `status` and `broken` the stream told, a `status` 0 its client gone first, so canceled (the
+  owner's calls, 24 November 2026). `log-requests-160` draws one broken off, `■` and its `200`
+  bold `state.destructive`, and `log-request-broken-160` its card.
 - **In flight,** a request sits where it arrived, as the request stream tells it, and fills in where
   it is as its line is written, so lines never move. A row is placed by when the stream told it was
   sent only while the stream holds its request: one whose line the Log first reads after the
@@ -7937,9 +7964,13 @@ apart, each a part flex lays out (`logcolumns.go`):
   check is worth nothing, `$0.00`, whatever it spent, as no view prices it (see Worth).
 - **Requests no frame draws:** one sent again after a limit has its `tried` in `routing`
   (`after work's limit`); one every account refused, its 429 passed on, reads as failed; one
-  answered by the router itself has no `first`; one cut off or given up, `status` 0, reads as
-  failed; several tools show the first and `+1`; no session, `—`; no directory, the id alone
-  (settled in the plan).
+  answered by the router itself has no `first`; one cut off, `status` 0, reads as failed, and
+  one given up, `status` 0, doesn't, a client's own timeout on a stalled answer among them, as the
+  router can't tell it from an Esc (accepted, 24 November 2026); one cut off as it was answered
+  reads as failed, and one given up as it was doesn't; one given up on an error, its line yet to
+  come, reads as failed till its line says canceled (accepted, 24 November 2026);
+  several tools show the first and `+1`; no session, `—`; no directory, the id alone (settled in
+  the plan).
 
 **A line's details.** `enter` opens the chosen line's details in the routing pickers' card (see
 Routing by hand), over the page faded, the line it's of left bright; `esc` closes it. A line's
@@ -7982,7 +8013,7 @@ filling in as its line comes (settled in the plan).
   | 19 | `ROUTED` | `to`, `account`; `from`, the account it left and why (`work, at its cap`); `upstream`, `attempts` in words, `once`, `twice`, then `3 times` (settled in the plan) |
   | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them, in the order of care: `week` and `5-hour`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
   | 69 | `ASKED` | `model`; `size`, `shape.bytes` (`482 KB`); `messages`, `system` (`3 blocks`) and `tools`, `shape`'s counts; `max_tokens`; `thinking`, its budget; `effort`, `output_config`'s; `stream`, `yes` or `no` |
-  | 94 | `ANSWERED` | `status`; `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
+  | 94 | `ANSWERED` | `status`, then `canceled`, `cut off` or `broken off` where its line says so, or, its line yet to come, `canceled` for a `status` 0 the stream told, as `requests` words it (`200 broken off`), bold `state.destructive` where the request failed (the owner's call, 24 November 2026); `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them, never how it ended early; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
   | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted`, or `unpriced` alone where the price table can't price it (the owner's call, 15 October 2026) |
 
   `from` in `ROUTED`, and `the move`, belong to a request that moved its session, and are left
@@ -8053,8 +8084,9 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
   - **ONLY,** rows 12 to 16, its labels at `x+40` in `text.subtle` and their choices from `x+50`:
     `accounts`, every account's tick; `models`, the models of today's lines; `kinds`, `requests`,
     `checks` and `counts`, the ledger's `message`, `check` and `count`, each with today's count in
-    `text.muted`; `failed`, `only those that failed`, 400 and over, cut off or given up, and today's
-    count; `sessions`, `every one, unless some are ticked` in `text.muted`;
+    `text.muted`; `failed`, `only those that failed`, failed as the Log's marks have it (400 and
+    over, no answer, broken off or cut off, a request canceled never counted), and today's count;
+    `sessions`, `every one, unless some are ticked` in `text.muted`;
   - **today's sessions,** rows 17 to 22 from `x+52`, a row each: its tick; its id in
     `text.secondary`; two spaces and its directory's name padded to 12 in `text.muted`; two spaces
     and the account it's on in `text.primary`, in a column of names a record may hold (see "The
@@ -8213,7 +8245,8 @@ files hold, to its last event filed.
 - `stopped` says its words briefly wherever it's cut to 11 cells, on a phone and under about 95
   columns: the tool alone in `text.secondary` for `tool_use` (`Bash`), else why in `text.muted`
   (`end_turn`); `new session` in `text.muted` on a session's first; `from work` for a request that
-  moved its session; `asking` or `answering`, bold `accent.key`, in flight;
+  moved its session; `asking` or `answering`, bold `accent.key`, in flight; else how it ended
+  early, `broken off`, in `text.muted`;
 - row 31: the state line, `● following`, and at the right `1,240 lines today`;
 - row 32, the keys: `↑↓ request   enter open   [ ] view   ? keys   q quit`, by the phone's rule for
   key lines (see The page).
@@ -8327,10 +8360,10 @@ one:
 - **Worth** is worked out as it's read, at today's prices, from the dated price table, never stored;
   a model the table doesn't know is unpriced, never free (see The request ledger).
 - **Counts,** today's: the heading's hidden, the panel's kinds and failed, and the state line's,
-  from today's lines by `kind`, `status`, `canceled` and `cut_off`, and by `session`. The panel's
-  sessions: today's lines by `session`, with their `dir`; the account each is on now, and when it
-  was last seen, from `GET /sessions`; `asking` from the stream; `started` its first line's time
-  today.
+  from today's lines by `kind`, by `status`, `cut_off` and `broken`, as failed has them, and by
+  `session`. The panel's sessions: today's lines by `session`, with their `dir`; the account each
+  is on now, and when it was last seen, from `GET /sessions`; `asking` from the stream; `started`
+  its first line's time today.
 - **Events:** the status document's `events` as each look reads them, the newest 50 since the router
   started, and before them the router's files of events, through `internal/events`, back as far as
   `[ledger] keep` keeps them, 400 days unless it's set, and for good where it says `forever` (see
@@ -10717,8 +10750,9 @@ from the first day a router that has it runs, so nothing before then is in it.
   seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
   they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 6, since a row and a
-    side's session hold the terminal session they were started in; 5 since they held their
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 7, since a chunk's
+    meta counts as failed a request broken off or cut off after its answer began; 6 since a row
+    and a side's session held the terminal session they were started in; 5 since they held their
     project beside their directory and named the pools their lines recorded, each of which was
     version 4 alone; so a head of an older version is built again); its day, and the
     day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the
@@ -13504,7 +13538,9 @@ alone, numbered as Runway will number it. The tour stops on Graphs, and its stil
 grid and the dashboard's guide (#170). Every image in the README and the guide is recorded again in
 Tokyo Night, with a still of each built-in theme in the guide's Themes, Tokyo Night first, as the
 owner asked (#172). What the build left was weighed and dropped (the owner, 24 November 2026),
-but for a run-out past Runway's view, which Runway is to show.
+but for a run-out past Runway's view, which Runway now says under the lane as a card does. So
+Runway's `room all week` is true to the week: room till the week resets, not only to the view's
+end.
 
 **The Overview's GRAPHS — removed.** On 26 October 2026, for the release with Graphs, the owner
 removed the Overview's GRAPHS, its charts under USAGE and beside each block by account, `g`, `v`

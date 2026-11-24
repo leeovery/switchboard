@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -370,7 +371,7 @@ func TestADaysSummaryNamesTheSessionsCountedSessionSays(t *testing.T) {
 	}
 }
 
-func TestARequestFailedWhereItWasAnswered400OrOverOrNothing(t *testing.T) {
+func TestARequestFailedWhereItsAccountDidntAnswerItOrItsAnswerWasCutShortUnlessItWasCanceled(t *testing.T) {
 	tests := []struct {
 		name string
 		line ledger.Line
@@ -382,17 +383,38 @@ func TestARequestFailedWhereItWasAnswered400OrOverOrNothing(t *testing.T) {
 		{name: "a 429 every account refused, passed on", line: ledger.Line{Status: 429, Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}}}, want: true},
 		{name: "the upstream overloaded", line: ledger.Line{Status: 529}, want: true},
 		{name: "cut off before an answer", line: ledger.Line{CutOff: true}, want: true},
-		{name: "given up before an answer", line: ledger.Line{Canceled: true}, want: true},
+		{name: "given up before an answer", line: ledger.Line{Canceled: true}},
 		{name: "given up while it was answered", line: ledger.Line{Status: 200, Canceled: true}},
-		{name: "cut off while it was answered", line: ledger.Line{Status: 200, CutOff: true}},
+		{name: "given up while it was answered an error", line: ledger.Line{Status: 529, Canceled: true}},
+		{name: "cut off while it was answered", line: ledger.Line{Status: 200, CutOff: true}, want: true},
+		{name: "broken off while it was answered", line: ledger.Line{Status: 200, Broken: true}, want: true},
 	}
 	for _, tt := range tests {
-		if got := tt.line.Failed(); got != tt.want {
-			t.Errorf("%s: Failed() = %v, want %v", tt.name, got, tt.want)
-		}
-		if got := ledger.Failing(tt.line.Status); got != tt.want {
-			t.Errorf("%s: Failing(%d) = %v, want %v, as the line's status alone says", tt.name, tt.line.Status, got, tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.line.Failed(); got != tt.want {
+				t.Errorf("%+v.Failed() = %v, want %v", tt.line.Ending(), got, tt.want)
+			}
+		})
+	}
+}
+
+func TestARequestWasAnsweredByItsAccountWhereItsStatusIsNeither0Nor400OrOver(t *testing.T) {
+	tests := []struct {
+		status int
+		want   bool
+	}{
+		{status: 200, want: true},
+		{status: 399, want: true},
+		{status: 400},
+		{status: 529},
+		{status: 0},
+	}
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.status), func(t *testing.T) {
+			if got := ledger.Answered(tt.status); got != tt.want {
+				t.Errorf("Answered(%d) = %v, want %v", tt.status, got, tt.want)
+			}
+		})
 	}
 }
 

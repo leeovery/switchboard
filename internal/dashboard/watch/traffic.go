@@ -203,12 +203,12 @@ func (t *traffic) tell(e router.StreamEvent) {
 	r.Check, r.Count = r.Check || e.Check, r.Count || e.Count
 	switch e.Kind {
 	case router.StreamInFlight:
-		r.First, r.Chars, r.Verdict, r.Status, r.Ended, r.Lost = e.FirstAt, e.Chars, verdictOf(e.Verdict), e.Status, time.Time{}, false
+		r.First, r.Chars, r.Verdict, r.Status, r.Broken, r.Ended, r.Lost = e.FirstAt, e.Chars, verdictOf(e.Verdict), e.Status, false, time.Time{}, false
 		if r.Sent.IsZero() || e.SentAt.Before(r.Sent) {
 			r.Sent = e.SentAt
 		}
 	case router.StreamSent:
-		r.First, r.Chars, r.Verdict, r.Status, r.Lost = time.Time{}, 0, 0, 0, false
+		r.First, r.Chars, r.Verdict, r.Status, r.Broken, r.Lost = time.Time{}, 0, 0, 0, false, false
 		if r.Sent.IsZero() {
 			r.Sent = e.At
 		}
@@ -217,7 +217,7 @@ func (t *traffic) tell(e router.StreamEvent) {
 	case router.StreamProgress:
 		r.Chars = max(r.Chars, e.Chars)
 	case router.StreamDone:
-		r.Ended, r.Status, r.Chars = e.At, e.Status, max(r.Chars, e.Chars)
+		r.Ended, r.Status, r.Broken, r.Chars = e.At, e.Status, e.Broken, max(r.Chars, e.Chars)
 	case router.StreamLimited, router.StreamThrottled, router.StreamRefused:
 		r.Verdict, r.Status = verdictOf(e.Kind), e.Status
 	}

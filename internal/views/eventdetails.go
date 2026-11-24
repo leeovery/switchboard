@@ -548,7 +548,9 @@ func (d detailing) knownFrom() *KnownRequest {
 // there, answered 429, or its answer read one of the limit's windows holding
 // it back at its limit, or it was answered there with room; of a refusal,
 // it was refused there, or answered there, a request of the family refused
-// alone, where that's all that's refused.
+// alone, where that's all that's refused. Answered is as ledger.Answered
+// has it, an answer broken off or cut off after it began answered all the
+// same, though its row failed.
 func (d detailing) knowing(l *loggedLine) (tells, otherwise bool) {
 	e, r := d.event, &l.row
 	on := r.Account == e.Account
@@ -559,13 +561,13 @@ func (d detailing) knowing(l *loggedLine) (tells, otherwise bool) {
 	case status.EventLimit:
 		spent, _ := d.reads(l, score.HeldAtLimit)
 		spent = on && spent
-		return triedOn(l, e.Account, status.WhyLimit) || on && r.Status == http.StatusTooManyRequests || spent, on && !r.Failed && !spent
+		return triedOn(l, e.Account, status.WhyLimit) || on && r.Status == http.StatusTooManyRequests || spent, on && ledger.Answered(r.Status) && !spent
 	case status.EventRefused:
 		if e.Family != "" && (claude.Provider{}).Family(r.Model) != prose.Clean(e.Family) {
 			return false, false
 		}
 		refused := on && (r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden)
-		return triedOn(l, e.Account, status.WhyRefused) || refused, on && !r.Failed
+		return triedOn(l, e.Account, status.WhyRefused) || refused, on && ledger.Answered(r.Status)
 	}
 	return false, false
 }

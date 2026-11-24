@@ -261,8 +261,9 @@ func sessionCell(id, dir string, withDir bool) line {
 }
 
 // statusCell is what a request was answered, once its line came or the
-// stream told its end, in text.muted; bold state.destructive where it
-// failed, 400 and over, or 0, cut off or given up, as its mark has it.
+// stream told its end, in text.muted; bold state.destructive where its row
+// says it failed, as its mark has it: the bare status, as the column has no
+// room for how its answer ended.
 func statusCell(r views.RequestRow) line {
 	if r.Stage != views.RowLined && r.Stage != views.RowEnded {
 		return nil

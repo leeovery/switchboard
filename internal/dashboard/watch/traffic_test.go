@@ -379,6 +379,48 @@ func TestARouterRestartedForgetsWhatWasInFlightButKeepsItsMoves(t *testing.T) {
 	}
 }
 
+// A request whose end the stream told broken off is read by the views as
+// broken off, so its row fails before its line comes; one answered whole
+// isn't.
+func TestTheViewsReadARequestTheStreamToldBrokenOffAsBroken(t *testing.T) {
+	tests := []struct {
+		name   string
+		broken bool
+	}{
+		{"answered whole", false},
+		{"broken off", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			events := []router.StreamEvent{
+				told(router.StreamSent, "r1", "work", 0),
+				alter(told(router.StreamDone, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.Status, e.Broken = 200, tt.broken }),
+			}
+			at := past(2 * time.Second)
+			got := traffic{live: true}.took(events, heldNowhere, at).stream(at).Requests["r1"]
+			if got.Status != 200 || got.Broken != tt.broken {
+				t.Errorf("the views read r1 answered %d, broken off %t, want 200 and %t", got.Status, got.Broken, tt.broken)
+			}
+		})
+	}
+}
+
+// A request told broken off, then told in flight again, as the stream tells
+// a reader joining it afresh, is read as in flight, not broken off: its
+// end's status and break go together.
+func TestTheViewsReadARequestToldInFlightAgainAsNotBrokenOff(t *testing.T) {
+	events := []router.StreamEvent{
+		told(router.StreamSent, "r1", "work", 0),
+		alter(told(router.StreamDone, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.Status, e.Broken = 200, true }),
+		alter(told(router.StreamInFlight, "r1", "work", 3*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }),
+	}
+	at := past(3 * time.Second)
+	got := traffic{live: true}.took(events, heldNowhere, at).stream(at).Requests["r1"]
+	if got.Status != 0 || got.Broken || !got.Ended.IsZero() {
+		t.Errorf("the views read r1 answered %d, broken off %t, ended %v, want in flight afresh: 0, not broken off, not ended", got.Status, got.Broken, got.Ended)
+	}
+}
+
 func TestASessionsRequestsAtOnceShowTheOneInFlight(t *testing.T) {
 	events := []router.StreamEvent{
 		told(router.StreamSent, "r1", "work", 0),

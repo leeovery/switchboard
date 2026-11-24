@@ -68,10 +68,12 @@ func (from LanesFrom) reach() status.Reach {
 // timeline; where the view's window resets in it, as │ marks it, in order;
 // each stretch it has no room through, in order; each it would have past the
 // timeline, as beyond has them, which no column draws; whether it has room
-// through every column from now's, or through every column of a week
-// stepped back to, as nothing else is said of it; its use of the view's
-// window; and the stretch before its account was first read, where it's new
-// in the view.
+// all week, as nothing else is said of it: through every column from now's,
+// and nothing past the timeline before the view's window resets, as Beyond
+// has none, or through every column of a week stepped back to and, of this
+// week, nothing past its last day before the reset; its use of
+// the view's window; and the stretch before its account was first read,
+// where it's new in the view.
 type Lane struct {
 	ID        string
 	Cells     []Cell
@@ -303,7 +305,7 @@ func (from LanesFrom) laneOf(a status.AccountNow, past pastOf, then judge) Lane 
 	resets := from.resetsKnown(a, past)
 	asItResets(lane.Stretches, resets)
 	asItResets(lane.Beyond, resets)
-	lane.Room = roomThrough(lane.Cells[from.saysFrom():])
+	lane.Room = len(lane.Beyond) == 0 && roomThrough(lane.Cells[from.saysFrom():])
 	lane.New = newStretch(past.since, lane.Cells, tl)
 	return lane
 }
@@ -341,8 +343,9 @@ func asItResets(stretches []LaneStretch, resets []time.Time) {
 // before then, as h turns, gathered as the lane's columns gather them, each
 // turn as a column of its own, and back as backWithRoom has it, said from the
 // column after the last. None in a view that doesn't hold now, as a day or
-// week gone, nor of an account without the window, or whose reset isn't
-// known; a week stepped back to this week, holding now, has them.
+// week gone, which has no future, nor of an account without the window, or
+// whose reset isn't known; a week stepped back to this week, holding now,
+// has them, as it ends on its last day, not as the window resets.
 func (from LanesFrom) beyond(a status.AccountNow, h ahead) []LaneStretch {
 	tl := from.Timeline
 	w, ok := a.Window(from.viewKey())

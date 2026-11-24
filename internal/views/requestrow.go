@@ -17,10 +17,10 @@ import (
 // owner: prose.Seconds for First and Took, prose.Tokens for Read, Written
 // and Out, and Worth.Cents for Worth; status.ShownID or status.ShortID for
 // Session, status.DirName for Dir, and the account's name for Account. It
-// says its stopped and its routing itself, as no drawer works words out of a
-// line. It's built from the request's line, with its session's story, as
-// LogRows builds it, or, before its line comes, from what the request stream
-// told of it.
+// says its status, its stopped and its routing itself, as no drawer works
+// words out of a line. It's built from the request's line, with its
+// session's story, as LogRows builds it, or, before its line comes, from what
+// the request stream told of it.
 type RequestRow struct {
 	// Request is the router's id for it.
 	Request string
@@ -50,12 +50,13 @@ type RequestRow struct {
 	// before an answer came; or, ended before its line came, as the stream
 	// told. Canceled is set where its client went away before its end,
 	// CutOff where the router cut it off as it stopped, and Broken where the
-	// upstream broke its answer off after it began, as its line says.
+	// upstream broke its answer off after it began, as its line says, or,
+	// ended before its line came, as Told's ending reads it.
 	Status                   int
 	Canceled, CutOff, Broken bool
 	// Failed is set where it failed: as ledger.Line.Failed says, or, ended
-	// before its line came, as ledger.Failing says of the status told; and
-	// where it was lost.
+	// before its line came, as ledger.Ending's Failed says of its ending as
+	// Told's ending reads it; and where it was lost.
 	Failed bool
 	// First is how long after it arrived its answer's first byte came, and
 	// Took how long it took in all, as its line gives them; before its line
@@ -474,7 +475,9 @@ func toldRow(t Told, now time.Time) RequestRow {
 	case t.Lost:
 		r.Stage, r.Failed = RowLost, true
 	case !t.Ended.IsZero():
-		r.Stage, r.Status, r.Failed, r.Took = RowEnded, t.Status, ledger.Failing(t.Status), since(t.Sent, t.Ended)
+		end := t.ending()
+		r.Stage, r.Status, r.Canceled, r.Broken, r.Took = RowEnded, end.Status, end.Canceled, end.Broken, since(t.Sent, t.Ended)
+		r.Failed = end.Failed()
 	default:
 		a := t.doing()
 		r.Stage, r.Chars, r.Took = a.stage(), a.Chars, since(t.Sent, now)
@@ -548,13 +551,51 @@ func (w RowWords) String() string {
 // lostWords say a request was lost: no line came of it, its router gone.
 const lostWords = "no answer: the router went away"
 
-// Stopped is why the request's answer stopped, as the Log's stopped says it:
+// Outcome is what the request was answered and how its answer ended, as
+// its card and requests say it: its status, then how it ended early, as
+// endedEarly says it, as "200 broken off".
+func (r RequestRow) Outcome() string {
+	answer := strconv.Itoa(r.Status)
+	if early := r.endedEarly(); early != "" {
+		return answer + " " + early
+	}
+	return answer
+}
+
+// endedEarly says how the request ended early, where it did: canceled, its
+// client gone; cut off by the router as it stopped; or broken off by the
+// upstream. "" where it ran to its end.
+func (r RequestRow) endedEarly() string {
+	switch {
+	case r.Canceled:
+		return "canceled"
+	case r.CutOff:
+		return "cut off"
+	case r.Broken:
+		return "broken off"
+	}
+	return ""
+}
+
+// Stopped is the request's stopped as the Log's table says it: why its
+// answer stopped, as StopReason says it; else, where its answer gave no
+// reason, how it ended early, broken off (the owner's call, 24 November
+// 2026).
+func (r RequestRow) Stopped() RowWords {
+	w, early := r.StopReason(), r.endedEarly()
+	if len(w) > 0 || r.Kind != RowRequest || early == "" {
+		return w
+	}
+	return RowWords{{Text: early}}
+}
+
+// StopReason is why the request's answer stopped, as its card says it:
 // end_turn; tool_use · Bash, the first tool it called, and +1 after it where
 // it called one more; in flight, asking, or answering · 5.1k characters, its
 // characters so far, once they come to 0.1k, as prose.Characters counts; lost, no
 // answer: the router went away. None for a check or a count, and where
 // nothing's known of why it stopped.
-func (r RequestRow) Stopped() RowWords {
+func (r RequestRow) StopReason() RowWords {
 	switch {
 	case r.Kind != RowRequest:
 		return nil
@@ -607,7 +648,8 @@ func (r RequestRow) Folded() RowWords {
 // Stopped says; where it moved its session, from work; where its routing has
 // other words, them, as new session for its session's first; else the tool it
 // called alone, as Bash, and +1 where it called one more; else why its
-// answer stopped. None for a check or a count.
+// answer stopped; else how it ended early, as Stopped says it. None for a
+// check or a count.
 func (r RequestRow) BriefStopped() RowWords {
 	switch {
 	case r.Kind != RowRequest:
@@ -625,7 +667,7 @@ func (r RequestRow) BriefStopped() RowWords {
 	case r.Stop != "":
 		return RowWords{{Text: prose.Clean(r.Stop)}}
 	}
-	return nil
+	return r.Stopped()
 }
 
 // doing is what the request in flight is doing: asking, or answering.

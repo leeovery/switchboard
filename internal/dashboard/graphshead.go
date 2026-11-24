@@ -79,14 +79,6 @@ func (f Frame) cardHeadOf(v laneView, ln laidLane, width int, beside bool, now t
 	return h
 }
 
-// reaching is the lane ln as its card's words reach: its stretches, then
-// those past its view's end, as its Beyond has them, so a card cues its
-// words of a run-out past the view as Runway cues one inside it.
-func (ln laidLane) reaching() laidLane {
-	ln.Stretches = slices.Concat(ln.Stretches, ln.Beyond)
-	return ln
-}
-
 // alone is the column the name takes beside a card's words, nameGap after
 // it, as namesColumn lays it out: its own marks beside its label, as
 // besideCells counts them, keeping no cells for a ▲ it hasn't, as a card
@@ -164,15 +156,14 @@ func (v laneView) cardWords(ln laidLane, now time.Time) []line {
 // sharing a column in the order of when what each says of begins, as a
 // reset there before a stretch starting after it, which Runway drops, as
 // placeAlong does a phrase ending where the words before it run, though it
-// places two stretches in one column both; then what it would say of each
-// stretch past the view's end, as beyond has them, so a card never says
-// its window has room all along where it runs out before it resets; or
-// where it has none of those, what it says instead; and of a lane whose use
-// isn't read, where that's nothing, its use's words, as Runway's label says
-// them, as "not read".
+// places two stretches in one column both, those past the view's end
+// among them, so a card never says its window has room all along where it
+// runs out before it resets; or where it has none of those, what it says
+// instead; and of a lane whose use isn't read, where that's nothing, its
+// use's words, as Runway's label says them, as "not read".
 func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 	says := v.said(ln, now)
-	said := slices.SortedStableFunc(slices.Values(slices.Concat(says.phrases, v.beyond(ln, now))), func(a, b phrase) int {
+	said := slices.SortedStableFunc(slices.Values(says.phrases), func(a, b phrase) int {
 		return cmp.Or(cmp.Compare(a.col, b.col), a.at.Compare(b.at))
 	})
 	if len(said) == 0 {
@@ -202,17 +193,6 @@ func (ln laidLane) staleSaid(now time.Time) (line, bool) {
 		return nil, false
 	}
 	return staleWords(u.StaleCause, u.ReadAt, now).full, true
-}
-
-// beyond are the phrases of each stretch the lane ln would have past the
-// view v's end, as its Beyond has them, as Runway's lane would word them at
-// now, were it drawn on.
-func (v laneView) beyond(ln laidLane, now time.Time) []phrase {
-	var phrases []phrase
-	for _, s := range ln.Beyond {
-		phrases = append(phrases, v.stretchPhrase(s, ln.account, now))
-	}
-	return phrases
 }
 
 // fainted are the parts given, each in text.faint, as inFaint has it.
