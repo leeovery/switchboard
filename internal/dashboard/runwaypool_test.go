@@ -463,6 +463,14 @@ func forecastDoc(doc status.Document, day float64) status.Document {
 	return doc.WorkedOut(claudeLike)
 }
 
+// pinnedToSide is the auto world the frames were drawn of, as framesDoc has
+// it, the pool's pin naming side alone.
+func pinnedToSide() status.Document {
+	doc := framesDoc()
+	doc.Pin = status.Pin{Accounts: []string{"side"}, Since: routedClock(1, 13, 40)}
+	return doc
+}
+
 // poolLasting is the auto world the frames were drawn of, as framesDoc has
 // it, its pool's use such that it lasts the week, 20% to spare; and
 // poolRunsShort, such that it runs out on Sunday, lasting at 20% less.
@@ -470,8 +478,9 @@ func poolLasting() status.Document   { return forecastDoc(framesDoc(), 0.02) }
 func poolRunsShort() status.Document { return forecastDoc(framesDoc(), 0.03) }
 
 // After the pool's room in the week, Runway says how near the pool is to
-// running out, after " · ": in full where it fits, short where only that
-// does, as on a phone; short alone with the account column collapsed; and
+// running out, after " · ", and after " · pinned" where a pin holds: in full
+// where it fits, short where only that does, as on a phone; short alone with
+// the account column collapsed; and
 // nothing where it says nothing, as without a forecast, nor where the room
 // isn't said, as on a week gone stepped back to.
 func TestThePoolsMarginFollowsItsRoomInTheWeek(t *testing.T) {
@@ -497,6 +506,8 @@ func TestThePoolsMarginFollowsItsRoomInTheWeek(t *testing.T) {
 		{name: "running out, collapsed", doc: poolRunsShort(), shown: collapsed, width: 160, height: 37, want: "1.2/3 · out ~Sun"},
 		{name: "lasting, collapsed", doc: poolLasting(), shown: collapsed, width: 160, height: 37, want: "1.2/3 · 20% to spare"},
 		{name: "without a forecast", doc: framesDoc(), shown: live, width: 160, height: 37, want: "  week 1.2 of 3 left"},
+		{name: "pinned", doc: forecastDoc(pinnedToSide(), 0.02), shown: live, width: 160, height: 37, want: "  week 0.2 of 1 left · pinned · lasts the week, 20% to spare"},
+		{name: "pinned, on a phone", doc: forecastDoc(pinnedToSide(), 0.02), shown: phone, width: 52, height: 38, want: "  week 0.2 of 1 left · pinned · 20% to spare"},
 		{name: "a week gone stepped back to", doc: poolRunsShort(), shown: gone, width: 160, height: 37},
 	}
 	for _, tt := range tests {

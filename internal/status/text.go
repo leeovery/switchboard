@@ -79,19 +79,23 @@ func (m Moment) Text(sessions ...Session) string {
 }
 
 // writePool writes the pool's room in the shared week, as policy names it,
-// where the pool has two or more accounts: under Σ pool, the week by its
-// name width wide, as the accounts' windows are, and its room to a tenth of
-// how many of its accounts have it, as in "Week   1.8 of 4 left"; then, where
-// its margin says anything, how near it is to running out, as its Words
-// say it.
+// wherever Pool keeps that window, as the Runway draws the pool's row: so
+// with two or more accounts, even where a pin names one. Under Σ pool, the
+// week by its name width wide, as the accounts' windows are, and its room to
+// a tenth of how many of its accounts have it, as in "Week   1.8 of 4 left",
+// " · pinned" after where a pin holds; then, where its margin says anything,
+// how near it is to running out, as its Words say it.
 func (m Moment) writePool(b *strings.Builder, width int) {
 	pool := m.Pool()
 	i := slices.IndexFunc(pool.Windows, func(w PoolWindowNow) bool { return w.Key == m.policy.Perishable })
-	if len(pool.Accounts) < 2 || i < 0 {
+	if i < 0 {
 		return
 	}
 	w := pool.Windows[i]
 	room := fmt.Sprintf("%-*s %4s of %d left", width, m.NameOf(w.Key), prose.Tenths(w.Room), w.Of)
+	if pool.Pinned {
+		room += " · pinned"
+	}
 	if margin := m.PoolMargin().Words(); len(margin) > 0 {
 		room += " · " + margin.String()
 	}

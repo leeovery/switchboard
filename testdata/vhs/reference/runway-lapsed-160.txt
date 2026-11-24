@@ -13,18 +13,18 @@ work          ━━██████████████████━█
 personal    ◆ ████━━━━████████████████████████████████████████████████████████████████│█████████████████████████████████████████████████████████████████████████
   lapsed                                                               resets Sun 02:00
 
-side        ▲ █████████████████████████████━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│█████████████████████████████████████████████
-  week 78%                                 out ~Fri 00:04  ·  resets Mon 10:00
+side        ▲ ███████████████████████████████████━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│█████████████████████████████████████████████
+  week 78%                                      out ~Fri 06:38  ·  resets Mon 10:00
 
-Σ pool        ▃▃  ▃▃▃▃             ▃▃▃▃▃▃▃▃                                                                       ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
-                                  ▅        ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
-  week 0.2 of 3 left · runs out ~Fri 00:04
+Σ pool        ▃▃  ▃▃▃▃             ▃▃▃▃▃▃▃▃▃▃▃▃▃▃                                                                 ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
+                                  ▅              ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+  week 0.2 of 3 left · runs out ~Sat · lasts at 50% less
 
 LATELY                                                                                  COMING UP
 14:20      work refused (401): 2 sessions moved to side                22m ago          16:30       personal's 5-hour resets                           in 1h 48m
 13:41      personal held: 2 moved to side                           1h 01m ago          17:10       work's 5-hour resets                               in 2h 28m
 08:24      side open again: hold lifted (token refused)             6h 17m ago          18:50       side's 5-hour resets                               in 4h 08m
-08:05      side held (token refused), till 08:24                    6h 37m ago          ~Fri 00:04  side's week runs out at its pace                   in 9h 23m
+08:05      side held (token refused), till 08:24                    6h 37m ago          ~Fri 06:38  side's week runs out at its pace                  in 15h 57m
 Wed 23:58  personal open again: its 5-hour window reset            14h 43m ago          Sun 02:00   personal's week resets                             in 2d 11h
 Wed 19:12  personal at its limit: 1 moved to side                  19h 29m ago          Sun 21:00   work's week resets                                  in 3d 6h
 Wed 17:10  work open again: its 5-hour window reset                21h 32m ago          Mon 10:00   side's week resets                                 in 3d 19h

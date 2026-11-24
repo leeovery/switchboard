@@ -161,6 +161,9 @@ side · Side
 personal · Personal
   token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
 
+Σ pool
+  Week    0.9 of 1 left · pinned
+
 best next: work · Work
 from the router: healthy  ·  3 sessions  ·  pinned to side · Side
 `,
@@ -432,20 +435,23 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 		pin  status.Pin
 		// week is work's week's line, at its cap, which it runs out nowhere
 		// past, unless the pin spends its reserve; and work are the lines
-		// status gives work beside its usage.
-		week, work string
+		// status gives work beside its usage; and pool is the pool's room,
+		// the pin's alone.
+		week, work, pool string
 	}{
 		{
 			name: "at its reserve",
 			pin:  status.Pin{Accounts: []string{"side"}, Since: now.UTC().Add(-time.Hour)},
 			week: "  Week    93%  resets in 5d 11h · Sun 02:10\n",
 			work: "  limit until Mon 21:00\n  at its reserve (90%)\n  2 sessions\n",
+			pool: "  Week    0.9 of 1 left · pinned\n",
 		},
 		{
 			name: "spending its reserve, pinned",
 			pin:  status.Pin{Accounts: []string{"work"}, Since: now.UTC().Add(-time.Hour)},
 			week: "  Week    93%  resets in 5d 11h · Sun 02:10 · runs out ~16:54\n",
 			work: "  limit until Mon 21:00\n  spending its reserve (pinned)\n  2 sessions\n",
+			pool: "  Week    0.1 of 1 left · pinned\n",
 		},
 	}
 	for _, tt := range tests {
@@ -467,6 +473,7 @@ func TestTextMarksThePrimaryAndAReserveHoldingItsAccountBack(t *testing.T) {
 				"  Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%\n" +
 				"  5-hour  60%  resets in 2h 58m · Mon 17:10 · runs out ~15:33\n" +
 				"\n" +
+				"Σ pool\n" + tt.pool + "\n" +
 				"from the router: healthy  ·  2 sessions  ·  " + doc.Routing() + "\n"
 			if got := doc.At(now, policy).Text(); got != want {
 				t.Errorf("Text() =\n%s\nwant\n%s", got, want)
@@ -1666,11 +1673,12 @@ func TestAMomentSaysWhichAccountsAreHeldByTheirReadRefused(t *testing.T) {
 	}
 }
 
-// After the last account, where the pool has two or more accounts, status
-// says the pool's room in the week under Σ pool, lined up as the accounts'
-// windows are, to a tenth of how many accounts have it, and where its margin
-// says anything, how near it is to running out, in full: nothing of one
-// account, nor of a pool a pin leaves one.
+// After the last account, where there are two or more accounts, status says
+// the pool's room in the week under Σ pool, as the Runway does, lined up as
+// the accounts' windows are, to a tenth of how many of the pool's accounts
+// have it, " · pinned" after where a pin holds, even one naming one account,
+// and where its margin says anything, how near it is to running out, in
+// full: nothing of one account.
 func TestTextSaysThePoolsRoomAndMarginInTheWeek(t *testing.T) {
 	two := sharing()
 	tests := []struct {
@@ -1692,7 +1700,14 @@ func TestTextSaysThePoolsRoomAndMarginInTheWeek(t *testing.T) {
 			want: "\nΣ pool\n  Week    1.0 of 2 left\n\nfrom the router",
 		},
 		{name: "one account", doc: routerDocOf(readAt("work", windowIn("7d", 0.5, 6*day))), margin: forecast.Margin{Kind: forecast.MarginLasts, Spare: 15}},
-		{name: "a pool pinned to one", doc: pinnedTo(two, "work"), margin: forecast.Margin{Kind: forecast.MarginLasts, Spare: 15}},
+		{
+			name: "a pool pinned to one", doc: pinnedTo(two, "work"), margin: forecast.Margin{Kind: forecast.MarginLasts, Spare: 15},
+			want: "\nΣ pool\n  Week    0.5 of 1 left · pinned · lasts the week, 15% to spare\n\nfrom the router",
+		},
+		{
+			name: "a pool pinned to both", doc: pinnedTo(two, "work", "personal"),
+			want: "\nΣ pool\n  Week    1.0 of 2 left · pinned\n\nfrom the router",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

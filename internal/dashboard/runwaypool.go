@@ -56,8 +56,9 @@ func (f Frame) marginSaid(m status.Moment, cells int) line {
 
 // marginLine is the margin's words given after " · ", inked as the pool's
 // room is: its words and " · " in text.muted, its figures bold
-// text.secondary, and its run-out's time bold accent.attention, as headOf
-// inks an account's run-out ahead. None where they say nothing.
+// text.secondary, and its run-out's time alone bold accent.attention, the
+// ink headOf gives the whole of an account's run-out ahead, as "out ~16:05".
+// None where they say nothing.
 func marginLine(words status.Words) line {
 	if len(words) == 0 {
 		return nil

@@ -18,7 +18,7 @@ work                                                                            
  ╵Mon       ╵Tue       ╵Wed       ╵Thu       ╵Fri        ╵Sat       ╵Sun                    ╵Mon       ╵Tue       ╵Wed       ╵Thu       ╵Fri       ╵Sat
 
 side ▲
-22% left  ·  out ~Fri 00:04  ·  resets Mon 10:00
+22% left  ·  out ~Fri 06:38  ·  resets Mon 10:00
 
 ▇▅▄▂                                │
            ▆▃                       │
@@ -26,8 +26,8 @@ side ▲
                       ▆▂            │
                         ▆▂          │
                           ▅▅▅▅▅▅▅▃  │
-                                   ▇⠢⡀
-                                    │⠈⠢✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
+                                   ▇⠢⠤⣀
+                                    │  ⠉⠒⠤⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
       ╵Tue       ╵Wed       ╵Thu       ╵Fri        ╵Sat       ╵Sun       ╵Mon
 
 Σ pool   week 0.2 of 3 left
