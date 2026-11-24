@@ -13690,6 +13690,14 @@ any of it. Times are the Mac's, UTC+1.
   `7d_oi`, both with the same reset, as Claude Fable 5.1's answers do. Hence Claude Fable 5.2 at
   the head of the Fable family, which the probe asks first, falling back to Claude Fable 5.1 and
   then Claude Fable 5 (see How it works).
+- **24 November 2026: dashboards restart onto an upgrade.** Two dashboards were left open across
+  `brew upgrade` from 1.3.2 to 1.3.3: one in a terminal on the Mac, one over SSH (`tsshd`) from
+  another device. Each logged the upgrade at 14:53 UTC and waited for the router. The router
+  waited 26 minutes for a moment with no request in flight, then came back on 1.3.3 at 15:18:54.
+  Both dashboards restarted onto 1.3.3 within 3 seconds, each under the same process, as
+  `syscall.Exec` keeps it. The Mac's Overview then drew 1.3.3's rule, `no Fable use` on an
+  account held at its week's limit (the owner). Hence the restart onto an upgrade holds as Live
+  updates says; what it carries back is still owed (see Checks owed).
 
 ## Checks owed
 
@@ -13747,9 +13755,9 @@ What's built but hasn't been seen against the real thing:
 - *Milestone 7:* which prompt a background subagent's later requests name, the one that started
   it, as Claude Code's gateway guide says, or the session's newest, as its own record numbers them
   (see Observed): a turn counts a subagent by its first request either way.
-- A dashboard left open across a real `brew upgrade` restarting itself onto it, on the Mac and over
-  SSH from the phone: Bubble Tea handing the terminal back, then `syscall.Exec`, and the dashboard
-  coming back on the tab, views, period and pool it showed (see Live updates).
+- A dashboard restarting onto an upgrade coming back on the tab, views, period and pool it showed
+  (see Live updates). The restart itself was seen on the Mac and over SSH on 24 November 2026 (see
+  Observed).
 
 ## Open-source hygiene
 
