@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.4] - 2026-11-24
+
+🔧 Changed
+- Requests that ended early now show how they ended in the request card and the Log's status, as "200 broken off", "200 canceled" or "200 cut off" — the Log's stopped column falls back to this where the answer gave no reason.
+- A request whose answer was cut off or broken off now counts as failed even with a 200 status, while a canceled request never counts as failed — this applies to the Log's failed mark, filter and count.
+- Runway cards and lane words now cover a week that runs out or reaches its cap past the view's end, saying so at the lane's end as "out ~Thu 8 Oct" or "caps ~Thu 8 Oct".
+- The Log help text now describes the failed mark and stopped column to match how requests are judged.
+
+🐛 Fixed
+- A lane that runs out before its week resets no longer reads as having room all week.
+- Requests that ended while still streaming now show a broken-off answer as such, and no longer carry a stale broken-off state when retried.
+- Event details no longer treat a request answered then broken off or cut off as unanswered by its account.
+
 ## [1.3.3] - 2026-11-24
 
 🐛 Fixed
