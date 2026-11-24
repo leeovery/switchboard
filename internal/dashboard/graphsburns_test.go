@@ -450,20 +450,19 @@ func sideWeek(used, reserve float64) status.Document {
 
 // A card's words say where its window runs out, or reaches its cap, at its
 // pace, at the time usage and GLANCE give, wherever that falls before the
-// window resets: past the end of Runway's live view of it, where Runway's
-// lane says nothing of it, as inside it; never that it has room all week,
-// over a chart that runs out. Runway's lane over its view says what it said
-// of the same moment: room all week, where the run-out is past its end.
+// window resets: past the end of Runway's live view of it, as inside it;
+// never that it has room all week, over a chart that runs out. Runway's lane
+// over its view says the same of the same moment, past its end too, and
+// never that it has room all week.
 func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 	moments := []struct {
-		name   string
-		doc    status.Document
-		says   string
-		runway string
+		name string
+		doc  status.Document
+		says string
 	}{
-		{name: "running out past the view's end", doc: sideWeek(0.12, 0), says: "out", runway: "room all week"},
-		{name: "reaching its cap past the view's end", doc: sideWeek(0.12, 0.01), says: "caps", runway: "room all week"},
-		{name: "running out inside the view", doc: sideWeek(0.3, 0), says: "out", runway: "out"},
+		{name: "running out past the view's end", doc: sideWeek(0.12, 0), says: "out"},
+		{name: "reaching its cap past the view's end", doc: sideWeek(0.12, 0.01), says: "caps"},
+		{name: "running out inside the view", doc: sideWeek(0.3, 0), says: "out"},
 	}
 	sizes := []struct{ width, height int }{{160, 37}, {108, 44}, {73, 61}, {52, 63}}
 	for _, mo := range moments {
@@ -486,8 +485,8 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 				lanes := f.Graphs.Lanes[views.RunwayWeek]
 				l, _ := lanes.lane("side")
 				runway := wordsRead(lanes.view().wordsUnder(laneLaid(l, side, accountName{}), printNow, 0))
-				if !strings.HasPrefix(strings.TrimSpace(runway), mo.runway) {
-					t.Errorf("Runway says %q under side's lane, want it saying %q", runway, mo.runway)
+				if !strings.Contains(runway, want) || strings.Contains(runway, "room all") {
+					t.Errorf("Runway says %q under side's lane, want it saying %q", runway, want)
 				}
 			})
 		}

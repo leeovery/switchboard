@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+RUNWAY  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+                                 now
+                      Thu                 Fri                  Sat                  Sun                  Mon                  Tue                  Wed
+              ──╵─────┬────╵────╵────╵────┬─────╵────╵────╵────┬─────╵────╵────╵────┬────╵─────╵────╵────┬────╵────╵─────╵────┬────╵────╵─────╵────┬────╵────╵──
+
+work          ━━██████████████████━━━█████████████████████████████████████████████████████████████━━━━│█████████████████████████████████████████████████████████
+  week 34%                        capped 14:31  ·  back 17:10                                     caps ~Sun  ·  resets Sun 21:00
+
+personal    ◆ ████━━━━████████████████████████████████████████████████████━━━━━━━━━━━━│█████████████████████████████████████████████████████████████████████████
+  week 66%                                                               out ~Sat  ·  resets Sun 02:00
+
+side        ▲ ██████████████████████████████████████████████━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│█████████████████████████████████████████████
+  week 78%                                                  out ~Fri  ·  resets Mon 10:00
+
+spare         ┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████
+  week 6%     new since 09:44                                                                                                out ~Thu 8 Oct  ·  resets Thu 09:44
+
+Σ pool          ▄▄    ▄▄▄▄▄▄▄▄▄   ▄▄▄                       ▄▄▄▄▄▄▄▄▄▄▄▄▄▄            ▄▄▄▄▄▄▄▄▄▄▄▄     ▄▄▄▄▄▄▄▄▄▄▄
+
+  week 2.1 of 4 left
+
+COMING UP
+14:44  spare's 5-hour resets                                             in 2m    Sun 02:00   personal's week resets                                   in 2d 11h
+16:30  personal's 5-hour resets                                      in 1h 48m    Sun 21:00   work's week resets                                        in 3d 6h
+17:10  work back from its cap                                        in 2h 28m    Mon 10:00   side's week resets                                       in 3d 19h
+18:50  side's 5-hour resets                                          in 4h 08m    ~Thu 8 Oct  spare's week runs out at its pace                        in 6d 17h
+~Fri   side's week runs out at its pace                               in 1d 4h    Thu 09:44   spare's week resets                                      in 6d 19h
+~Sat   personal's week runs out at its pace                          in 1d 20h
+
+
+
+█ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit    │ its week resets    ┈ new    a column ≈ 69 minutes · the past dimmed
+tab views   ←→ week    a collapse    p pin    ? help  q quit

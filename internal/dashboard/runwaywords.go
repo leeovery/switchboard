@@ -63,7 +63,7 @@ func (f Frame) runwayWords(c *canvas, laid runwayLaid) {
 		if said, ok := newSaid(ln, laid.m.Now, from, words); ok {
 			c.line(laid.x+said.x, ln.row+1, said.said)
 		}
-		if fade, ok := f.wordsCue(ln, v.timeline.NowColumn()); ok && len(words) > 0 {
+		if fade, ok := f.wordsCue(ln.reaching(), v.timeline.NowColumn()); ok && len(words) > 0 {
 			first, last := words[0], words[len(words)-1]
 			cue(c, f.Look, laid.x+first.x, ln.row+1, last.x+last.said.width()-first.x, fade)
 		}
@@ -127,8 +127,9 @@ type laneSays struct {
 // of it, as unreadable has it, in text.subtle, as that it can't be read, and
 // why, or that the API refused the read; on a week gone that read nothing of
 // it, that, in text.faint; else what phrasesOf says, and where none of that
-// is said, of a lane with room throughout, that it has, in text.subtle, from
-// the cell after now's column, or stepped back, the first.
+// is said, of a lane with room all week, as its Room has it, that it has,
+// in text.subtle, from the cell after now's column, or stepped back, the
+// first.
 func (v laneView) said(ln laidLane, now time.Time) laneSays {
 	tl := v.timeline
 	_, _, named := tl.Named()
@@ -160,14 +161,25 @@ func unreadable(r status.Routing) string {
 	return r.Says + ": " + strings.Join(r.Clauses, " · ")
 }
 
+// reaching is the lane ln as its words reach: its stretches, then those
+// past its view's end, as its Beyond has them, so its words of a run-out past
+// the view are said and cued as one inside it.
+func (ln laidLane) reaching() laidLane {
+	ln.Stretches = slices.Concat(ln.Stretches, ln.Beyond)
+	return ln
+}
+
 // phrasesOf are the phrases said under the lane ln, in the order of their
 // columns, times told against the time given: each stretch without room not
-// over, from the column its start falls in, as stretchParts words it; and
-// each reset of the week no stretch ends at, as in "resets Sun 21:00",
-// muted, ending at its │.
+// over, from the column its start falls in, as stretchParts words it, and
+// each it would have past the view's end, as its Beyond has them, as the
+// lane would word it were it drawn on, from the column after its last, so
+// ending at the last where it fits, as placeAlong places it; and each reset
+// of the week no stretch ends at, as in "resets Sun 21:00", muted, ending at
+// its │.
 func (v laneView) phrasesOf(ln laidLane, against time.Time) []phrase {
 	var phrases []phrase
-	for _, s := range ln.Stretches {
+	for _, s := range ln.reaching().Stretches {
 		if !s.Over {
 			phrases = append(phrases, v.stretchPhrase(s, ln.account, against))
 		}

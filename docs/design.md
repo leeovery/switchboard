@@ -6865,7 +6865,8 @@ beside COMING UP, and `runway-108x44` and `runway-73x61`, LATELY under it; with 
 collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`; and of
 accounts without a 5-hour window, `runway-ultra-160`, every account on a verified Ultra plan, and
 `runway-mixed-160`, side alone keeping its 5-hour; and of an account added today,
-`runway-added-160` and `runway-added-73x61`. Columns and rows are at 160 by 37 unless they say
+`runway-added-160` and `runway-added-73x61`; and of a week running out past the view's end,
+`runway-past-the-view-160`. Columns and rows are at 160 by 37 unless they say
 otherwise.
 
 **The heading row,** row 4: `RUNWAY` in `text.muted`, and a rule of `─` in `border` from two cells
@@ -7048,12 +7049,21 @@ An account whose week reaches no limit says `resets Sun 21:00` in `text.muted`, 
 reset's `│`, where that clears the words before. Else a lane says `room all week`, in
 `text.subtle`, from the cell after now's column.
 
+The live view ends about six days ahead, so a week that began within the last day resets after
+it. Where such a week runs out or reaches its cap at its pace past the view's end, before it
+resets, the lane says so as it would were it drawn on, `out ~Thu 8 Oct  ·  resets Thu 09:44`,
+ending at the lane's last column and placed as any stretch's words are. `room all week` is said
+only of a lane with room through every column from now's and nothing past the view before the
+reset, so it holds to the week, not only to the view: it never sits under a lane whose week
+`usage`, `status`, GLANCE and a Trends card say runs out. A week stepped back to is a whole week
+in view, and says nothing past it (the owner's call, 24 November 2026).
+
 A stretch's words start at its column where they all fit from there; else they shift left as far
 as they must to fit whole, ending at the row's last column, but never sooner than two cells after
 the words before. Where even that leaves them too little room, they start there and drop whole
 parts from the end; where not even their first part fits, they and the words after them aren't
-said (the owner's call, 10 November 2026). A stretch already over, or one that starts past the
-view, isn't said.
+said (the owner's call, 10 November 2026). A stretch already over isn't said, nor one that starts
+past a week stepped back to.
 
 **The pool's lane** sits under the lanes, named and marked as an account's lane is, with no rule
 over it (the owner's call, 17 October 2026): with three rows an account, after the last account's
@@ -7441,7 +7451,7 @@ so one look compares every account (the owner's call, 24 October 2026):
   refused` is left out, because the words from Runway say it, `token refused (401) 14:20`;
   `subscription lapsed` still shows under a 401 from the router (the owner's call, 16 November
   2026). Where the window runs out or reaches its cap at its pace past the view's end, before it
-  resets, the words say that too, as Runway would were its lane drawn on, after what it says, never
+  resets, the words say that too, as Runway does under the lane, after what it says, never
   `room all week` over a chart that runs out. Where they don't fit the card, whole parts go from the
   end, as Runway drops them.
 - **The chart,** `h` rows, a column a cell over the window's length, now's column
@@ -13504,7 +13514,9 @@ alone, numbered as Runway will number it. The tour stops on Graphs, and its stil
 grid and the dashboard's guide (#170). Every image in the README and the guide is recorded again in
 Tokyo Night, with a still of each built-in theme in the guide's Themes, Tokyo Night first, as the
 owner asked (#172). What the build left was weighed and dropped (the owner, 24 November 2026),
-but for a run-out past Runway's view, which Runway is to show.
+but for a run-out past Runway's view, which Runway now says under the lane as a card does. So
+Runway's `room all week` is true to the week: room till the week resets, not only to the view's
+end.
 
 **The Overview's GRAPHS — removed.** On 26 October 2026, for the release with Graphs, the owner
 removed the Overview's GRAPHS, its charts under USAGE and beside each block by account, `g`, `v`

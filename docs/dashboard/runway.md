@@ -75,6 +75,8 @@ Words under a lane say when a stretch without room starts, and when the account 
 - A time more than a day ahead shows its day only, such as `out ~Sat`. If that day is today's
   weekday, the time carries the date, such as `out ~Thu 12 Nov`.
 - If a cap or a run-out ends as the window resets, the words say `resets` in place of `back`.
+- If the week runs out after the lane ends but before the week resets, the words at the lane's end
+  say so, such as `out ~Thu 8 Oct`. A week that began within the last day can.
 - A limit always says `back`, whenever it lifts.
 - If one limit or cap runs straight into another, only the last says when the account is back:
   `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`.

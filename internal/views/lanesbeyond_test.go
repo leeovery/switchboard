@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -43,8 +44,9 @@ func week(key string, used float64, hours int) quota.Window {
 // said from the column after the last; none where the run-out falls inside
 // the view, which its own stretches have, nor judging the 5-hour, its window
 // resetting inside it, nor of another week running out after the view's
-// resets. Its lane over the view is as it was: with room all along, or
-// running out inside it.
+// resets, nor in a week stepped back to, this week too, a whole week in
+// view. Its lane over the view is as it was: with room all along, or running
+// out inside it.
 func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -58,6 +60,7 @@ func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 		{name: "running out past the view's end", doc: beyondDoc(0, week("7d", 0.12, 148)), key: "7d", want: views.CellLimited, resets: true},
 		{name: "running out in the last column, after its moment", doc: beyondDoc(0, week("7d", 0.1221, 148)), key: "7d", want: views.CellLimited, resets: true},
 		{name: "a week gone, stepped back to", doc: beyondDoc(0, week("7d", 0.12, 148)), day: time.Date(2026, 9, 14, 0, 0, 0, 0, time.UTC)},
+		{name: "this week stepped back to, its week resetting after it", doc: beyondDoc(0, week("7d", 0.12, 148)), day: time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)},
 		{name: "reaching its cap past the view's end", doc: beyondDoc(0.01, week("7d", 0.12, 148)), key: "7d", want: views.CellCapped, resets: true},
 		{name: "another week running out past the view's end", doc: beyondDoc(0, week("7d", 0.1, 160), week("7d_x", 0.12, 148)), key: "7d_x", want: views.CellLimited},
 		{name: "running out inside the view", doc: beyondDoc(0, week("7d", 0.3, 148))},
@@ -86,8 +89,36 @@ func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 			if len(lane.Beyond) != 1 || lane.Beyond[0] != want {
 				t.Errorf("past its view's end the lane has %+v, want %+v", lane.Beyond, want)
 			}
-			if len(lane.Stretches) > 0 || !lane.Room {
-				t.Errorf("over its view the lane has %+v, room all along %v; want room all along", lane.Stretches, lane.Room)
+			if len(lane.Stretches) > 0 || slices.ContainsFunc(lane.Cells[tl.NowColumn():], func(c views.Cell) bool { return !c.HasRoom() }) {
+				t.Errorf("over its view the lane has %+v, cells %v; want room all along", lane.Stretches, lane.Cells)
+			}
+		})
+	}
+}
+
+// A lane has room all week only where it has room through every column from
+// now's and nothing past its view's end before the view's window resets: a
+// run-out in the gap between the two, to its limit or its cap, says it
+// hasn't, where every column has room; one after the reset, of another
+// week, leaves it so.
+func TestALaneHasRoomAllWeekOnlyWithNothingPastItsViewBeforeItsWindowResets(t *testing.T) {
+	tests := []struct {
+		name string
+		doc  status.Document
+		want bool
+	}{
+		{name: "lasting till its week resets", doc: beyondDoc(0, week("7d", 0.1, 148)), want: true},
+		{name: "running out past the view's end, before its week resets", doc: beyondDoc(0, week("7d", 0.12, 148)), want: false},
+		{name: "reaching its cap past the view's end, before its week resets", doc: beyondDoc(0.01, week("7d", 0.12, 148)), want: false},
+		{name: "another week running out past the view's end", doc: beyondDoc(0, week("7d", 0.1, 160), week("7d_x", 0.12, 148)), want: false},
+		{name: "another week running out after the view's resets", doc: beyondDoc(0, week("7d", 0.1, 140), week("7d_x", 0.12, 148)), want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := tt.doc.At(beyondNow, beyondPolicy)
+			lane := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: views.LiveTimeline(beyondNow, 136)}).Accounts[0]
+			if lane.Room != tt.want {
+				t.Errorf("the lane, %+v past its view, has room all week %v, want %v", lane.Beyond, lane.Room, tt.want)
 			}
 		})
 	}

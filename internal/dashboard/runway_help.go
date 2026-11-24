@@ -55,7 +55,9 @@ func (f Frame) lanesHelp() helpPart {
 				"where it reaches its cap, ~ marking a time projected at its pace, as switchboard usage projects it. Where " +
 				"another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, and only the last " +
 				"says back. Where room returns as the week resets, a cap's or a run-out's end says resets Sun 21:00 in " +
-				"place of back. Else resets Sun 21:00 where its week reaches no limit, or room all week. Words that don't " +
+				"place of back. A week that runs out past the view's end, before it resets, says so at the lane's end, " +
+				"as out ~Thu 8 Oct. Else resets Sun 21:00 where its week reaches no limit, or room all week, room till " +
+				"the week resets. Words that don't " +
 				"fit from where a stretch starts shift left until they do, never over the words " +
 				"before, and drop parts from the end where even that can't fit them."),
 			said("Now's column and those after it are read from the router at each look; those before it from the readings " +
