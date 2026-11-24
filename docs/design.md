@@ -1939,10 +1939,60 @@ cards' words, `usage` and `status`. The usage block's short form, which keeps a 
 the date there without the weekday, `out ~12 Nov`, inside its 14 cells, as its `back` does; an
 allowance's reset keeps its day (see `usage`, the printout). The status document gives the time whole.
 
+**The pool's margin,** how near the pool is to running out within the week ahead (the owner's
+call, 24 November 2026). The router fills each account's week before it resets, so every account's
+week forecasts near where its room ends at its reset, and an account's `room all week` can't tell a
+week that fits by a fraction of a point from one with days to spare. What hurts is the pool running
+out, every account out at once. So the week's forecast is played again with the pool's pace scaled,
+every account's fast rate and the pool's day's rate alike, in 5% steps:
+
+- **A pool that lasts the week** at its pace is played a step busier at a time, until it runs out
+  or lasts past 50% busier: its margin is the busiest that lasted, `lasts the week, 15% to spare`;
+  `under 5% to spare` where 5% busier runs out, and `over 50% to spare` where it lasts past 50%
+  busier.
+- **A pool that runs out** is played a step less at a time, until it lasts or runs out at 50%
+  less: its margin is when it runs out at its pace, read as a run-out reads, and the least less
+  that lasted, `runs out ~Sat · lasts at 20% less`, or `runs out ~Sat` alone where 50% less runs
+  out too.
+- **The pool runs out** at the first step where some of its use has no account to go to, as
+  Choosing an account finds none with room among those that take requests: the global pin's first
+  while one holds, then every other, as routing falls back once the pin's are out. A reserve counts
+  as no room, as routing honours it, but a pinned account's, which the pin spends. An account
+  barred by a token refused until a time takes new sessions again from then, though it holds none
+  of its use; every other bar holds it out of the whole play. While the refusal holds, the
+  account's lane says it's refused and shows no run-out, though the margin counts it back, so for
+  the minutes a refusal lasts the pool's run-out can be a week no lane shows running out (accepted,
+  24 November 2026).
+- **When it runs out:** where the last of its room ran out within that step, else as the step
+  starts. A step within which an account comes back is no run-out: an account that takes requests
+  as the step starts has its week reset within it, or an account's token refusal lifts within it.
+  The step judges room as it starts, so the account back is taken to have the room, and the use
+  the step couldn't place is left out. Where the account back has no room, as one refused with its
+  week spent, the run-out is read at the next step's start, up to a step late for each such
+  account back in a row (accepted, 24 November 2026: it needs a spent account's refusal to lift
+  just as the pool runs out, and costs minutes on a run-out read to the day).
+- **It says nothing** without the router's rates, as a probed document has none; with fewer than
+  two accounts; with no account that has room as the document was built; or where the run-out it
+  gives is past, as of a document left on screen while the router doesn't answer.
+
+It's played once a document, the first time it's asked for, as it costs a dozen plays, and the
+status document's JSON doesn't carry it. Runway's week (see Runway) and `status`'s text (see
+Commands) show it, after the pool's room.
+
 **Checked on a history,** never against the real install in tests: `cmd/forecasttool`, a program of
 its own as `cmd/capturetool` is, plays a readings history and request ledger back, forecasting at
 each hour as the router would have, and scores each forecast against when the week ran out (see
 Packages).
+
+**The day's rate keeps its 24 hours** (the owner's call, 24 November 2026), so a longer span isn't
+tried again. Scored on the owner's history, 13 October to 24 November 2026, 2,423 forecasts, a day's
+rate over 1, 2, 3, 5 and 7 days missed by 31.3, 30.5, 30.5, 30.7 and 29.4 hours on average,
+against 30.5 for the replay's baseline, the pace the week's use since it started sets. Longer spans
+only traded early misses for late ones, from 39% early and 29% late at a day to 26% and 34% at a
+week, and moved more from hour to hour. The forecast keeps its place over the baseline it ties on
+average: it's early far less often (39% against 54%), and once a week is 70% used or more it misses
+by 19.4 hours against 24.3. The misses come from use swinging from day to day, which no span fixes:
+the pool's margin shows how close it is instead.
 
 ## Priming
 
@@ -3410,7 +3460,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts token <id> [--paste]` | Replace an account's token, making it with `claude setup-token` at a terminal, or taking one pasted or on stdin: see Accounts and tokens |
 | `accounts remove <id>` | Remove an account, and its token file, the accounts record keeping it, removed, with its label |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json \| --pretty] [--pool <id>] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the label of the account the router sends a session's requests to, the one its last-used model went to, in one pool where a session resumed in another runs in two, the one `--pool` names, else the one it was routed in last, as the verbs' text names it (one removed by the label it had, saying when, and one nothing names by its id); or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
+| `status [--session <id>] [--json \| --pretty] [--pool <id>] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the pool's room in the week and its margin, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. Its text gives the pool's room and margin after the accounts, where Runway draws the pool's row, under `Σ pool`, its week lined up as the accounts' windows are, as in `Week    1.8 of 4 left · lasts the week, 15% to spare`, ` · pinned` after the room while a pin holds, as Runway says it (see Forecasting run-outs). When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the label of the account the router sends a session's requests to, the one its last-used model went to, in one pool where a session resumed in another runs in two, the one `--pool` names, else the one it was routed in last, as the verbs' text names it (one removed by the label it had, saying when, and one nothing names by its id); or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
@@ -7018,7 +7068,8 @@ preferences file keeps it (the owner's call, 17 October 2026). The key line says
   the lane, from column 0, its room short: the room bold `text.secondary` and `/3`, of how many
   accounts the pool is, in `text.muted`, as `1.2/3`, where the expanded lane says `Σ pool` and
   `week 1.2 of 3 left`. ` · pinned` is left off. Where it has no room to say, as on a week gone
-  stepped back to, nothing.
+  stepped back to, nothing. Its margin follows, short alone, as `1.2/3 · out ~Sat`, inked as
+  expanded (the owner's call, 24 November 2026).
 - **COMING UP** is as expanded, every line or cut: each line names its account, as in
   `16:30  personal's 5-hour resets` (the owner's call, 19 October 2026).
 
@@ -7090,8 +7141,20 @@ blank row; with two, on the row after its words.
 - **Its room,** on a row of its own under the lane, from column 2, at every width, as the label
   column isn't widened for it (the owner's call, 21 October 2026): the pool's room in the week, in
   `usage`'s words for the pool: `week ` in `text.subtle`, `1.2` bold `text.secondary`, and
-  ` of 3 left` in `text.muted`, of the accounts that have the window, its `Of`; whole parts left off its end that don't fit before the frame's edge. No words follow it: the
-  pool's columns say when fewer than all of it have room (the owner's call, 17 October 2026).
+  ` of 3 left` in `text.muted`, of the accounts that have the window, its `Of`; whole parts left off its end that don't fit before the frame's edge. No words say when fewer
+  than all of it have room: the pool's columns say that (the owner's call, 17 October 2026).
+- **Its margin,** after its room and any ` · pinned`, on the same row: how near the pool is to
+  running out within the week ahead, as Forecasting run-outs plays it (the owner's call, 24
+  November 2026). In full where it fits, `week 1.2 of 3 left · lasts the week, 15% to spare`,
+  `lasts the week, under 5% to spare`, `lasts the week, over 50% to spare`, `runs out ~Sat · lasts
+  at 20% less` or `runs out ~Sat`; else short, `15% to spare` or `out ~Sat`; and where neither
+  fits, nothing. It takes only the cells the room leaves before what's out of view, which keeps
+  its place at the row's end. ` · ` and its words in `text.muted`, its figures bold
+  `text.secondary`, as the room's, and its run-out's time bold `accent.attention`, as a run-out
+  under a lane. Only on the week, the window the forecast plays, and only after the room, so only
+  while now is on screen: this week stepped back to keeps it, and a week gone, which has no room,
+  shows none. Nothing where it says nothing. Its
+  reference is `runway-week-160`.
 - **The pool's accounts** are every account on auto, and the pin's while one holds: its room is then
   `of 2`, the room's words add ` · pinned`, as `usage`'s pool row does, and an account out of the
   pool has its lane, label and use faded as Sessions fades its line (see Sessions), the words under
@@ -12013,7 +12076,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/quota` | The provider-neutral usage model: windows, failures, per-account snapshots, and what a response says of its account |
 | `internal/claude` | The Claude provider: usage-header parsing, extra usage's among it, and a line's limits kept small, as the views hold them, with their stored form, as a day's digest keeps the windows a page's points hold, probes, model families, response classification (a limit reached, throttling, a refused token, a request refused alone), which paths are routed, and which of them spend quota, the session header, the headers that name the prompt a request serves, its class and its agent, Claude Code's environment variables, finding the installed `claude` and its version, whether the `claude` a shell runs from `PATH` is switchboard, Claude Code's local subcommands, and which models' thinking is bound to the account that produced it. `claude/claudetest` makes stand-ins of Claude Code, and of switchboard's binary, `claude` link and another build of it, for tests |
 | `internal/score` | Pace, projection, a window's rate of use, the allowance, eligibility against the reserve, pressure, perishability, the 5-hour tiebreak, an account without a 5-hour window coming after those with a reset to come, and the best-account pick. Pure functions of a snapshot and a clock |
-| `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
+| `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out, and the pool's margin, played again at paces scaled. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period, joins to the days the tail fed, and carries across midnight. It opens nothing itself; it reads through the readers it's given |

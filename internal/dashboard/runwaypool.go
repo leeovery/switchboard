@@ -13,8 +13,9 @@ import (
 // runwayPool draws the pool's lane, as laid out: its columns; Σ pool beside
 // them on its first row, as an account's name heads its lane, but where the
 // account column is collapsed, as it has no label column; and on the row of
-// its own under it, its room, as roomSaid has it. With one account, there's
-// none, nor for a moment of none, whatever the lanes hold.
+// its own under it, its room, as roomSaid has it, then its margin, as
+// marginSaid has it, in the cells left before what's out of view. With one
+// account, there's none, nor for a moment of none, whatever the lanes hold.
 func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 	fit := laid.fit
 	if !fit.draws(fit.pool) || len(laid.m.Accounts) == 0 {
@@ -25,8 +26,55 @@ func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 		c.line(0, fit.pool, poolNamed)
 	}
 	if x, room := f.roomSaid(laid); room != nil {
-		c.line(x, fit.room, room)
+		left := f.Width - x - room.width() - f.outCells(laid)
+		c.line(x, fit.room, slices.Concat(room, f.marginSaid(laid.m, left)))
 	}
+}
+
+// marginSaid is what the row under the pool's lane says after its room of
+// how near the pool is to running out, as the moment m's PoolMargin words
+// it, in cells cells at most: only in the view of the week the forecast
+// plays, the policy's Perishable; after " · ", in full where that fits, else
+// short, and with the account column collapsed, short alone; nothing where
+// neither fits, or it says nothing.
+func (f Frame) marginSaid(m status.Moment, cells int) line {
+	if f.Runway.Lanes.Pool.Key != f.Policy.Perishable {
+		return nil
+	}
+	margin := m.PoolMargin()
+	forms := []status.Words{margin.Words(), margin.ShortWords()}
+	if f.Runway.Collapsed {
+		forms = forms[1:]
+	}
+	for _, words := range forms {
+		if said := marginLine(words); said != nil && said.width() <= cells {
+			return said
+		}
+	}
+	return nil
+}
+
+// marginLine is the margin's words given after " · ", inked as the pool's
+// room is: its words and " · " in text.muted, its figures bold
+// text.secondary, and its run-out's time alone bold accent.attention, the
+// ink headOf gives the whole of an account's run-out ahead, as "out ~16:05".
+// None where they say nothing.
+func marginLine(words status.Words) line {
+	if len(words) == 0 {
+		return nil
+	}
+	said := line{{" · ", mutedInk}}
+	for _, p := range words {
+		k := mutedInk
+		switch p.Kind {
+		case status.PartFigure:
+			k = strongInk
+		case status.PartTime:
+			k = alertInk
+		}
+		said = append(said, span{p.Text, k})
+	}
+	return said
 }
 
 // roomSaid is what the row under the pool's lane says of its room, as laid

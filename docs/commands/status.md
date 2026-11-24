@@ -16,6 +16,9 @@ h8rc · personal
   5-hour  no 5-hour window
   1 session
 
+Σ pool
+  Week    1.5 of 2 left · lasts the week, 15% to spare
+
 best next: b6s7 · work (primary)
 from the router: healthy  ·  3 sessions  ·  routing automatically
 ```
@@ -62,15 +65,22 @@ The text runs in this order:
 1. Each window of each account: its use, its reset, and where it's heading.
 2. What keeps an account back, such as a limit or its reserve.
 3. Whether an account is under pressure, and the rate that judges it.
-4. The sessions routed in the last hour, a line each, with the account each model goes to.
-5. The priming schedule.
-6. The best account to use next.
-7. Where the usage came from, and how healthy the router is.
+4. The room left in the week of the pool, under `Σ pool`, if the pool has two or more accounts,
+   with ` · pinned` after it while a pin holds.
+5. The sessions routed in the last hour, a line each, with the account each model goes to.
+6. The priming schedule.
+7. The best account to use next.
+8. Where the usage came from, and how healthy the router is.
 
 A week shows the router's forecast, such as `on pace for 92%` or `runs out ~Tue`. A probed
 week, and a week that one model has of its own, show their pace since the week began. A 5-hour window shows
 its rate over the last 30 minutes, such as `runs out ~17:25 at its rate over the last 30 min`. A
 run-out within a day shows a time, and one further ahead shows a day.
+
+After the room of the pool comes its margin, such as `lasts the week, 15% to spare` or
+`runs out ~Sat · lasts at 20% less`. It says how much busier your use could get before the pool
+runs out within the week. The words are the ones Runway shows, and
+[Runway](../dashboard/runway.md) explains them. The JSON doesn't hold the margin.
 
 A verified Ultra account has no 5-hour window, and its line reads `no 5-hour window`. An Ultra
 account not yet verified keeps its 5-hour window.

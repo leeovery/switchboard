@@ -35,6 +35,7 @@ const notStarted = "not started"
 // where they're heading, or that one standing not started hasn't started,
 // and when it's primed, whatever couldn't be read, what holds it back,
 // whether it's under pressure, and how many sessions the router has sent it;
+// then the pool's room in the shared week, as writePool has it;
 // then the sessions given, as the router lists those it has routed in the
 // last hour, a line each; then the priming schedule, and what comes next of
 // it; then the account new sessions go to, as Next has it, which the
@@ -55,6 +56,7 @@ func (m Moment) Text(sessions ...Session) string {
 		m.writeNotes(&b, a, j.states.account)
 		b.WriteString("\n")
 	}
+	m.writePool(&b, width)
 	if len(sessions) > 0 {
 		b.WriteString("sessions\n")
 		for _, s := range sessions {
@@ -74,6 +76,30 @@ func (m Moment) Text(sessions ...Session) string {
 		fmt.Fprintf(&b, "%s\n", m.Moving.Said())
 	}
 	return b.String()
+}
+
+// writePool writes the pool's room in the shared week, as policy names it,
+// wherever Pool keeps that window, as the Runway draws the pool's row: so
+// with two or more accounts, even where a pin names one. Under Σ pool, the
+// week by its name width wide, as the accounts' windows are, and its room to
+// a tenth of how many of its accounts have it, as in "Week   1.8 of 4 left",
+// " · pinned" after where a pin holds; then, where its margin says anything,
+// how near it is to running out, as its Words say it.
+func (m Moment) writePool(b *strings.Builder, width int) {
+	pool := m.Pool()
+	i := slices.IndexFunc(pool.Windows, func(w PoolWindowNow) bool { return w.Key == m.policy.Perishable })
+	if i < 0 {
+		return
+	}
+	w := pool.Windows[i]
+	room := fmt.Sprintf("%-*s %4s of %d left", width, m.NameOf(w.Key), prose.Tenths(w.Room), w.Of)
+	if pool.Pinned {
+		room += " · pinned"
+	}
+	if margin := m.PoolMargin().Words(); len(margin) > 0 {
+		room += " · " + margin.String()
+	}
+	fmt.Fprintf(b, "Σ pool\n  %s\n\n", room)
 }
 
 // writePriming writes the priming schedule, when priming is on, such as

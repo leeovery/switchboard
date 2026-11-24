@@ -48,6 +48,13 @@ func workWhere(weekHeads string) string {
 `
 }
 
+// poolWhere is how status prints the pool of work, personal and side from
+// fakeClaudeAPI's readings, after them: its room in the week, its margin
+// said as given, none of a document without a forecast.
+func poolWhere(margin string) string {
+	return "\nΣ pool\n  Week        0.0 of 3 left" + margin + "\n"
+}
+
 // othersAtStatus is how status prints personal and side from fakeClaudeAPI's
 // probes, commands run with deps finding personal's token file missing, and
 // side held back, as the API refused its read.
@@ -128,7 +135,7 @@ func TestStatusProbesPastARouterThatDoesntAnswer(t *testing.T) {
 	serveSilently(t, srv.socket())
 
 	got := run(t, srv.deps, "status", "--pretty")
-	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
+	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + poolWhere("") + `
 probed directly: the router is unhealthy, no answer within 100ms
 `}
 	if got != want {
@@ -304,7 +311,7 @@ func TestStatusProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 
 	got := run(t, srv.deps, "status", "--pretty", "--probe")
-	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + `
+	want := result{stdout: workAtStatus + "\n" + othersAtStatus(t, srv.deps) + poolWhere("") + `
 probed directly
 `}
 	if got != want {

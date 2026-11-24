@@ -85,8 +85,8 @@ func (f Frame) lanesHelp() helpPart {
 }
 
 // poolHelp is the pool's lane as help explains it: its columns, how they're
-// counted and coloured; its room under Σ pool, or collapsed, under its start; and
-// which accounts the pool is.
+// counted and coloured; its room under Σ pool, or collapsed, under its start;
+// its margin after the room; and which accounts the pool is.
 func poolHelp() helpPart {
 	return helpPart{
 		heading: "POOL",
@@ -98,6 +98,10 @@ func poolHelp() helpPart {
 				"until it does, and one not known then without. Under Σ pool, the pool's room in the week, as " +
 				"switchboard usage gives it; with the labels collapsed, without Σ pool, under the lane's start, of how many of " +
 				"the pool's accounts have the week, as 1.2/3."),
+			said("After the room, how much busier your use could get before the pool runs out within the week ahead, in 5% " +
+				"steps up to 50%, as lasts the week, 15% to spare; or when it runs out, and how much less use would last, as " +
+				"runs out ~Sat · lasts at 20% less. Where that doesn't fit, and with the labels collapsed, it's short, as 15% " +
+				"to spare or out ~Sat, and where even that doesn't, it's left out."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
 				"an account out of it is faded, the words under its lane not."),
 		},
