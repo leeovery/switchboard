@@ -468,7 +468,7 @@ func answeredSection(d views.RequestDetails, lined lineGives, m status.Moment) c
 }
 
 // statusSaid is what the request was answered and how its answer ended, as
-// its row's Answered says it, once its line came or the stream told its end,
+// its row's Outcome says it, once its line came or the stream told its end,
 // bold state.destructive where its row says it failed: blank in flight, and
 // — where it was lost.
 func statusSaid(r views.RequestRow) line {
@@ -478,9 +478,9 @@ func statusSaid(r views.RequestRow) line {
 	case r.Stage == views.RowLost:
 		return valued("")
 	case r.Failed:
-		return line{{r.Answered(), exhaustedInk}}
+		return line{{r.Outcome(), exhaustedInk}}
 	}
-	return valued(r.Answered())
+	return valued(r.Outcome())
 }
 
 // firstSaid is how long after the request arrived its answer's first byte

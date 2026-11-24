@@ -155,6 +155,15 @@ func (t Told) SameRow(o Told) bool {
 	return t == o
 }
 
+// ending is how the request ended, as the stream told: its status, whether
+// the upstream broke its answer off, and canceled where it ended unanswered,
+// as the stream tells a status of 0 only where its client went first. One
+// the router cut off as it stopped is told no otherwise, till its line says
+// so.
+func (t Told) ending() ledger.Ending {
+	return ledger.Ending{Status: t.Status, Canceled: t.Status == 0, Broken: t.Broken}
+}
+
 // InFlight reports whether the request is in flight, as the stream told:
 // neither ended nor lost.
 func (t Told) InFlight() bool {

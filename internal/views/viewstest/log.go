@@ -394,15 +394,16 @@ func sentAgainAndFailed() LogMoment {
 	retried.Stopped, retried.Brief, retried.Routing = "tool_use · Bash +1", "from work", "after work's limit"
 	refused, cutOff, givenUp := rowOf(c1), rowOf(c2), rowOf(c3)
 	refused.Routing, refused.Brief = "after side's limit, work's limit", "after side's limit, work's limit"
-	for _, r := range []*Row{&refused, &cutOff, &givenUp} {
+	for _, r := range []*Row{&refused, &cutOff} {
 		r.Mark, r.Failed = views.MarkFailed, true
 	}
 	return LogMoment{
-		Name:  "a request sent again after work's limit, calling several tools; a 429 every account refused, passed on; one cut off; one given up",
+		Name: "a request sent again after work's limit, calling several tools; a 429 every account refused, passed on; one cut off; " +
+			"one given up, which didn't fail",
 		Lines: []ledger.Line{c0, r0, c1, c2, c3, r1}, Sessions: []status.Session{listed(D28C, At(14, 35, 10), "")},
 		From: now, Now: now,
 		Want:   rows(first(c0), first(r0), retried, refused, cutOff, givenUp),
-		Counts: map[string]Count{"2026-10-01": shownFailed(6, 3)},
+		Counts: map[string]Count{"2026-10-01": shownFailed(6, 2)},
 	}
 }
 
@@ -593,9 +594,10 @@ func failedOnly() LogMoment {
 	r5 := requested("r5", D28C, Opus, side, status.ReasonSticky, At(14, 40, 0))
 	toldBroken := done(At(14, 41, 45), 200, told("r8", D28C, Opus, side, At(14, 41, 40), At(14, 41, 40)))
 	toldBroken.Broken = true
+	toldGaveUp := done(At(14, 41, 47), 0, told("r7", D28C, Opus, side, At(14, 41, 42), At(14, 41, 42)))
 	lost := told("r9", D28C, Opus, side, At(14, 41, 50), At(14, 41, 55))
 	lost.Lost = true
-	wanted := []Row{rowOf(refused), rowOf(cutOff), rowOf(givenUp), rowOf(broke), rowOf(brokenOff), rowOf(cutAnswering)}
+	wanted := []Row{rowOf(refused), rowOf(cutOff), rowOf(broke), rowOf(brokenOff), rowOf(cutAnswering)}
 	wanted[0].Routing, wanted[0].Brief = "after side's limit, work's limit", "after side's limit, work's limit"
 	for i := range wanted {
 		wanted[i].Mark, wanted[i].Failed = views.MarkFailed, true
@@ -604,13 +606,14 @@ func failedOnly() LogMoment {
 		Row{Request: "r8", Session: D28C, At: "14:41:40", Mark: views.MarkFailed, Stage: views.RowEnded, Failed: true, Took: "5.0s"},
 		Row{Request: "r9", Session: D28C, At: "14:41:50", Mark: views.MarkFailed, Stage: views.RowLost, Failed: true, Stopped: lostWords, Brief: lostWords})
 	return LogMoment{
-		Name: "failed only: a 429 every account refused, passed on; one cut off; one given up; a 500; one broken off and one cut off as each was " +
-			"answered, one given up as it was, which didn't fail; one the stream told was broken off, its line to come; one lost",
-		Lines: []ledger.Line{r0, c0, refused, cutOff, givenUp, broke, brokenOff, cutAnswering, gaveUpAnswering, r5}, Stream: live(toldBroken, lost),
+		Name: "failed only: a 429 every account refused, passed on; one cut off; a 500; one broken off and one cut off as each was answered; " +
+			"one the stream told was broken off, its line to come; one lost; and none given up, before an answer, as it was answered, " +
+			"or as the stream told, its line to come",
+		Lines: []ledger.Line{r0, c0, refused, cutOff, givenUp, broke, brokenOff, cutAnswering, gaveUpAnswering, r5}, Stream: live(toldBroken, toldGaveUp, lost),
 		Filter: views.LogFilter{Kinds: views.LogOpening().Kinds, Failed: true},
 		From:   now, Now: now,
 		Want:   rows(wanted...),
-		Counts: map[string]Count{"2026-10-01": {Shown: 8, Requests: 12, Failed: 8}},
+		Counts: map[string]Count{"2026-10-01": {Shown: 7, Requests: 13, Failed: 7}},
 	}
 }
 

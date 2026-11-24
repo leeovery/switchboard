@@ -553,8 +553,8 @@ func TestAChunksMetaMayKeepWhereEachChoiceCountsARowOfOne(t *testing.T) {
 
 // endings are the ways a request may end, each by its name, and whether it
 // failed: answered 400 or over, or nothing; or broken off or cut off after
-// its answer began, whatever its status; but not given up by its client
-// while it was answered.
+// its answer began, whatever its status; but never given up by its client,
+// answered or not.
 var endings = []struct {
 	name   string
 	ending ledger.Ending
@@ -563,8 +563,9 @@ var endings = []struct {
 	{"answered", ledger.Ending{Status: 200}, false},
 	{"answered an error", ledger.Ending{Status: 529}, true},
 	{"cut off before an answer", ledger.Ending{CutOff: true}, true},
-	{"given up before an answer", ledger.Ending{Canceled: true}, true},
+	{"given up before an answer", ledger.Ending{Canceled: true}, false},
 	{"given up as it was answered", ledger.Ending{Status: 200, Canceled: true}, false},
+	{"given up as it was answered an error", ledger.Ending{Status: 529, Canceled: true}, false},
 	{"cut off as it was answered", ledger.Ending{Status: 200, CutOff: true}, true},
 	{"broken off as it was answered", ledger.Ending{Status: 200, Broken: true}, true},
 }

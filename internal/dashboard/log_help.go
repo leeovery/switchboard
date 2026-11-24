@@ -91,7 +91,7 @@ var rowMarkMeans = []struct {
 }{
 	{views.MarkAsking, "in flight, asking: its answer's first byte not come"},
 	{views.MarkAnswering, "in flight, answering"},
-	{views.MarkFailed, "failed: 400 and over, no answer, broken off or cut off"},
+	{views.MarkFailed, "failed: 400 and over, no answer, broken off or cut off; never canceled"},
 	{views.MarkMoved, "it moved its session to another account"},
 	{views.MarkNew, "a session's first request"},
 	{views.MarkHidden, "a quota check or a count of tokens, shown"},

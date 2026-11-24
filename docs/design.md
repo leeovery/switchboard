@@ -7934,17 +7934,19 @@ apart, each a part flex lays out (`logcolumns.go`):
   before it keep a cell and the ellipsis: `from work, at it…  $1.82`.
 - **The marks,** bold, the first that applies: `↑` in `accent.key`, in flight and asking, before its
   answer's first byte; `↓` in `accent.key`, in flight and answering; `■` in `state.destructive`,
-  failed; `▸` in `accent.key`, it moved its session (its line has a `from`); `▲` in
-  `accent.mode`, a session's first request; none on a request that stayed and succeeded.
+  failed, never on one canceled; `▸` in `accent.key`, it moved its session (its line has a
+  `from`); `▲` in `accent.mode`, a session's first request; none on a request that stayed and
+  succeeded.
 - **Failed,** one meaning wherever the Log says it, the mark, the status's ink, the `f` panel's
   count and `only those that failed`, the one `ledger` gives: answered 400 and over; answered
-  nothing, `status` 0, as one cut off or given up before an answer came; or its answer broken off
-  (`broken`) or cut off (`cut_off`) after it began, whatever its `status`, as a `200` broken off
-  mid-answer gave the client no whole answer. One given up (`canceled`) as it was answered didn't
-  fail, as its user ended it; one lost, its router gone, did. A request the stream told the end
-  of, its line yet to come, is judged by the `status` and `broken` the stream told (the owner's
-  call, 24 November 2026). `log-requests-160` draws one broken off, `■` and its `200` bold
-  `state.destructive`, and `log-request-broken-160` its card.
+  nothing, `status` 0, as one cut off before an answer came; or its answer broken off (`broken`)
+  or cut off (`cut_off`) after it began, whatever its `status`, as a `200` broken off mid-answer
+  gave the client no whole answer. A request canceled (`canceled`) never failed, answered or not,
+  before its first byte as much as after, as its user ended it, an Esc being common; one lost,
+  its router gone, did. A request the stream told the end of, its line yet to come, is judged by
+  the `status` and `broken` the stream told, a `status` 0 its client gone first, so canceled (the
+  owner's calls, 24 November 2026). `log-requests-160` draws one broken off, `■` and its `200`
+  bold `state.destructive`, and `log-request-broken-160` its card.
 - **In flight,** a request sits where it arrived, as the request stream tells it, and fills in where
   it is as its line is written, so lines never move. A row is placed by when the stream told it was
   sent only while the stream holds its request: one whose line the Log first reads after the
@@ -7959,8 +7961,9 @@ apart, each a part flex lays out (`logcolumns.go`):
   check is worth nothing, `$0.00`, whatever it spent, as no view prices it (see Worth).
 - **Requests no frame draws:** one sent again after a limit has its `tried` in `routing`
   (`after work's limit`); one every account refused, its 429 passed on, reads as failed; one
-  answered by the router itself has no `first`; one cut off or given up, `status` 0, reads as
-  failed; one cut off as it was answered reads as failed, and one given up as it was doesn't;
+  answered by the router itself has no `first`; one cut off, `status` 0, reads as failed, and
+  one given up, `status` 0, doesn't; one cut off as it was answered reads as failed, and one given
+  up as it was doesn't;
   several tools show the first and `+1`; no session, `—`; no directory, the id alone (settled in
   the plan).
 
@@ -8077,8 +8080,8 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
     `accounts`, every account's tick; `models`, the models of today's lines; `kinds`, `requests`,
     `checks` and `counts`, the ledger's `message`, `check` and `count`, each with today's count in
     `text.muted`; `failed`, `only those that failed`, failed as the Log's marks have it (400 and
-    over, no answer, broken off or cut off), and today's count; `sessions`, `every one, unless
-    some are ticked` in `text.muted`;
+    over, no answer, broken off or cut off, a request canceled never counted), and today's count;
+    `sessions`, `every one, unless some are ticked` in `text.muted`;
   - **today's sessions,** rows 17 to 22 from `x+52`, a row each: its tick; its id in
     `text.secondary`; two spaces and its directory's name padded to 12 in `text.muted`; two spaces
     and the account it's on in `text.primary`, in a column of names a record may hold (see "The

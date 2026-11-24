@@ -54,8 +54,8 @@ type RequestRow struct {
 	Status                   int
 	Canceled, CutOff, Broken bool
 	// Failed is set where it failed: as ledger.Line.Failed says, or, ended
-	// before its line came, as ledger.Ending's Failed says of its status and
-	// whether it was broken off, as the stream told; and where it was lost.
+	// before its line came, as ledger.Ending's Failed says of its ending as
+	// Told's ending reads it; and where it was lost.
 	Failed bool
 	// First is how long after it arrived its answer's first byte came, and
 	// Took how long it took in all, as its line gives them; before its line
@@ -474,8 +474,9 @@ func toldRow(t Told, now time.Time) RequestRow {
 	case t.Lost:
 		r.Stage, r.Failed = RowLost, true
 	case !t.Ended.IsZero():
-		r.Stage, r.Status, r.Broken, r.Took = RowEnded, t.Status, t.Broken, since(t.Sent, t.Ended)
-		r.Failed = ledger.Ending{Status: t.Status, Broken: t.Broken}.Failed()
+		end := t.ending()
+		r.Stage, r.Status, r.Canceled, r.Broken, r.Took = RowEnded, end.Status, end.Canceled, end.Broken, since(t.Sent, t.Ended)
+		r.Failed = end.Failed()
 	default:
 		a := t.doing()
 		r.Stage, r.Chars, r.Took = a.stage(), a.Chars, since(t.Sent, now)
@@ -549,10 +550,10 @@ func (w RowWords) String() string {
 // lostWords say a request was lost: no line came of it, its router gone.
 const lostWords = "no answer: the router went away"
 
-// Answered is what the request was answered and how its answer ended, as
+// Outcome is what the request was answered and how its answer ended, as
 // its card and requests say it: its status, then canceled, cut off or
 // broken off where it was, as "200 broken off".
-func (r RequestRow) Answered() string {
+func (r RequestRow) Outcome() string {
 	answer := strconv.Itoa(r.Status)
 	switch {
 	case r.Canceled:

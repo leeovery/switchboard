@@ -371,7 +371,7 @@ func TestADaysSummaryNamesTheSessionsCountedSessionSays(t *testing.T) {
 	}
 }
 
-func TestARequestFailedWhereItsAccountDidntAnswerItOrItsAnswerWasCutShort(t *testing.T) {
+func TestARequestFailedWhereItsAccountDidntAnswerItOrItsAnswerWasCutShortUnlessItWasCanceled(t *testing.T) {
 	tests := []struct {
 		name string
 		line ledger.Line
@@ -383,8 +383,9 @@ func TestARequestFailedWhereItsAccountDidntAnswerItOrItsAnswerWasCutShort(t *tes
 		{name: "a 429 every account refused, passed on", line: ledger.Line{Status: 429, Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}}}, want: true},
 		{name: "the upstream overloaded", line: ledger.Line{Status: 529}, want: true},
 		{name: "cut off before an answer", line: ledger.Line{CutOff: true}, want: true},
-		{name: "given up before an answer", line: ledger.Line{Canceled: true}, want: true},
+		{name: "given up before an answer", line: ledger.Line{Canceled: true}},
 		{name: "given up while it was answered", line: ledger.Line{Status: 200, Canceled: true}},
+		{name: "given up while it was answered an error", line: ledger.Line{Status: 529, Canceled: true}},
 		{name: "cut off while it was answered", line: ledger.Line{Status: 200, CutOff: true}, want: true},
 		{name: "broken off while it was answered", line: ledger.Line{Status: 200, Broken: true}, want: true},
 	}

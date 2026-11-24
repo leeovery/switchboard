@@ -344,7 +344,7 @@ func TestARequestsCardInFlightCountsItsCharactersAsItsDrawn(t *testing.T) {
 	}
 }
 
-// A request's status says how its answer ended, as its row's Answered says
+// A request's status says how its answer ended, as its row's Outcome says
 // it, bold state.destructive where views says it failed, as the table has
 // it, whatever it was answered.
 func TestARequestsCardSaysItFailedAsItsRowDoes(t *testing.T) {

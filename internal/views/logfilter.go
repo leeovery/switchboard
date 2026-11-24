@@ -266,7 +266,7 @@ type LogCount struct {
 	// and its counts of tokens.
 	Requests, Checks, Counts int
 	// Failed are those that failed, as RequestRow's Failed has it: 400 and
-	// over, no answer, broken off or cut off, and lost.
+	// over, no answer, broken off or cut off, and lost, never one canceled.
 	Failed int
 	// Models, Accounts and Sessions count the lines by the model each asked
 	// for, the account it's on, as RequestRow's Account has it, and the

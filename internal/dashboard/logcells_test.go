@@ -113,9 +113,10 @@ func TestTheRequestsDrawTheExtrasAndWorthAsTheDesignSays(t *testing.T) {
 	})
 }
 
-// A request that failed with no answer, cut off as the router stopped or
-// given up as its client went away, reads as failed: ■, and its status, 0,
-// bold state.destructive. One the stream told of in flight that ended
+// A request that failed with no answer, cut off as the router stopped,
+// reads as failed: ■, and its status, 0, bold state.destructive; one given
+// up as its client went away doesn't fail, its 0 in text.muted, unmarked,
+// as its user ended it. One the stream told of in flight that ended
 // untold is lost: ■, no answer: the router went away, nothing of its answer
 // known. One of no session is — in text.faint; one whose line names no
 // directory, its session's id alone.
@@ -137,11 +138,11 @@ func TestTheRequestsDrawEachFailureAsTheDesignSays(t *testing.T) {
 	failed := columnCell{"0", ink{token: theme.StateDestructive, bold: true}}
 	rowsHold(t, c, f.top()+1, drawnLayout(f, routerDoc("side", 0), at.Add(time.Minute)), []map[LogColumn]columnCell{
 		{LogStatus: failed, LogSession: {"d28c", secondaryCell}},
-		{LogStatus: failed},
+		{LogStatus: {"0", mutedCell}},
 		{LogSession: {"—", faintCell}, LogStatus: {"200", mutedCell}},
 		{LogStatus: {}, LogTook: {}, LogStopped: {"no answer: the router went away", mutedCell}},
 	})
-	for i, want := range []string{"■", "■", "", "■"} {
+	for i, want := range []string{"■", "", "", "■"} {
 		if mark := c.at(0, f.top()+1+i); strings.TrimSpace(mark.glyph) != want || want != "" && mark.ink != (ink{token: theme.StateDestructive, bold: true}) {
 			t.Errorf("row %d is marked %q in %+v, want %q", i+1, mark.glyph, mark.ink, want)
 		}

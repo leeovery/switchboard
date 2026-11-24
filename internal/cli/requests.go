@@ -250,7 +250,7 @@ func writeRequests(out io.Writer, rows iter.Seq[views.RequestLine], from, now ti
 // tokens in and out, and how long it took.
 func requestRow(r views.RequestLine, now time.Time) []string {
 	return []string{prose.ToTheSecond(now, r.At), orNone(status.ShortID(prose.Clean(r.Session))), orNone(prose.Clean(r.Model)),
-		orNone(r.Said()), r.Answered(), tokensInOut(r), took(r.Took)}
+		orNone(r.Said()), r.Outcome(), tokensInOut(r), took(r.Took)}
 }
 
 // tokensInOut says how many tokens a request's answer's usage counts in and
