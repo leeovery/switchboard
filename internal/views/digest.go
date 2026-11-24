@@ -39,7 +39,8 @@ func (Digests) Builder() ledger.DigestBuilder {
 // session of its side recorded: none was released without them. Version 4
 // was two, each holding one of those, so neither stands; version 5 named no
 // terminal session; and version 6's chunks counted as failed none answered
-// and then broken off or cut off, as ledger.Ending's Failed now has them.
+// and then broken off or cut off, and every one canceled before an answer or
+// on an error, against ledger.Ending's Failed now.
 const RowsVersion = 7
 
 // RowsVersion is the version of the sides and rows of the days' heads the

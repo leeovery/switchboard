@@ -405,6 +405,22 @@ func TestTheViewsReadARequestTheStreamToldBrokenOffAsBroken(t *testing.T) {
 	}
 }
 
+// A request told broken off, then told in flight again, as the stream tells
+// a reader joining it afresh, is read as in flight, not broken off: its
+// end's status and break go together.
+func TestTheViewsReadARequestToldInFlightAgainAsNotBrokenOff(t *testing.T) {
+	events := []router.StreamEvent{
+		told(router.StreamSent, "r1", "work", 0),
+		alter(told(router.StreamDone, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.Status, e.Broken = 200, true }),
+		alter(told(router.StreamInFlight, "r1", "work", 3*time.Second), func(e *router.StreamEvent) { e.SentAt = past(0) }),
+	}
+	at := past(3 * time.Second)
+	got := traffic{live: true}.took(events, heldNowhere, at).stream(at).Requests["r1"]
+	if got.Status != 0 || got.Broken || !got.Ended.IsZero() {
+		t.Errorf("the views read r1 answered %d, broken off %t, ended %v, want in flight afresh: 0, not broken off, not ended", got.Status, got.Broken, got.Ended)
+	}
+}
+
 func TestASessionsRequestsAtOnceShowTheOneInFlight(t *testing.T) {
 	events := []router.StreamEvent{
 		told(router.StreamSent, "r1", "work", 0),

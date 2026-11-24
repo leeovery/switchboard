@@ -75,9 +75,9 @@ Words under a lane say when a stretch without room starts, and when the account 
 - A time more than a day ahead shows its day only, such as `out ~Sat`. If that day is today's
   weekday, the time carries the date, such as `out ~Thu 12 Nov`.
 - If a cap or a run-out ends as the window resets, the words say `resets` in place of `back`.
-- If the week runs out or reaches its cap after the lane ends, but before the week resets, the
-  words at the lane's end say so, such as `out ~Thu 8 Oct`. In the live view, this happens only to
-  a week that began within the last day.
+- If the week runs out or reaches its cap after the lane ends, the words at the lane's end say so,
+  such as `out ~Thu 8 Oct`. This holds only before the week resets. In the live view, it happens
+  only to a week that began within the last day.
 - A limit always says `back`, whenever it lifts.
 - If one limit or cap runs straight into another, only the last says when the account is back:
   `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`.
@@ -134,6 +134,9 @@ on to the live view. A week you step back to:
 - names its dates in the heading, such as `Mon 21 Sep – Sun 27 Sep`;
 - shows the week's highest use under each name;
 - has no COMING UP and no LATELY.
+
+This week still says a run-out or cap that falls after its last day, before the week resets, at
+the lane's end, as the live view does.
 
 The dashboard never keeps a step back: the next run opens on the live view.
 

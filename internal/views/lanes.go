@@ -70,7 +70,8 @@ func (from LanesFrom) reach() status.Reach {
 // timeline, as beyond has them, which no column draws; whether it has room
 // all week, as nothing else is said of it: through every column from now's,
 // and nothing past the timeline before the view's window resets, as Beyond
-// has none, or through every column of a week stepped back to; its use of
+// has none, or through every column of a week stepped back to and, of this
+// week, nothing past its last day before the reset; its use of
 // the view's window; and the stretch before its account was first read,
 // where it's new in the view.
 type Lane struct {

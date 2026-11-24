@@ -7962,8 +7962,10 @@ apart, each a part flex lays out (`logcolumns.go`):
 - **Requests no frame draws:** one sent again after a limit has its `tried` in `routing`
   (`after work's limit`); one every account refused, its 429 passed on, reads as failed; one
   answered by the router itself has no `first`; one cut off, `status` 0, reads as failed, and
-  one given up, `status` 0, doesn't; one cut off as it was answered reads as failed, and one given
-  up as it was doesn't;
+  one given up, `status` 0, doesn't, a client's own timeout on a stalled answer among them, as the
+  router can't tell it from an Esc (accepted, 24 November 2026); one cut off as it was answered
+  reads as failed, and one given up as it was doesn't; one given up on an error, its line yet to
+  come, reads as failed till its line says canceled (accepted, 24 November 2026);
   several tools show the first and `+1`; no session, `—`; no directory, the id alone (settled in
   the plan).
 
@@ -8008,7 +8010,7 @@ filling in as its line comes (settled in the plan).
   | 19 | `ROUTED` | `to`, `account`; `from`, the account it left and why (`work, at its cap`); `upstream`, `attempts` in words, `once`, `twice`, then `3 times` (settled in the plan) |
   | 19 | `<ACCOUNT>'S WINDOWS AFTER IT` | from `limits`, as the answer left them, in the order of care: `week` and `5-hour`, each use bold in its level's colour (see `usage`, the printout), and a model's window where the answer gave it; `status` |
   | 69 | `ASKED` | `model`; `size`, `shape.bytes` (`482 KB`); `messages`, `system` (`3 blocks`) and `tools`, `shape`'s counts; `max_tokens`; `thinking`, its budget; `effort`, `output_config`'s; `stream`, `yes` or `no` |
-  | 94 | `ANSWERED` | `status`, then `canceled`, `cut off` or `broken off` where its line says so, as `requests` words it (`200 broken off`), bold `state.destructive` where the request failed (the owner's call, 24 November 2026); `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
+  | 94 | `ANSWERED` | `status`, then `canceled`, `cut off` or `broken off` where its line says so, or, its line yet to come, `canceled` for a `status` 0 the stream told, as `requests` words it (`200 broken off`), bold `state.destructive` where the request failed (the owner's call, 24 November 2026); `model`, `answer.model`, the one that served it; `first byte`, `first_ms`; `ended`, `total_ms`; `stopped`, `answer.stop` and its tools as the table words them; `blocks`, `answer.blocks` (`2 thinking, 1 text, 1 tool use`) |
   | 94 | `TOKENS` | `in`, `usage.input_tokens`; `from cache`, the cache reads; `cached`, the cache writes, bold `accent.attention` where the request moved its session, then their lifetime in `text.muted` (` for an hour`, ` for 5 minutes`, from `usage.cache_creation`); `out`; `worth`, bold `text.secondary`, then ` at API prices` in `text.muted`; `the move`, its cache write priced, bold `accent.attention`, then ` of it` in `text.muted`, or `unpriced` alone where the price table can't price it (the owner's call, 15 October 2026) |
 
   `from` in `ROUTED`, and `the move`, belong to a request that moved its session, and are left

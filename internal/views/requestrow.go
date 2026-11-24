@@ -50,7 +50,8 @@ type RequestRow struct {
 	// before an answer came; or, ended before its line came, as the stream
 	// told. Canceled is set where its client went away before its end,
 	// CutOff where the router cut it off as it stopped, and Broken where the
-	// upstream broke its answer off after it began, as its line says.
+	// upstream broke its answer off after it began, as its line says, or,
+	// ended before its line came, as Told's ending reads it.
 	Status                   int
 	Canceled, CutOff, Broken bool
 	// Failed is set where it failed: as ledger.Line.Failed says, or, ended
