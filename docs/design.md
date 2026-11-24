@@ -1962,10 +1962,15 @@ every account's fast rate and the pool's day's rate alike, in 5% steps:
   of its use; every other bar holds it out of the whole play. While the refusal holds, the
   account's lane says it's refused and shows no run-out, though the margin counts it back, so for
   the minutes a refusal lasts the pool's run-out can be a week no lane shows running out (accepted,
-  24 November 2026). It runs
-  out where the last of its room ran out within that step, else as the step starts. A step within
-  which an account comes back is no run-out, its week resetting or its token's refusal lifting: the
-  step judges room as it starts, and the account back takes what's left within less than a step.
+  24 November 2026).
+- **When it runs out:** where the last of its room ran out within that step, else as the step
+  starts. A step within which an account comes back is no run-out: an account that takes requests
+  as the step starts has its week reset within it, or an account's token refusal lifts within it.
+  The step judges room as it starts, so the account back is taken to have the room, and the use
+  the step couldn't place is left out. Where the account back has no room, as one refused with its
+  week spent, the run-out is read at the next step's start, up to a step late for each such
+  account back in a row (accepted, 24 November 2026: it needs a spent account's refusal to lift
+  just as the pool runs out, and costs minutes on a run-out read to the day).
 - **It says nothing** without the router's rates, as a probed document has none; with fewer than
   two accounts; with no account that has room as the document was built; or where the run-out it
   gives is past, as of a document left on screen while the router doesn't answer.
