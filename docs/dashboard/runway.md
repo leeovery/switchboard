@@ -112,7 +112,7 @@ counts as no room, because the router doesn't spend it unless a pin does.
 | `lasts the week, 15% to spare` | The pool lasts the week, even with 15% more use. |
 | `lasts the week, under 5% to spare` | The pool lasts the week, but 5% more use would run it out. |
 | `lasts the week, over 50% to spare` | The pool lasts the week, even with more than 50% more use. |
-| `runs out ~Sat · lasts at 20% less` | The pool runs out on Saturday at your pace. With 20% less use, it would last. |
+| `runs out ~Sat · lasts if you use 20% less` | The pool runs out on Saturday at your pace. With 20% less use, it would last. |
 | `runs out ~Sat` | The pool runs out on Saturday, even with 50% less use. |
 
 Switchboard plays the forecast for the week again, with your pace scaled up or down in steps of

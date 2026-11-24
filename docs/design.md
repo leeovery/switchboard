@@ -1952,7 +1952,7 @@ every account's fast rate and the pool's day's rate alike, in 5% steps:
   busier.
 - **A pool that runs out** is played a step less at a time, until it lasts or runs out at 50%
   less: its margin is when it runs out at its pace, read as a run-out reads, and the least less
-  that lasted, `runs out ~Sat · lasts at 20% less`, or `runs out ~Sat` alone where 50% less runs
+  that lasted, `runs out ~Sat · lasts if you use 20% less`, or `runs out ~Sat` alone where 50% less runs
   out too.
 - **The pool runs out** at the first step where some of its use has no account to go to, as
   Choosing an account finds none with room among those that take requests: the global pin's first
@@ -7147,7 +7147,7 @@ blank row; with two, on the row after its words.
   running out within the week ahead, as Forecasting run-outs plays it (the owner's call, 24
   November 2026). In full where it fits, `week 1.2 of 3 left · lasts the week, 15% to spare`,
   `lasts the week, under 5% to spare`, `lasts the week, over 50% to spare`, `runs out ~Sat · lasts
-  at 20% less` or `runs out ~Sat`; else short, `15% to spare` or `out ~Sat`; and where neither
+  if you use 20% less` or `runs out ~Sat`; else short, `15% to spare` or `out ~Sat`; and where neither
   fits, nothing. It takes only the cells the room leaves before what's out of view, which keeps
   its place at the row's end. ` · ` and its words in `text.muted`, its figures bold
   `text.secondary`, as the room's, and its run-out's time bold `accent.attention`, as a run-out

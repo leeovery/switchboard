@@ -18,7 +18,7 @@ side        ▲ █████████████████████�
 
 Σ pool        ▃▃  ▃▃▃▃             ▃▃▃▃▃▃▃▃▃▃▃▃▃▃                                                                 ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
                                   ▅              ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
-  week 0.2 of 3 left · runs out ~Sat · lasts at 50% less
+  week 0.2 of 3 left · runs out ~Sat · lasts if you use 50% less
 
 LATELY                                                                                  COMING UP
 14:20      work refused (401): 2 sessions moved to side                22m ago          16:30       personal's 5-hour resets                           in 1h 48m

@@ -100,7 +100,7 @@ func poolHelp() helpPart {
 				"the pool's accounts have the week, as 1.2/3."),
 			said("After the room, how much busier your use could get before the pool runs out within the week ahead, in 5% " +
 				"steps up to 50%, as lasts the week, 15% to spare; or when it runs out, and how much less use would last, as " +
-				"runs out ~Sat · lasts at 20% less. Where that doesn't fit, and with the labels collapsed, it's short, as 15% " +
+				"runs out ~Sat · lasts if you use 20% less. Where that doesn't fit, and with the labels collapsed, it's short, as 15% " +
 				"to spare or out ~Sat, and where even that doesn't, it's left out."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
 				"an account out of it is faded, the words under its lane not."),
