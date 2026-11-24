@@ -2353,7 +2353,6 @@ formats below; the screens as signed off in Paper (see The screens, below).
     by the history step, and the router doesn't read them again.
 
   Keeping that state while the move is owed, then restarting once it's decided, would carry it
-  over: see [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md).
 - **Import across the move:** an export carries the accounts record, each account the exporting
   Mac configures marked `configured` and labelled as its config labels it. `export.json` is
   version 2, so a switchboard from before, which reads version 1, refuses a folder whose days name
@@ -13763,4 +13762,3 @@ proper, and where why one was dropped binds a later choice, the design proper sa
 |---|---|---|
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
-| Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
