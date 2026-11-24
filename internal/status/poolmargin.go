@@ -1,7 +1,6 @@
 package status
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/forecast"
@@ -20,9 +19,15 @@ type PoolMargin struct {
 }
 
 // PoolMargin is how near the pool is to running out within the week ahead,
-// as the document's forecast plays it, said at Now.
+// as the document's forecast plays it, said at Now. A run-out Now has
+// reached, as of a document left on screen while the router doesn't answer,
+// is past, not to come, as runOutOf has it: the margin says nothing.
 func (m Moment) PoolMargin() PoolMargin {
-	return PoolMargin{margin: m.doc.poolMargin(), now: m.Now}
+	margin := m.doc.poolMargin()
+	if margin.Kind == forecast.MarginRunsOut && !margin.RunsOut.After(m.Now) {
+		return PoolMargin{}
+	}
+	return PoolMargin{margin: margin, now: m.Now}
 }
 
 // RunsOut is when the pool runs out within the week ahead, reporting false
@@ -77,7 +82,8 @@ func (p PoolMargin) spare() Words {
 	}
 }
 
-// percentOf says a whole percent, n of a hundred: "15%".
+// percentOf says a whole percent, n of a hundred, as prose.Percent does:
+// "15%".
 func percentOf(n int) string {
-	return strconv.Itoa(n) + "%"
+	return prose.Percent(float64(n) / 100)
 }

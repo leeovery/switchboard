@@ -30,9 +30,10 @@ type weeksAhead struct {
 // marginAhead is how near a document's pool is to running out, played the
 // first time it's asked for, as it costs a dozen plays. It holds no pool and
 // no func, which a pool's hold curve is, so a document worked out stays
-// equal to itself worked out again: the pool is built afresh from the
-// document that asks, whose forecastPool is the one its weeks were played
-// from, as nothing it reads changes after forecasted.
+// equal to itself worked out again while neither's margin has been read:
+// the pool is built afresh from the document that asks, whose forecastPool
+// is the one its weeks were played from, as nothing it reads changes after
+// forecasted.
 type marginAhead struct {
 	once   sync.Once
 	margin forecast.Margin

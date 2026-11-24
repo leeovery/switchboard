@@ -94,6 +94,22 @@ func TestAPoolMarginsRunOutIsSaidFromTheMomentsNow(t *testing.T) {
 	}
 }
 
+func TestAPoolMarginWhoseRunOutTheClockHasReachedSaysNothing(t *testing.T) {
+	status.MarginIs(t, forecast.Margin{Kind: forecast.MarginRunsOut, RunsOut: built.Add(5 * day), Less: 20})
+	m := sharing().At(built, policy)
+
+	for _, at := range []time.Time{built.Add(5 * day), built.Add(5*day + time.Hour)} {
+		got := m.At(at).PoolMargin()
+
+		if words, short := got.Words(), got.ShortWords(); words != nil || short != nil {
+			t.Errorf("at %v, PoolMargin() says %q, short %q, want nothing", at, words, short)
+		}
+		if when, ok := got.RunsOut(); ok {
+			t.Errorf("at %v, PoolMargin().RunsOut() = %v, true, want false", at, when)
+		}
+	}
+}
+
 // The pool runs out 100 hours on, and lasts at 35% less use: its room then
 // runs to 154 hours, past the weeks' reset at 144, which brings a week's
 // room each back for the day that's left.
@@ -154,5 +170,19 @@ func TestADocumentsMarginIsPlayedOnceAndOnlyWhenAskedFor(t *testing.T) {
 
 	if got := played(); got != 1 {
 		t.Errorf("the margin was played %d times, want once, as the document was worked out", got)
+	}
+}
+
+func TestAMomentUnderAnotherPolicyPlaysItsMarginAgain(t *testing.T) {
+	played := status.CountMargins(t)
+	doc := sharing().WorkedOut(policy)
+	other := policy
+	other.Tiebreak = "7d"
+
+	_ = doc.At(built, policy).PoolMargin()
+	_ = doc.At(built, other).PoolMargin()
+
+	if got := played(); got != 2 {
+		t.Errorf("the margin was played %d times, want twice, once for each policy", got)
 	}
 }

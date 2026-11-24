@@ -125,6 +125,84 @@ func TestThePoolRunsOutWhereUseHeldPastAnAccountsRoomFindsNoOther(t *testing.T) 
 	}
 }
 
+// steadyPool is a pool of the Pro accounts given, its use day Pro weeks an
+// hour, steadily, its fast rate its day's, none of it held on an account.
+func steadyPool(day float64, accounts ...Account) Pool {
+	accounts = slices.Clone(accounts)
+	accounts[0].Fast = day
+	return Pool{Now: now, Policy: policy, Accounts: accounts, Day: day, Held: holding(0)}
+}
+
+// pinned is p, its pin naming the accounts with the given ids.
+func pinned(p Pool, ids ...string) Pool {
+	p.Pinned = ids
+	return p
+}
+
+func TestThePoolRunsOutWhereTheLastOfTheRoomItCanUseRunsOut(t *testing.T) {
+	// fillsAt is the day's rate that spends half a week by 30 hours and 3
+	// minutes in, part-way into the step from 30 hours.
+	const fillsAt = 0.5 / (30 + 3.0/60)
+	tests := []struct {
+		name   string
+		pool   Pool
+		want   time.Duration
+		within time.Duration
+	}{
+		{
+			name: "a reserve holding an account back, only the reserve left",
+			pool: steadyPool(0.015, account("work", week(0.5, pastThePlay), reserved(0.1)), account("personal", week(0.5, pastThePlay))),
+			// 0.4 and 0.5 of a week's room, at 1.5% an hour.
+			want: 60 * time.Hour, within: playStep,
+		},
+		{
+			name: "a pin, its account's reserve spent, falling back once it's out",
+			pool: pinned(steadyPool(0.01, account("work", week(0.5, pastThePlay)), account("personal", week(0.85, pastThePlay), spendable(0.1))), "personal"),
+			// 0.15 of personal's week past its reserve, then work's 0.5.
+			want: 65 * time.Hour, within: playStep,
+		},
+		{
+			name: "an account that takes no requests beside one that does",
+			pool: steadyPool(0.01, account("work", week(0, pastThePlay), refused), account("personal", week(0.5, pastThePlay))),
+			want: 50 * time.Hour, within: time.Second,
+		},
+		{
+			name: "a week that resets mid-play, its room back",
+			pool: steadyPool(0.01, account("work", week(0.5, 40*time.Hour)), account("personal", week(1, pastThePlay))),
+			// 0.4 of work's week by its reset, then the whole of its next.
+			want: 140 * time.Hour, within: time.Second,
+		},
+		{
+			name: "a week resetting in the step before the last room runs out in it",
+			pool: steadyPool(fillsAt, account("work", week(0.5, pastThePlay)), account("personal", week(1, 30*time.Hour+2*time.Minute))),
+			// personal, back as the next step starts, takes the use from then.
+			want: 30*time.Hour + 10*time.Minute + hours(1/fillsAt), within: time.Second,
+		},
+		{
+			name: "a week resetting in the step after the last room runs out in it",
+			pool: steadyPool(fillsAt, account("work", week(0.5, pastThePlay)), account("personal", week(1, 30*time.Hour+8*time.Minute))),
+			want: 30*time.Hour + 10*time.Minute + hours(1/fillsAt), within: time.Second,
+		},
+		{
+			name: "every account out as a step starts",
+			// personal's reserve is its whole week, so the week it resets to
+			// in the step work runs out in has no room either, as the next
+			// step starts.
+			pool: steadyPool(fillsAt, account("work", week(0.5, pastThePlay)), account("personal", week(0, 30*time.Hour+5*time.Minute), reserved(1))),
+			want: 30*time.Hour + 10*time.Minute, within: time.Second,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MarginOf(tt.pool)
+
+			if want := now.Add(tt.want); got.Kind != MarginRunsOut || got.RunsOut.Sub(want).Abs() > tt.within {
+				t.Errorf("MarginOf() = %+v, want running out at %v, within %v", got, want, tt.within)
+			}
+		})
+	}
+}
+
 func TestMarginOfAPoolWithoutRoomOrAccountsToSpeakOfTellsNothing(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -224,6 +302,14 @@ func TestMarginOfLeavesThePoolAsItWas(t *testing.T) {
 	}
 	if !slices.Equal(p.Accounts, accounts) {
 		t.Errorf("MarginOf() left the pool's accounts %+v, want %+v", p.Accounts, accounts)
+	}
+}
+
+func TestTheBenchmarksPoolLastsAsFarAsAMarginPlays(t *testing.T) {
+	for _, n := range []int{4, 10} {
+		if got, want := MarginOf(benchPool(n)), (Margin{Kind: MarginLasts, Spare: MarginReach + MarginStep}); got != want {
+			t.Errorf("MarginOf(benchPool(%d)) = %+v, want %+v", n, got, want)
+		}
 	}
 }
 

@@ -221,12 +221,15 @@ func (p *play) holding(i int, t time.Time) bool {
 // account chosen runs out, until it's all placed or no account has room.
 // Where use is left with no room for it, the pool runs out, as ranOut says:
 // where the last of its room ran out in the step, else as the step started.
+// But not where the week of an account that takes requests resets within the
+// step: the step judges room as it starts, and the week back takes the use
+// left within less than a step.
 func (p *play) place(t time.Time, rest float64) {
 	for rest > 0 {
 		p.gather(t)
 		c, ok := p.Policy.Choose(p.candidates, p.Pinned, p.applies, "", t)
 		if !ok {
-			if rest >= score.Tolerance && p.ranOut.IsZero() {
+			if rest >= score.Tolerance && p.ranOut.IsZero() && !p.resetsWithin(t) {
 				p.ranOut = cmp.Or(p.emptied, t)
 			}
 			return
@@ -234,6 +237,18 @@ func (p *play) place(t time.Time, rest float64) {
 		chosen := slices.IndexFunc(p.candidates, func(candidate score.Candidate) bool { return candidate.ID == c.ID })
 		rest = p.fill(p.takers[chosen], rest, t)
 	}
+}
+
+// resetsWithin reports whether the week of an account that takes requests
+// resets within the step that starts at t: after t, and by its end.
+func (p *play) resetsWithin(t time.Time) bool {
+	end := t.Add(playStep)
+	for i, a := range p.Accounts {
+		if at := p.weeks[i].ResetsAt; a.Takes && at.After(t) && !at.After(end) {
+			return true
+		}
+	}
+	return false
 }
 
 // gather makes the candidates for a new session at t: the accounts that take
