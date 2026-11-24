@@ -117,6 +117,32 @@ func TestAnAccountThatHasntUsedAModelsWindowGoesWithoutIt(t *testing.T) {
 	}
 }
 
+// An account held at its week's limit till that resets, that hasn't used a
+// model's own window, goes without it all the same: its week's column says
+// the hold, and the hold says nothing of its use of Fable's week.
+func TestAHeldAccountThatHasntUsedAModelsWindowGoesWithoutItAllTheSame(t *testing.T) {
+	doc := usageWorld(func(d *status.Document) {
+		for i, a := range d.Accounts {
+			if a.ID == "personal" {
+				d.Accounts[i].Windows[1].Utilization = 1
+				d.Accounts[i].Limit = status.Limit{Windows: []string{"7d"}, Until: a.Windows[1].ResetsAt}
+			}
+		}
+	})
+	personal, _ := doc.At(routedAt, claudeLike).Account("personal")
+	fableWeek, _ := personal.Window("7d_oi")
+	if !fableWeek.WithAccount || fableWeek.Kind != status.WindowLimited {
+		t.Fatalf("personal's Fable week stands as kind %d, held with its account %v; want held at its limit with it", fableWeek.Kind, fableWeek.WithAccount)
+	}
+	if got := wordsOf(fableWeek, routedAt).full.plain(); got != "no Fable use" {
+		t.Errorf("personal's Fable week reads %q, want no Fable use", got)
+	}
+	matrix := strings.Join(textOf(frameOf(160, 40).Draw(doc, routedAt)), "\n")
+	if !regexp.MustCompile(`personal .*limit · back .*  no Fable use`).MatchString(matrix) {
+		t.Errorf("by window, side by side, USAGE reads\n%s\nwant personal's week at its limit, its row ending no Fable use", matrix)
+	}
+}
+
 // usageWorld is the world the Overview's frames are drawn of, as change
 // leaves it, with what's worked out of it: work, capped at 95%, at its cap in
 // its 5-hour window; personal, the primary, its week running out ~Sat 06:00

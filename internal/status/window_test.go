@@ -354,8 +354,9 @@ const (
 
 // An account a limit or its cap holds back from every request can take
 // nothing till it's back: a window it holds back till at least its next
-// reset, used and with room by its reading, offers no allowance, and reads
-// what holds the account, back as it is, held with it, never as unused. A
+// reset, with room by its reading, offers no allowance, and reads what holds
+// the account, back as it is, held with it; a model's own it hasn't used is
+// unused all the same, as the hold says nothing of its use. A
 // hold that lifts before the window resets leaves the window its own words
 // and allowance, as it can be used again once the hold lifts; one lifting
 // just as it resets holds it. A limit on the Fable week alone holds back that
@@ -371,6 +372,7 @@ func TestAnAccountHeldBackFromEveryRequestOffersNoAllowanceInAWindowItOutlasts(t
 		kind    status.WindowKind
 		at      time.Time
 		held    bool
+		unused  bool
 	}{
 		{
 			name: "its week at its limit: the session reads the limit", key: "5h",
@@ -379,6 +381,14 @@ func TestAnAccountHeldBackFromEveryRequestOffersNoAllowanceInAWindowItOutlasts(t
 		{
 			name: "its week at its limit, lifting as the Fable week resets: the Fable week reads the limit", key: "7d_oi",
 			account: limitedTo(readNow(0.3, 1, 0.4), "7d"), kind: status.WindowLimited, at: at(5, 21, 0), held: true,
+		},
+		{
+			name: "its week at its limit, the Fable week unused: held with it, and unused", key: "7d_oi",
+			account: limitedTo(readNow(0.3, 1, 0), "7d"), kind: status.WindowLimited, at: at(5, 21, 0), held: true, unused: true,
+		},
+		{
+			name: "its week at its cap, the Fable week unused: held with it, and unused", key: "7d_oi",
+			account: with(readNow(0.3, 0.97, 0), reservingAWentieth), kind: status.WindowCapped, at: at(5, 21, 0), held: true, unused: true,
 		},
 		{
 			name: "its week at its cap: the session reads the cap", key: "5h",
@@ -409,9 +419,9 @@ func TestAnAccountHeldBackFromEveryRequestOffersNoAllowanceInAWindowItOutlasts(t
 		t.Run(tt.name, func(t *testing.T) {
 			doc := status.Document{GeneratedAt: stateNow.UTC(), Accounts: []status.Account{tt.account}}
 			got := windowAt(doc, tt.account.ID, tt.key, stateNow, policy)
-			if got.Kind != tt.kind || !got.At.Equal(tt.at) || got.WithAccount != tt.held || got.Unused {
-				t.Errorf("it stands as kind %d at %v, held with its account %v, unused %v; want kind %d at %v, held with it %v, not unused",
-					got.Kind, got.At, got.WithAccount, got.Unused, tt.kind, tt.at, tt.held)
+			if got.Kind != tt.kind || !got.At.Equal(tt.at) || got.WithAccount != tt.held || got.Unused != tt.unused {
+				t.Errorf("it stands as kind %d at %v, held with its account %v, unused %v; want kind %d at %v, held with it %v, unused %v",
+					got.Kind, got.At, got.WithAccount, got.Unused, tt.kind, tt.at, tt.held, tt.unused)
 			}
 			worked, _ := doc.WorkedOut(policy).Accounts[0].Window(tt.key)
 			for _, allowance := range []quota.Allowance{got.Allowance, worked.Allowance} {

@@ -310,10 +310,12 @@ type WindowNow struct {
 	HeldAsOwn bool
 	// Unused is set where it's a model's own window, as Fable's week, that
 	// its account is known not to have used: read fresh with a usable
-	// token, neither stale nor held by a limit or its cap, its own or its
-	// account's, as heldOrStale says, and none of it used as it stands at
-	// Now, as used says, as once it resets. A view listing windows as they
-	// stand leaves the account out of it, as Without says.
+	// token, as readStale says, and not showing, as shows says: none of it
+	// used as it stands at Now, as once it resets, and neither a limit
+	// naming it nor its cap holding it. A hold of its account's, as
+	// WithAccount says, or a limit naming no window, says nothing of its
+	// use, so leaves it unused, its Kind still the hold. A view listing
+	// windows as they stand leaves the account out of it, as Without says.
 	Unused bool
 	// Read is the window as it was read.
 	Read AsRead
@@ -798,7 +800,7 @@ func (m Moment) windowNow(s windowStates, w judged, name WindowName) WindowNow {
 	wn.RunsOut, wn.Out, wn.Projected = wn.Kind == WindowRunsOut, w.out, projected(wn.Kind, w.out.Projection)
 	wn.RunsOutAhead = wn.Unheld == WindowRunsOut
 	wn.HeldAsOwn = s.stood.holds(key)
-	wn.Unused = !wn.Shared && !wn.heldOrStale() && !wn.used()
+	wn.Unused = !wn.Shared && !wn.readStale() && !wn.shows()
 	return wn
 }
 
@@ -808,13 +810,10 @@ func (w WindowNow) used() bool {
 	return w.Used > 0
 }
 
-// heldOrStale reports whether the window reads other than its use at Now:
-// its read stale, as that may not be all its account has used; a limit or
-// its account's cap holding it, as a limit may still hold a window read
-// again at 0% once it resets; or its account's hold, as WithAccount says, as
-// it can take nothing till its account is back.
-func (w WindowNow) heldOrStale() bool {
-	return w.Kind == WindowStale || w.Held || w.Capped || w.WithAccount
+// readStale reports whether the window's reading is stale, a limit holding it
+// or not, as Unheld says, as that may not be all its account has used.
+func (w WindowNow) readStale() bool {
+	return w.Unheld == WindowStale
 }
 
 // Without reports whether a view listing windows as they stand leaves the
