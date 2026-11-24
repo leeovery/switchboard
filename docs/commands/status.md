@@ -77,9 +77,9 @@ week, and a week that one model has of its own, show their pace since the week b
 its rate over the last 30 minutes, such as `runs out ~17:25 at its rate over the last 30 min`. A
 run-out within a day shows a time, and one further ahead shows a day.
 
-After the room of the pool comes its margin, such as `lasts the week, 15% to spare` or
-`runs out ~Sat · lasts at 20% less`. It says how much busier your use could get before the pool
-runs out within the week. The words are the ones Runway shows, and
+After the room of the pool comes its margin. Two examples are `lasts the week, 15% to spare`
+and `runs out ~Sat · lasts if you use 20% less`. The margin says how much busier your use could
+get before the pool runs out within the week. The words are the ones Runway shows, and
 [Runway](../dashboard/runway.md) explains them. The JSON doesn't hold the margin.
 
 A verified Ultra account has no 5-hour window, and its line reads `no 5-hour window`. An Ultra

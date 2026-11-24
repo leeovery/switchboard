@@ -1693,7 +1693,7 @@ func TestTextSaysThePoolsRoomAndMarginInTheWeek(t *testing.T) {
 		},
 		{
 			name: "running out, lasting at 20% less", doc: two, margin: forecast.Margin{Kind: forecast.MarginRunsOut, RunsOut: built.Add(5 * day), Less: 20},
-			want: "\nΣ pool\n  Week    1.0 of 2 left · runs out ~Sat · lasts at 20% less\n\nfrom the router",
+			want: "\nΣ pool\n  Week    1.0 of 2 left · runs out ~Sat · lasts if you use 20% less\n\nfrom the router",
 		},
 		{
 			name: "a margin saying nothing", doc: two,

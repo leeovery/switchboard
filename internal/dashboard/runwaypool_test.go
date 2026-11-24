@@ -501,7 +501,7 @@ func TestThePoolsMarginFollowsItsRoomInTheWeek(t *testing.T) {
 		want          string
 	}{
 		{name: "lasting", doc: poolLasting(), shown: live, width: 160, height: 37, want: "  week 1.2 of 3 left · lasts the week, 20% to spare"},
-		{name: "running out", doc: poolRunsShort(), shown: live, width: 160, height: 37, want: "  week 1.2 of 3 left · runs out ~Sun · lasts at 20% less"},
+		{name: "running out", doc: poolRunsShort(), shown: live, width: 160, height: 37, want: "  week 1.2 of 3 left · runs out ~Sun · lasts if you use 20% less"},
 		{name: "running out, on a phone", doc: poolRunsShort(), shown: phone, width: 52, height: 38, want: "  week 1.2 of 3 left · out ~Sun"},
 		{name: "running out, collapsed", doc: poolRunsShort(), shown: collapsed, width: 160, height: 37, want: "1.2/3 · out ~Sun"},
 		{name: "lasting, collapsed", doc: poolLasting(), shown: collapsed, width: 160, height: 37, want: "1.2/3 · 20% to spare"},
@@ -557,7 +557,7 @@ func TestThePoolsMarginIsInkedAsItsRoomAndARunOutAhead(t *testing.T) {
 // plays, the policy's Perishable.
 func TestThePoolsMarginTakesTheFormThatFitsInTheWeekAlone(t *testing.T) {
 	m := poolRunsShort().At(routedAt, claudeLike)
-	full, short := " · runs out ~Sun · lasts at 20% less", " · out ~Sun"
+	full, short := " · runs out ~Sun · lasts if you use 20% less", " · out ~Sun"
 	cells := func(s string) int { return len([]rune(s)) }
 	tests := []struct {
 		name      string

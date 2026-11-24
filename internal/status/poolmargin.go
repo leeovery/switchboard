@@ -37,8 +37,8 @@ func (p PoolMargin) RunsOut() (time.Time, bool) {
 }
 
 // Words say the margin in full: "lasts the week, 15% to spare", or "runs out
-// ~Sat · lasts at 20% less", its run-out as prose.RunOut says it, its
-// figures figures, and without its "lasts at" where even 50% less use
+// ~Sat · lasts if you use 20% less", its run-out as prose.RunOut says it, its
+// figures figures, and without its "lasts if you use" where even 50% less use
 // wouldn't last. None where it says nothing.
 func (p PoolMargin) Words() Words {
 	switch p.margin.Kind {
@@ -49,7 +49,7 @@ func (p PoolMargin) Words() Words {
 		if p.margin.Less == 0 {
 			return said
 		}
-		return append(said, Plain(" · lasts at "), Figure(percentOf(p.margin.Less)), Plain(" less"))
+		return append(said, Plain(" · lasts if you use "), Figure(percentOf(p.margin.Less)), Plain(" less"))
 	case forecast.MarginNone:
 	}
 	return nil

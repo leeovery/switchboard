@@ -108,7 +108,7 @@ func TestAPoolMarginSaysHowNearThePoolIsToRunningOut(t *testing.T) {
 		},
 		{
 			name: "running out days on, lasting at 20% less", margin: forecast.Margin{Kind: forecast.MarginRunsOut, RunsOut: built.Add(5 * day), Less: 20},
-			wantFull: "runs out ~Sat · lasts at 20% less", wantShort: "out ~Sat",
+			wantFull: "runs out ~Sat · lasts if you use 20% less", wantShort: "out ~Sat",
 		},
 		{
 			name: "running out days on, not lasting at 50% less", margin: forecast.Margin{Kind: forecast.MarginRunsOut, RunsOut: built.Add(5 * day)},
@@ -116,7 +116,7 @@ func TestAPoolMarginSaysHowNearThePoolIsToRunningOut(t *testing.T) {
 		},
 		{
 			name: "running out within a day", margin: forecast.Margin{Kind: forecast.MarginRunsOut, RunsOut: built.Add(3 * time.Hour), Less: 5},
-			wantFull: "runs out ~16:12 · lasts at 5% less", wantShort: "out ~16:12",
+			wantFull: "runs out ~16:12 · lasts if you use 5% less", wantShort: "out ~16:12",
 		},
 		{name: "saying nothing", margin: forecast.Margin{}},
 	}
@@ -138,7 +138,7 @@ func TestAPoolMarginsFiguresAndTimeAreWordsOfTheirOwn(t *testing.T) {
 
 	got := sharing().At(built, policy).PoolMargin().Words()
 
-	want := status.Words{status.Plain("runs out ~"), status.Time("Sat"), status.Plain(" · lasts at "), status.Figure("20%"), status.Plain(" less")}
+	want := status.Words{status.Plain("runs out ~"), status.Time("Sat"), status.Plain(" · lasts if you use "), status.Figure("20%"), status.Plain(" less")}
 	if !slices.Equal(got, want) {
 		t.Errorf("PoolMargin().Words() = %+v, want %+v", got, want)
 	}
@@ -173,7 +173,7 @@ func TestAPoolMarginWhoseRunOutTheClockHasReachedSaysNothing(t *testing.T) {
 	}
 }
 
-// The pool runs out 100 hours on, and lasts at 35% less use: its room then
+// The pool runs out 100 hours on, and lasts if you use 35% less: its room then
 // runs to 154 hours, past the weeks' reset at 144, which brings a week's
 // room each back for the day that's left.
 func TestAPoolMarginIsTheDocumentsForecastPoolPlayed(t *testing.T) {
@@ -183,7 +183,7 @@ func TestAPoolMarginIsTheDocumentsForecastPoolPlayed(t *testing.T) {
 	if !ok || when.Sub(built.Add(100*time.Hour)).Abs() > 10*time.Minute {
 		t.Errorf("PoolMargin().RunsOut() = %v, %t, want about %v", when, ok, built.Add(100*time.Hour))
 	}
-	if want := "runs out ~Fri · lasts at 35% less"; got.Words().String() != want {
+	if want := "runs out ~Fri · lasts if you use 35% less"; got.Words().String() != want {
 		t.Errorf("PoolMargin() says %q, want %q", got.Words(), want)
 	}
 }
