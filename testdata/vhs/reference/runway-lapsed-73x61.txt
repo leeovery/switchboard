@@ -20,7 +20,7 @@ side        ▲ ████████████━━━━━━━━━�
 
 Σ pool        ▃ ▃      ▃▃▃                             ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
                       ▅   ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
-  week 0.2 of 3 left
+  week 0.2 of 3 left · runs out ~Fri 00:04
 
 COMING UP
 16:30       personal's 5-hour resets                            in 1h 48m

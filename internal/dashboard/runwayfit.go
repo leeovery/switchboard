@@ -368,12 +368,30 @@ var lanesOut = []outForm{{noun: "account", gap: " · ", inks: subtleOut}, {gap: 
 // under the pool's lane, in the cells its room leaves, as runwayOutParts lays
 // them.
 func (f Frame) runwayOut(c *canvas, laid runwayLaid) {
+	if said := f.outSaid(laid); said != nil {
+		c.right(f.Width, laid.fit.out, said)
+	}
+}
+
+// outSaid is what runwayOut says is out of view, in the cells
+// runwayOutParts leaves it: nothing where Runway's lanes don't scroll.
+func (f Frame) outSaid(laid runwayLaid) line {
 	fit := laid.fit
 	if !fit.draws(fit.out) {
-		return
+		return nil
 	}
 	at, _ := flex.Lay(f.Width, f.runwayOutParts(laid)...)
-	c.right(f.Width, fit.out, outOfView(fit.first, fit.accounts-fit.first-fit.shown, at[runwayOutWords].Size, lanesOut...))
+	return outOfView(fit.first, fit.accounts-fit.first-fit.shown, at[runwayOutWords].Size, lanesOut...)
+}
+
+// outCells are the cells outSaid takes at the end of the row under the
+// pool's lane, nameGap before it: none where it says nothing.
+func (f Frame) outCells(laid runwayLaid) int {
+	said := f.outSaid(laid)
+	if said == nil {
+		return 0
+	}
+	return nameGap + said.width()
 }
 
 // The parts of the row under the pool's lane, in runwayOutParts' order: its

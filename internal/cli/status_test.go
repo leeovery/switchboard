@@ -42,6 +42,9 @@ side · Side
   HTTP 401 · Invalid bearer token
   token refused · its token needs renewing
 
+Σ pool
+  Week        0.0 of 3 left
+
 probed directly: the router isn't running
 `,
 				code: 0,
@@ -275,7 +278,7 @@ func TestStatusListsTheRoutersSessions(t *testing.T) {
 	}
 
 	got := run(t, srv.deps, "status", "--pretty")
-	want := result{stdout: workRouted + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + `
+	want := result{stdout: workRouted + "  2 sessions\n\n" + othersAtStatus(t, srv.deps) + poolWhere(" · lasts the week, over 50% to spare") + `
 sessions
   0b5c6f2e  haiku on Work  ·  seen just now
   18bb978f  haiku on Work  ·  pinned to Side  ·  seen just now

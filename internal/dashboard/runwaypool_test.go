@@ -450,3 +450,156 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheWeek(t *testing.T) {
 		})
 	}
 }
+
+// notHeld is a hold curve that keeps none of an account's fast rate on it
+// from an hour on.
+var notHeld = []status.HoldPoint{{Hours: 1}, {Hours: 3}, {Hours: 6}, {Hours: 12}, {Hours: 24}, {Hours: 48}}
+
+// forecastDoc is doc with the pool's use at the day rate given, in Pro weeks
+// an hour, none of it held on an account, as the router measures it, worked
+// out, so its forecast plays it.
+func forecastDoc(doc status.Document, day float64) status.Document {
+	doc.Demand = &status.Demand{Day: day, Hours: 24, Hold: notHeld}
+	return doc.WorkedOut(claudeLike)
+}
+
+// poolLasting is the auto world the frames were drawn of, as framesDoc has
+// it, its pool's use such that it lasts the week, 20% to spare; and
+// poolRunsShort, such that it runs out on Sunday, lasting at 20% less.
+func poolLasting() status.Document   { return forecastDoc(framesDoc(), 0.02) }
+func poolRunsShort() status.Document { return forecastDoc(framesDoc(), 0.03) }
+
+// After the pool's room in the week, Runway says how near the pool is to
+// running out, after " · ": in full where it fits, short where only that
+// does, as on a phone; short alone with the account column collapsed; and
+// nothing where it says nothing, as without a forecast, nor where the room
+// isn't said, as on a week gone stepped back to.
+func TestThePoolsMarginFollowsItsRoomInTheWeek(t *testing.T) {
+	live := poolShown(framesDoc(), views.Pool{Of: 3, Key: "7d"})
+	phone := live
+	phone.Timeline = views.LiveTimeline(routedAt, RunwayShown{}.Columns(52))
+	collapsed := live
+	collapsed.Collapsed = true
+	collapsed.Timeline = collapsed.TimelineAt(routedAt, time.Monday, 160)
+	gone := live
+	gone.Back = civilDay(9, 21)
+	gone.Timeline = gone.TimelineAt(routedAt, time.Monday, 160)
+	tests := []struct {
+		name          string
+		doc           status.Document
+		shown         RunwayShown
+		width, height int
+		want          string
+	}{
+		{name: "lasting", doc: poolLasting(), shown: live, width: 160, height: 37, want: "  week 1.2 of 3 left · lasts the week, 20% to spare"},
+		{name: "running out", doc: poolRunsShort(), shown: live, width: 160, height: 37, want: "  week 1.2 of 3 left · runs out ~Sun · lasts at 20% less"},
+		{name: "running out, on a phone", doc: poolRunsShort(), shown: phone, width: 52, height: 38, want: "  week 1.2 of 3 left · out ~Sun"},
+		{name: "running out, collapsed", doc: poolRunsShort(), shown: collapsed, width: 160, height: 37, want: "1.2/3 · out ~Sun"},
+		{name: "lasting, collapsed", doc: poolLasting(), shown: collapsed, width: 160, height: 37, want: "1.2/3 · 20% to spare"},
+		{name: "without a forecast", doc: framesDoc(), shown: live, width: 160, height: 37, want: "  week 1.2 of 3 left"},
+		{name: "a week gone stepped back to", doc: poolRunsShort(), shown: gone, width: 160, height: 37},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: tt.height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
+			fit := f.runwayFitted(f.top())
+
+			c := runwayDrawn(f, tt.doc)
+
+			if got := rowOf(c, fit.pool+runwayPoolRows); got != tt.want {
+				t.Errorf("the row under the pool's lane reads %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The margin's words are inked as the pool's room is: " · " and its words in
+// text.muted, its figures bold text.secondary, as the room is; and its
+// run-out's time bold accent.attention, as an account's run-out ahead is.
+func TestThePoolsMarginIsInkedAsItsRoomAndARunOutAhead(t *testing.T) {
+	f := Frame{Width: 160, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: poolShown(framesDoc(), views.Pool{Of: 3, Key: "7d"})}
+	row := f.runwayFitted(f.top()).room
+	c := runwayDrawn(f, poolRunsShort())
+	said := rowOf(c, row)
+	at := func(s string) int { return len([]rune(said[:strings.Index(said, s)])) }
+	tests := []struct {
+		name string
+		x    int
+		want ink
+	}{
+		{name: "the dot", x: at(" · runs") + 1, want: mutedInk},
+		{name: "its words", x: at("runs"), want: mutedInk},
+		{name: "its run-out's time", x: at("Sun"), want: alertInk},
+		{name: "its figure", x: at("20%"), want: strongInk},
+		{name: "its words after", x: at(" less") + 1, want: mutedInk},
+	}
+	for _, tt := range tests {
+		if got := c.at(tt.x, row).ink; got != tt.want {
+			t.Errorf("%s, at column %d of %q, is in %+v, want %+v", tt.name, tt.x, said, got, tt.want)
+		}
+	}
+}
+
+// The margin is said in full in the cells given where it fits, else short,
+// and short alone with the account column collapsed; nothing where neither
+// fits; and nothing in the view of any window but the week the forecast
+// plays, the policy's Perishable.
+func TestThePoolsMarginTakesTheFormThatFitsInTheWeekAlone(t *testing.T) {
+	m := poolRunsShort().At(routedAt, claudeLike)
+	full, short := " · runs out ~Sun · lasts at 20% less", " · out ~Sun"
+	cells := func(s string) int { return len([]rune(s)) }
+	tests := []struct {
+		name      string
+		key       string
+		collapsed bool
+		cells     int
+		want      string
+	}{
+		{name: "full, where it fits", key: "7d", cells: cells(full), want: full},
+		{name: "short, a cell short of full", key: "7d", cells: cells(full) - 1, want: short},
+		{name: "short, where it alone fits", key: "7d", cells: cells(short), want: short},
+		{name: "nothing, a cell short of short", key: "7d", cells: cells(short) - 1},
+		{name: "short, collapsed, with room for full", key: "7d", collapsed: true, cells: cells(full), want: short},
+		{name: "nothing, of the 5-hour", key: "5h", cells: 160},
+		{name: "nothing, of Fable's week", key: "7d_oi", cells: 160},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			shown := poolShown(framesDoc(), views.Pool{Of: 3, Key: tt.key})
+			shown.Collapsed = tt.collapsed
+			f := Frame{Width: 160, Height: 37, View: Runway, Policy: claudeLike, Runway: shown}
+
+			if got := f.marginSaid(m, tt.cells).plain(); got != tt.want {
+				t.Errorf("in %d cells, the margin reads %q, want %q", tt.cells, got, tt.want)
+			}
+		})
+	}
+}
+
+// Where Runway's lanes scroll, what's out of view keeps the cells it takes
+// without the margin, the margin said in those left before it: in full with
+// room, short where only that fits.
+func TestThePoolsMarginYieldsToWhatsOutOfView(t *testing.T) {
+	tests := []struct {
+		name       string
+		width      int
+		room, says string
+	}{
+		{name: "with room", width: 160, room: "  week 9.0 of 10 left · lasts the week, over 50% to spare", says: "▲ 2 more accounts · ▼ 1 more account"},
+		{name: "short", width: 90, room: "  week 9.0 of 10 left · over 50% to spare", says: "▲ 2 more accounts · ▼ 2 more accounts"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := runwayFrame(t, 27, lanesOf(10), thingsComing(3))
+			f.Width, f.Scroll = tt.width, 2
+			f.Runway.Timeline = views.LiveTimeline(routedAt, f.Runway.Columns(tt.width))
+			fit := f.runwayFitted(f.top())
+
+			row := rowOf(runwayDrawn(f, forecastDoc(runwayDoc(10), 0.01)), fit.room)
+
+			if !strings.HasPrefix(row, tt.room+"  ") || !strings.HasSuffix(row, " "+tt.says) || len([]rune(row)) != tt.width {
+				t.Errorf("the room's row reads %q, want %q, then %q ending at the edge", row, tt.room, tt.says)
+			}
+		})
+	}
+}

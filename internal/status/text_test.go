@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/forecast"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
@@ -85,6 +86,9 @@ personal · Personal
 spare · Spare
   HTTP 401 · Invalid bearer token
   token refused · its token needs renewing
+
+Σ pool
+  Week        1.0 of 4 left
 
 probed directly
 `,
@@ -202,6 +206,9 @@ spare · Spare
   Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour  50%  resets in 2h 58m · Mon 17:10 · runs out ~16:14
 
+Σ pool
+  Week    1.8 of 3 left
+
 from the router: healthy  ·  no sessions  ·  routing automatically
 `,
 		},
@@ -264,6 +271,9 @@ from the router: healthy  ·  no sessions  ·  routing automatically
 side · Side
   Week    10%  resets in 5d 11h · Sun 02:10 · on pace for 47%
   5-hour   0%  not started · next prime Mon 14:17
+
+Σ pool
+  Week    1.5 of 2 left
 
 priming 08:00-23:00: Work at 04:10 and Side at 06:40
 next reset: work · Work, Mon 17:10  ·  next prime: side · Side, Mon 14:17
@@ -812,6 +822,9 @@ func TestTextSaysAWindowAnAccountLacksIsNone(t *testing.T) {
 		"  5-hour  no 5-hour window\n" +
 		"\n" +
 		"spare · Spare\n" +
+		"\n" +
+		"Σ pool\n" +
+		"  Week    0.6 of 2 left\n" +
 		"\n" +
 		"from the router: healthy  ·  no sessions  ·  routing automatically\n"
 	if got := doc.At(now, policy).Text(); got != want {
@@ -1650,5 +1663,49 @@ func TestAMomentSaysWhichAccountsAreHeldByTheirReadRefused(t *testing.T) {
 		if got := m.HeldByRead(id); got != want {
 			t.Errorf("HeldByRead(%q) = %v, want %v", id, got, want)
 		}
+	}
+}
+
+// After the last account, where the pool has two or more accounts, status
+// says the pool's room in the week under Σ pool, lined up as the accounts'
+// windows are, to a tenth of how many accounts have it, and where its margin
+// says anything, how near it is to running out, in full: nothing of one
+// account, nor of a pool a pin leaves one.
+func TestTextSaysThePoolsRoomAndMarginInTheWeek(t *testing.T) {
+	two := sharing()
+	tests := []struct {
+		name   string
+		doc    status.Document
+		margin forecast.Margin
+		want   string
+	}{
+		{
+			name: "lasting 15% busier", doc: two, margin: forecast.Margin{Kind: forecast.MarginLasts, Spare: 15},
+			want: "\nΣ pool\n  Week    1.0 of 2 left · lasts the week, 15% to spare\n\nfrom the router",
+		},
+		{
+			name: "running out, lasting at 20% less", doc: two, margin: forecast.Margin{Kind: forecast.MarginRunsOut, RunsOut: built.Add(5 * day), Less: 20},
+			want: "\nΣ pool\n  Week    1.0 of 2 left · runs out ~Sat · lasts at 20% less\n\nfrom the router",
+		},
+		{
+			name: "a margin saying nothing", doc: two,
+			want: "\nΣ pool\n  Week    1.0 of 2 left\n\nfrom the router",
+		},
+		{name: "one account", doc: routerDocOf(readAt("work", windowIn("7d", 0.5, 6*day))), margin: forecast.Margin{Kind: forecast.MarginLasts, Spare: 15}},
+		{name: "a pool pinned to one", doc: pinnedTo(two, "work"), margin: forecast.Margin{Kind: forecast.MarginLasts, Spare: 15}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status.MarginIs(t, tt.margin)
+
+			got := tt.doc.At(built, policy).Text()
+
+			if tt.want == "" && strings.Contains(got, "Σ pool") {
+				t.Errorf("Text() =\n%s\nwant no Σ pool", got)
+			}
+			if tt.want != "" && !strings.Contains(got, tt.want) {
+				t.Errorf("Text() =\n%s\nwant it to hold\n%s", got, tt.want)
+			}
+		})
 	}
 }
