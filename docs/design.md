@@ -10160,7 +10160,10 @@ from the first day a router that has it runs, so nothing before then is in it.
     a day whose summary is of an older version is read, and summarised again from its lines and its
     readings while either is kept, once, from the first round under the new version on, eight
     days a round, as the round's stamp holds the summary's version (see below), knowing no less
-    than it, as any summary written again does, every field of it. So a day whose readings the
+    than it, as any summary written again does, every field of it. A round must never hold up the
+    readings history's writer, whose queue of 1,024 lines drops what comes past it, about seven
+    answers a second while it waits: a version summarising a long keep again sizes its rounds
+    by that. So a day whose readings the
     history has pruned is summarised again from its lines, and keeps what the summary before took
     from the readings; one whose lines are pruned, from its readings, and keeps its requests as the
     summary before gave them; and one whose lines and readings are both gone keeps the summary it
@@ -13496,7 +13499,6 @@ recorded yet`; and a card for an account the router's document doesn't hold yet 
 alone, numbered as Runway will number it. The tour stops on Graphs, and its still joins the README's
 grid and the dashboard's guide (#170). Every image in the README and the guide is recorded again in
 Tokyo Night, with a still of each built-in theme in the guide's Themes, Tokyo Night first, as the
-owner asked (#172). What the build left is gathered in [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md).
 
 **The Overview's GRAPHS — removed.** On 26 October 2026, for the release with Graphs, the owner
 removed the Overview's GRAPHS, its charts under USAGE and beside each block by account, `g`, `v`
@@ -13759,7 +13761,6 @@ proper, and where why one was dropped binds a later choice, the design proper sa
 
 | Idea | Status | File |
 |---|---|---|
-| The Trends build's loose ends, built as Graphs: one owner of the accounts' order, Runway's week past its view, and the edges, tests, tidy-ups and costs its reviews left | the order's owner and GLANCE's name column built in the cleanliness release, the owner's choice on 26 October 2026; the rest any time | [graphs-loose-ends](../ideas/2026-10-26--graphs-loose-ends.md) |
 | The plain text the data verbs print, `status`'s and the first cuts of `requests`, `history`, `sessions` and `events`, designed to match the dashboard | next, to design with its owner | [dashboard-layout](../ideas/2026-09-30--dashboard-layout.md) |
 | What the day digests' four phases left: the build's peak, a session's state growing with its subagents, a long page read whole in the router, a day head's read of the days beside it, a session's page with a request in flight for hours, a day's rows read with a chunk damaged unseen, the Log's read as a window, thinning the held row, the edges of reading through filters, a turn's read of the day before yesterday after midnight, the guard's reach, and smaller costs | open: any time | [day-digests-left](../ideas/2026-10-18--day-digests-left.md) |
 | The weeks' forecast's loose ends: the readings history's unread lines, and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [forecast-loose-ends](../ideas/2026-11-08--forecast-loose-ends.md) |
