@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-11-24
+
+🐛 Fixed
+- A model's own usage window that its account hasn't used now shows as unused even when its account is held back by a limit or cap — previously it showed as limited or capped.
+
 ## [1.3.2] - 2026-11-23
 
 Dashboard restarts itself onto an upgraded version, keeping what it showed.
