@@ -94,10 +94,11 @@ func TestTheMomentListsItsWindowsInTheOrderOfCare(t *testing.T) {
 // as it stands now, however near or far its limit, or where a limit naming
 // it holds it, as one may once it has reset to 0%; never where a limit
 // naming no window holds it alone, which says nothing of its use. An
-// account known not to have used
-// it goes without it, as an account without a 5-hour window does; one with
-// no usable token, nothing read, its read failed since, or a limit holding
-// it, may have used it, so keeps it. Reported
+// account known not to have used it goes without it, as an account without a
+// 5-hour window does, whatever holds the account, as a hold that isn't the
+// window's own says nothing of its use; one with no usable token, nothing
+// read, its read failed since, or a limit naming it holding it, may have
+// used it, so keeps it. Reported
 // lists every model's window any account reports, used or not. Those every
 // model shares are listed always.
 func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
@@ -135,16 +136,23 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 			without: []string{"work", "side"},
 		},
 		{
-			name: "every one at 0%, one's cap holding it back from every request: not listed, that one keeping it, held with its account", listed: []string{"7d", "5h"},
+			name: "every one at 0%, one's cap holding it back from every request: not listed, both without it, as its account's hold says nothing of its use", listed: []string{"7d", "5h"},
 			doc:     routerDocOf(work(0, reserveAll), side(windowIn("7d_oi", 0, 3*day))),
-			without: []string{"side"},
+			without: []string{"work", "side"},
 		},
 		{
-			name: "every one at 0%, a limit naming the session holding one back from every request till its model's week resets: not listed, that one keeping it, held with its account", listed: []string{"7d", "5h"},
+			name: "every one at 0%, a limit naming the session holding one back from every request till its model's week resets: not listed, both without it", listed: []string{"7d", "5h"},
 			doc: routerDocOf(work(0, func(a *status.Account) {
 				a.Limit = status.Limit{Windows: []string{"5h"}, Until: built.Add(3 * day)}
 			}), side(windowIn("7d_oi", 0, 3*day))),
-			without: []string{"side"},
+			without: []string{"work", "side"},
+		},
+		{
+			name: "one account at 3%, the other at 0% held back from every request till its model's week resets: listed, the held one without it", listed: []string{"7d", "5h", "7d_oi"},
+			doc: routerDocOf(work(0, func(a *status.Account) {
+				a.Limit = status.Limit{Windows: []string{"7d"}, Until: built.Add(3 * day)}
+			}), side(windowIn("7d_oi", 0.03, 3*day))),
+			without: []string{"work"},
 		},
 		{
 			name: "every one at 0%, a limit naming the session lifting before its model's week resets: not listed, none keeping it", listed: []string{"7d", "5h"},
@@ -187,8 +195,16 @@ func TestAModelsWindowIsListedWhereSomeAccountHasUsedIt(t *testing.T) {
 			without: []string{"side"},
 		},
 		{
-			name: "every one at 0%, a limit naming no window holding one, which says nothing of its use: not listed, that one keeping it", listed: []string{"7d", "5h"},
+			name: "every one at 0%, a limit naming no window holding one, which says nothing of its use: not listed, both without it", listed: []string{"7d", "5h"},
 			doc:     routerDocOf(work(0, holdingAll), side(windowIn("7d_oi", 0, 3*day))),
+			without: []string{"work", "side"},
+		},
+		{
+			name: "at 0% as last read, its read failed since, a limit naming no window holding it: not listed, that one keeping it, stale under the limit", listed: []string{"7d", "5h"},
+			doc: routerDocOf(work(0, func(a *status.Account) {
+				failed(a)
+				holdingAll(a)
+			}), side(windowIn("7d_oi", 0, 3*day))),
 			without: []string{"side"},
 		},
 		{

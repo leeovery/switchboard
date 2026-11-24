@@ -4355,11 +4355,11 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   | Its subscription has ended: its last read was answered 403, the message saying OAuth authentication is currently not allowed for its organization, in any case, which is how an ended subscription is answered; the last reading, faded (below) | `subscription lapsed` | `lapsed` | `state.destructive` |
   | Its token is refused: the router saw it refused, or its last read was answered 401; the last reading, faded (below) | `token refused` | `refused` | `state.destructive` |
   | Its last read failed otherwise, a 403 with another message among them: the last reading, faded (below) | `not read since 14:20` | `read 14:20` | `text.subtle` |
+  | A model's own window the account is known not to have used: read fresh, and neither a limit naming it nor its own cap holding it, whatever holds the account (below) | `no Fable use` | `no use` | `text.subtle` |
   | Claude's limit holds the window: it reads spent, or the router's limit names it, or names no window; or a limit holds back the account's every request till at least the window's next reset, the window not at its cap, and lifts after any cap doing so (below) | `limit · back 15:54` | `limit · back Sun`, `limit · back 12 Nov` a week on; narrower, `limit · Sun`, then `back Sun` | `state.destructive` |
   | Its use has reached the cap, which holds the account back; or the cap holds back the account's every request till at least the window's next reset, and lifts after any limit doing so (below) | `at cap · back 17:10` | `cap · back Mon`, `cap · back 12 Nov` a week on; narrower, `cap · Mon`, then `back Mon` | `accent.attention` |
   | It runs out before its reset, by its projection (see Running out) | `out ~Tue`, `out ~Thu 12 Nov` on today's weekday, `out ~Mon 06:00`, `out ~16:05` | `out ~Tue`, `out ~12 Nov` on today's weekday, `out ~Mon`, `out ~16:05` | `accent.attention` |
   | The account doesn't have the window (below) | `no 5-hour limit` | `no limit` | `text.subtle` |
-  | A model's own window the account is known not to have used: read fresh, and neither a limit nor its cap holding it (below) | `no Fable use` | `no use` | `text.subtle` |
   | A 5-hour window not started (settled in the plan) | `not started` | `not started` | `text.muted` |
   | The reset is less than an hour away for the 5-hour window, or a day for a week (settled in the plan) | `34% till 16:30` | `34% · 16:30` | as the allowance |
   | Otherwise, the allowance | `19%/day till Sun 21:00`, `34%/h till 16:30` | `19%/day · Sun`, `34%/h · 16:30` | the rate and the time in `text.muted`; ` till ` and ` · ` in `text.subtle` |
@@ -4385,24 +4385,26 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   the last read's error, and the words leave the rest of the message out (the owner's call, 16
   November 2026). A read refused, as any failed read, comes after a 5-hour window not started:
   only the router's refusal of the token comes before it.
-- **A window held with its account:** where a limit or the cap in a window every model shares
-  holds the account back from every request, a window it holds back till at least that window's
-  next reset can take nothing before it resets, whatever room its reading shows. That window reads
-  what holds the account, the one that lifts last, as the table has it, with the account's `back`:
-  a week at its limit makes the 5-hour and Fable's week read `limit · back Sun`, and a week at its
-  cap `at cap · back Sun`. A hold that lifts before the window resets, as a 5-hour cap back at
-  17:10 under a week that resets on Sunday, leaves the window its own words and allowance, as it
-  can be used again once the hold lifts; one that lifts just as it resets holds it. A hold whose
-  end isn't known, as while the account's read is refused, outlasts every window; a window whose
-  next reset isn't known outlasts any hold that ends. Of the two holds, the one that lifts at no
-  known time lifts last. The hold replaces only words that offer room: an allowance, the room
-  itself near the reset, `out ~…`, or `no Fable use`. A window held itself, by a limit naming it or
-  its own cap, keeps its own words and time, and a limit naming no window holds every window as
-  the table has it. A stale reading keeps its words and its fade, so a lapsed subscription, a
-  refused token or a failed read still says why, and so does a 5-hour window not started; neither
-  has an allowance while the hold outlasts it. Before, Overview's FABLE WEEK read
-  `31%/day till Sun` on an account whose week was at its limit, room it didn't have. The pool and
-  COMING UP follow: neither counts room nor tells a reset of a window the hold outlasts.
+- **A window held with its account:** where a limit or the cap in a window every model shares holds
+  the account back from every request, a window it holds back till at least that window's next reset
+  can take nothing before it resets, whatever room its reading shows. That window reads what holds
+  the account, the one that lifts last, as the table has it, with the account's `back`: a week at
+  its limit makes the 5-hour, and Fable's week where the account has used it, read `limit · back
+  Sun`, and a week at its cap `at cap · back Sun`. A hold that lifts before the window resets, as a
+  5-hour cap back at 17:10 under a week that resets on Sunday, leaves the window its own words and
+  allowance, as it can be used again once the hold lifts; one that lifts just as it resets holds it.
+  A hold whose end isn't known, as while the account's read is refused, outlasts every window; a
+  window whose next reset isn't known outlasts any hold that ends. Of the two holds, the one that
+  lifts at no known time lifts last. The hold replaces only words that offer room: an allowance, the
+  room itself near the reset, or `out ~…`. `no Fable use` stays: it says the account hasn't used the
+  model, not that it has room, and the week's column on the same row says the hold (24 November
+  2026). A window held itself, by a limit naming it or its own cap, keeps its own words and time,
+  and a limit naming no window holds every window as the table has it, but a model's own the account
+  hasn't used. A stale reading keeps its words and its fade, so a lapsed subscription, a refused
+  token or a failed read still says why, and so does a 5-hour window not started; neither has an
+  allowance while the hold outlasts it. Before, Overview's FABLE WEEK read `31%/day till Sun` on an
+  account whose week was at its limit, room it didn't have. The pool and COMING UP follow: neither
+  counts room nor tells a reset of a window the hold outlasts.
 - **A reading that's stale,** of an account whose subscription has ended, whose token is refused
   or whose last read failed, shows as it was last read, faded, whatever its words say: its bar,
   fill, track and marks keep 35% of their colour, which is 65% toward the canvas, nothing bold;
@@ -4512,15 +4514,17 @@ last token's line where it has any, with no blank line after it, as a shell's pr
     account's resets to 0, its bar goes, and the window goes once no account has use left in it,
     or a hold on it; the first use on any account brings it back.
   - An account known not to have used it goes without it, as an account without a 5-hour window
-    does: read fresh, neither stale nor held by a limit or its cap, its own or the account's, and
-    at 0% as it stands. Stacked,
-    its section leaves the account out; side by side, in the matrix and by account, its words alone
-    from where its bar would start, `no Fable use`, or `no use` where the words are short or its
-    label beside them names the window, in `text.subtle`. Its row draws nothing else: no bar, no
-    cap's mark and no even pace, so the key names no cap of it. An account unread, without a usable
-    token, stale or held may have used it, so keeps its row, worded as its kind says: `not read
-    since 09:00`, `limit · back Sun`. A stale one at 0% alone doesn't bring the window back, as its
-    last reading had no use.
+    does: read fresh, not stale, neither a limit naming it nor its own cap holding it, and at 0% as
+    it stands. A hold of the account's, a limit or cap in a window every model shares or a limit
+    naming no window, says nothing of its use, as it brings no window back on its own, so the
+    account goes without it all the same; the week's column says the hold (24 November 2026).
+    Stacked, its section leaves the account out; side by side, in the matrix and by account, its
+    words alone from where its bar would start, `no Fable use`, or `no use` where the words are
+    short or its label beside them names the window, in `text.subtle`. Its row draws nothing else:
+    no bar, no cap's mark and no even pace, so the key names no cap of it. An account unread,
+    without a usable token, stale, or held by a limit naming the window may have used it, so keeps
+    its row, worded as its kind says: `not read since 09:00`, `limit · back Sun`. A stale one at 0%
+    alone doesn't bring the window back, as its last reading had no use.
   - Where no account has used it, it isn't drawn at all, as the 5-hour isn't where no account has
     one.
   - The 17 October call hid each model's own window behind `w`, and showed one anyway while it

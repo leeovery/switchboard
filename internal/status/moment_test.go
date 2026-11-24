@@ -212,7 +212,7 @@ func checkWindowAgainstStatus(t *testing.T, doc status.Document, a status.Accoun
 		if share, ok := dashboardProjected(want.Kind, out.Projection); ok {
 			want.Projected = &share
 		}
-		want.Unused = !want.Shared && want.Kind != status.WindowStale && !want.Held && !want.Capped && !want.WithAccount && want.Used == 0
+		want.Unused = !want.Shared && want.Unheld != status.WindowStale && !want.HeldAsOwn && !want.Capped && want.Used == 0
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("%s's %s stands as\n%+v\nwant\n%+v", a.ID, w.Key, got, want)

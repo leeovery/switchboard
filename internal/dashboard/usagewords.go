@@ -73,10 +73,10 @@ func alike(words string, k ink) usageWords {
 
 // wordsOf are the words of the window w as it stands at now, as its Kind and
 // At say them: that its account has no token of its own, as prose.Tokenless
-// says it; what holds it back, and until when; when it runs out; that it
-// isn't started; that its account has no such limit, or hasn't used a model's
-// own, as Unused says of a window none of those hold; or its allowance, to
-// its reset. A time reads as Dated has it in full, and short, its time today and
+// says it; that its account has no such limit, or hasn't used a model's own,
+// as Unused says, whatever holds its account; what holds it back, and until
+// when; when it runs out; that it isn't started; or its allowance, to its
+// reset. A time reads as Dated has it in full, and short, its time today and
 // only its weekday for another day; but a reading's, as lastRead has it; a
 // run-out's as RunOut has it in full; and a run-out's and a back's short as
 // BriefDated dates them a week on. An allowance's reset keeps its weekday
@@ -92,12 +92,12 @@ func wordsOf(w status.WindowNow, now time.Time) usageWords {
 		return lacked(status.InProse(w.Name))
 	case w.Kind == status.WindowStale:
 		return staleWords(w.Stale, w.At, now)
+	case w.Unused:
+		return unused(status.Headed(w.Name))
 	case w.Kind == status.WindowLimited:
 		return heldBack("limit", "limit", w.At, now, errorInk)
 	case w.Kind == status.WindowCapped:
 		return heldBack("at cap", "cap", w.At, now, warningInk)
-	case w.Unused:
-		return unused(status.Headed(w.Name))
 	case w.Kind == status.WindowRunsOut:
 		return usageWords{full: line{{"out ~" + prose.RunOut(now, w.At), warningInk}}, short: line{{"out ~" + prose.BriefDated(now, w.At), warningInk}}}
 	case w.Kind == status.WindowNotStarted:
