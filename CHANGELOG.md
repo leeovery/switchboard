@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.6] - 2026-11-24
+
+🔧 Changed
+- Pool margin wording is clearer when the pool will run out — it now reads "runs out ~Sat · lasts if you use 20% less" instead of "lasts at 20% less".
+
 ## [1.3.5] - 2026-11-24
 
 See how near the pool is to running out, and how much busier use could get before it does.
